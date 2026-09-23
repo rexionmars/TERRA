@@ -9,14 +9,15 @@ import (
 )
 
 /*
-Keeping the data directory from growing on its own.
+Keeping the data directory from growing on its own, and from holding what this
+build cannot read.
 
-Three things accumulate here without anyone choosing them, and none of the code
-that produces them takes them away again: the base64 a solar run used to write
-into its own row beside the file it was decoded into, the free pages a delete
-leaves in the database file, and the snapshots a discard sets aside. All three
-run at open, after migrate, because that is the moment the file is this
-process's alone and nothing is reading it yet.
+Two things accumulate here without anyone choosing them, and none of the code
+that produces them takes them away again: the free pages a delete leaves in the
+database file, and the snapshots a discard sets aside. A third is left behind by
+a product this build no longer carries: the runs it stored, which no reader here
+can open. All three are dealt with at open, after migrate, because that is the
+moment the file is this process's alone and nothing is reading it yet.
 
 Every one of them is best effort in the same sense saveRun is: none of them is
 worth refusing to open the database over. A failure leaves the directory as it
@@ -24,33 +25,128 @@ was, which is the state the previous release shipped.
 */
 
 /*
-stripStoredOverlayURIs takes the rendering back out of the rows that carry it.
+retiredRunKinds are the run kinds this build has no product for.
 
-AnalyzeSolarTerrain and AnalyzeSolarSiting handed persistSolarRaster the whole
-result, data URI included, so result_json held the overlay as base64 and the
-run's asset directory held the same image as a file. Measured on one
-installation: 33 rows, 511,818 bytes of base64 against 452 KB of PNG. The write
-path no longer does it; these are the rows written before it stopped.
+Solar and wind runs were written by products that have since been removed, and
+every reader that could open what they stored went with them. LoadAnalysis has
+no branch for either kind, so a row of one falls through to the classification
+path and reopens as an empty classification with nothing raising an error,
+while the run list and the storage screen go on offering it as a run that can
+be opened. The rows are deleted instead, with everything that refers to them.
 
-Safe because LoadAnalysis has always preferred the file: it decodes the row,
-then overwrites overlay_uri from the PNG on disk. A row that has been stripped
-opens the way it did before, and a run whose file is missing opened onto
-nothing already -- the base64 was never what it was read from.
+A list rather than two literals inside the step, so a kind retired later is one
+line here and not a second copy of purgeRetiredRunKinds. A kind stays on it once
+its rows are gone: on a database that never held one the step costs a query that
+returns nothing, and an archive written before the removal and restored after it
+is exactly the file that still holds them.
 */
-func (s *Store) stripStoredOverlayURIs() error {
-	res, err := s.db.Exec(`
-		UPDATE inference_runs
-		   SET result_json = json_remove(result_json, '$.overlay_uri')
-		 WHERE kind = 'solar'
-		   AND json_valid(result_json)
-		   AND json_extract(result_json, '$.overlay_uri') IS NOT NULL`)
-	if err != nil {
-		// json_remove is part of the JSON extension. A build without it leaves
-		// the rows as they are, which costs space and breaks nothing.
+var retiredRunKinds = []string{"solar", "wind"}
+
+/*
+purgeRetiredRunKinds deletes every run of a retired kind, whoever it belongs
+to, and the files each one wrote.
+
+Each row goes the way DeleteRun removes one, because what a run leaves behind is
+the same whoever deletes it: the studio_members rows naming it, the arrangements
+in view_json that name it, and the run_id of a composition made under it, which
+is cleared rather than the composition deleted -- the composition is still a
+raster of real ground. All of it in one transaction, so a failure part way
+leaves every row where it was and the next open repeats the step from the start.
+
+EVERY USER, NOT THE ONE SIGNED IN. The runs are selected without a user, and the
+arrangements are rewritten user by user because that is how dropRunsFromViews
+is scoped: a studio can only name runs of its own user.
+
+The directories go after the commit, as in DeleteRun. Removed first, a row that
+then failed to delete would be a run whose files are gone; removed after, a
+directory that cannot be removed is one with no row, which is what the storage
+screen reports and PurgeOrphanedRunAssets reclaims.
+
+The project a run was filed under is not touched. DeleteRun bumps it because a
+reader has just acted on that project; nobody has here, and reordering the
+project list at open would say otherwise.
+*/
+func (s *Store) purgeRetiredRunKinds() error {
+	doomed, err := s.retiredRuns()
+	if err != nil || len(doomed) == 0 {
+		// A query that cannot be answered leaves the rows where they are, and
+		// the next open asks again.
 		return nil
 	}
-	_, _ = res.RowsAffected()
+
+	tx, err := s.db.Begin()
+	if err != nil {
+		return nil
+	}
+	defer func() { _ = tx.Rollback() }()
+
+	byUser := map[string]map[string]bool{}
+	for _, r := range doomed {
+		if _, err := tx.Exec(
+			`DELETE FROM inference_runs WHERE id = ? AND user_id = ?`, r.id, r.userID,
+		); err != nil {
+			return nil
+		}
+		if _, err := tx.Exec(
+			`DELETE FROM studio_members WHERE run_id = ?`, r.id,
+		); err != nil {
+			return nil
+		}
+		if _, err := tx.Exec(
+			`UPDATE project_overlays SET run_id = NULL WHERE run_id = ?`, r.id,
+		); err != nil {
+			return nil
+		}
+		if byUser[r.userID] == nil {
+			byUser[r.userID] = map[string]bool{}
+		}
+		byUser[r.userID][r.id] = true
+	}
+	for userID, drop := range byUser {
+		if _, err := dropRunsFromViews(tx, userID, drop); err != nil {
+			return nil
+		}
+	}
+	if err := tx.Commit(); err != nil {
+		return nil
+	}
+
+	for _, r := range doomed {
+		_ = os.RemoveAll(s.RunsDir(r.id))
+	}
 	return nil
+}
+
+// retiredRun is one row purgeRetiredRunKinds removes, and the user whose
+// arrangements it rewrites.
+type retiredRun struct{ id, userID string }
+
+// retiredRuns lists the rows of a retired kind. Split from the writes for the
+// reason dropRunsFromViews gives: the cursor is closed before the first write
+// goes out on the one connection this package holds.
+func (s *Store) retiredRuns() ([]retiredRun, error) {
+	marks := strings.TrimSuffix(strings.Repeat("?,", len(retiredRunKinds)), ",")
+	args := make([]any, len(retiredRunKinds))
+	for i, kind := range retiredRunKinds {
+		args[i] = kind
+	}
+	rows, err := s.db.Query(
+		`SELECT id, user_id FROM inference_runs WHERE kind IN (`+marks+`)`, args...,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer func() { _ = rows.Close() }()
+
+	var out []retiredRun
+	for rows.Next() {
+		var r retiredRun
+		if err := rows.Scan(&r.id, &r.userID); err != nil {
+			return nil, err
+		}
+		out = append(out, r)
+	}
+	return out, rows.Err()
 }
 
 /*

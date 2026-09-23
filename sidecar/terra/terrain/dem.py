@@ -1,26 +1,27 @@
 """
 Digital elevation models: four products, one grid, one way of reading them.
 
-Two chains read the ground. The flood envelope measures how much of a HAND
-extent is decided by the terrain and how much by the choice of DEM, which only
-means anything if every product is read over the same ground, at the same
-moment, through the same code. Solar terrain and siting read one product over
-one window. Both arrive here, and the reasons are the same in kind.
+Several chains read the ground. The flood envelope measures how much of a
+HAND extent is decided by the terrain and how much by the choice of DEM, which
+only means anything if every product is read over the same ground, at the same
+moment, through the same code. Flood routing and the surface model each read
+one product over one window. All of them arrive here, and the reasons are the
+same in kind.
 
 WHY THE WHOLE WINDOW, MERGED.
 
 Copernicus tiles are one degree. Reading `items[0]` -- the first tile the
 catalogue returns, with no merge -- gives an AOI that crosses a tile edge a DEM
-covering part of itself. For slope and aspect that degrades in patches. For
-HAND it fails differently and worse: flow accumulation needs the contributing
+covering part of itself. For a surface drawn for its own sake that is a map
+missing part of its ground. For HAND it fails differently and worse: flow accumulation needs the contributing
 area upstream of each cell, so a DEM cut at the AOI edge truncates the drainage
 network, fewer cells clear the drainage-area threshold, and every cell whose
 water enters from outside references a drainage cell farther downstream than
 the real one. The HAND comes out too high and the flood extent too small -- a
 plausible map, wrong in a direction nothing on screen would reveal. The study
 this ports never met the failure: it ran on a fixed AOI that already had a
-margin drawn around it. The solar terrain read did meet it, for as long as
-it lived in solar.py with a reader of its own.
+margin drawn around it. A single-tile reader elsewhere in this application did
+meet it, for as long as it kept a reader of its own.
 
 So every intersecting tile is merged, over a window buffered beyond the AOI so
 the drainage entering it is real terrain rather than a domain edge. The search
@@ -28,9 +29,9 @@ is by the BUFFERED window and not by the AOI, or a tile intersecting only the
 buffer ring would never be returned and the merge would leave a hole exactly
 where the inflow is.
 
-WHERE THE TWO CHAINS DIFFER, they differ by argument and not by module.
+WHERE THE CHAINS DIFFER, they differ by argument and not by module.
 `read_merged` refuses a window the tiles do not fill when `require_coverage` is
-set, which the envelope needs and the terrain read does not: Copernicus
+set, which the envelope needs and the surface read does not: Copernicus
 publishes no tile over the sea, so a coastal AOI has a gap that is a fact about
 the catalogue rather than a broken read.
 
@@ -71,9 +72,9 @@ class Product:
 
 
 # The order matters twice. The first entry defines the reference grid every
-# other product is compared on, and cop-dem-glo-30 is the one collection TERRA
-# already reads in production (terra/energy), so the grid the envelope is measured
-# on is the grid the rest of the application already draws.
+# other product is compared on, and cop-dem-glo-30 is the collection the surface
+# model reads as well (terra/surface), so the grid the envelope is measured on is
+# the grid the application draws the ground on.
 COLLECTIONS = {
     "cop30": Product("cop30", "cop-dem-glo-30", 30.0, ("data",)),
     "nasadem": Product("nasadem", "nasadem", 30.0, ("elevation", "data")),
@@ -319,11 +320,11 @@ def read_merged(sources, bounds, progress=None, require_coverage=True):
     `require_coverage` refuses a window the tiles do not fill. The flood
     envelope needs that: merge writes NaN where nothing covered, NaN propagates
     into the flow accumulation as a hole in the drainage network, and the HAND
-    that results is wrong over a region rather than absent over it. The terrain
-    read behind solar siting passes False, because Copernicus publishes no tile
-    over the sea, so a coastal area has a legitimate gap and the chain
-    downstream already treats a cell with no elevation as unsuitable ground.
-    The gap is reported through `progress` rather than passed over in silence.
+    that results is wrong over a region rather than absent over it. The surface
+    read passes False, because Copernicus publishes no tile over the sea, so a
+    coastal area has a legitimate gap, and the surface model draws a cell with
+    no elevation as absent rather than as ground. The gap is reported through
+    `progress` rather than passed over in silence.
 
     float32, not float64. It halves the 40 MB a 1e7 cell window costs, and a
     DEM has no elevation float32 cannot hold: at 9000 m its spacing is 1 mm,
@@ -422,8 +423,9 @@ def fetch(polygon, collection, buffer_m, progress=None):
     Read one DEM product over the buffered AOI. Returns (array, transform, crs).
 
     `polygon` is a shapely geometry in EPSG:4326, as everywhere else in the
-    sidecar. Signing is `pc.sign_inplace` on the client, the same route
-    solar.py takes, so the hrefs come back already signed and no key is needed.
+    sidecar. Signing is `planetary_computer.sign_inplace` on the client that
+    terra/stac.py holds, so the hrefs come back already signed and no key is
+    needed.
     """
     from shapely.geometry import box
 
@@ -542,28 +544,28 @@ def fetch_file(polygon, out_path, buffer_m: float = 0.0, progress=None) -> str:
 
     The third of the three reads: `fetch` returns arrays over a buffered window
     and `fetch_set` returns one ProductRead per product, while this returns the
-    path of a GeoTIFF, which is what the solar terrain chain consumes.
+    path of a GeoTIFF, which is what the surface model consumes.
 
     Served as a COG from the same Planetary Computer catalogue Sentinel-2 comes
     from, so this needs no new imagery infrastructure.
 
-    `buffer_m` widens the window so terrain outside the AOI can still cast onto
-    pixels inside it. Without it, a ridge just beyond the boundary is invisible
-    and the pixels it shades are reported as unshaded.
+    `buffer_m` widens the window beyond the AOI. The surface model passes none:
+    its figures are over exactly the polygon drawn, so the default window is the
+    AOI's own bounds.
 
-    TWO FAILURES THIS NO LONGER HAS. As solar.fetch_dem it read `items[0]`, so an AOI crossing a
-    one-degree Copernicus tile boundary received terrain covering part of
-    itself, plausible on screen and wrong in a direction nothing revealed. And
-    it searched by the AOI rather than by the buffered window, so a tile
-    intersecting only the buffer ring was never returned and the shading band
-    the buffer exists to provide had a hole in exactly the place it mattered.
-    Both were fixed by bringing it here, beside read_merged, which the flood
-    envelope already required to get them right.
+    TWO FAILURES THIS NO LONGER HAS. In the reader it replaced it took
+    `items[0]`, so an AOI crossing a one-degree Copernicus tile boundary
+    received terrain covering part of itself, plausible on screen and wrong in
+    a direction nothing revealed. And it searched by the AOI rather than by the
+    buffered window, so a tile intersecting only the buffer ring was never
+    returned and the band the buffer exists to provide had a hole in exactly
+    the place it mattered. Both were fixed by bringing it here, beside
+    read_merged, which the flood envelope already required to get them right.
 
     Coverage is not required. Copernicus publishes no tile over the sea, so a
     coastal area has a legitimate gap; those cells arrive as NaN, the fraction
-    is reported through `progress`, and the chain downstream already reads a
-    cell with no elevation as ground a plant cannot stand on.
+    is reported through `progress`, and the surface model draws a cell with no
+    elevation as absent rather than as ground.
     """
     import rasterio
     from shapely.geometry import box

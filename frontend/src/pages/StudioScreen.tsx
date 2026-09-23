@@ -16,11 +16,8 @@ import type {
   InferenceRun,
   ModelKind,
   PredictResult,
-  SolarSitingAnalysis,
-  SolarTerrainAnalysis,
   WaterAnalysis,
   WaterIndex,
-  WindAnalysis,
 } from "@/lib/types";
 import {
   panelSelection,
@@ -28,22 +25,7 @@ import {
   subscribePanelSelection,
 } from "@/lib/panelSelection";
 import type { AoiContourSchemeId } from "@/lib/aoiStyle";
-import {
-  ENERGY_PRODUCTS,
-  energyFamily,
-  energyMember,
-  isMapTool,
-  type BoardToolId,
-  type EnergyFamily,
-  type EnergyProductId,
-} from "@/lib/mapTools";
-import type {
-  SolarParams,
-  SolarProductId,
-  SolarResults,
-  WindParams,
-} from "@/lib/energyState";
-import { solarProduct as solarProductEntry } from "@/components/energy/solarProducts";
+import { isMapTool, type BoardToolId } from "@/lib/mapTools";
 import {
   FLOOD_DEM_PRODUCTS,
   FLOOD_LEAST_DEMS,
@@ -76,7 +58,6 @@ import {
   partitionVars,
 } from "@/lib/boardPartition";
 import { rasterLayers } from "@/lib/mapLayers";
-import { solarOverlayList } from "@/lib/solarLayers";
 import { runAssets } from "@/lib/runAssets";
 import { useRunLog } from "@/lib/runLog";
 import { polygonOuterRing } from "@/lib/geometry";
@@ -256,47 +237,6 @@ export interface StudioScreenProps {
   onCloseDataCube: () => void;
   water?: WaterAnalysis | null;
   /**
-   * The two solar products that produce a raster, and the state that draws them.
-   *
-   * This screen used to know nothing about solar: its rasters were drawn on the
-   * energy screen, which names and clears them beside the run that produced
-   * them (see the note above the board's layer table). The board is now a
-   * second surface that can do exactly that -- name a raster, set its opacity,
-   * remove it -- so the precondition is met and the rasters can come here.
-   *
-   * Optional throughout: solar is one product among several, and a screen with
-   * no solar in hand should not have to say so six times.
-   */
-  solarTerrain?: SolarTerrainAnalysis | null;
-  solarSiting?: SolarSitingAnalysis | null;
-  showSolarTerrain?: boolean;
-  showSolarSiting?: boolean;
-  solarTerrainOpacity?: number;
-  solarSitingOpacity?: number;
-  /**
-   * Where the board's eye and opacity for a solar row land.
-   *
-   * A callback rather than the store, because the solar store is a reducer that
-   * belongs to the energy screen. This screen states WHICH raster changed and
-   * how; translating that into a dispatch is the owner's business, the same
-   * shape the composition and water rows already use.
-   */
-  onSolarLayerChange?: (
-    id: "terrain" | "siting",
-    patch: { visible?: boolean; opacity?: number },
-  ) => void;
-  /**
-   * The solar inputs, so the board can START a solar run and not only draw one.
-   *
-   * The whole flat set is passed rather than the four the two raster products
-   * read, because it is one store and slicing it here would be this screen
-   * deciding which parameters exist. The band shows the four that reach a
-   * request; the rest are the energy screen's business.
-   */
-  solarParams?: SolarParams;
-  onSolarParamsChange?: (patch: Partial<SolarParams>) => void;
-  /** Absent where solar cannot be run; the band then does not offer it. */
-  /**
    * The last run of this session, and the values it was made from.
    *
    * Held by the map screen because this one comes and goes. The board draws it
@@ -306,35 +246,13 @@ export interface StudioScreenProps {
   lastRun?: { ok: boolean; inputs: Readonly<Record<string, string>> } | null;
   /** What the board's cards supply, reported as it changes, for the above. */
   onBoardInputs?: (inputs: Record<string, string>) => void;
-
-  onRunSolar?: (product: SolarProductId) => void;
-  /** What each product has produced, for the reading editor and the stale note. */
-  solarResults?: SolarResults;
-  onSolarLossChange?: (
-    group: "declared" | "optional",
-    key: string,
-    pct: number,
-  ) => void;
-  onClearSolar?: (product: SolarProductId) => void;
-  solarBusy?: boolean;
-  solarProgress?: number;
-  solarProgressMsg?: string;
-  /*
-    Wind and flood, in the shape solar already established: the whole parameter
-    store plus a patch, and a runner that is absent where the product cannot be
-    started. Both were screens of their own until the band grew cards for them.
-  */
-  windParams?: WindParams;
-  onWindParamsChange?: (patch: Partial<WindParams>) => void;
-  onRunWind?: () => void;
-  windBusy?: boolean;
-  windProgress?: number;
-  windProgressMsg?: string;
   /** The AOI as GeoJSON text, for the research pack's manifest. */
   polygonGeoJSON?: string;
-  /** What the screening found, for the editor that reads it. */
-  windResult?: WindAnalysis | null;
-  onClearWind?: () => void;
+  /*
+    Flood, as the whole parameter store plus a patch and a runner that is absent
+    where the product cannot be started. It was a screen of its own until the
+    band grew cards for it.
+  */
   floodParams?: FloodParams;
   onFloodParamsChange?: (patch: Partial<FloodParams>) => void;
   onRunFlood?: () => void;
@@ -373,13 +291,13 @@ export function StudioScreen(props: StudioScreenProps) {
   );
   const onLeftPanelChange = selectPanel;
   /**
-   * The band's own tool, which is the map's plus solar.
+   * The band's own tool, which is the map's plus flood.
    *
    * Not `leftPanel`, and the difference is the point: `leftPanel` is a
    * MapToolId, read by the navigation column and by this screen's dock, and a
-   * fourth id would put solar back on a screen that removed it deliberately.
-   * Choosing a MAP tool here still writes leftPanel, so the two agree about the
-   * three they share; choosing solar leaves it alone.
+   * fourth id would put flood on a screen that has no panel for it. Choosing a
+   * MAP tool here still writes leftPanel, so the two agree about the three they
+   * share; choosing flood leaves it alone.
    *
    * Null until the band is used, so it opens on whatever the map was showing.
    */
@@ -433,36 +351,14 @@ export function StudioScreen(props: StudioScreenProps) {
     setComponents(readBoardMemory<OptionalNodeId[]>("components", []));
     setNodeLinks(readBoardMemory<string[]>("nodeLinks", []));
   }, [props.openBoardNonce]);
-  /**
-   * Which photovoltaic product the band will run.
-   *
-   * All four the table declares, not the two that draw a raster. The other two
-   * report figures, and the studio reads figures now: the Solar result editor
-   * carries what the energy screen's reading column did.
-   */
   /*
     The flood envelope's layer, held here because nothing above holds it.
-    Water and the solar pair answer to switches the map screen owns; flood
-    never had one, which is part of why its raster reached neither the board
+    Water answers to switches the map screen owns; flood never had one, which is part of why its raster reached neither the board
     nor the scene tree. Local rather than lifted: this is the only surface
     that draws it.
   */
   const [showFloodOverlay, setShowFloodOverlay] = useState(true);
   const [floodOpacity, setFloodOpacity] = useState(1);
-  const [solarProduct, setSolarProduct] = useState<SolarProductId>("terrain");
-  /*
-    Which energy product the band is on, across both families.
-
-    ONE SELECTOR, AND THE FAMILY FALLS OUT OF IT. Solar and wind were separate
-    band entries and are one; the family is still what decides which slice
-    answers, so it is read from the product rather than chosen before it.
-
-    solarProduct is kept and synchronised rather than replaced: it is what the
-    solar parameter cards and the run verb are written against, and rewriting
-    those to a prefixed id would be a second spelling of the same choice.
-  */
-  const [energyProduct, setEnergyProduct] =
-    useState<EnergyProductId>("solar:terrain");
   /**
    * Whether the board is showing a map to draw an area on.
    *
@@ -522,15 +418,6 @@ export function StudioScreen(props: StudioScreenProps) {
     under the confidence -- therefore governs both, and neither can drift into
     disagreeing with the other about what is on screen.
   */
-  const solarOverlays = solarOverlayList({
-    terrain: props.solarTerrain,
-    siting: props.solarSiting,
-    showTerrain: props.showSolarTerrain ?? true,
-    showSiting: props.showSolarSiting ?? true,
-    terrainOpacity: props.solarTerrainOpacity ?? 1,
-    sitingOpacity: props.solarSitingOpacity ?? 1,
-  });
-
   const boardLayers = rasterLayers({
     result: props.result,
     showPredictionOverlay: props.showPredictionOverlay,
@@ -563,7 +450,6 @@ export function StudioScreen(props: StudioScreenProps) {
     flood: props.floodResult,
     showFloodOverlay,
     floodOpacity,
-    solarOverlays,
   });
 
   /**
@@ -607,12 +493,7 @@ export function StudioScreen(props: StudioScreenProps) {
    */
   const liveRunId =
     props.result?.run_id ||
-    props.solarResults?.terrain?.run_id ||
-    props.solarResults?.siting?.run_id ||
-    props.solarResults?.resource?.run_id ||
-    props.solarResults?.energy?.run_id ||
     props.water?.run_id ||
-    props.windResult?.run_id ||
     props.floodResult?.run_id ||
     "current";
 
@@ -631,12 +512,6 @@ export function StudioScreen(props: StudioScreenProps) {
     showWaterOverlay: props.showWaterOverlay,
     composeOpacity: props.composeOpacity,
     waterOpacity: props.waterOpacity,
-    solarTerrain: props.solarTerrain,
-    solarSiting: props.solarSiting,
-    showSolarTerrain: props.showSolarTerrain,
-    showSolarSiting: props.showSolarSiting,
-    solarTerrainOpacity: props.solarTerrainOpacity,
-    solarSitingOpacity: props.solarSitingOpacity,
     flood: props.floodResult,
     showFloodOverlay,
     floodOpacity,
@@ -676,23 +551,6 @@ export function StudioScreen(props: StudioScreenProps) {
       if (patch.visible !== undefined)
         props.onShowPredictionOverlayChange(patch.visible);
       if (patch.opacity !== undefined) props.onOpacityChange(patch.opacity);
-    }
-    /*
-      lib/mapLayers.ts names these `solar:terrain` and `solar:siting`, and they
-      are the only layer ids carrying a colon -- which is why the sidebar's row
-      parser splits on the LAST one.
-
-      This used to read that solar rasters carry no switch. They do: the solar
-      store holds showTerrain/terrainOpacity for each. What was missing was a
-      route from here to that store, so the eye and the opacity field were
-      drawn and inoperative -- the dead control this screen argues against a
-      few lines above.
-    */
-    if (id === "solar:terrain" || id === "solar:siting") {
-      props.onSolarLayerChange?.(
-        id === "solar:terrain" ? "terrain" : "siting",
-        patch,
-      );
     }
   };
 
@@ -740,89 +598,28 @@ export function StudioScreen(props: StudioScreenProps) {
 
   /*
     The band's run, which is the island's for the three map tools and its own
-    for solar. Kept apart from `run` above rather than adding a branch to it:
+    for flood. Kept apart from `run` above rather than adding a branch to it:
     that object also feeds the workspace bar, which belongs to the map and has
-    no solar to start.
+    no flood to start.
   */
   const bandTool: BoardToolId | null = boardTool ?? leftPanel;
-  /*
-    Which slice answers what the band is showing.
-
-    The comparisons below were against the tool, when the tool WAS the family.
-    They are against this now, so the Energy entry dispatches on its product and
-    every other entry keeps answering for itself.
-  */
-  /*
-    Whether this installation can answer a family at all.
-
-    Read from the same props the band's own filter reads, so the entry being
-    offered and the product being runnable cannot disagree.
-  */
-  const familyReady = (f: EnergyFamily) =>
-    f === "solar" ? !!props.solarParams : !!props.windParams;
-
-  /*
-    THE CHOSEN PRODUCT, OR THE FIRST ONE THAT CAN RUN.
-
-    The band opens on a solar product, and a screen given wind parameters and
-    no solar ones would open Energy onto a graph with no family to dispatch on
-    -- which the surface renders as "pick a product above" over a card that is
-    already showing one picked. Falling back here rather than choosing a
-    default at mount, because availability arrives with the props and can
-    change after: parameters that arrive a moment later must not leave the
-    reader on a dead entry.
-  */
-  const effectiveEnergyProduct: EnergyProductId = familyReady(
-    energyFamily(energyProduct),
-  )
-    ? energyProduct
-    : (ENERGY_PRODUCTS.find((p) => familyReady(p.family))?.id ?? energyProduct);
-
-  const bandFamily =
-    bandTool === "energy" ? energyFamily(effectiveEnergyProduct) : bandTool;
-  const solarRunnable = !!props.solarParams && !!props.onRunSolar;
-  const windRunnable = !!props.windParams && !!props.onRunWind;
   const floodRunnable = !!props.floodParams && !!props.onRunFlood;
   const boardRun =
-    bandFamily === "wind" && windRunnable
+    bandTool === "flood" && floodRunnable
       ? {
-          running: props.windBusy ?? false,
-          progress: props.windProgress ?? 0,
-          progressMsg: props.windProgressMsg ?? "",
-          label: props.windBusy ? "Running" : "Screen the wind",
-          canRun: props.hasArea && !props.windBusy,
-          onRun: () => props.onRunWind?.(),
+          running: props.floodBusy ?? false,
+          progress: props.floodProgress ?? 0,
+          progressMsg: props.floodProgressMsg ?? "",
+          label: props.floodBusy ? "Running" : "Map the envelope",
+          // Two products or nothing, which the sidecar enforces and the card
+          // refuses to unpick; this is the same rule reported before the run.
+          canRun:
+            props.hasArea &&
+            !props.floodBusy &&
+            (props.floodParams?.demIds.length ?? 0) >= FLOOD_LEAST_DEMS,
+          onRun: () => props.onRunFlood?.(),
         }
-      : bandTool === "flood" && floodRunnable
-        ? {
-            running: props.floodBusy ?? false,
-            progress: props.floodProgress ?? 0,
-            progressMsg: props.floodProgressMsg ?? "",
-            label: props.floodBusy ? "Running" : "Map the envelope",
-            // Two products or nothing, which the sidecar enforces and the card
-            // refuses to unpick; this is the same rule reported before the run.
-            canRun:
-              props.hasArea &&
-              !props.floodBusy &&
-              (props.floodParams?.demIds.length ?? 0) >= FLOOD_LEAST_DEMS,
-            onRun: () => props.onRunFlood?.(),
-          }
-        : bandFamily === "solar" && solarRunnable
-          ? {
-              running: props.solarBusy ?? false,
-              progress: props.solarProgress ?? 0,
-              progressMsg: props.solarProgressMsg ?? "",
-              /* The table's own verb, so a product added there arrives with its
-             label rather than with a fifth branch written here. */
-              label: props.solarBusy
-                ? `${solarProductEntry(solarProduct).runningLabel}`
-                : solarProductEntry(solarProduct).runVerb,
-              // One sidecar run at a time, which solar already enforces across its
-              // own products; the board must not be a second way past it.
-              canRun: props.hasArea && !props.solarBusy,
-              onRun: () => props.onRunSolar?.(solarProduct),
-            }
-          : run;
+      : run;
 
   /*
     What the run in progress has said. Built from the SAME resolved run the band
@@ -864,20 +661,10 @@ export function StudioScreen(props: StudioScreenProps) {
     menus: (
       <>
         {(() => {
-          /*
-            ENERGY IS OFFERED IF EITHER OF ITS FAMILIES CAN ANSWER, which is
-            weaker than what separate entries would require and is the right
-            weakening. A reader who can run one family and not the other sees
-            Energy, and the product card inside it is where the difference
-            belongs -- a product that cannot run is one entry to grey out, not
-            a whole surface to withhold.
-          */
+          // Flood is offered only where its parameters were handed in: a band
+          // with no way to start the run must not offer it.
           const offered = BOARD_TOOLS.filter((t) =>
-            t.id === "energy"
-              ? !!props.solarParams || !!props.windParams
-              : t.id === "flood"
-                ? !!props.floodParams
-                : true,
+            t.id === "flood" ? !!props.floodParams : true,
           );
           /*
             ONE ENTRANCE PER SUBJECT, WHICH IS THE SHAPE THE OTHER TWO BARS
@@ -896,9 +683,7 @@ export function StudioScreen(props: StudioScreenProps) {
             menu of one is a press for nothing, and a bar where some names open
             and others act is a bar whose affordance cannot be predicted --
             which costs on every entry rather than on the short ones. The
-            groups also have room to grow: the app has editors for solar
-            readings, wind screening and flood envelopes that no product starts
-            yet.
+            groups also have room to grow.
 
             `document.body` as the surface is the popover's own documented
             path for a panel with no studio to sit inside: this row is built
@@ -988,16 +773,13 @@ export function StudioScreen(props: StudioScreenProps) {
                       between the two the subject is the one that says where a
                       reader is.
 
-                      WITHHELD WHERE IT WOULD REPEAT THE SUBJECT. The Energy
-                      group holds one product and BOARD_TOOLS labels it
-                      "Energy", so the entrance read "Energy Energy" -- two
-                      words saying one thing, in the position where the second
-                      is supposed to narrow the first. The other three groups
-                      name products that differ from their subject
-                      (Compositions, Classification, Surface water) and are
-                      unaffected. Compared rather than special-cased on the
-                      energy id, because a product renamed to match its group
-                      tomorrow reaches the same place.
+                      WITHHELD WHERE IT WOULD REPEAT THE SUBJECT. An entrance
+                      whose product carried its group's own label read as the
+                      same word twice -- two words saying one thing, in the
+                      position where the second is supposed to narrow the
+                      first. Compared rather than special-cased on an id,
+                      because a product renamed to match its group reaches the
+                      same place.
                     */}
                     {active && active.label !== g.label && (
                       <span className="header-label text-muted-foreground">
@@ -1029,11 +811,11 @@ export function StudioScreen(props: StudioScreenProps) {
           THE COMPONENTS THE READER CAN ADD, after the subjects and apart from
           them.
 
-          The four entrances to its left are what a run can be ABOUT -- the
-          board, land cover, water, energy -- and each opens a list of products.
-          This opens a list of CARDS, which is a different kind of answer, so it
-          is separated rather than becoming a fifth name a reader has to learn
-          is not a subject.
+          The three entrances to its left are what a run can be ABOUT -- the
+          board, land cover, water -- and each opens a list of products. This
+          opens a list of CARDS, which is a different kind of answer, so it is
+          separated rather than becoming a fourth name a reader has to learn is
+          not a subject.
 
           A HAIRLINE AND NOT A GAP, which is what the first version used. It
           pushed the button to the far end with a flex-1 -- and the area header
@@ -1148,53 +930,6 @@ export function StudioScreen(props: StudioScreenProps) {
         dock. A prop nothing calls is a second way in that does not exist.
       */
       tool={bandTool}
-      energyProduct={effectiveEnergyProduct}
-      /*
-        ONE PICK, ROUTED TO THE FAMILY THAT OWNS IT.
-
-        The product state is unified and the family states are not: the solar
-        parameter cards and the run verb read `solarProduct`. So this sets the
-        band's own choice and forwards the member when solar is behind it,
-        rather than rewriting the solar cards to a prefixed id their table does
-        not use. Wind has one product and holds no choice of its own.
-      */
-      onEnergyProduct={(id) => {
-        setEnergyProduct(id);
-        if (energyFamily(id) === "solar") {
-          setSolarProduct(energyMember(id) as SolarProductId);
-        }
-      }}
-      /*
-        Greyed with a reason rather than hidden. A product this installation
-        cannot run is a setup step the reader can act on; an absent one is a
-        feature they will conclude does not exist.
-      */
-      blockedFamilies={{
-        solar: props.solarParams ? undefined : "no solar parameters in this run",
-        wind: props.windParams ? undefined : "no wind parameters in this run",
-      }}
-      wind={
-        props.windParams && props.onRunWind
-          ? {
-              recordYears: props.windParams.recordYears,
-              onRecordYearsChange: (v) =>
-                props.onWindParamsChange?.({ recordYears: v }),
-              hubHeightM: props.windParams.hubHeightM,
-              onHubHeightChange: (v) =>
-                props.onWindParamsChange?.({ hubHeightM: v }),
-              calmThresholdMS: props.windParams.calmThresholdMS,
-              onCalmThresholdChange: (v) =>
-                props.onWindParamsChange?.({ calmThresholdMS: v }),
-              roughnessLowM: props.windParams.roughnessLowM,
-              roughnessHighM: props.windParams.roughnessHighM,
-              onRoughnessChange: (low, high) =>
-                props.onWindParamsChange?.({
-                  roughnessLowM: low,
-                  roughnessHighM: high,
-                }),
-            }
-          : undefined
-      }
       flood={
         props.floodParams && props.onRunFlood
           ? {
@@ -1211,55 +946,10 @@ export function StudioScreen(props: StudioScreenProps) {
             }
           : undefined
       }
-      solar={
-        props.solarParams && props.onRunSolar
-          ? {
-              product: solarProduct,
-              onProductChange: setSolarProduct,
-              hourlyYears: props.solarParams.hourlyYears,
-              onHourlyYearsChange: (v) =>
-                props.onSolarParamsChange?.({ hourlyYears: v }),
-              season: props.solarParams.season,
-              onSeasonChange: (season) =>
-                props.onSolarParamsChange?.({ season }),
-              slopeAcceptableDeg: props.solarParams.slopeAcceptableDeg,
-              slopeRestrictiveDeg: props.solarParams.slopeRestrictiveDeg,
-              onSlopeChange: (acceptable, restrictive) =>
-                props.onSolarParamsChange?.({
-                  slopeAcceptableDeg: acceptable,
-                  slopeRestrictiveDeg: restrictive,
-                }),
-              /*
-                The rest of what the energy model sends, passed straight
-                through the way the three above are. One patch callback rather
-                than one per field, so a write cannot reach the store by a path
-                the others do not take.
-              */
-              climatologyYears: props.solarParams.climatologyYears,
-              surfaceAzimuth: props.solarParams.surfaceAzimuth,
-              performanceRatio: props.solarParams.performanceRatio,
-              reportingBasis: props.solarParams.reportingBasis,
-              degradationPct: props.solarParams.degradationPct,
-              analysisPeriodYears: props.solarParams.analysisPeriodYears,
-              densityBasis: props.solarParams.densityBasis,
-              buildableFraction: props.solarParams.buildableFraction,
-              gcrFixed: props.solarParams.gcrFixed,
-              gcrTracker: props.solarParams.gcrTracker,
-              trackerMaxAngleDeg: props.solarParams.trackerMaxAngleDeg,
-              utcOffset: props.solarParams.utcOffset,
-              applyShading: props.solarParams.applyShading,
-              declaredLoss: props.solarParams.declaredLoss,
-              optionalLoss: props.solarParams.optionalLoss,
-              onParamsChange: (patch) => props.onSolarParamsChange?.(patch),
-              onLossChange: (group, key, pct) =>
-                props.onSolarLossChange?.(group, key, pct),
-            }
-          : undefined
-      }
       /*
-        The composition's own parameters, handed over as one object for the
-        reason the solar bundle is: they arrive together, and a graph offered
-        no way to apply a composition must not draw cards for one. Every value
+        The composition's own parameters, handed over as one object because
+        they arrive together, and a graph offered no way to apply a
+        composition must not draw cards for one. Every value
         is the map screen's own state passed straight through, so the panel and
         the graph cannot come to disagree about what the next composite is.
       */
@@ -1313,9 +1003,7 @@ export function StudioScreen(props: StudioScreenProps) {
       blockedBy={
         !props.hasArea
           ? "Draw an area on the globe, or bring one in from the Areas tab."
-          : (bandFamily === "solar" && props.solarBusy) ||
-              (bandFamily === "wind" && props.windBusy) ||
-              (bandTool === "flood" && props.floodBusy)
+          : bandTool === "flood" && props.floodBusy
             ? "The sidecar runs one analysis at a time."
             : bandTool === "flood" &&
                 (props.floodParams?.demIds.length ?? 0) < FLOOD_LEAST_DEMS
@@ -1430,9 +1118,9 @@ export function StudioScreen(props: StudioScreenProps) {
           onDropRetainedRun={props.onDropRetainedRun}
           /*
               What this run's colours mean. Not derivable from the layers:
-              a layer is what is drawn, and class_stats, the water index and
-              the solar scale are what it means -- they live on the payload
-              and stop here otherwise.
+              a layer is what is drawn, and class_stats and the water index
+              are what it means -- they live on the payload and stop here
+              otherwise.
             */
           /*
               Straight to the same handler the drawing map and the map itself
@@ -1461,8 +1149,6 @@ export function StudioScreen(props: StudioScreenProps) {
           legendSources={{
             result: props.result,
             water: props.water,
-            solarTerrain: props.solarTerrain,
-            solarSiting: props.solarSiting,
             composition: props.composition,
           }}
           /*
@@ -1473,12 +1159,12 @@ export function StudioScreen(props: StudioScreenProps) {
               FROM WHICHEVER PRODUCT MADE ONE, not from the classification
               alone. This read `props.result?.run_id`, and `props.result` holds
               a classification -- App sets it to null for every other product.
-              So an area carrying a finished solar, water, wind or flood run
-              reported the sentinel, the save filtered it out, and the studio
-              refused with "none of these areas carries one yet" over a run
-              that was on screen.
+              So an area carrying a finished water or flood run reported the
+              sentinel, the save filtered it out, and the studio refused with
+              "none of these areas carries one yet" over a run that was on
+              screen.
 
-              All six stamp their row now; see the `run_id` docblocks in
+              All three stamp their row now; see the `run_id` docblocks in
               lib/types.ts. Any of them identifies the ground equally well, so
               the order is only a preference: the classification first because
               it is the one whose rasters a reopened board is mostly made of.
@@ -1533,10 +1219,6 @@ export function StudioScreen(props: StudioScreenProps) {
           onOpenReading={props.onOpenReading}
           onStudiosMenu={props.onStudiosMenu}
           polygonGeoJSON={props.polygonGeoJSON}
-          solarResults={props.solarResults}
-          onClearSolar={props.onClearSolar}
-          windResult={props.windResult}
-          onClearWind={props.onClearWind}
           floodResult={props.floodResult}
           onClearFlood={props.onClearFlood}
           /*

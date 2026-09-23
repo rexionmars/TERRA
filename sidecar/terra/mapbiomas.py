@@ -7,10 +7,10 @@ source rather than about a product of ours: the window fetched from the Brazil
 COG, the legend and colours every raster of these ids is drawn in, and which
 ids count as cropland.
 
-That split is what the independence contract refused. The photovoltaic siting
-chain needs a MapBiomas window to say what occupies the ground without reaching
-into the land-cover product, and with the source in one place it does not have
-to.
+That split is what the independence contract refused. A product that needs a
+MapBiomas window to say what occupies the ground would otherwise have to reach
+into the land-cover product for it, and with the source in one place it does
+not have to.
 """
 
 from __future__ import annotations

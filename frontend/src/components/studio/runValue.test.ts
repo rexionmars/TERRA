@@ -55,7 +55,6 @@ describe("supplied", () => {
   })
 
   it("holds a card that always carries a figure", () => {
-    expect(supplied({ kind: "record", years: 10, of: "hourly" })).toBe(true)
     expect(supplied({ kind: "measure", of: 2.5, unit: "m" })).toBe(true)
     expect(supplied({ kind: "band", low: 2, high: 98, unit: "%" })).toBe(true)
     expect(supplied({ kind: "none" })).toBe(true)
@@ -135,11 +134,10 @@ describe("subject", () => {
     for (const v of sources) expect(subject(v)).toBe("source")
   })
 
-  it("groups a calendar span and a depth of record as one part", () => {
+  it("puts a calendar span in the part that says when", () => {
     expect(subject({ kind: "span", start: "2024-01-01", end: "2024-02-01" })).toBe(
       "when"
     )
-    expect(subject({ kind: "record", years: 10, of: "hourly" })).toBe("when")
   })
 
   it("separates the method from the values it is run at", () => {

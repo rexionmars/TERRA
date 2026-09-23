@@ -28,8 +28,8 @@ raster is. Every run that writes one records where, in overlay_relpath.
 WHICH IS ONLY TRUE AS OF NOW. That column was filled by two products out of
 five -- classification and flood -- so a reader of it was right for a fifth of
 the table and silently wrong for the rest, which is why nothing read it. Water
-and the two solar rasters record theirs as well now, and the invariant is held
-by TestEveryRasterRunRecordsItsOverlay. This route is the first reader the
+records its own as well now, and the invariant is held by
+TestEveryRasterRunRecordsItsOverlay. This route is the first reader the
 column has had, and it could not have been written before that test passed.
 
 A RUN ID, NOT A PATH. The caller names the run and this looks up where its

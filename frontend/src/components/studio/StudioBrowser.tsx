@@ -41,14 +41,14 @@
  *
  * The column could not be read until recently: two products out of five filled
  * it, so a reader of it was right for a fifth of the grid and silently wrong
- * for the rest. All five fill it now.
+ * for the rest. Every product that writes a raster fills it now.
  *
  * THE PLATE STAYS, and not only as a fallback. It is what Unreal draws for an
  * asset whose thumbnail has not been rendered, and it is the honest answer for
- * a run that has no raster at all: the wind screening and the solar resource
- * are figures, and a picture invented for them would say they have one. Each
- * product's own glyph is what it carries, so the plate answers by product and
- * not merely by absence.
+ * a run that has no raster to show: a flood envelope whose rendering could not
+ * be read carries figures only, and a picture invented for it would say it has
+ * one. Each product's own glyph is what it carries, so the plate answers by
+ * product and not merely by absence.
  *
  * THE TYPE STRIP WENT WITH THE ARRIVAL OF THE PICTURE. See RunTile: a band of
  * the product's colour was the only thing naming a product while every tile
@@ -76,11 +76,9 @@ import {
   List,
   MagnifyingGlass,
   SquaresFour,
-  Sun,
   Trash,
   Tray,
   Waves,
-  Wind,
   X,
 } from "@phosphor-icons/react"
 
@@ -162,7 +160,7 @@ const TILE_PLATE = "h-[3rem] w-full shrink-0 overflow-hidden rounded-sm"
  * things that are asking for something. The argument is written there.
  *
  * The classification is the neutral one. It is the ordinary case and by far
- * the most common, so a grid of them reads as a grid of runs and the four
+ * the most common, so a grid of them reads as a grid of runs and the
  * specialised products are what stand out -- which is the question the colour
  * is here to answer.
  */
@@ -170,16 +168,13 @@ const TILE_PLATE = "h-[3rem] w-full shrink-0 overflow-hidden rounded-sm"
   ONE GLYPH PER PRODUCT, IN THE TABLE THAT ALREADY HOLDS ONE OF EVERYTHING ELSE.
 
   The plate drew a bar chart for every run but the two watery ones, which is a
-  glyph for "there are figures here" -- true of all five, so it distinguished
-  nothing. It mattered most on exactly the runs that have no raster to show
-  instead: a wind screening and a solar resource are a plate and a label, and
-  the plate was the same picture for both.
+  glyph for "there are figures here" -- true of all of them, so it
+  distinguished nothing.
 
   Each is the thing the product is ABOUT rather than a picture of its output. A
   land cover is a mosaic of classes, surface water is a water surface, a flood
   envelope is where water reaches -- a drop rather than the water's own waves,
-  since the two are neighbours in the grid and share a colour family. Sun and
-  wind name themselves.
+  since the two are neighbours in the grid and share a colour family.
 
   Here rather than in the component, beside the label and the colour, so a
   product added to this table cannot arrive without one.
@@ -187,8 +182,6 @@ const TILE_PLATE = "h-[3rem] w-full shrink-0 overflow-hidden rounded-sm"
 const KINDS = [
   { id: "class", label: "Classification", token: "--p-kind-class", icon: SquaresFour },
   { id: "water", label: "Surface water", token: "--p-kind-water", icon: Waves },
-  { id: "solar", label: "Solar", token: "--p-kind-solar", icon: Sun },
-  { id: "wind", label: "Wind", token: "--p-kind-wind", icon: Wind },
   { id: "flood", label: "Flood", token: "--p-kind-flood", icon: Drop },
 ] as const
 
@@ -901,16 +894,16 @@ export function StudioBrowser({
             board as an area of its own.
 
             A BOARD HOLDS PLANES, so a run that drew none has nothing to be on
-            it: a wind screening added this way became an area with nothing in
-            it, which is how a finished run came to look lost. What such a run
+            it: a run with no raster added this way became an area with nothing
+            in it, which is how a finished run came to look lost. What such a run
             has is a reading, and the reading is in a panel -- so that is what
             it is offered, and the board action is withheld rather than
             offered and disappointing.
 
             overlay_relpath is the test, and it is the right one now: every
-            product that writes a raster records it, and the three that do not
-            -- the wind screening, the solar resource, the energy model -- are
-            exactly the three whose whole result is figures.
+            product that writes a raster records it, so a run without one -- a
+            flood envelope whose rendering could not be read, a row written
+            before the column was filled -- has only figures to offer.
           */}
           <StudioMenuItem
             icon={

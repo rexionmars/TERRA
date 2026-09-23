@@ -91,9 +91,8 @@ export const BOARD_DETAIL_MAX_REM = 22
 /**
  * What the band folds down to: its grip, and nothing else.
  *
- * Not zero. The studio holds land cover, solar and wind, and the band is fixed
- * furniture across all three -- collapsing gives back its body, not the edge
- * that unfolds it. 1.25rem rather than the grip's own 10px because the strip
+ * Not zero. The band is fixed furniture across every product the studio
+ * holds -- collapsing gives back its body, not the edge that unfolds it. 1.25rem rather than the grip's own 10px because the strip
  * carries a chevron that has to be clicked.
  */
 export const BOARD_DETAIL_COLLAPSED_REM = 1.25
@@ -101,12 +100,11 @@ export const BOARD_DETAIL_COLLAPSED_REM = 1.25
 /**
  * What the map screen's own foot reserves when the studio is closed.
  *
- * The workspace bar's height. `--map-foot` is a contract with eight surfaces
- * outside the studio -- the result, water, composition and energy panels, the
- * overlay tools, PanelShell, the map surface's own control stack and the
- * workspace bar itself -- which lift themselves off the foot by reading it. It therefore has a meaning on the
- * plain map screen too, and the partition emits it in both states rather than
- * only while the studio is open.
+ * The workspace bar's height. `--map-foot` is a contract with the surfaces
+ * outside the studio that lift themselves off the foot by reading it -- the
+ * overlay tools and the workspace bar among them. It therefore has a meaning
+ * on the plain map screen too, and the partition emits it in both states
+ * rather than only while the studio is open.
  */
 export const MAP_FOOT_REM = 3.0625
 

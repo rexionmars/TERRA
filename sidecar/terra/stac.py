@@ -1,9 +1,9 @@
 """
 The Planetary Computer catalogue, read through one client.
 
-Three products read this catalogue: Sentinel-2 L2A for every imagery path,
-Copernicus DEM GLO-30 for terrain and solar siting, and the four DEM products
-the flood envelope compares. Before this module each opened its own client, and
+Three kinds of read go through this catalogue: Sentinel-2 L2A for every
+imagery path, Copernicus DEM GLO-30 for the surface model, and the four DEM
+products the flood envelope compares. Before this module each opened its own client, and
 the three were not equivalent. Only the Sentinel-2 path retried, so a transient
 5xx from the service aborted a terrain run and a flood envelope while leaving a
 classification to recover; and the DEM read took `items[0]` with no merge,

@@ -79,12 +79,13 @@ def require_torch(product: str) -> None:
 #
 # ABSENCE SELECTS THE DEFAULT, NOT FALSINESS. `float(req.get(key) or default)`
 # reads a deliberate 0 as an omission, because 0 is falsy in Python. It is
-# silent and it is wrong wherever zero is a value the caller can mean: a
-# degradation rate of 0 %/yr became the 0.5 %/yr default and moved every energy
-# figure by 5.78 percent on the lifetime-mean basis; a 0 degree tracker
-# rotation limit became 60; a 0 degree slope limit became 15; a 0 m/s calm
-# threshold became the wind default. Every numeric parameter is read through
-# these two helpers so the pattern cannot come back one call site at a time.
+# silent and it is wrong wherever zero is a value the caller can mean -- a HAND
+# threshold of 0 m is the drainage surface itself, a buffer of 0 m is a read of
+# exactly the AOI -- and it has shipped: a rate of zero per year that a caller
+# set was replaced by a nonzero default and moved every figure of that run by
+# 5.78 percent, with nothing on screen saying so. Every numeric parameter is
+# read through these two helpers so the pattern cannot come back one call site
+# at a time.
 
 def request_number[T](
     req: Request,
@@ -97,7 +98,7 @@ def request_number[T](
 
     The default is returned as given rather than cast, so a default of None
     stays None for the parameters whose absence is itself the signal, such as
-    an unstated UTC offset.
+    an unstated buffer, which the flood envelope then sizes from the AOI.
     """
     value = req.get(key)
     if value is None:
@@ -115,11 +116,11 @@ def request_positive[T](
     """
     A numeric request parameter that has to be positive, or the run fails.
 
-    For quantities where zero is not a value but a broken request: a window of
-    zero years has no data to average and a ground coverage ratio of zero
-    divides by zero in the per-hectare ratio. Rejecting is the honest answer;
-    substituting the default would report a figure the caller did not ask for
-    under a parameter they did set.
+    For quantities where zero is not a value but a broken request: a drainage
+    area of zero makes every cell drainage and HAND zero everywhere, so the
+    extent is the whole window at every threshold. Rejecting is the honest
+    answer; substituting the default would report a figure the caller did not
+    ask for under a parameter they did set.
     """
     value = request_number(req, key, default, cast)
     if value < 0 or (value == 0 and not allow_zero):

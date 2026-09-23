@@ -5,8 +5,8 @@
  * list: that list is capped at 100 rows and carries the full result payload on
  * each, so a year read through it would show empty weeks that are not empty.
  *
- * What a square counts is a RUN -- a classification, a composition, a water,
- * solar or wind analysis. It is not a measure of work done, and the label says
+ * What a square counts is a RUN -- a classification, a composition, a water or
+ * flood analysis. It is not a measure of work done, and the label says
  * "runs" rather than borrowing a word like contributions that would imply one.
  */
 import { useEffect, useMemo, useState } from "react"

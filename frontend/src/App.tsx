@@ -35,11 +35,6 @@ import {
   UpdateArea,
   DeleteArea,
   AnalyzeWater,
-  AnalyzeSolar,
-  AnalyzeSolarTerrain,
-  AnalyzeSolarSiting,
-  AnalyzeEnergyModel,
-  AnalyzeWind,
   AnalyzeFlood,
 } from "../wailsjs/go/main/App"
 import { EventsOn, EventsOff } from "../wailsjs/runtime/runtime"
@@ -65,16 +60,6 @@ import type {
   WaterAnalysis,
   WaterIndex,
   WaterRequest,
-  SolarAnalysis,
-  SolarRequest,
-  SolarTerrainAnalysis,
-  SolarTerrainRequest,
-  SolarSitingAnalysis,
-  SolarSitingRequest,
-  EnergyModelAnalysis,
-  EnergyModelRequest,
-  WindAnalysis,
-  WindRequest,
   FloodAnalysis,
   FloodRequest,
 } from "@/lib/types"
@@ -110,13 +95,6 @@ import {
   type FloodParams,
 } from "@/components/flood/floodSetup"
 import { qualifierHead } from "@/components/flood/floodFormat"
-import { useSolarState, useWindState } from "@/lib/energyState"
-import type {
-  SolarLayers,
-  SolarParams,
-  SolarProductId,
-  WindParams,
-} from "@/lib/energyState"
 import { AuthPage } from "@/pages/AuthPage"
 import { ProfilePage } from "@/pages/ProfilePage"
 
@@ -132,8 +110,8 @@ function defaultPeriod(): { start: string; end: string } {
 /**
  * A result with no classification in it.
  *
- * Solar needs no satellite scene, so it can be the only product an AOI carries.
- * The analysis view keys "is there a classification" off n_dates and the overlay
+ * Water and flood need no classification, so either can be the only product an
+ * AOI carries. The analysis view keys "is there a classification" off n_dates and the overlay
  * URI, so those stay at zero and the page presents only what was actually run.
  */
 const EMPTY_RESULT: PredictResult = {
@@ -282,8 +260,6 @@ function App() {
       r.run_id ||
       r.water?.run_id ||
       r.overlay_uri ||
-      r.solar_terrain?.overlay_uri ||
-      r.solar_siting?.overlay_uri ||
       null
     )
   }, [])
@@ -310,19 +286,18 @@ function App() {
     /*
       ANY PRODUCT IS WORTH KEEPING, not only a classification.
 
-      This used to read: "a result with no classification is a water or solar
+      This used to read: "a result with no classification is a standalone
       payload the board reads from its own fields; nothing of it belongs to a
       scene." That was true of the LIVE area and of nothing else. The board
-      reads water and solar from its own props only while the map is still on
-      that ground; the moment the AOI moves, the aoiSignature effects clear
-      those stores and the props go empty. A solar run left the board the
-      instant a new area was drawn, and there was nothing to bring it back
-      because it had never been retained.
+      reads the standalone products from its own props only while the map is
+      still on that ground; the moment the AOI moves, the aoiSignature effects
+      clear them and the props go empty. Such a run left the board the instant
+      a new area was drawn, and there was nothing to bring it back because it
+      had never been retained.
 
       The board was already able to draw one: `legendByArea` in BoardSurface
-      builds a retained area's legends from `result.water`,
-      `result.solar_terrain` and `result.solar_siting` -- fields that exist on
-      every result. What was missing was a result reaching it.
+      builds a retained area's legends from `result.water` -- a field that
+      exists on every result. What was missing was a result reaching it.
 
       So the test is whether the outgoing run produced ANYTHING. A result with
       none of these is an empty shell from a run that never finished, and that
@@ -333,8 +308,6 @@ function App() {
       (!!outgoing.class_stats?.length ||
         !!outgoing.overlay_uri ||
         !!outgoing.water ||
-        !!outgoing.solar_terrain ||
-        !!outgoing.solar_siting ||
         !!outgoing.flood)
     if (!outgoing || !carries) {
       return
@@ -354,10 +327,9 @@ function App() {
         withdraws its claim to have saved by returning nothing". Reading it
         here gives a retained water run its name and its outline back.
 
-        SolarTerrainAnalysis, SolarSitingAnalysis and FloodAnalysis carry no
-        such field, so those still retain as `unsaved:`. The asymmetry is in
-        the payloads rather than here, and closing it means the Go side
-        returning the row it wrote for them too.
+        FloodAnalysis carries a run_id of its own as well, and it is not read
+        here, so a flood run left without an area named for it still retains
+        as `unsaved:`.
       */
       const id =
         areaId?.trim() ||
@@ -690,17 +662,13 @@ function AppBody(props: {
   const [studios, setStudios] = useState<Studio[]>([])
   const [openBoardNonce, setOpenBoardNonce] = useState(0)
   /*
-    A request to show a restored energy result, counted rather than flagged.
-
-
-  /*
     The flood envelope: its parameters, its result and its run status.
 
     Held here rather than in the screen because the screen unmounts on every
     navigation away, and a product set chosen for a run is not a thing to
     rebuild after looking at the map. Plain state rather than a reducer of its
-    own: unlike the energy axis this is one product with one result, so there
-    is no second consumer to keep in step.
+    own: this is one product with one result, so there is no second consumer
+    to keep in step.
   */
   const [floodParams, setFloodParams] = useState<FloodParams>(FLOOD_DEFAULT_PARAMS)
   const [flood, setFlood] = useState<FloodAnalysis | null>(null)
@@ -717,7 +685,7 @@ function AppBody(props: {
     ONE OUTCOME FOR THE APPLICATION, because there is one run: the sidecar
     takes a single analysis at a time and every branch that starts one enforces
     it. What tells two runs apart is not a key but the inputs recorded beside
-    the outcome -- change the product, or the season, and the wire carrying
+    the outcome -- change the product, or the period, and the wire carrying
     that value falls back to pending on its own, because the value it carries
     is one of the values compared.
 
@@ -1025,58 +993,6 @@ function AppBody(props: {
   const [waterRunning, setWaterRunning] = useState(false)
   const [showWaterOverlay, setShowWaterOverlay] = useState(true)
   const [waterOpacity, setWaterOpacity] = useState(0.8)
-  /**
-   * The energy axis: parameters, results, layer state and run status for the
-   * four photovoltaic products and for the wind screening.
-   *
-   * Two stores rather than one, and neither one a set of useState values here.
-   * The defaults, the shape of the shared parameters and the rule that a result
-   * is recorded together with the AOI it was computed over all live in
-   * lib/energyState.ts, so this file no longer restates them.
-   */
-  const [solar, solarDispatch] = useSolarState()
-  const [wind, windDispatch] = useWindState()
-
-  const setSolarParams = useCallback(
-    (patch: Partial<SolarParams>) => solarDispatch({ type: "params/set", patch }),
-    [solarDispatch]
-  )
-  const setSolarLayers = useCallback(
-    (patch: Partial<SolarLayers>) => solarDispatch({ type: "layers/set", patch }),
-    [solarDispatch]
-  )
-  /**
-   * A solar row on the studio, translated into the store's own vocabulary.
-   *
-   * The board says which raster changed and how; only this file knows that
-   * `terrain` answers to showTerrain/terrainOpacity. Handing the map screen the
-   * reducer instead would have made every surface that draws a solar raster
-   * know the shape of the store that holds it.
-   */
-  const setSolarBoardLayer = useCallback(
-    (
-      id: "terrain" | "siting",
-      patch: { visible?: boolean; opacity?: number }
-    ) => {
-      const next: Partial<SolarLayers> = {}
-      if (patch.visible !== undefined) {
-        if (id === "terrain") next.showTerrain = patch.visible
-        else next.showSiting = patch.visible
-      }
-      if (patch.opacity !== undefined) {
-        if (id === "terrain") next.terrainOpacity = patch.opacity
-        else next.sitingOpacity = patch.opacity
-      }
-      if (Object.keys(next).length > 0) setSolarLayers(next)
-    },
-    [setSolarLayers]
-  )
-
-  const setWindParams = useCallback(
-    (patch: Partial<WindParams>) => windDispatch({ type: "params/set", patch }),
-    [windDispatch]
-  )
-
   const didRestoreProjectRef = useRef(false)
   const prefsRef = useRef(prefs)
   prefsRef.current = prefs
@@ -1241,10 +1157,8 @@ function AppBody(props: {
     props.setResult(null)
     setCurrentRunId(null)
     setWater(null)
-    solarDispatch({ type: "results/clearAll" })
-    windDispatch({ type: "result/clear" })
     setFlood(null)
-  }, [props.setResult, solarDispatch, windDispatch])
+  }, [props.setResult])
 
   const activateProject = useCallback(
     async (
@@ -1612,60 +1526,25 @@ function AppBody(props: {
   }, [aoiSignature, flood])
 
   /**
-   * The same for the four solar products. All four are read off one AOI -- the
-   * resource and the energy model from its centroid, the terrain and siting
-   * rasters from its extent -- so they are invalidated together. The store
-   * compares against the signature recorded with the result and no-ops when it
-   * has not moved, so this fires on every AOI change without a guard here.
-   *
-   * The store's own signature is a dependency, not only the map's. A run that
-   * finishes after the AOI has moved records the signature it was computed on,
-   * and without that dependency this effect would not re-run to notice the
-   * mismatch, leaving one field's raster on another field's map.
-   */
-  useEffect(() => {
-    solarDispatch({ type: "aoi/changed", aoiSignature })
-  }, [aoiSignature, solar.aoiSignature, solarDispatch])
-
-  /**
-   * The wind screening, invalidated separately.
-   *
-   * Not folded into the effect above: wind resolves on the MERRA-2 grid of 0.5
-   * by 0.625 degrees against the 1 degree radiation grid, so an AOI can leave
-   * the radiation cell while staying inside the reanalysis cell, and neither
-   * result's validity implies the other's. Two effects keep the two signatures
-   * independent even though both read the same AOI.
-   */
-  useEffect(() => {
-    windDispatch({ type: "aoi/changed", aoiSignature })
-  }, [aoiSignature, wind.aoiSignature, windDispatch])
-
-  /**
-   * One sidecar progress channel, four destinations.
+   * One sidecar progress channel, two destinations.
    *
    * The sidecar emits on a single event and runs one action at a time, so the
-   * store with a run in flight decides which display receives it. Sharing one
-   * display let a finished classification leave its last message under a solar
-   * run's button.
+   * product with a run in flight decides which display receives it. Sharing one
+   * display let a finished classification leave its last message under another
+   * product's button.
    *
    * Read through refs so the subscription is registered once: re-registering on
    * every run state change would drop events emitted between the unsubscribe
    * and the resubscribe.
    *
-   * The carried percentage is mirrored in solarSeenRef / windSeenRef rather
-   * than read back from the store. The sidecar emits every raw log line as
-   * progress -1, meaning "message only, percentage unchanged", and several of
-   * those can arrive in one React batch; carrying the store's value would then
-   * read a percentage from before the batch and roll the bar backwards. The
-   * mirrors are reset by startSolarRun / startWindRun below, so a second run of
-   * the same product cannot open on the previous run's percentage.
+   * The carried percentage is mirrored in floodSeenRef rather than read back
+   * from state. The sidecar emits every raw log line as progress -1, meaning
+   * "message only, percentage unchanged", and several of those can arrive in
+   * one React batch; carrying the state's value would then read a percentage
+   * from before the batch and roll the bar backwards. The mirror is reset by
+   * handleRunFlood below, so a second run cannot open on the previous run's
+   * percentage.
    */
-  const solarRunRef = useRef(solar.run)
-  solarRunRef.current = solar.run
-  const windRunRef = useRef(wind.run)
-  windRunRef.current = wind.run
-  const solarSeenRef = useRef({ progress: 0, message: "" })
-  const windSeenRef = useRef({ progress: 0, message: "" })
   const floodRunRef = useRef(floodRun)
   floodRunRef.current = floodRun
   const floodSeenRef = useRef({ progress: 0, message: "" })
@@ -1674,42 +1553,8 @@ function AppBody(props: {
   const setProgressMsgRef = useRef(props.setProgressMsg)
   setProgressMsgRef.current = props.setProgressMsg
 
-  const startSolarRun = useCallback(
-    (product: SolarProductId) => {
-      solarSeenRef.current = { progress: 0, message: "starting" }
-      solarDispatch({ type: "run/start", product })
-    },
-    [solarDispatch]
-  )
-  const startWindRun = useCallback(() => {
-    windSeenRef.current = { progress: 0, message: "starting" }
-    windDispatch({ type: "run/start" })
-  }, [windDispatch])
-
   useEffect(() => {
     EventsOn("predict:progress", (ev: ProgressEvent) => {
-      if (solarRunRef.current.active) {
-        const seen = solarSeenRef.current
-        if (ev.progress >= 0) seen.progress = ev.progress
-        if (ev.msg) seen.message = ev.msg
-      solarDispatch({
-          type: "run/progress",
-          progress: seen.progress,
-          message: seen.message,
-        })
-        return
-      }
-      if (windRunRef.current.active) {
-        const seen = windSeenRef.current
-        if (ev.progress >= 0) seen.progress = ev.progress
-        if (ev.msg) seen.message = ev.msg
-        windDispatch({
-          type: "run/progress",
-          progress: seen.progress,
-          message: seen.message,
-        })
-        return
-      }
       if (floodRunRef.current.active) {
         const seen = floodSeenRef.current
         if (ev.progress >= 0) seen.progress = ev.progress
@@ -1721,13 +1566,13 @@ function AppBody(props: {
         })
         return
       }
-      // No energy or flood run in flight, so this belongs to the
-      // classification channel.
+      // No flood run in flight, so this belongs to the classification
+      // channel.
       if (ev.progress >= 0) setProgressRef.current(ev.progress)
       if (ev.msg) setProgressMsgRef.current(ev.msg)
     })
     return () => EventsOff("predict:progress")
-  }, [solarDispatch, windDispatch])
+  }, [])
 
   const handleRunWater = async () => {
     if (!props.start || !props.end) {
@@ -1786,320 +1631,6 @@ function AppBody(props: {
       setWaterRunning(false)
       props.setProgress(0)
       props.setProgressMsg("")
-    }
-  }
-
-  const handleRunSolar = async () => {
-    if (!props.customPolygon) {
-      notifyError("Draw an area on the map first.")
-      return
-    }
-    const p = solar.params
-    const parsedPR = p.performanceRatio.trim()
-      ? Number(p.performanceRatio.trim())
-      : null
-    if (
-      parsedPR !== null &&
-      (!Number.isFinite(parsedPR) || parsedPR <= 0 || parsedPR > 1)
-    ) {
-      notifyError("Performance ratio must be between 0 and 1.")
-      return
-    }
-    startSolarRun("resource")
-    try {
-      const aoiLabel = props.analysisLabel?.trim() || "Custom AOI"
-      const req: SolarRequest = {
-        label: aoiLabel,
-        run_label: nameThisRun(aoiLabel),
-        // Which catalogued area this run is OF. Without it a drawing and
-        // the runs over it are separate subjects on the board, and the
-        // same ground is drawn once per drawing plus once per run.
-        area_id: props.activeAreaId,
-        project_id: activeProjectId || undefined,
-        polygon_geojson: props.customPolygon,
-        climatology_years: p.climatologyYears,
-        hourly_years: p.hourlyYears,
-        surface_azimuth: p.surfaceAzimuth,
-        performance_ratio: parsedPR,
-      }
-      const res = (await AnalyzeSolar(req as never)) as unknown as SolarAnalysis
-      // Result and AOI signature in one action. Assigned separately, the
-      // invalidation effect above can observe the fresh result against the old
-      // signature and drop what was just produced.
-      setCurrentRunId(res.run_id || null)
-      solarDispatch({
-        type: "result/set",
-        product: "resource",
-        result: res,
-        aoiSignature,
-      })
-      /*
-        No action. The result panel appears on this screen the moment the run
-        lands and carries its own Read control, so a toast action would be a
-        second route to a thing already in front of the reader -- and it used to
-        be the only route, which is why it was here.
-      */
-      notifySuccess(
-        // See the water toast: the word is conditional for the same reason.
-        `Solar resource: ${res.resource.ghi_annual_kwh_m2.toFixed(0)} kWh/m2/yr, optimum tilt ${res.geometry.optimal_tilt_deg.toFixed(0)} degrees${res.run_id ? " (saved)" : ""}.`
-      )
-      void refreshRuns()
-      void refreshProjects()
-      settleRun(true)
-    } catch (e) {
-      settleRun(false)
-      notifyError("Solar analysis error", e)
-    } finally {
-      solarDispatch({ type: "run/finish" })
-    }
-  }
-
-  const handleRunSolarTerrain = async () => {
-    if (!props.customPolygon) {
-      notifyError("Draw an area on the map first.")
-      return
-    }
-    startSolarRun("terrain")
-    try {
-      const aoiLabel = props.analysisLabel?.trim() || "Custom AOI"
-      const req: SolarTerrainRequest = {
-        label: aoiLabel,
-        run_label: nameThisRun(aoiLabel),
-        // Which catalogued area this run is OF. Without it a drawing and
-        // the runs over it are separate subjects on the board, and the
-        // same ground is drawn once per drawing plus once per run.
-        area_id: props.activeAreaId,
-        project_id: activeProjectId || undefined,
-        polygon_geojson: props.customPolygon,
-        hourly_years: solar.params.hourlyYears,
-        season: solar.params.season,
-      }
-      const res = (await AnalyzeSolarTerrain(
-        req as never
-      )) as unknown as SolarTerrainAnalysis
-      setCurrentRunId(res.run_id || null)
-      solarDispatch({
-        type: "result/set",
-        product: "terrain",
-        result: res,
-        aoiSignature,
-      })
-      // A fresh raster has to be visible even if its layer had been switched off.
-      solarDispatch({ type: "layers/set", patch: { showTerrain: true } })
-      notifySuccess(
-        `Terrain irradiation: ${res.poa_min.toFixed(0)} to ${res.poa_max.toFixed(0)} kWh/m2/yr.`
-      )
-      settleRun(true)
-    } catch (e) {
-      settleRun(false)
-      notifyError("Solar terrain error", e)
-    } finally {
-      solarDispatch({ type: "run/finish" })
-    }
-  }
-
-  const handleRunSolarSiting = async () => {
-    if (!props.customPolygon) {
-      notifyError("Draw an area on the map first.")
-      return
-    }
-    startSolarRun("siting")
-    try {
-      const aoiLabel = props.analysisLabel?.trim() || "Custom AOI"
-      const req: SolarSitingRequest = {
-        label: aoiLabel,
-        run_label: nameThisRun(aoiLabel),
-        // Which catalogued area this run is OF. Without it a drawing and
-        // the runs over it are separate subjects on the board, and the
-        // same ground is drawn once per drawing plus once per run.
-        area_id: props.activeAreaId,
-        project_id: activeProjectId || undefined,
-        polygon_geojson: props.customPolygon,
-        slope_acceptable_deg: solar.params.slopeAcceptableDeg,
-        slope_restrictive_deg: solar.params.slopeRestrictiveDeg,
-      }
-      const res = (await AnalyzeSolarSiting(
-        req as never
-      )) as unknown as SolarSitingAnalysis
-      setCurrentRunId(res.run_id || null)
-      solarDispatch({
-        type: "result/set",
-        product: "siting",
-        result: res,
-        aoiSignature,
-      })
-      // A fresh run has to be visible, the same way a water run is. The terrain
-      // result is no longer discarded here: that existed because both rasters
-      // shared one map slot, so keeping two meant one of them was silently
-      // unreachable. They now have a layer each.
-      solarDispatch({ type: "layers/set", patch: { showSiting: true } })
-      notifySuccess(
-        `Siting: ${res.suitable_no_conflict_ha.toFixed(1)} ha without land-use conflict, ${res.suitable_cropland_ha.toFixed(1)} ha on cropland.`
-      )
-      settleRun(true)
-    } catch (e) {
-      settleRun(false)
-      notifyError("Solar siting error", e)
-    } finally {
-      solarDispatch({ type: "run/finish" })
-    }
-  }
-
-  const handleRunEnergyModel = async () => {
-    if (!props.customPolygon) {
-      notifyError("Draw an area on the map first.")
-      return
-    }
-    // Same field and same range check as the resource run: one performance
-    // ratio is resolved for the whole energy axis, so the two products cannot
-    // report a yield on two different ratios for one AOI.
-    const p = solar.params
-    const parsedPR = p.performanceRatio.trim()
-      ? Number(p.performanceRatio.trim())
-      : null
-    if (
-      parsedPR !== null &&
-      (!Number.isFinite(parsedPR) || parsedPR <= 0 || parsedPR > 1)
-    ) {
-      notifyError("Performance ratio must be between 0 and 1.")
-      return
-    }
-    const parsedOffset = p.utcOffset.trim() ? Number(p.utcOffset.trim()) : null
-    if (
-      parsedOffset !== null &&
-      (!Number.isFinite(parsedOffset) || parsedOffset < -12 || parsedOffset > 14)
-    ) {
-      notifyError("UTC offset must be between -12 and 14 hours.")
-      return
-    }
-    startSolarRun("energy")
-    try {
-      const aoiLabel = props.analysisLabel?.trim() || "Custom AOI"
-      const req: EnergyModelRequest = {
-        label: aoiLabel,
-        run_label: nameThisRun(aoiLabel),
-        // Which catalogued area this run is OF. Without it a drawing and
-        // the runs over it are separate subjects on the board, and the
-        // same ground is drawn once per drawing plus once per run.
-        area_id: props.activeAreaId,
-        project_id: activeProjectId || undefined,
-        polygon_geojson: props.customPolygon,
-        climatology_years: p.climatologyYears,
-        hourly_years: p.hourlyYears,
-        surface_azimuth: p.surfaceAzimuth,
-        performance_ratio: parsedPR,
-        reporting_basis: p.reportingBasis,
-        // Every numeric below is sent as read. No `x || default` anywhere on
-        // this path, because that reads a deliberate zero as an omission: a
-        // degradation rate of exactly 0 states that no degradation is
-        // modelled, and under an `or` default it became the 0.5 %/yr reference
-        // and multiplied every lifetime-mean figure by 0.9422 instead of 1.0.
-        // Go forwards these through pointers, so a zero reaches the sidecar,
-        // which either admits it (degradation, tracker angle, buildable share,
-        // shading) or fails the run naming the parameter. Neither end
-        // substitutes a default for a value the caller did set.
-        degradation_rate_per_year: p.degradationPct / 100,
-        analysis_period_years: p.analysisPeriodYears,
-        gcr_fixed: p.gcrFixed,
-        gcr_tracker: p.gcrTracker,
-        tracker_max_angle_deg: p.trackerMaxAngleDeg,
-        capacity_density_basis: p.densityBasis,
-        buildable_fraction: p.buildableFraction,
-        utc_offset_hours: parsedOffset,
-        declared_loss_pct: p.declaredLoss,
-        optional_loss_pct: p.optionalLoss,
-        slope_acceptable_deg: p.slopeAcceptableDeg,
-        slope_restrictive_deg: p.slopeRestrictiveDeg,
-        // A siting run already classified this AOI. Reusing its GeoTIFF makes
-        // the capacity figure and the raster that published the area behind it
-        // come from one classification rather than two.
-        siting_raster_tif: solar.results.siting?.raster_tif || undefined,
-        // Off unless the user asks for it. The terrain product measures
-        // shading over the whole AOI, while the field it feeds is documented
-        // as shading over the suitable pixels; carrying it across silently
-        // would file an AOI mean under a different quantity's name. Left off,
-        // the response states that the figures are unshaded.
-        shading_derate:
-          p.applyShading && solar.results.terrain?.shading_mean_pct != null
-            ? 1 - solar.results.terrain.shading_mean_pct / 100
-            : undefined,
-        shading_applied:
-          p.applyShading && solar.results.terrain?.shading_mean_pct != null,
-      }
-      const res = (await AnalyzeEnergyModel(
-        req as never
-      )) as unknown as EnergyModelAnalysis
-      setCurrentRunId(res.run_id || null)
-      solarDispatch({
-        type: "result/set",
-        product: "energy",
-        result: res,
-        aoiSignature,
-      })
-      // No action: the result panel on this screen carries the Read control.
-      notifySuccess(
-        `Energy model: ${res.plant.suitable.specific_yield_kwh_kwp_year.toFixed(0)} kWh/kWp/yr at performance ratio ${res.performance_ratio.applied.toFixed(3)} (${res.performance_ratio.applied_source}), ${res.reporting_basis} basis.`
-      )
-      void refreshRuns()
-      void refreshProjects()
-      settleRun(true)
-    } catch (e) {
-      settleRun(false)
-      notifyError("Energy model error", e)
-    } finally {
-      solarDispatch({ type: "run/finish" })
-    }
-  }
-
-  const handleRunWind = async () => {
-    if (!props.customPolygon) {
-      notifyError("Draw an area on the map first.")
-      return
-    }
-    const w = wind.params
-    if (!(w.roughnessLowM > 0) || !(w.roughnessHighM > w.roughnessLowM)) {
-      notifyError(
-        "Roughness band must be two increasing lengths in metres, both above zero."
-      )
-      return
-    }
-    startWindRun()
-    try {
-      const aoiLabel = props.analysisLabel?.trim() || "Custom AOI"
-      const req: WindRequest = {
-        label: aoiLabel,
-        run_label: nameThisRun(aoiLabel),
-        // Which catalogued area this run is OF. Without it a drawing and
-        // the runs over it are separate subjects on the board, and the
-        // same ground is drawn once per drawing plus once per run.
-        area_id: props.activeAreaId,
-        project_id: activeProjectId || undefined,
-        polygon_geojson: props.customPolygon,
-        record_years: w.recordYears,
-        hub_height_m: w.hubHeightM,
-        calm_threshold_ms: w.calmThresholdMS,
-        record_max_floor_ms: w.recordMaxFloorMS,
-        roughness_band_m: [w.roughnessLowM, w.roughnessHighM],
-      }
-      const res = (await AnalyzeWind(req as never)) as unknown as WindAnalysis
-      setCurrentRunId(res.run_id || null)
-      windDispatch({ type: "result/set", result: res, aoiSignature })
-      // Never stated beside the photovoltaic capacity factor and never without
-      // the qualifier: this figure is gross of every plant loss, rests on an
-      // extrapolation above the highest measured level, and has no external
-      // benchmark of the kind the solar ratio has.
-      // No action: the result panel on this screen carries the Read control.
-      notifySuccess(
-        `Wind screening: mean ${res.measured.mean_speed_50m_ms.toFixed(2)} m/s at 50 m, gross capacity factor ${res.hub.gross_capacity_factor_pct.toFixed(1)}% at ${res.hub_height_m.toFixed(0)} m hub. Screening indication, gross of losses, unvalidated.`
-      )
-      void refreshRuns()
-      void refreshProjects()
-      settleRun(true)
-    } catch (e) {
-      settleRun(false)
-      notifyError("Wind screening error", e)
-    } finally {
-      windDispatch({ type: "run/finish" })
     }
   }
 
@@ -2256,14 +1787,14 @@ function AppBody(props: {
       // The row the backend just wrote. Compositions made from here attach to
       // it; empty when nothing was saved, which leaves them project-level.
       /*
-        THE RUN THIS STATE SHOWS. All seven products set it now; only the
-        classification did.
+        THE RUN THIS STATE SHOWS. Every product that records a run sets it
+        now; only the classification did.
 
         Stage one gave every product a run id and nothing on this side picked
         it up -- the standalone handlers read `res.run_id` solely to decide
-        whether their toast said "(saved)". So a board opened over a solar,
-        water, wind or flood run received `result.run_id || "current"` as the
-        sentinel and refused to save, reporting that none of its areas carried
+        whether their toast said "(saved)". So a board opened over a water or
+        flood run received `result.run_id || "current"` as the sentinel and
+        refused to save, reporting that none of its areas carried
         a run while the raster of one sat on it.
 
         Null where the save was refused. That is saveRun withdrawing its claim
@@ -2392,7 +1923,7 @@ function AppBody(props: {
       setLoadingRun(true)
       try {
         const res = (await LoadAnalysis(run.id)) as unknown as PredictResult
-        // A water or solar run carries no classification: no class stats, no
+        // A water or flood run carries no classification: no class stats, no
         // overlay, no scenes. Held as the result it made the map screen present
         // one, and the result panel then read a class list that was never
         // there. The standalone products below are what such a run restores.
@@ -2420,36 +1951,11 @@ function AppBody(props: {
         if (displayLabel) void persistAoiLabel(displayLabel)
         const polygon = parseRunPolygon(run.polygon_geojson)
         props.setCustomPolygon(polygon)
-        // A water or solar run carries its raster in the same field a live run
+        // A water or flood run carries its raster in the same field a live run
         // uses, so opening one puts the overlay back on the map. The AOI it was
         // measured on is recorded first, otherwise the invalidation effect sees
         // a mismatch and drops the raster that was just restored.
         const restoredAoi = polygon ? `poly:${JSON.stringify(polygon)}` : ""
-        // Results and the AOI they were computed over in one action, for the
-        // reason a live run records them together: assigned separately, the
-        // invalidation effect can run against the old signature and drop the
-        // results that were just restored.
-      solarDispatch({
-          type: "results/restore",
-          results: {
-            resource: res.solar ?? null,
-            terrain: res.solar_terrain ?? null,
-            siting: res.solar_siting ?? null,
-            energy: res.energy_model ?? null,
-          },
-          aoiSignature: restoredAoi,
-        })
-        // Wind carries its own signature, so a restored wind run records the
-        // AOI it was screened on separately.
-        if (res.wind) {
-          windDispatch({
-            type: "result/set",
-            result: res.wind,
-            aoiSignature: restoredAoi,
-          })
-        } else {
-          windDispatch({ type: "result/clear" })
-        }
         if (res.water) {
           waterAoiRef.current = restoredAoi
           setWater(res.water)
@@ -2476,22 +1982,12 @@ function AppBody(props: {
           })
         }
         /*
-          A solar or wind run is read on the energy screen now, so restoring one
-          lands there with its result open rather than on the analysis page.
-
-          Decided from `run.kind` rather than from the payload: the payload for
-          a solar product and for a wind screening differ in shape, and the
-          record already carries the one word that tells them apart. The caller
-          can still override -- the project menu asks for the map, because a run
-          picked from there is a request to see it on the map.
-        */
-        /*
           One destination. This chose between four -- the hub for a
           classification, the energy screen for solar and wind, the flood
           screen for an envelope -- because each product was read where it was
-          run. Every one of them is read in the studio now: the classification
-          as planes, the other three in their own editors, which is what the
-          `kind` was for.
+          run. Everything is read in the studio now, the rasters as planes and
+          the flood envelope in an editor of its own, so `run.kind` no longer
+          chooses a screen.
         */
         goStudio()
         notifySuccess("Analysis restored.")
@@ -2505,8 +2001,6 @@ function AppBody(props: {
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [
       goStudio,
-      solarDispatch,
-      windDispatch,
       props.analysisLabel,
       props.setResult,
       props.setModelKind,
@@ -2525,14 +2019,13 @@ function AppBody(props: {
    * Starts a run of any product, from wherever the user is.
    *
    * The hub offered New classification and nothing else, while the application
-   * produces four run kinds and a composition. A user in a project could reach
+   * produces three run kinds and a composition. A user in a project could reach
    * a classification in one click and everything else by navigating and
    * remembering which screen holds it.
    *
    * The three map products clear the session the same way -- the previous
    * result, overlay and AOI all belong to the run being replaced -- so they
-   * share startNewClassification and differ only in the panel they open. Energy
-   * defines its own AOI on its own screen and clears nothing here.
+   * share startNewClassification and differ only in the panel they open.
    */
   const startNewClassification = useCallback(() => {
     props.retainRun(props.result)
@@ -2547,8 +2040,6 @@ function AppBody(props: {
     goStudio()
   }, [
     goStudio,
-    solarDispatch,
-    windDispatch,
     clearAreaAndComposition,
     props.setResult,
     props.setShowPredictionOverlay,
@@ -2773,11 +2264,11 @@ function AppBody(props: {
   }, [props.analysisLabel, props.customPolygon])
 
   /**
-   * Where the map is, for both screens that carry one.
+   * Where the map is, for every surface that carries one.
    *
    * One live ref and one debounced write to the same map_view preference. Two
-   * memories would let a pan made on the energy screen be lost on the way back
-   * to the map, or the reverse, depending on which one last committed.
+   * memories would let a pan made on one surface be lost on the way back to
+   * another, or the reverse, depending on which one last committed.
    */
   const handleViewChange = useCallback(
     (v: { lat: number; lon: number; zoom: number }) => {
@@ -3269,18 +2760,7 @@ function AppBody(props: {
       // counted a loaded envelope, the clearing did not remove it, and the
       // detail view rebuilt itself from what the clearing left behind. Adding a
       // product here means adding it there.
-      const r = solar.results
-      const w = wind.result
-      if (
-        !props.result &&
-        !water &&
-        !r.resource &&
-        !r.terrain &&
-        !r.siting &&
-        !r.energy &&
-        !w &&
-        !flood
-      ) {
+      if (!props.result && !water && !flood) {
         return null
       }
       return {
@@ -3289,18 +2769,14 @@ function AppBody(props: {
           Whatever produced this state, not only a classification.
 
           The spread above supplies `run_id` from `props.result`, which a
-          standalone product never sets -- so this object described a solar or
+          standalone product never sets -- so this object described a water or
           flood run and carried no id for it, and every reader of
-          `result.run_id` was told there was none. `currentRunId` is set by all
-          seven handlers and by opening a saved run, so it answers for each.
+          `result.run_id` was told there was none. `currentRunId` is set by
+          every handler that records a run and by opening a saved run, so it
+          answers for each.
         */
         run_id: currentRunId ?? "",
         water,
-        solar: r.resource,
-        solar_terrain: r.terrain,
-        solar_siting: r.siting,
-        energy_model: r.energy,
-        wind: w,
         // Carried for the same reason as the rest: the analysis screen's data
         // views and the research pack read this one object, so a flood
         // envelope left out of it is a run whose tables cannot be exported
@@ -3308,7 +2784,7 @@ function AppBody(props: {
         flood,
       }
     },
-    [props.result, water, solar.results, wind.result, flood, currentRunId]
+    [props.result, water, flood, currentRunId]
   )
 
   /**
@@ -3380,8 +2856,8 @@ function AppBody(props: {
 
           The column named five, four of which were screens the studio has
           since absorbed -- the map it grew out of, the two energy products and
-          the flood envelope, all of which are cards on the run band now, and
-          the project hub, whose management moved into the studio itself. What
+          the flood envelope, which became cards on the run band, and the
+          project hub, whose management moved into the studio itself. What
           was left named the studio, and a list of one is not navigation.
 
           Settings and sign-in are reached from the title bar, which is where
@@ -3422,72 +2898,16 @@ function AppBody(props: {
                   onDropRetainedRun={props.onDropRetainedRun}
                   onCreditChange={setCredit}
                   onBoardOpenChange={setBoardOpen}
-                  /*
-                    The two solar rasters, so the board can lift them like any
-                    other. The energy screen keeps drawing them on its own map;
-                    this is the same store read by a second surface, not a copy.
-                  */
-                  solarTerrain={solar.results.terrain}
-                  solarSiting={solar.results.siting}
-                  showSolarTerrain={solar.layers.showTerrain}
-                  showSolarSiting={solar.layers.showSiting}
-                  solarTerrainOpacity={solar.layers.terrainOpacity}
-                  solarSitingOpacity={solar.layers.sitingOpacity}
-                  onSolarLayerChange={setSolarBoardLayer}
-                  /*
-                    And the inputs, so the board can start a solar run rather
-                    than only draw one somebody else started. The same store the
-                    energy screen edits -- a second copy would let the two
-                    disagree about what the next run will compute.
-                  */
-                  solarParams={solar.params}
-                  onSolarParamsChange={setSolarParams}
-                  /*
-                    All four the table declares. Two of them -- the resource
-                    and the energy model -- had no way in between the energy
-                    screen going and this: they report figures rather than a
-                    raster, and the band only offered what the board could
-                    draw. The Solar result editor reads figures now, so the
-                    band offers the product and the sidecar decides.
-                  */
                   lastRun={lastBoardRun}
                   onBoardInputs={onBoardInputs}
-                  onRunSolar={(product) => {
-                    if (product === "resource") void handleRunSolar()
-                    else if (product === "terrain") void handleRunSolarTerrain()
-                    else if (product === "siting") void handleRunSolarSiting()
-                    else void handleRunEnergyModel()
-                  }}
-                  solarResults={solar.results}
-                  onSolarLossChange={(group, key, pct) =>
-                    solarDispatch({ type: "params/loss", group, key, pct })
-                  }
-                  onClearSolar={(product) =>
-                    solarDispatch({ type: "result/clear", product })
-                  }
-                  // Any solar product blocks the rest: one sidecar run at a time.
-                  solarBusy={solar.run.active !== null}
-                  solarProgress={solar.run.progress}
-                  solarProgressMsg={solar.run.message}
-                  /*
-                    Wind and flood, in the shape solar established. Each had a
-                    screen of its own until the band grew cards for it, and the
-                    result travels with the parameters because neither product
-                    becomes a plane: a wind screening reports over one
-                    reanalysis cell, and the flood raster shows where the
-                    products disagree rather than how far. Their editors read
-                    these; see studioEditors.ts.
-                  */
-                  windParams={wind.params}
-                  onWindParamsChange={setWindParams}
-                  onRunWind={() => void handleRunWind()}
-                  windBusy={!!wind.run.active}
-                  windProgress={wind.run.progress}
-                  windProgressMsg={wind.run.message}
                   onActivateProject={(id) => void activateProject(id)}
                   polygonGeoJSON={analysisPolygonGeoJSON}
-                  windResult={wind.result}
-                  onClearWind={() => windDispatch({ type: "result/clear" })}
+                  /*
+                    Flood, whose result travels with its parameters because it
+                    does not become a plane: the raster shows where the
+                    products disagree rather than how far. Its editor reads
+                    these; see studioEditors.ts.
+                  */
                   floodParams={floodParams}
                   onFloodParamsChange={setFloodParamsPatch}
                   onRunFlood={() => void handleRunFlood()}

@@ -61,22 +61,27 @@ func TestRunOverlayServesTheRecordedImage(t *testing.T) {
 }
 
 /*
-A product whose whole result is figures has no image, and the answer is 404
-rather than a fall-through.
+A run with no recorded image is answered with 404 rather than a fall-through.
 
 The asset server behind this replies to an unknown path with index.html, so a
 request that fell through would hand an <img> a page of HTML -- a broken image
 with nothing saying why.
+
+The row is written through the store directly, with no overlay path: that is
+what a run saved before the column was filled looks like, and what a run whose
+product wrote no image looks like, and the route has to answer both the same
+way whichever product wrote them.
 */
 func TestRunOverlayAnswersForARunWithNoImage(t *testing.T) {
 	a := newTestApp(t)
-	runID := a.persistSolarRun(
-		analysis.SolarRequest{Label: "AOI"},
-		&analysis.SolarAnalysis{},
-	)
-	if runID == "" {
-		t.Fatal("nothing was saved")
+	saved, err := a.store.SaveRun(store.InferenceRun{
+		UserID: store.LocalUserID,
+		Kind:   store.RunKindWater,
+	})
+	if err != nil {
+		t.Fatal(err)
 	}
+	runID := saved.ID
 
 	rec := httptest.NewRecorder()
 	overlayHandler(a).ServeHTTP(

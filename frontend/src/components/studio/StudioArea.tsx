@@ -325,7 +325,7 @@ export function StudioArea({
           )}
         >
           {/*
-            GROUPED, BY THE STUDIO'S OWN FOUR SUBJECTS.
+            GROUPED, BY THE STUDIO'S OWN SUBJECTS.
 
             Twenty-three editors in one column asked a reader to know the whole
             list before choosing from it, and the column's order carried the
@@ -333,7 +333,7 @@ export function StudioArea({
             the classification ones happened to be adjacent -- which is a
             grouping nothing states and any insertion breaks.
 
-            The same four names the workspace bar uses, from the same table in
+            The same names the workspace bar uses, from the same table in
             studioEditors. A reader who has learnt "Land cover" on the bar has
             learnt it here, and the two cannot drift because there is one list.
 

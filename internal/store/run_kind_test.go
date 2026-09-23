@@ -2,8 +2,8 @@ package store
 
 import "testing"
 
-// TestRunKindsRoundTrip records why adding RunKindWind and RunKindFlood needed
-// no migration.
+// TestRunKindsRoundTrip records why adding a kind -- RunKindFlood was the last
+// -- needed no migration.
 //
 // The kind column was added by an ALTER with DEFAULT 'classification' and no
 // CHECK constraint, and both readers select COALESCE(kind,'classification'), so
@@ -15,8 +15,7 @@ import "testing"
 func TestRunKindsRoundTrip(t *testing.T) {
 	s := openTestStore(t)
 	for _, kind := range []string{
-		RunKindClassification, RunKindWater, RunKindSolar, RunKindWind,
-		RunKindFlood,
+		RunKindClassification, RunKindWater, RunKindFlood,
 	} {
 		saved, err := s.SaveRun(InferenceRun{
 			UserID: LocalUserID, Kind: kind, ModelKind: "test",
@@ -56,15 +55,12 @@ func TestRunKindsRoundTrip(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(runs) != 6 {
-		t.Fatalf("listed %d runs, want 6", len(runs))
+	if len(runs) != 4 {
+		t.Fatalf("listed %d runs, want 4", len(runs))
 	}
 	seen := map[string]bool{}
 	for _, r := range runs {
 		seen[r.Kind] = true
-	}
-	if !seen[RunKindWind] {
-		t.Fatal("a wind run did not survive ListRuns")
 	}
 	if !seen[RunKindFlood] {
 		t.Fatal("a flood run did not survive ListRuns")

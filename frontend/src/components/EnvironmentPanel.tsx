@@ -456,8 +456,9 @@ function StatusPill({ ok, label }: { ok: boolean; label: string }) {
 /**
  * One dependency, named by what its absence costs.
  *
- * "pvlib is missing" means nothing to an agronomist. "the photovoltaic model"
- * is the thing they came for, and the sidecar states it, so it is what shows.
+ * "sklearn is missing" means nothing to an agronomist. "the Random Forest
+ * classification" is the thing they came for, and the sidecar states it, so it
+ * is what shows.
  */
 function PackageRow({ pkg }: { pkg: pyenv.EnvPackage }) {
   return (

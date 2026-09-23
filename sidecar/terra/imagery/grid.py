@@ -24,10 +24,9 @@ def reproject_to_reference(source_path, ref_profile, ref_band_data):
     reference band reports as empty are set to zero, so a class does not appear
     where no imagery was read.
 
-    It was called reproject_mapbiomas_to_grid, which is what its only caller
-    passed it and not what it does; the name kept the photovoltaic siting
-    chain, which reprojects the same raster for a different reason, looking
-    like a consumer of the land-cover product.
+    It was called reproject_mapbiomas_to_grid, which named what its caller
+    passed it and not what it does: nothing here depends on the raster being
+    MapBiomas, only on its values being classes.
     """
     with rasterio.open(source_path) as src:
         data = src.read(1)
@@ -53,7 +52,7 @@ def reference_pixel_size_m(profile):
     class_statistics for hectares and the brush probe in the studio -- each
     carried their own copy of the literal 10.
 
-    NOT terra.terrain.slope.pixel_size_m, which converts DEGREES to metres for
+    NOT terra.terrain.hand.pixel_size_m, which converts DEGREES to metres for
     DEM and would multiply this grid by 111320. The reference grid comes from a
     Sentinel-2 COG in UTM, so its transform is already in metres; the
     geographic branch below exists for a local product that is not, and is an

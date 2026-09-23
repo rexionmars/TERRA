@@ -58,8 +58,8 @@ type Geometry = { type: string; coordinates: unknown } | null
 
 /*
   Placed here rather than through runGraph's SPEC table. That table is the
-  shape of a CLASSIFICATION, composition or solar request and its node ids are
-  a closed union; adding routing's cards to it would widen a type four other
+  shape of a CLASSIFICATION, composition, water or flood-envelope request and
+  its node ids are a closed union; adding routing's cards to it would widen a type four other
   surfaces read, to describe a graph none of them can draw. The geometry
   constants are shared, which is what keeps the columns and the wire curves
   identical to the run graph's.

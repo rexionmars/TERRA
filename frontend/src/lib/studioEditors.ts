@@ -22,13 +22,11 @@ import {
   Crosshair,
   Cube,
   Drop,
-  Fan,
   FlowArrow,
   GitDiff,
   Globe,
   Ruler,
   SlidersHorizontal,
-  Sun,
   Table,
   TreeStructure,
   TreeView,
@@ -49,8 +47,6 @@ export type EditorId =
   | "runParams"
   | "floodRouting"
   | "globe"
-  | "solarReading"
-  | "windReading"
   | "floodReading"
   | "browser"
 
@@ -59,8 +55,8 @@ export type EditorId =
  *
  * The type menu listed twenty-three editors in one column and the workspace
  * bar listed seven presets in a row, and neither said what separated them.
- * They are the same four subjects: the board itself, land cover, water,
- * energy. A reader who has learnt the bar has learnt the menu.
+ * They are the same three subjects: the board itself, land cover and water. A
+ * reader who has learnt the bar has learnt the menu.
  *
  * DECLARED HERE, IN THE LOWER MODULE, for the reason this file already gives
  * for the editor table: a label that exists twice is a label that can disagree
@@ -71,7 +67,7 @@ export type EditorId =
  * is asked for by; the label is what a reader sees, and it can change without
  * a rename running through two files.
  */
-export type StudioGroup = "board" | "crop" | "water" | "energy"
+export type StudioGroup = "board" | "crop" | "water"
 
 /** The groups in the order every menu lists them, and what each is called. */
 export const STUDIO_GROUPS: readonly {
@@ -81,7 +77,6 @@ export const STUDIO_GROUPS: readonly {
   { id: "board", label: "Board" },
   { id: "crop", label: "Land cover" },
   { id: "water", label: "Water" },
-  { id: "energy", label: "Energy" },
 ]
 
 export interface StudioEditorMeta {
@@ -90,8 +85,8 @@ export interface StudioEditorMeta {
    * What kind of work it is for. See StudioGroup.
    *
    * `board` is the editors any task needs -- the scene, the tree, the run's
-   * own settings and tables -- and the other three are the subjects this
-   * studio is asked about. An editor's group is a property of the editor
+   * own settings and tables -- and the other two are the subjects this studio
+   * is asked about. An editor's group is a property of the editor
    * rather than its position in the array below, so the array's order still
    * decides where it sits INSIDE its group.
    */
@@ -349,43 +344,22 @@ export const STUDIO_EDITORS: readonly StudioEditorMeta[] = [
     hint: "Draw an area on the planet, over the catalog already on it",
   },
   {
-    id: "solarReading",
-    group: "energy",
-    label: "Solar result",
-    icon: Sun,
-    minRem: 20,
-    minRowRem: 16,
-    hint: "The resource, the terrain, the siting and the energy model, as each was measured",
-  },
-  {
-    id: "windReading",
-    group: "energy",
-    label: "Wind screening",
-    icon: Fan,
-    /*
-      The two products whose result is a reading and not a raster.
-
-      Every other editor here draws something the viewport could also draw, or
-      controls something that changes it. These two do not: a wind screening
-      resolves an AOI to one reanalysis cell and reports figures over it, and
-      the flood envelope reports how far its products disagree. There is no
-      plane to select, so the reading is the editor rather than a band that
-      fills when a plane is picked.
-
-      Wide because the figures sit two to a row under a chip strip that names
-      the blocks, and a column narrower than this wraps a labelled figure onto
-      three lines. Tall for the same reason the reading scrolls at all: the
-      shear table alone is five rows.
-    */
-    minRem: 20,
-    minRowRem: 16,
-    hint: "Hub-height wind over the area, and how far the estimate moves with roughness",
-  },
-  {
     id: "floodReading",
     group: "water",
     label: "Flood envelope",
     icon: Waves,
+    /*
+      A product whose result is a reading and not a raster.
+
+      Every other editor here draws something the viewport could also draw, or
+      controls something that changes it. This one does not: the flood
+      envelope reports how far its products disagree, and there is no plane to
+      select, so the reading is the editor rather than a band that fills when a
+      plane is picked.
+
+      Wide because the figures sit two to a row, and a column narrower than
+      this wraps a labelled figure onto three lines.
+    */
     minRem: 20,
     minRowRem: 16,
     hint: "How far the elevation products disagree about what the area floods",

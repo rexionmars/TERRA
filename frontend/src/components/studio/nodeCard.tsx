@@ -53,10 +53,10 @@ export function Head({
       {/*
         The label is truncated at the card's width, and `title` is how the whole
         of it is still reachable. The run node's header is the tool's own
-        sentence -- "Map irradiation over terrain" -- which does not fit 208px
-        at any size this row uses, so the ellipsis there is the normal case
-        rather than the exception, and a name that cannot be read is a card
-        that does not say which run it is.
+        sentence, and a sentence that does not fit 208px at any size this row
+        uses makes the ellipsis the normal case there rather than the
+        exception -- and a name that cannot be read is a card that does not
+        say which run it is.
       */}
       {/*
         NO COLOUR NAMED HERE. `.eyebrow` is drawn in --p-muted, which is

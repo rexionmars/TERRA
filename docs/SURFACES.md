@@ -28,10 +28,10 @@ every interface decision below follows from it.
 
 Earlier versions worked the map. Each product that arrived brought a screen with
 it, and each screen brought navigation, its own state, its own chrome and its own
-way of failing. Six exist today — Studio, Energy, Flood, Analysis, Profile and
-the sign-in — and Energy, Flood and Analysis are from that period. The sixth was
-the map, and the section below says where it went: it did not leave the count,
-it became the studio.
+way of failing. There were six — the map, Energy, Flood, Analysis, Profile and
+the sign-in — and Energy, Flood and Analysis were from that period. The map did
+not leave the count, and the section below says where it went: it became the
+studio. Three remain: Studio, Profile and the sign-in.
 
 The cost was not the screens. It was that a screen is a fixed answer to "what do
 you want to see", and the questions this application exists to ask do not have
@@ -56,8 +56,8 @@ a saved tree of splits. Twelve editors exist —
 > Spectral response · Class separability · Library check · Rover ·
 > Data table · Run · Globe
 
-— and seven arrangements ship ready: Layout, Compare, Diagnose, Data, Flood
-envelope, Routing and System. The arrangement is the reader's; the arrangements
+— and six arrangements ship ready: Layout, Compare, Diagnose, Data, Flood
+envelope and Routing. The arrangement is the reader's; the arrangements
 that ship are starting points, not modes.
 
 ## What this does and does not buy
@@ -103,13 +103,14 @@ answered by removing it: opening on the studio used to mean mounting the map
 and immediately covering it, and the run band told the reader to go "to the map"
 for two things the band itself offers.
 
-WHAT STAYED. `MapSurface` is mounted by the Energy and Flood screens, so this
-removed a screen and not the map component. The DEM panel inside it is ungated
-and is still on both of those. `scalarTiles` — a raster served as terrain tiles
-so its palette is a paint expression, recoloured without re-running the analysis
-— is passed only from `MapSurface`, and the globe does not ask for it. That
-capability is reachable, since the globe calls the same `syncOverlays`, and has
-not been carried over.
+WHAT STAYED. `MapSurface` was mounted by the Energy and Flood screens as well,
+so this removed a screen and not the map component. The DEM panel inside it was
+ungated and stayed on both of those. `scalarTiles` — a raster served as terrain
+tiles so its palette is a paint expression, recoloured without re-running the
+analysis — was passed only from `MapSurface`, and the globe did not ask for it.
+That capability was reachable, since the globe calls the same `syncOverlays`,
+and was not carried over. Both screens went later, and `MapSurface` and
+`scalarTiles` with them.
 
 WHAT IT COST AND BOUGHT. Two decisions were not deletions. `onClose` is called
 when a WebGL context cannot be created; it used to close onto the map, and now
@@ -144,7 +145,7 @@ Compositing, Geometry Nodes and Scripting. Blender opens on Layout.
 The mapping to this repository is close enough to be worth naming: `splitArea`,
 `joinArea`, `retypeArea` and `moveSplit` in `lib/boardAreas.ts` are the
 subdivision; `studioEditors.ts` is the editor registry; `studioWorkspaces.ts`
-holds seven arrangements where Blender holds eleven, named the same way, after
+holds six arrangements where Blender holds eleven, named the same way, after
 the task rather than after the panels.
 
 Blender's guidelines also carry a warning this repository has to heed: editors
@@ -186,7 +187,7 @@ getting lost. The problem is discoverability — a capability that is a panel yo
 have not opened is a capability you do not know exists.
 
 Two things reduce it here and neither removes it. The audience is a research one
-already working in napari, QGIS and their like. And the seven arrangements are the
+already working in napari, QGIS and their like. And the six arrangements are the
 answer Blender gives to the same problem: a reader who does not yet know what to
 put on screen is handed a board that already answers a named question.
 

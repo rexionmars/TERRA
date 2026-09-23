@@ -2,23 +2,17 @@
  * How the application names itself before it knows what you are doing.
  *
  * WHY THIS IS NOT "land cover · sentinel-2" ANY MORE. That line was accurate
- * when classification was the whole product. It is now one of ten actions the
- * sidecar answers: land cover, surface water, scene composition, solar
- * resource, solar terrain, solar siting, the photovoltaic energy model, and
- * wind screening. Four of those touch no Sentinel-2 scene at all -- they read
- * hourly reanalysis, which is why NASA POWER appears in the sidecar roughly
- * three times as often as Sentinel-2 does.
- *
- * So the old line described the application's past and hid its present: someone
- * opening TERRA to assess a photovoltaic site saw a subtitle that named neither
- * energy nor anything adjacent to it.
+ * when classification was the whole product. It is now one of several the
+ * sidecar answers -- surface water, scene composition and the flood envelope
+ * among them -- and not all of them read Sentinel-2: the flood envelope and the
+ * surface model read elevation instead. The old line described the
+ * application's past and hid its present.
  *
  * WHY IT NO LONGER NAMES ENERGY EITHER. It read "earth observation · energy"
  * for a while, which named the two halves rather than listing the products --
  * and naming halves is the same habit as listing products, one level up. Two
  * nouns joined by a separator is a claim that the application is two things,
- * and it is one: everything here observes the earth, including the solar and
- * wind products, which read hourly reanalysis of it.
+ * and it is one: everything here observes the earth.
  *
  * A subtitle that enumerates goes stale, and this one had already grown once.
  * The shorter line cannot: it says what the application does rather than which

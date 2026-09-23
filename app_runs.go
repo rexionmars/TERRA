@@ -22,6 +22,16 @@ import (
 // that survives a restart, so this is where a result becomes something the
 // application still knows about tomorrow.
 
+/*
+savedRun is what one product contributes to a run row: the parts the writer
+below cannot know.
+
+Every product that persists a run goes through saveRun, and before this type
+existed the path was one sequence written once per product, six times over.
+That is how it drifted: the "run-" prefix, the trimmed project id and the area
+link each had to be added in every copy, and the thumbnail column the
+classification path fills never reached any of the others.
+*/
 type savedRun struct {
 	// The discriminator every reader branches on, and what produced the
 	// numbers -- for the descriptive products a data source, not a model.
@@ -73,8 +83,8 @@ type savedRun struct {
 
 		EVERY PRODUCT THAT WRITES A RASTER SETS THIS, and the completeness is
 		the point rather than a tidiness. Only the classification and the flood
-		envelope did: water and the two solar rasters wrote a PNG and recorded
-		no path to it, so the column was right for 5 rows out of 40 on one
+		envelope did: the other products that wrote a PNG recorded no path to
+		it, so the column was right for 5 rows out of 40 on one
 		installation. Nothing reads it today, and that is downstream of the
 		same fact -- a reader of a column that is right for an eighth of the
 		table is a reader that is wrong for the rest, so the run list loads a
@@ -83,7 +93,8 @@ type savedRun struct {
 		Filling it is what makes a cheap reader possible; TestEveryRasterRunRecordsItsOverlay
 		is what keeps it true.
 
-		Empty is a real answer, for the products whose whole result is figures.
+		Empty is a real answer, for a run that wrote no image: the flood
+		envelope claims its rendering only when there is one to write.
 	*/
 	overlayFile string
 }
@@ -262,159 +273,6 @@ func (a *App) persistWaterRun(req analysis.WaterRequest, res *analysis.WaterAnal
 // waterOccurrencePNG is the occurrence raster's name inside a run's asset
 // directory, written here and read back by LoadAnalysis.
 const waterOccurrencePNG = "water_occurrence.png"
-
-// persistSolarRun saves a solar resource run so it survives the session and is
-// listed, opened and exported like the other analyses. Returns the row it
-// wrote; see persistWaterRun for why every one of these does.
-func (a *App) persistSolarRun(req analysis.SolarRequest, res *analysis.SolarAnalysis) string {
-	if res == nil {
-		return ""
-	}
-	label := aoiLabel(req.Label)
-	return a.saveRun(savedRun{
-		kind: store.RunKindSolar,
-		// No model produced this; the source is the method that did.
-		modelKind: "NASA POWER",
-		polygon:   req.PolygonGeoJSON,
-		aoiLabel:  label,
-		runLabel:  req.RunLabel,
-		projectID: req.ProjectID,
-		areaID:    req.AreaID,
-		nDates:    res.Resource.NYears,
-		summary: map[string]any{
-			"ghi_annual_kwh_m2":       res.Resource.GHIAnnualKWhM2,
-			"optimal_tilt_deg":        res.Geometry.OptimalTiltDeg,
-			"specific_yield":          res.PV.SpecificYieldKWhKWpYear,
-			"performance_ratio":       res.PV.PerformanceRatio,
-			"performance_ratio_model": res.PV.PerformanceRatioModelled,
-			"n_years":                 res.Resource.NYears,
-			"aoi_label":               label,
-			"grid_note":               res.GridNote,
-		},
-		result: func(string, string) any { return res },
-	})
-}
-
-// persistSolarRaster saves a solar map run and writes its overlay to disk, so
-// reopening the run puts the raster back rather than only its numbers.
-func (a *App) persistSolarRaster(
-	poly *analysis.GeoJSONGeometry,
-	label, runLabel, projectID, areaID, kindTag, variant string,
-	payload any, overlayURI string, nDates int,
-) string {
-	if payload == nil {
-		return ""
-	}
-	l := aoiLabel(label)
-	// One name for the rendering: the file written below, and the column that
-	// says which of a run's files is the one to show.
-	overlay := kindTag + ".png"
-	return a.saveRun(savedRun{
-		kind:      store.RunKindSolar,
-		modelKind: "NASA POWER",
-		polygon:   poly,
-		aoiLabel:  l,
-		runLabel:  runLabel,
-		projectID: projectID,
-		areaID:    areaID,
-		nDates:    nDates,
-		summary: map[string]any{
-			"solar_product": kindTag,
-			"variant":       variant,
-			"aoi_label":     l,
-		},
-		result: func(assetsDir, _ string) any {
-			_ = store.WriteDataURIFile(overlayURI, filepath.Join(assetsDir, overlay))
-			return payload
-		},
-		overlayFile: overlay,
-	})
-}
-
-// persistEnergyModelRun saves an energy model run so it survives the session
-// and is listed, opened and exported like the other analyses.
-//
-// Filed under RunKindSolar with solar_product "energy_model", which is the
-// discriminator the solar products already use. It is a solar product: same
-// radiation chain, same grid, same optimum.
-func (a *App) persistEnergyModelRun(req analysis.EnergyModelRequest, res *analysis.EnergyModelAnalysis) string {
-	if res == nil {
-		return ""
-	}
-	label := aoiLabel(req.Label)
-	return a.saveRun(savedRun{
-		kind: store.RunKindSolar,
-		// No model produced this; the source is the method that did.
-		modelKind: "NASA POWER",
-		polygon:   req.PolygonGeoJSON,
-		aoiLabel:  label,
-		runLabel:  req.RunLabel,
-		projectID: req.ProjectID,
-		areaID:    req.AreaID,
-		nDates:    res.NDates(),
-		// ghi_annual_kwh_m2, optimal_tilt_deg and specific_yield are the keys
-		// the saved-run list already reads for a solar row, so the row says
-		// something without a client change. Everything else states the basis,
-		// because a yield without its performance ratio and reporting basis is
-		// not a figure.
-		summary: map[string]any{
-			"solar_product":            "energy_model",
-			"variant":                  res.ReportingBasis,
-			"ghi_annual_kwh_m2":        res.LossWaterfall.Base.GHIClimatologyKWhM2Year,
-			"optimal_tilt_deg":         res.Geometry.OptimalTiltDeg,
-			"specific_yield":           res.LossWaterfall.Delivered.AppliedKWhKWpYear,
-			"performance_ratio":        res.PerformanceRatio.Applied,
-			"performance_ratio_source": res.PerformanceRatio.AppliedSource,
-			"performance_ratio_model":  res.PerformanceRatio.Modelled,
-			"reporting_basis":          res.ReportingBasis,
-			"capacity_density_basis":   res.CapacityDensity.Basis,
-			"suitable_area_ha":         res.Plant.Suitable.AreaHa,
-			"suitable_capacity_dc_mw":  res.Plant.Suitable.CapacityDCMW,
-			"n_years":                  res.HourlyYears,
-			"aoi_label":                label,
-			"grid_note":                res.GridNote,
-		},
-		result: func(string, string) any { return res },
-	})
-}
-
-// persistWindRun saves a wind screening run under its own kind. Returns the row
-// it wrote; see persistWaterRun for why every one of these does.
-func (a *App) persistWindRun(req analysis.WindRequest, res *analysis.WindAnalysis) string {
-	if res == nil {
-		return ""
-	}
-	label := aoiLabel(req.Label)
-	return a.saveRun(savedRun{
-		kind: store.RunKindWind,
-		// No model produced this; the source is the product that did.
-		modelKind: "NASA POWER MERRA-2",
-		polygon:   req.PolygonGeoJSON,
-		aoiLabel:  label,
-		runLabel:  req.RunLabel,
-		projectID: req.ProjectID,
-		areaID:    req.AreaID,
-		nDates:    res.NDates(),
-		// The qualifier and the check outcome travel with the capacity factor.
-		// A gross, unvalidated figure listed beside a benchmarked photovoltaic
-		// one reads as the same kind of number unless the row says otherwise.
-		summary: map[string]any{
-			"wind_hub_height_m":              res.HubHeightM,
-			"wind_mean_speed_50m_ms":         res.Measured.MeanSpeed50mMS,
-			"wind_hub_mean_speed_ms":         res.Hub.MeanSpeedMS,
-			"wind_gross_capacity_factor_pct": res.Hub.GrossCapacityFactorPct,
-			"wind_annual_energy_mwh":         res.Hub.GrossAnnualEnergyMWhPerTurbine,
-			"wind_turbine":                   res.Turbine.Name,
-			"wind_all_checks_passed":         res.DataQuality.AllChecksPassed,
-			"wind_flag_count":                len(res.DataQuality.Flags),
-			"record_window":                  res.RecordWindow,
-			"qualifier":                      res.Qualifier,
-			"aoi_label":                      label,
-			"grid_note":                      res.GridNote,
-		},
-		result: func(string, string) any { return res },
-	})
-}
 
 /*
 AnalyzeFlood measures the HAND flood extent over the AOI and how much of that
@@ -681,96 +539,14 @@ func (a *App) LoadAnalysis(runID string) (*analysis.PredictResult, error) {
 	}
 	assetsDir := st.RunsDir(run.ID)
 
-	// A water run stores a WaterAnalysis, not a PredictResult. It is returned
-	// attached to an otherwise empty result so the analysis view and the export
-	// see it through the same field a live run uses. The classification fields
-	// are deliberately left at zero: no classification was made, and filling
-	// n_dates here would make the page present one.
-	if run.Kind == store.RunKindSolar {
-		// One kind covers four products; the summary says which one was saved.
-		var meta struct {
-			Product string `json:"solar_product"`
-		}
-		_ = json.Unmarshal([]byte(run.SummaryJSON), &meta)
-		out := &analysis.PredictResult{}
-		switch meta.Product {
-		case "solar_terrain":
-			var t analysis.SolarTerrainAnalysis
-			_ = json.Unmarshal([]byte(run.ResultJSON), &t)
-			if uri, err := store.ReadFileDataURI(
-				filepath.Join(assetsDir, "solar_terrain.png"), "image/png",
-			); err == nil {
-				t.OverlayURI = uri
-			}
-			out.SolarTerrain = &t
-		case "solar_siting":
-			var st analysis.SolarSitingAnalysis
-			_ = json.Unmarshal([]byte(run.ResultJSON), &st)
-			if uri, err := store.ReadFileDataURI(
-				filepath.Join(assetsDir, "solar_siting.png"), "image/png",
-			); err == nil {
-				st.OverlayURI = uri
-			}
-			out.SolarSiting = &st
-		// "energy_advanced" is the tag this product was written under before it
-		// was renamed. It is read and never written. Runs saved under the old
-		// tag would otherwise fall to the default branch, which decodes an
-		// energy payload into a SolarAnalysis and reopens as an empty solar
-		// card with nothing raising an error; a rename that makes a saved run
-		// unopenable is a worse defect than the name it fixes. The real store
-		// held no such row when the rename was made, so nothing was migrated
-		// and no write path can produce the old tag again.
-		case "energy_model", "energy_advanced":
-			// No raster: the whole run is in result_json. Without this case the
-			// run saves and lists correctly and reopens as an empty solar card,
-			// with nothing raising an error.
-			var e analysis.EnergyModelAnalysis
-			if run.ResultJSON != "" && run.ResultJSON != "{}" {
-				_ = json.Unmarshal([]byte(run.ResultJSON), &e)
-			}
-			e.NormalizeNilSlices()
-			out.EnergyModel = &e
-		default:
-			var solar analysis.SolarAnalysis
-			if run.ResultJSON != "" && run.ResultJSON != "{}" {
-				_ = json.Unmarshal([]byte(run.ResultJSON), &solar)
-			}
-			out.Solar = &solar
-		}
-		out.RunID = run.ID
-		return out, nil
-	}
-
-	// A wind run stores a WindAnalysis and no raster. Returned attached to an
-	// otherwise empty result, the way a water run is, so the analysis view and
-	// the export see it through the field a live run uses.
-	if run.Kind == store.RunKindWind {
-		var wind analysis.WindAnalysis
-		if run.ResultJSON != "" && run.ResultJSON != "{}" {
-			_ = json.Unmarshal([]byte(run.ResultJSON), &wind)
-		}
-		wind.NormalizeNilSlices()
-		/*
-			Stamped, like the solar, flood and classification branches around it.
-
-			This branch and the water one below returned without it, so reopening
-			a saved wind or water run handed the frontend a result that did not
-			know which run it was -- the same sentinel the live path suffered
-			from, arriving through the other door. A run read back from its own
-			row is the one case where the id is never in doubt.
-		*/
-		wind.RunID = run.ID
-		return &analysis.PredictResult{Wind: &wind, RunID: run.ID}, nil
-	}
-
 	/*
 		A flood run stores a FloodAnalysis and two rasters.
 
 		Without this branch the run falls through to the classification path,
 		which decodes the flood payload into a PredictResult where nothing binds
 		and returns it: the run lists correctly, reopens as an empty card, and
-		reports nothing, with no error raised anywhere. That is the defect the
-		wind and energy branches above were each written for.
+		reports nothing, with no error raised anywhere. Every kind that stores a
+		payload of its own needs a branch here for that reason.
 
 		Both raster paths are rewritten to where the files actually are. What
 		was stored is relative to the data directory, and the sidecar's own
@@ -808,6 +584,11 @@ func (a *App) LoadAnalysis(runID string) (*analysis.PredictResult, error) {
 		return &analysis.PredictResult{Flood: &flood, RunID: run.ID}, nil
 	}
 
+	// A water run stores a WaterAnalysis, not a PredictResult. It is returned
+	// attached to an otherwise empty result so the analysis view and the export
+	// see it through the same field a live run uses. The classification fields
+	// are deliberately left at zero: no classification was made, and filling
+	// n_dates here would make the page present one.
 	if run.Kind == store.RunKindWater {
 		var water analysis.WaterAnalysis
 		if run.ResultJSON != "" && run.ResultJSON != "{}" {
@@ -818,7 +599,15 @@ func (a *App) LoadAnalysis(runID string) (*analysis.PredictResult, error) {
 		); err == nil {
 			water.OccurrenceURI = uri
 		}
-		// Stamped for the reason the wind branch above states.
+		/*
+			Stamped, like the flood and classification branches around it.
+
+			This branch returned without it, so reopening a saved water run
+			handed the frontend a result that did not know which run it was --
+			the same sentinel the live path suffered from, arriving through the
+			other door. A run read back from its own row is the one case where
+			the id is never in doubt.
+		*/
 		water.RunID = run.ID
 		return &analysis.PredictResult{Water: &water, RunID: run.ID}, nil
 	}

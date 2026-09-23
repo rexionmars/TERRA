@@ -318,8 +318,13 @@ type FloodAnalysis struct {
 // would take them for scenes.
 func (f *FloodAnalysis) NDates() int { return 0 }
 
-// NormalizeNilSlices replaces every nil slice with an empty one, for the reason
-// given on EnergyModelAnalysis.NormalizeNilSlices.
+// NormalizeNilSlices replaces every nil slice with an empty one.
+//
+// A nil slice marshals as null, and a null read as an array on the other side
+// throws on .map or .length. Normalising here rather than guarding at each read
+// is what lets the TypeScript mirror declare these fields non-nullable. Called
+// on the live path and again on restore, so a reopened run is as safe as a
+// fresh one whatever an older stored payload happens to be missing.
 func (f *FloodAnalysis) NormalizeNilSlices() {
 	if f.ThresholdsM == nil {
 		f.ThresholdsM = []float64{}

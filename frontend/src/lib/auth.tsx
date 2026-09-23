@@ -244,9 +244,9 @@ export function AuthProvider({
   /**
    * Where settings was opened from, so leaving it returns there.
    *
-   * Only the screen is kept: the sub-tabs -- which map tool, which energy
-   * resource -- are held in App precisely so they survive a screen change, so
-   * returning to the screen restores the tab that was open on it.
+   * Only the screen is kept: the sub-tab -- which map tool -- is held in App
+   * precisely so it survives a screen change, so returning to the screen
+   * restores the tab that was open on it.
    *
    * Settings is the one screen with no work of its own to go back to. Every
    * other destination is a place the user chose; this one is a detour, and

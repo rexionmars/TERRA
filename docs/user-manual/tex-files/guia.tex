@@ -132,8 +132,8 @@
 \setcapacolunas
   {S\'eries, n\~ao imagens}{Sentinel-2 ao longo de um per\'iodo, filtrado
    por nuvem e empilhado}
-  {Uma \'area, seis produtos}{Cobertura do solo, composi\c{c}\~oes, \'agua,
-   solar, e\'olica e cheia}
+  {Uma \'area, quatro produtos}{Cobertura do solo, composi\c{c}\~oes, \'agua e
+   cheia}
   {Sem servidor}{Aplica\c{c}\~ao desktop: as cenas v\^em do cat\'alogo, o
    c\'alculo \'e local}
 
@@ -145,7 +145,7 @@
    como ler o que ela devolve}
   {Agosto de 2026}
 
-% SUMARIO. Vinte e sete paginas com apendice: sem ele, achar a tabela de
+% SUMARIO. Vinte e uma paginas com apendice: sem ele, achar a tabela de
 % parametros da classificacao exige folhear.
 %
 % Sem estilo proprio. O `titlesec` do terra.sty ja formata `\section*`, entao
@@ -166,7 +166,7 @@
 % `Use as is' adota o interpretador nao se distingue de prosa.
 %
 % O aviso sobre as figuras vivia na secao 1. Veio para ca porque vale para as
-% dezessete e nao so para as tres primeiras.
+% catorze e nao so para as tres primeiras.
 % =====================================================================
 \section*{Pref\'acio}
 \addcontentsline{toc}{section}{Pref\'acio}
@@ -177,9 +177,9 @@ n\'umeros devolvidos significam.
 
 \campo{A quem se dirige} A quem vai operar a aplica\c{c}\~ao. N\~ao pressup\~oe
 familiaridade com o c\'odigo nem com sensoriamento remoto, mas pressup\~oe que
-o leitor saiba o que quer medir. Termos de dom\'inio --- \'indice de \'area
-foliar, dist\^ancia de Jeffries-Matusita, fra\c{c}\~ao difusa --- s\~ao usados
-onde a tela os usa, e definidos no ponto em que aparecem pela primeira vez.
+o leitor saiba o que quer medir. Termos de dom\'inio, como a dist\^ancia de
+Jeffries-Matusita, s\~ao usados onde a tela os usa, e definidos no ponto em que
+aparecem pela primeira vez.
 
 \campo{O que n\~ao cobre} A deriva\c{c}\~ao dos m\'etodos. Onde uma
 formula\c{c}\~ao \'e citada, ela vem com a refer\^encia bibliogr\'afica e sem
@@ -270,9 +270,9 @@ ficam junto do c\'odigo que os produz.
 
 O TERRA classifica cobertura do solo a partir de s\'eries temporais do
 Sentinel-2. Sobre a mesma \'area e o mesmo per\'iodo, produz tamb\'em
-composi\c{c}\~oes de bandas, mapeamento de \'agua superficial, estimativas de
-recurso solar e e\'olico, e uma envolt\'oria de cheia derivada do terreno. A
-aplica\c{c}\~ao \'e desktop: executa na m\'aquina do usu\'ario, sem servidor.
+composi\c{c}\~oes de bandas, mapeamento de \'agua superficial e uma
+envolt\'oria de cheia derivada do terreno. A aplica\c{c}\~ao \'e desktop:
+executa na m\'aquina do usu\'ario, sem servidor.
 
 O ap\^endice~\ref{ap:mensagens} re\'une as mensagens de recusa e as
 condi\c{c}\~oes reportadas durante a execu\c{c}\~ao, de todas as tarefas.
@@ -349,7 +349,7 @@ p\'agina lista as que encontrar.
 % =====================================================================
 \section{A tela principal}
 
-As telas de opera\c{c}\~ao --- classifica\c{c}\~ao, \'agua, energia e cheia ---
+As telas de opera\c{c}\~ao --- classifica\c{c}\~ao, \'agua e cheia ---
 compartilham a mesma estrutura. Variam o conte\'udo do painel da esquerda e o
 da coluna de resultado.
 
@@ -373,8 +373,7 @@ Define o recorte de todas as opera\c{c}\~oes subsequentes.
 
 \campo{3 --- A janela temporal} A barra ao p\'e da tela. O eixo \'e o mesmo em
 todos os modos; o que ele controla varia. Em classifica\c{c}\~ao, \'e o
-per\'iodo de aquisi\c{c}\~ao das cenas; em e\'olica, a janela de registro
-hist\'orico.
+per\'iodo de aquisi\c{c}\~ao das cenas.
 
 \campo{4 --- O painel de a\c{c}\~ao} Configura a execu\c{c}\~ao. Os campos
 variam com o modo de opera\c{c}\~ao. A coluna termina no bot\~ao de
@@ -382,8 +381,7 @@ execu\c{c}\~ao.
 
 \campo{5 --- Os modos de opera\c{c}\~ao} A coluna de navega\c{c}\~ao. Modos com
 sub-contextos os exibem abaixo de si: \texttt{Map} cont\'em
-\texttt{Classification}, \texttt{Compositions} e \texttt{Surface water};
-\texttt{Energy} cont\'em \texttt{Solar} e \texttt{Wind}.
+\texttt{Classification}, \texttt{Compositions} e \texttt{Surface water}.
 
 \campo{6 --- O cabe\c{c}alho} \`A esquerda, o seletor de projeto, sob o qual
 ficam arquivadas as execu\c{c}\~oes e os \emph{studios} salvos. \`A direita, as
@@ -539,60 +537,6 @@ nessa propor\c{c}\~ao.
   {\texttt{Map} $\rightarrow$ \texttt{Surface water}. Propor\c{c}\~ao de datas
    em que cada pixel foi classificado como \'agua, em escala fixa de 0 a 1.}
   {fig:agua}
-
-\subsection{Solar}
-
-\begin{ficha}
-  \item[Painel] \texttt{Energy} $\rightarrow$ \texttt{Solar}
-  \item[Pr\'e-condi\c{c}\~oes] \'Area definida. N\~ao requer cena
-        Sentinel-2: a irradia\c{c}\~ao vem da s\'erie NASA POWER
-  \item[Sa\'ida] Irradia\c{c}\~ao no plano dos m\'odulos, distribui\c{c}\~ao
-        sobre o terreno, \'area utiliz\'avel e gera\c{c}\~ao estimada
-\end{ficha}
-
-Dois campos t\^em faixa verificada antes da execu\c{c}\~ao: a raz\~ao de
-desempenho, recusada fora do intervalo de 0 a 1 com \msg{Performance ratio must
-be between 0 and 1.}, e o deslocamento UTC, recusado fora de $-12$ a $+14$ horas
-com \msg{UTC offset must be between -12 and 14 hours.}
-
-\terrafig{png-images/impressao/map-solar.png}
-  {\texttt{Energy} $\rightarrow$ \texttt{Solar}. A coluna de resultado re\'une
-   rendimento espec\'ifico, \^angulo \'otimo e capacidade acima do
-   detalhamento.}
-  {fig:solar}
-
-\subsection{E\'olica}
-
-\begin{ficha}
-  \item[Painel] \texttt{Energy} $\rightarrow$ \texttt{Wind}
-  \item[Pr\'e-condi\c{c}\~oes] \'Area definida. A s\'erie \'e lida no
-        centroide da \'area
-  \item[Sa\'ida] N\'iveis de velocidade, ajuste de Weibull, densidade de
-        pot\^encia, cisalhamento, sazonalidade e rosa de dire\c{c}\~ao
-\end{ficha}
-
-Triagem de recurso a partir de dados de rean\'alise. O resultado \'e de
-\termo{triagem}: aplica-se \`a exclus\~ao de s\'itios, n\~ao ao
-dimensionamento de um parque.
-
-\terrafig{png-images/impressao/map-wind.png}
-  {\texttt{Energy} $\rightarrow$ \texttt{Wind}. O painel da esquerda declara,
-   junto de cada campo, as premissas adotadas: a rugosidade \'e uma propriedade
-   suposta e n\~ao medida; alturas de rotor acima de 50~m s\~ao
-   extrapola\c{c}\~ao. A coluna da direita apresenta n\'iveis, cisalhamento,
-   sazonalidade e dire\c{c}\~ao.}
-  {fig:vento}
-
-\begin{aviso}
-A tela de e\'olica registra que o fator de capacidade exclui esteira,
-disponibilidade, perdas el\'etricas, gelo e corte, e que n\~ao h\'a
-compara\c{c}\~ao externa equivalente \`a raz\~ao fotovoltaica. Os valores s\~ao
-indica\c{c}\~ao de triagem, n\~ao proje\c{c}\~ao de gera\c{c}\~ao.
-
-A rugosidade implicada \'e reportada como ausente quando a invers\~ao n\~ao
-converge, e n\~ao substitu\'ida por um valor plaus\'ivel. O painel informa,
-nesse caso, a faixa de rugosidade assumida.
-\end{aviso}
 
 \subsection{Envolt\'oria de cheia}
 
@@ -1011,8 +955,6 @@ Python e nomeia a condi\c{c}\~ao encontrada.
 \msg{Define an area: draw, search, or load an example.} & nenhuma \'area definida. Desenhe, busque ou importe \\
 \msg{Select a scene first.} & composi\c{c}\~ao pedida sem cena selecionada na lista \\
 \msg{No polygon found in the file.} & o arquivo importado n\~ao cont\'em geometria de pol\'igono \\
-\msg{Performance ratio must be between 0 and 1.} & campo solar fora da faixa \\
-\msg{UTC offset must be between -12 and 14 hours.} & campo solar fora da faixa \\
 \bottomrule
 \end{tabular}
 \end{center}
@@ -1031,9 +973,6 @@ detalhe do aviso de erro da tarefa correspondente.}
 \msg{no Copernicus DEM tile covers this AOI} & a \'area est\'a fora da cobertura do produto de eleva\c{c}\~ao \\
 \msg{the merged DEM window is empty for this AOI} & os produtos selecionados n\~ao retornaram dado sobre a \'area \\
 \msg{No MapBiomas pixels in the AOI window (empty download).} & a \'area est\'a fora da cobertura do MapBiomas \\
-\msg{NASA POWER returned no data for this period} & a s\'erie de irradia\c{c}\~ao n\~ao cobre o per\'iodo pedido \\
-\msg{NASA POWER request failed after N attempts} & falha de rede ap\'os as tentativas previstas \\
-\msg{no complete year in the annual totals} & o per\'iodo n\~ao fecha um ano, e os totais anuais n\~ao s\~ao calcul\'aveis \\
 \bottomrule
 \end{tabular}
 \end{center}

@@ -35,8 +35,8 @@ export type StudioTree = AreaNode<EditorId>
  * of this file's own.
  *
  * They were declared here first and that was one list too many: the type menu
- * groups twenty-three editors by the same four subjects, and two tables of
- * group names is two tables that can disagree. `studioEditors` is the lower
+ * groups its editors by the same subjects, and two tables of group names is
+ * two tables that can disagree. `studioEditors` is the lower
  * module -- this file already imports EditorId from it -- so the vocabulary
  * lives there and both read it.
  */

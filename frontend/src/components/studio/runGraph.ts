@@ -15,22 +15,16 @@
  * drawn, and it is also why nothing here is rewireable -- the shape is the
  * request's, not an arrangement someone chose.
  *
- * The one real dependency is solar's product. Irradiation reads a record and a
- * season, siting reads two slope limits, and neither set means anything under
- * the other product -- so the product GATES them, and an edge from it to each
- * says which choice put them on screen.
+ * Where one input does gate another -- the model gates the mode, a
+ * composition's recipe gates its bands or its index -- an edge from it to what
+ * it gates says which choice put that card on screen.
  */
 import {
   CalendarBlank,
   CircleHalf,
-  ChartLineDown,
-  Factory,
-  ClockCounterClockwise,
   Drop,
-  Fan,
   Images,
   MapTrifold,
-  Mountains,
   Network,
   Package,
   Palette,
@@ -38,13 +32,9 @@ import {
   Repeat,
   Ruler,
   Stack,
-  Sun,
-  ThermometerSimple,
   type Icon,
-  Waves,
 } from "@phosphor-icons/react"
-import type { SolarProductId } from "@/lib/energyState"
-import { energyFamily, type BoardToolId, type EnergyProductId } from "@/lib/mapTools"
+import type { BoardToolId } from "@/lib/mapTools"
 
 export type RunNodeId =
   | "area"
@@ -57,19 +47,9 @@ export type RunNodeId =
   | "spectralIndex"
   | "stretch"
   | "waterIndex"
-  | "product"
-  | "record"
-  | "season"
-  | "slope"
-  | "turbine"
-  | "roughness"
   | "models"
   | "threshold"
   | "catalogue"
-  | "radiation"
-  | "plant"
-  | "array"
-  | "losses"
   | "run"
 
 export interface RunNodeSpec {
@@ -88,12 +68,10 @@ export interface RunNodeSpec {
    * heights and prefers them, and NodeCanvas reports one per card.
    *
    * IT USED TO BE THE ONLY HEIGHT, and it went stale in the way a hand-copied
-   * number does. `product` says 78, which was true of the four short names
-   * under solar; the same card drew the nine ENERGY_PRODUCTS labels the table
-   * held at the time, wrapped to about six rows and stood near 200. The card
-   * declared below it in the same column was placed 124px into it, and the
-   * overlap clipped two of the nine options out of reach. Nothing compared the
-   * two numbers, so nothing failed.
+   * number does. One card declared 78 while the list it drew wrapped to about
+   * six rows and stood near 200; the card declared below it in the same column
+   * was placed 124px into it, and the overlap clipped two of its options out of
+   * reach. Nothing compared the two numbers, so nothing failed.
    */
   h: number
 }
@@ -142,12 +120,6 @@ const SPEC: Record<RunNodeId, Omit<RunNodeSpec, "col">> = {
   spectralIndex: { id: "spectralIndex", label: "Index", icon: Palette, h: 74 },
   stretch: { id: "stretch", label: "Stretch", icon: CircleHalf, h: 116 },
   waterIndex: { id: "waterIndex", label: "Index", icon: Drop, h: 78 },
-  product: { id: "product", label: "Product", icon: Package, h: 78 },
-  record: { id: "record", label: "Record", icon: ClockCounterClockwise, h: 78 },
-  season: { id: "season", label: "Season", icon: ThermometerSimple, h: 116 },
-  slope: { id: "slope", label: "Slope", icon: Mountains, h: 116 },
-  turbine: { id: "turbine", label: "Turbine", icon: Fan, h: 116 },
-  roughness: { id: "roughness", label: "Roughness", icon: Waves, h: 116 },
   models: { id: "models", label: "Elevation models", icon: Stack, h: 140 },
   threshold: { id: "threshold", label: "Threshold", icon: Ruler, h: 116 },
   /*
@@ -170,13 +142,6 @@ const SPEC: Record<RunNodeId, Omit<RunNodeSpec, "col">> = {
     is asked over ground.
   */
   catalogue: { id: "catalogue", label: "Catalogue", icon: MapTrifold, h: 200 },
-  // The solar parameters, back on the graph. Named for what they configure,
-  // not for the product that sends them: `radiation` and `slope` are each read
-  // by two products, which is why SolarParams holds one of each for the axis.
-  radiation: { id: "radiation", label: "Radiation", icon: Sun, h: 168 },
-  plant: { id: "plant", label: "Plant", icon: Factory, h: 200 },
-  array: { id: "array", label: "Array", icon: Ruler, h: 168 },
-  losses: { id: "losses", label: "Losses", icon: ChartLineDown, h: 200 },
   // The run node draws its own header from the tool, so it carries no icon of
   // its own here; TOOL_ICON in BoardRunGraph names it.
   run: { id: "run", label: "Run", icon: Package, h: 96 },
@@ -205,7 +170,7 @@ export interface RunGraph {
 }
 
 /**
- * The graph for one product, with solar's two shapes kept apart.
+ * The graph for one product.
  *
  * `null` while no tool is chosen: there is no run to describe before there is
  * a product, which is the rule the band's method brief already followed.
@@ -224,13 +189,11 @@ export interface RunGraph {
  */
 export function runGraph(
   tool: BoardToolId | null,
-  solarProduct: SolarProductId | null,
   compositeKind: "rgb" | "index" | null = null,
-  energyProduct: EnergyProductId | null = null,
   /** The optional cards the reader has added. See the note below. */
   extras: readonly OptionalNodeId[] = []
 ): RunGraph | null {
-  const graph = productGraph(tool, solarProduct, compositeKind, energyProduct)
+  const graph = productGraph(tool, compositeKind)
   if (!graph) return graph
   /*
     THE OPTIONAL CARDS, AND WHY THEY ARE NOT ON EVERY GRAPH.
@@ -255,28 +218,10 @@ export function runGraph(
 
 function productGraph(
   tool: BoardToolId | null,
-  solarProduct: SolarProductId | null,
   /** Which recipe a composition is built from; gates bands against an index. */
-  compositeKind: "rgb" | "index" | null = null,
-  /**
-   * Which energy product, when the band is on Energy.
-   *
-   * The families kept their graphs -- what changed is that the reader no
-   * longer picks the family first. So the branches below still ask which slice
-   * answers, and that question is now answered by the product instead of by
-   * the tool.
-   */
-  energyProduct: EnergyProductId | null = null
+  compositeKind: "rgb" | "index" | null = null
 ): RunGraph | null {
   if (!tool) return null
-
-  const family =
-    tool === "energy"
-      ? energyProduct
-        ? energyFamily(energyProduct)
-        : null
-      : tool
-  if (tool === "energy" && !family) return null
 
   const at = (id: RunNodeId, col: number): RunNodeSpec => ({
     ...SPEC[id],
@@ -284,145 +229,9 @@ function productGraph(
   })
 
   /*
-    SOLAR IS AREA, PRODUCT AND WHAT THE PRODUCT SENDS.
-
-    The parameters were moved off this graph and into an editor of their own,
-    on an argument that was true about ONE product and was applied to four:
-    the energy model alone carries a reporting basis, an analysis period, a
-    degradation rate, two ground-cover ratios, a tracker limit, a density
-    basis, a buildable fraction, a UTC offset and two tables of loss terms,
-    and "a card that wide is a panel with a card's chrome" is a fair thing to
-    say about it. It is not a fair thing to say about the siting map, which
-    sends two slope limits, or the terrain map, which sends a window and a
-    season.
-
-    A panel configures nothing that a card cannot; what a panel is FOR is
-    showing a result. So the parameters come back, per product, and the
-    heaviest one is split across cards named for what they configure rather
-    than crammed into one.
-  */
-  if (family === "solar") {
-    if (!solarProduct) return null
-    if (solarProduct === "resource") {
-      return {
-        nodes: [
-          at("area", 0),
-          at("record", 0),
-          at("product", 1),
-          at("radiation", 1),
-          at("run", 2),
-        ],
-        edges: [
-          ["area", "run"],
-          ["record", "run"],
-          ["radiation", "run"],
-          ["product", "run"],
-        ],
-      }
-    }
-    if (solarProduct === "terrain") {
-      return {
-        nodes: [
-          at("area", 0),
-          at("record", 0),
-          at("product", 1),
-          at("season", 1),
-          at("run", 2),
-        ],
-        edges: [
-          ["area", "run"],
-          ["record", "run"],
-          ["season", "run"],
-          ["product", "run"],
-        ],
-      }
-    }
-    if (solarProduct === "siting") {
-      return {
-        nodes: [at("area", 0), at("product", 1), at("slope", 1), at("run", 2)],
-        edges: [
-          ["area", "run"],
-          ["slope", "run"],
-          ["product", "run"],
-        ],
-      }
-    }
-    /*
-      The energy model, which is the one the panel was built for.
-
-      Six parameter cards, grouped by what they configure rather than by what
-      fits: the radiation chain, the ground it stands on, the plant's own
-      accounting, the array geometry, and the loss stack behind the ratio. It
-      is a dense graph and it is meant to be -- this product sends more than
-      any other, and the density is that fact drawn rather than hidden behind
-      a panel that looked the same as the siting map's.
-    */
-    return {
-      nodes: [
-        at("area", 0),
-        at("record", 0),
-        at("radiation", 0),
-        at("product", 1),
-        at("slope", 1),
-        at("plant", 1),
-        at("array", 2),
-        at("losses", 2),
-        at("run", 3),
-      ],
-      edges: [
-        ["area", "run"],
-        ["record", "run"],
-        ["radiation", "run"],
-        ["slope", "run"],
-        ["plant", "run"],
-        ["array", "run"],
-        ["losses", "run"],
-        ["product", "run"],
-      ],
-    }
-  }
-
-  /*
-    WIND READS NO IMAGERY, so it has no period card. The record is a span of
-    NASA POWER hours at the centroid, and the area is what locates that
-    centroid -- which is why the area still fans in while the acquisition
-    window does not appear at all.
-  */
-  if (family === "wind") {
-    return {
-      nodes: [
-        at("area", 0),
-        at("record", 0),
-        /*
-          THE PRODUCT CARD IS ON EVERY ENERGY GRAPH, INCLUDING THIS ONE.
-
-          It is not a parameter here -- wind has one product and the card shows
-          it rather than offering a choice within the family. It is on the
-          graph because it is the control that chose the family, and a control
-          that removes itself when used is a door that locks behind the reader:
-          picking wind took the product labels off the board and left no way
-          back to solar. Every sibling branch carries it; this one was the
-          omission.
-        */
-        at("product", 1),
-        at("turbine", 1),
-        at("roughness", 1),
-        at("run", 2),
-      ],
-      edges: [
-        ["area", "run"],
-        ["record", "run"],
-        ["turbine", "run"],
-        ["roughness", "run"],
-        ["product", "run"],
-      ],
-    }
-  }
-
-  /*
-    NEITHER DOES FLOOD. The envelope is terrain and drainage: several elevation
-    models over one polygon, compared against each other. No scene search, no
-    cloud ceiling, and nothing dated.
+    FLOOD READS NO IMAGERY, so it has no period card. The envelope is terrain
+    and drainage: several elevation models over one polygon, compared against
+    each other. No scene search, no cloud ceiling, and nothing dated.
   */
   if (tool === "flood") {
     return {
@@ -471,9 +280,9 @@ function productGraph(
       it through the list rather than directly. Drawing the period straight
       into the run would say the request carries a date range, and it does not.
 
-      The recipe gates its own parameters the way solar's product does: an RGB
-      composite reads three bands, an index composite reads one index, and
-      neither set means anything under the other kind.
+      The recipe gates its own parameters: an RGB composite reads three bands,
+      an index composite reads one index, and neither set means anything under
+      the other kind.
     */
     const recipe: RunNodeId = compositeKind === "index" ? "spectralIndex" : "bands"
     return {
@@ -541,9 +350,8 @@ export function defaultPlaces(
    *
    * Empty on the first frame, which is what `RunNodeSpec.h` is for. Once a
    * card has been on screen its own height is the one that stacks the column,
-   * so a card whose contents depend on the tool -- `product` carries four
-   * short names under solar and five longer ones under energy -- cannot be
-   * laid out against a number written for the other case.
+   * so a card whose contents depend on the tool, or on a choice made on the
+   * card, cannot be laid out against a number written for another case.
    */
   measured: Readonly<Record<string, number>> = {}
 ): Record<string, Place> {

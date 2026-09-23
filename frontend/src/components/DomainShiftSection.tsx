@@ -162,7 +162,7 @@ export function DomainShiftSection({
   labelA?: string
   labelB?: string
   /**
-   * Where this is mounted, in `BoardSolarDetail`'s vocabulary.
+   * Where this is mounted, in `BoardPredictionDetail`'s vocabulary.
    *
    * "card" is the analysis page and the modal, where the section is one plate
    * among several. "area" is a studio area, which already draws the border, the
@@ -284,8 +284,8 @@ export function DomainShiftSection({
   /*
     The plate belongs to the PAGE, not to the section.
 
-    `placement` decides it, which is the distinction `BoardSolarDetail` already
-    draws with the same word. On the analysis page this is one card among
+    `placement` decides it, which is the distinction `BoardPredictionDetail`
+    already draws with the same word. On the analysis page this is one card among
     several and the border is what separates it from its neighbours. In a studio
     area there is no neighbour to separate from: `StudioArea` already draws the
     border, the ink background and a 26px header carrying the editor's name, so

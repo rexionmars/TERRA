@@ -1,11 +1,11 @@
 /**
- * MapBiomas class names for the cover lists a siting run records.
+ * MapBiomas class names, for a cover id a surface has to print.
  *
- * The sidecar's defaults (and any override the request may one day carry) are
- * numeric MapBiomas ids. The analysis screen and the board's solar drawer both
- * need a readable label; inventing a second palette here would drift from
- * sidecar/class_palette.py, so this table mirrors that legend and extends it
- * only for the ids siting uses that the Python dict has not yet named.
+ * The sidecar reports classes by their numeric MapBiomas ids, and the
+ * domain-shift section prints a readable label beside them. Inventing a second
+ * palette here would drift from the sidecar's own legend (MAPBIOMAS_LEGEND in
+ * sidecar/terra/mapbiomas.py), so this table mirrors that legend and extends it
+ * only for the ids that table has not named.
  */
 const MAPBIOMAS_COVER_NAMES: Record<number, string> = {
   3: "Forest Formation",

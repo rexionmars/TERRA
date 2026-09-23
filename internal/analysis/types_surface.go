@@ -3,9 +3,8 @@ package analysis
 /*
 The surface model as a subject of its own.
 
-Copernicus GLO-30 is already read by two products here -- solar.py for
-horizons, dem.py for the flood envelope -- and in both it is an input nobody
-looks at. Every terrain figure in this application rests on ground the reader
+Copernicus GLO-30 is already read for the flood envelope here, through dem.py,
+and there it is an input nobody looks at. Every terrain figure in this application rests on ground the reader
 cannot see. This is that ground, and nothing else: no index, no threshold, no
 model.
 

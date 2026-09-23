@@ -6,9 +6,8 @@
 
 TERRA classifies land cover over an area of interest from Sentinel-2 L2A time
 series, and reports where that classification is wrong rather than only how
-much of it is right. Around the classifier it carries three further products
-for the same area: surface water from spectral indices, flood extent, and
-solar and wind resource.
+much of it is right. Around the classifier it carries two further products
+for the same area: surface water from spectral indices, and flood extent.
 
 It runs locally as a desktop application, with no account and no server.
 Imagery is read on demand from the Microsoft Planetary Computer STAC catalog as
@@ -44,8 +43,8 @@ results are arranged: the screen divides into the panels a question needs
 (viewport, outliner, properties, comparison, domain shift, spectral response,
 library check, rover, data table, run band), and more than one area
 fits on the same board, so two farms or the same farm in two seasons sit side
-by side. Seven arrangements ship ready: Layout, Compare, Diagnose, Data,
-Flood envelope, Routing and System. The arrangement survives a restart; a set of readings survives it
+by side. Six arrangements ship ready: Layout, Compare, Diagnose, Data, Flood
+envelope and Routing. The arrangement survives a restart; a set of readings survives it
 only if the board is saved under a name.
 
 It exists because a map cannot do this. A map puts things where they are, so
@@ -136,29 +135,6 @@ Pixels wet in more than 70% of the dates they were observed are reported as
 persistent, and between 15% and 70% as ephemeral. The two are reported
 separately and never summed.
 
-### Energy[^energy-scope]
-
-Four solar products and one for wind, over the same area:
-
-- irradiation received at the point, from the NASA POWER hourly record;
-- how that irradiation falls across the terrain, interpolated onto each cell's
-  own slope and aspect from a Copernicus DEM GLO-30 grid;
-- where within the area a plant can be sited, accounting for slope and for what
-  already occupies the ground;
-- what such a plant would yield, with each loss term declared;
-- a screening of the wind resource.
-
-Surface irradiance is not retrievable from Sentinel-2. There is no broadband
-radiometer, the revisit is five days and the overpass is fixed, so these
-products read a different family of source.
-
-[^energy-scope]: The energy products are secondary. Crop and land-cover
-    classification is what this project is built around, what the published
-    protocol covers, and what the validation work applies to. Solar and wind
-    were added because the same area and the same terrain data answer those
-    questions too, not because they carry equivalent methodological backing.
-    Treat their output as a screening step rather than as a siting study.
-
 ## Limitations
 
 Read these before trusting an output.
@@ -175,10 +151,6 @@ Read these before trusting an output.
 - **Class 41 is a residual bucket.** High overall accuracy against MapBiomas
   does not imply fine crop identity.
 - **Areas in hectares are pixel counts**, uncorrected for classification error.
-- **Point energy figures do not resolve the field.** NASA POWER radiation is on
-  a one-degree cell and the other meteorology, wind included, on a 0.5 by 0.625
-  degree MERRA-2 cell. The terrain and siting maps are the exception: those
-  resolve within the area at 30 m from the DEM.
 - **The export package is partial.** It carries the run's tables, AOI geometry
   and classification raster; the accuracy assessment and the domain-shift report
   are not in it.
@@ -254,7 +226,7 @@ TERRA/
 ├── main.go / app.go     Wails window and frontend bindings
 ├── internal/            Sidecar runner and types, python env, export, geocode, store
 ├── sidecar/             Inference: STAC, features, models, LULC, phenology,
-│                        water, flood, solar, wind
+│                        water, flood
 ├── model/               Trained artifacts (.joblib / .pt)
 ├── areas/               Embedded example polygons (GeoJSON)
 ├── frontend/            React 19 + Vite 7 + Tailwind 4 + Leaflet + three.js
@@ -313,8 +285,7 @@ Interpreter resolution: `TERRA_PYTHON` → bundled `python/` (FULL) → `.venv` 
 |--------|----------|
 | [Microsoft Planetary Computer](https://planetarycomputer.microsoft.com/) STAC | Sentinel-2 L2A imagery |
 | MapBiomas Brazil COGs | Land-cover reference, when the area intersects Brazil |
-| [NASA POWER](https://power.larc.nasa.gov/) | Hourly radiation and meteorology |
-| Copernicus DEM GLO-30 | Slope, aspect and horizon |
+| Copernicus DEM GLO-30 | Terrain for the flood envelope and flood routing |
 | [Nominatim](https://nominatim.openstreetmap.org/) | Geocoding |
 | Esri World Imagery, EOX Sentinel-2 cloudless 2025 | Basemaps |
 

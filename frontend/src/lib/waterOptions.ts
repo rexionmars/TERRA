@@ -3,8 +3,8 @@
  *
  * They were a private constant inside the map's water panel, which was correct while that
  * panel was the only surface offering them. The run graph offers them too, and
- * lib/classifyOptions.ts and lib/solarOptions.ts already establish where a set
- * of choices lives when more than one surface renders it: two renderings are a
+ * lib/classifyOptions.ts already establishes where a set of choices lives when
+ * more than one surface renders it: two renderings are a
  * design decision, two copies are a bug waiting for someone to add an index.
  *
  * Each carries what it is computed FROM and who published it, because the

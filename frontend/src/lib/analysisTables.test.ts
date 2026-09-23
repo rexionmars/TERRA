@@ -5,9 +5,8 @@
  * backend/export_parity_test.go already reads that module and fails when a
  * table's name, its column keys or their order stop agreeing with the Go
  * writer. It says nothing about what goes IN a row, and that is where the
- * rules are: a class with no area is dropped rather than written as zero, a
- * month carrying fewer than 24 hours is padded rather than shortened, a
- * threshold flag is written as text, a missing count becomes 0 while a missing
+ * rules are: a threshold flag is written as text, an unrecorded resampling is
+ * an empty cell rather than false, a missing count becomes 0 while a missing
  * measurement stays empty. Any of those could invert with the parity check
  * still green, and the exported CSV would carry a number that reads as a
  * measurement.
@@ -22,11 +21,6 @@ import {
   allAnalysisTables,
   classStatsTable,
   domainFingerprintTable,
-  energyDeclaredLossesTable,
-  energyExceedanceTable,
-  energyGenerationProfileTable,
-  energyLossWaterfallTable,
-  energyPlantCapacityTable,
   floodEnvelopeTable,
   floodPairsTable,
   floodProductsTable,
@@ -38,40 +32,28 @@ import {
   lulcPredVsRefTable,
   phenologyStatesTable,
   phenologyTable,
-  solarMonthlyTable,
-  solarSitingTable,
-  solarTerrainTable,
-  solarTiltToleranceTable,
   tableToCSV,
   temporalTable,
   viSeriesTable,
   waterSeriesTable,
-  windDirectionRoseTable,
-  windMonthlySpeedTable,
-  windShearSensitivityTable,
-  type CellValue,
   type DataTable,
 } from "./analysisTables"
 import type {
   ClassStat,
   DomainFingerprint,
-  EnergyModelAnalysis,
-  EnergyPlant,
   FloodAnalysis,
   LULCAnalysis,
   PhenologyMetrics,
   PredictResult,
-  SolarTerrainAnalysis,
   WaterAnalysis,
-  WindAnalysis,
 } from "./types"
 
 /**
  * A response carrying only the fields the builder under test reads.
  *
- * The energy and wind payloads hold several hundred fields each and these
- * builders read a handful. A fixture restating the rest would be pages of
- * numbers no assertion mentions, and the one field a test IS about would be
+ * The water and flood payloads hold dozens of fields each and these builders
+ * read a handful. A fixture restating the rest would be pages of numbers no
+ * assertion mentions, and the one field a test IS about would be
  * indistinguishable from them. The names and value types stay under the
  * compiler -- a renamed field still fails the build -- and the cast is
  * confined to the one line below.
@@ -295,17 +277,6 @@ describe("the empty-section gate", () => {
     expect(lulcMetricsTable(null)).toBeNull()
     expect(domainFingerprintTable(null)).toBeNull()
     expect(waterSeriesTable(null)).toBeNull()
-    expect(solarMonthlyTable(null)).toBeNull()
-    expect(solarTiltToleranceTable(undefined)).toBeNull()
-    expect(solarTerrainTable(null)).toBeNull()
-    expect(solarSitingTable(null)).toBeNull()
-    expect(energyLossWaterfallTable(null)).toBeNull()
-    expect(energyDeclaredLossesTable(undefined)).toBeNull()
-    expect(energyExceedanceTable(null)).toBeNull()
-    expect(energyPlantCapacityTable(null)).toBeNull()
-    expect(windMonthlySpeedTable(null)).toBeNull()
-    expect(windDirectionRoseTable(undefined)).toBeNull()
-    expect(windShearSensitivityTable(null)).toBeNull()
   })
 
   it("returns a table as soon as one row exists", () => {
@@ -527,384 +498,6 @@ describe("waterSeriesTable", () => {
   })
 })
 
-describe("solarTerrainTable", () => {
-  const layer = {
-    season: "annual",
-    unit: "kWh/m2/year",
-    poa_min: 1810.5,
-    poa_max: 1902.25,
-    poa_mean: 1866,
-    poa_std_pct: 1.2,
-    slope_mean_deg: 3.4,
-    slope_max_deg: 11.9,
-    pixels: 4096,
-    dem_source: "Copernicus GLO-30",
-    hourly_years: 5,
-    shading_mean_pct: null,
-    shading_max_pct: null,
-    beam_fraction: 0.62,
-    horizon_max_dist_m: 5000,
-  } satisfies Fragment<SolarTerrainAnalysis>
-
-  it("returns null for a layer covering no pixel", () => {
-    // Zero pixels is the boundary: the row would be a set of statistics over
-    // an empty sample, every one of them a placeholder.
-    expect(solarTerrainTable(fragment<SolarTerrainAnalysis>({ ...layer, pixels: 0 }))).toBeNull()
-    expect(solarTerrainTable(fragment<SolarTerrainAnalysis>({ ...layer, pixels: 1 }))).not.toBeNull()
-  })
-
-  it("names the layer and its unit in the first two columns rather than in the value ones", () => {
-    // The value columns are not always an irradiation -- the shading layer
-    // carries a blocked fraction -- so what the four numbers are is read off
-    // `layer` and `unit` and not off a column name.
-    const t = solarTerrainTable(
-      fragment<SolarTerrainAnalysis>({
-        ...layer,
-        season: "shading",
-        unit: "% of beam",
-        sky_view: null,
-      })
-    )
-    expect(t?.columns.slice(0, 6).map((c) => c.key)).toEqual([
-      "layer",
-      "unit",
-      "value_min",
-      "value_max",
-      "value_mean",
-      "value_std_pct",
-    ])
-    expect(t?.rows[0].slice(0, 6)).toEqual(["shading", "% of beam", 1810.5, 1902.25, 1866, 1.2])
-  })
-
-  it("leaves the six sky-view columns empty when the layer carries no sky view", () => {
-    const t = solarTerrainTable(fragment<SolarTerrainAnalysis>({ ...layer, sky_view: null }))
-    expect(t?.rows).toEqual([
-      [
-        "annual",
-        "kWh/m2/year",
-        1810.5,
-        1902.25,
-        1866,
-        1.2,
-        3.4,
-        11.9,
-        4096,
-        "Copernicus GLO-30",
-        5,
-        null,
-        null,
-        0.62,
-        5000,
-        "",
-        "",
-        "",
-        "",
-        "",
-        "",
-      ],
-    ])
-    expect(t?.rows[0]).toHaveLength(21)
-    expect(t?.rows[0]).toHaveLength(t?.columns.length ?? 0)
-    // An unmeasured shading loss is carried as null and an absent sky view as
-    // the empty string; both reach the CSV as the same empty field, which is
-    // what keeps the row readable against the Go writer's output.
-    expect(formatNumber(t?.rows[0][11])).toBe(formatNumber(t?.rows[0][16]))
-  })
-
-  it("says whether the sky-view correction was applied, which is not the same as its size", () => {
-    // "not applied" and "applied at zero" are different statements about the
-    // terrain, so the flag is written even when the two losses are absent.
-    const notApplied = solarTerrainTable(
-      fragment<SolarTerrainAnalysis>({
-        ...layer,
-        sky_view: {
-          applied: false,
-          mean_horizon_deg: 4.5,
-          max_horizon_deg: 18,
-          threshold_deg: 3,
-          diffuse_loss_mean_pct: null,
-          diffuse_loss_max_pct: null,
-        },
-      })
-    )
-    expect(notApplied?.rows[0].slice(15)).toEqual(["no", 4.5, 18, 3, "", ""])
-
-    const applied = solarTerrainTable(
-      fragment<SolarTerrainAnalysis>({
-        ...layer,
-        sky_view: {
-          applied: true,
-          mean_horizon_deg: 4.5,
-          max_horizon_deg: 18,
-          threshold_deg: 3,
-          diffuse_loss_mean_pct: 0.8,
-          diffuse_loss_max_pct: 2.1,
-        },
-      })
-    )
-    expect(applied?.rows[0].slice(15)).toEqual(["yes", 4.5, 18, 3, 0.8, 2.1])
-  })
-})
-
-describe("energyGenerationProfileTable", () => {
-  const profile = (mean_ac_w_kwp: number[], month = 1) =>
-    energyGenerationProfileTable(
-      fragment<EnergyModelAnalysis>({
-        generation_profile: {
-          mean_ac_power_by_month_and_hour: { rows: [{ month, mean_ac_w_kwp }] },
-        },
-      })
-    )
-
-  it("writes the month and 24 hour columns whatever the month carried", () => {
-    // Every row must line up under the same 24 headings, so the width is a
-    // property of the table and not of the month.
-    const short = profile([0, 12.5, 40])
-    const full = profile(Array.from({ length: 24 }, (_, h) => h))
-    expect(short?.columns).toHaveLength(25)
-    expect(short?.rows[0]).toHaveLength(25)
-    expect(full?.rows[0]).toHaveLength(25)
-    // A month arriving with more than 24 values cannot widen the row either:
-    // the extra cells would sit under no heading at all.
-    expect(profile(Array.from({ length: 26 }, (_, h) => h))?.rows[0]).toHaveLength(25)
-  })
-
-  it("pads a month carrying fewer than 24 hours rather than dropping it", () => {
-    // 24 - 3 = 21 empty cells after the three that were measured. Dropped, the
-    // month would be missing from the matrix; shortened, its remaining values
-    // would sit under the wrong hour.
-    const t = profile([0, 12.5, 40])
-    expect(t?.rows[0]).toEqual([1, 0, 12.5, 40, ...Array<CellValue>(21).fill(null)])
-  })
-
-  it("keeps all 24 hours of a full month in the order they arrived", () => {
-    const hours = Array.from({ length: 24 }, (_, h) => h * 10)
-    expect(profile(hours, 6)?.rows[0]).toEqual([6, ...hours])
-  })
-})
-
-describe("energyExceedanceTable", () => {
-  it("repeats the convention and the uncertainty statement on every level", () => {
-    // The level column is a bare integer. Read on its own it carries neither
-    // the convention that puts P90 BELOW P50 -- the opposite of the statistical
-    // percentile -- nor what the band leaves out, and a row lifted out of the
-    // CSV would invert.
-    const convention = "P90 is the value exceeded in 90 percent of years"
-    const statement = "Excludes model and soiling uncertainty"
-    const t = energyExceedanceTable(
-      fragment<EnergyModelAnalysis>({
-        plant: {
-          exceedance: {
-            convention,
-            levels: [
-              {
-                level: 50,
-                ghi_empirical_kwh_m2_year: 1900,
-                factor_empirical: 1,
-                ghi_normal_kwh_m2_year: 1898.5,
-                factor_normal: 0.999,
-                normal_fit_standard_error_kwh_m2: 42.5,
-              },
-              {
-                level: 90,
-                ghi_empirical_kwh_m2_year: 1845.2,
-                factor_empirical: 0.971,
-                ghi_normal_kwh_m2_year: 1843.8,
-                factor_normal: 0.97,
-                normal_fit_standard_error_kwh_m2: 42.5,
-              },
-            ],
-          },
-          uncertainty: { statement },
-        },
-      })
-    )
-    expect(t?.rows).toEqual([
-      [50, 1900, 1, 1898.5, 0.999, 42.5, convention, statement],
-      [90, 1845.2, 0.971, 1843.8, 0.97, 42.5, convention, statement],
-    ])
-  })
-})
-
-describe("energyPlantCapacityTable", () => {
-  const AREAS_NOTE = "The three areas are never summed"
-  const STATEMENT = "P50 to P90 spans resource variability only"
-
-  const sited = {
-    label: "Suitable, no conflict",
-    area_ha: 412.5,
-    capacity_dc_mw: 165,
-    capacity_ac_mw: 127,
-    specific_yield_kwh_kwp_year: 1520,
-    energy: {
-      p50_exceedance_gwh_year: 250.8,
-      p75_exceedance_gwh_year: 243.1,
-      p90_exceedance_gwh_year: 236.4,
-    },
-    contiguity: { largest_ha: 300.25, n_patches: 7 },
-    reporting_basis: "DC",
-    performance_ratio: 0.82,
-    performance_ratio_source: "reference",
-    note: "Ceiling on resource and land only",
-  } satisfies Fragment<EnergyPlant["suitable"]>
-
-  const plant = (parts: Fragment<EnergyPlant>) =>
-    energyPlantCapacityTable(fragment<EnergyModelAnalysis>({ plant: parts }))
-
-  it("omits a class with no area rather than writing it as a row of zeros", () => {
-    // Exactly zero is the boundary on both guards. A zero row states that the
-    // class was assessed and came out empty, which is the same thing a reader
-    // would take from a capacity of 0 MW over 0 ha.
-    expect(
-      plant({
-        suitable: { area_ha: 0 },
-        cropland_conflict: { area_ha: 0 },
-        restrictive: { area_ha: 0 },
-        areas_note: AREAS_NOTE,
-        uncertainty: { statement: STATEMENT },
-      })
-    ).toBeNull()
-  })
-
-  it("writes one row per class that has area, in the order suitable, conflict, restrictive", () => {
-    const t = plant({
-      suitable: { ...sited, area_ha: 412.5 },
-      cropland_conflict: { ...sited, label: "On cropland", area_ha: 88 },
-      restrictive: { label: "Restrictive slope", area_ha: 96.5, capacity_dc_mw: null, note: "Needs other racking" },
-      areas_note: AREAS_NOTE,
-      uncertainty: { statement: STATEMENT },
-    })
-    expect(t?.rows.map((r) => r[0])).toEqual(["suitable", "cropland_conflict", "restrictive"])
-    for (const row of t?.rows ?? []) {
-      expect(row).toHaveLength(17)
-      expect(row).toHaveLength(t?.columns.length ?? 0)
-    }
-  })
-
-  it("carries the class figures, the never-summed note and the band statement on a sited row", () => {
-    const t = plant({
-      suitable: sited,
-      cropland_conflict: { area_ha: 0 },
-      restrictive: { area_ha: 0 },
-      areas_note: AREAS_NOTE,
-      uncertainty: { statement: STATEMENT },
-    })
-    expect(t?.rows).toEqual([
-      [
-        "suitable",
-        "Suitable, no conflict",
-        412.5,
-        165,
-        127,
-        1520,
-        250.8,
-        243.1,
-        236.4,
-        300.25,
-        7,
-        "DC",
-        0.82,
-        "reference",
-        "Ceiling on resource and land only",
-        AREAS_NOTE,
-        STATEMENT,
-      ],
-    ])
-  })
-
-  it("leaves the restrictive row's capacity and energy empty and drops the band statement", () => {
-    // This class needs racking the capacity density references do not cover,
-    // so it has no capacity figure at all -- empty, never 0, which would be a
-    // capacity that was computed. With no energy on the row, the exceedance
-    // band statement does not describe anything on it either.
-    const t = plant({
-      suitable: { area_ha: 0 },
-      cropland_conflict: { area_ha: 0 },
-      restrictive: { label: "Restrictive slope", area_ha: 96.5, capacity_dc_mw: null, note: "Needs other racking" },
-      areas_note: AREAS_NOTE,
-      uncertainty: { statement: STATEMENT },
-    })
-    expect(t?.rows).toEqual([
-      [
-        "restrictive",
-        "Restrictive slope",
-        96.5,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        "Needs other racking",
-        AREAS_NOTE,
-        "",
-      ],
-    ])
-    // The area is still a measurement and the note still applies: only the
-    // twelve figures the class cannot carry are empty.
-    expect(formatNumber(t?.rows[0][2])).toBe("96.5")
-    expect(t?.rows[0][15]).toBe(AREAS_NOTE)
-  })
-})
-
-describe("windShearSensitivityTable", () => {
-  const wind = (excluded_losses: string[]) =>
-    windShearSensitivityTable(
-      fragment<WindAnalysis>({
-        hub: { excluded_losses },
-        shear_sensitivity: [
-          {
-            shear_exponent: 0.143,
-            roughness_length_m: null,
-            basis: "record",
-            hub_speed_ms: 7.2,
-            capacity_factor_pct: 31.4,
-            annual_energy_mwh: 8200,
-          },
-          {
-            shear_exponent: 0.2,
-            roughness_length_m: 0.1,
-            basis: "assumed",
-            hub_speed_ms: 7.9,
-            capacity_factor_pct: 35.1,
-            annual_energy_mwh: 9160,
-          },
-        ],
-      })
-    )
-
-  it("joins the excluded losses with a semicolon and repeats them on every row", () => {
-    // Semicolon, not comma: the field would otherwise need quoting in the CSV.
-    // Repeated because "capacity_factor_pct" and "annual_energy_mwh" read on
-    // their own give no sign that no plant loss is applied and that the energy
-    // is one turbine's.
-    const t = wind(["wake", "availability", "electrical"])
-    expect(t?.rows.map((r) => r[6])).toEqual([
-      "wake; availability; electrical",
-      "wake; availability; electrical",
-    ])
-    expect(tableToCSV(t as DataTable)).not.toContain('"')
-  })
-
-  it("leaves the column empty when no loss list came back", () => {
-    expect(wind([])?.rows.map((r) => r[6])).toEqual(["", ""])
-  })
-
-  it("leaves the roughness empty on the row derived from the record itself", () => {
-    // That row inverts the record to a roughness rather than assuming one, so
-    // there is no assumed length to report. A 0 there would read as open water.
-    const t = wind([])
-    expect(t?.rows[0][1]).toBeNull()
-    expect(t?.rows[1][1]).toBe(0.1)
-    expect(tableToCSV(t as DataTable).split("\n")[1]).toBe("0.143,,record,7.2,31.4,8200,")
-  })
-})
-
 describe("the flood tables", () => {
   /*
     The rule these cover is the one the parity check cannot see: three columns
@@ -1027,7 +620,7 @@ describe("allAnalysisTables", () => {
 
   it("returns nothing for a result that produced no section", () => {
     // Go marshals a nil slice as null and a run that classified nothing --
-    // a water or solar run -- leaves every one of them nil. Taken as
+    // a water or flood run -- leaves every one of them nil. Taken as
     // guaranteed arrays, one of these once blanked the whole application.
     expect(allAnalysisTables(empty)).toEqual([])
   })
@@ -1057,16 +650,11 @@ describe("allAnalysisTables", () => {
         groups: [],
         pred_vs_ref: [],
       },
-      wind: fragment<WindAnalysis>({
-        measured: {
-          monthly_mean_speed_50m: [{ month: 1, mean_speed_ms: 5.4 }],
-          direction_energy_rose_50m: [],
-        },
-        hub: { excluded_losses: [] },
-        shear_sensitivity: [],
+      water: fragment<WaterAnalysis>({
+        series: [{ date: "2024-01-05", water_fraction_pct: 3.2 }],
       }),
     })
-    expect(tables.map((t) => t.id)).toEqual(["class_stats", "lulc_metrics", "wind_monthly_speed"])
+    expect(tables.map((t) => t.id)).toEqual(["class_stats", "lulc_metrics", "water_series"])
   })
 
   it("names every table after the file the research pack writes it to", () => {

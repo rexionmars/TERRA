@@ -9,9 +9,8 @@
  * separate surfaces make better.
  *
  * WHAT IT MUST NOT DUPLICATE IS STILL PROTECTED ELSEWHERE. The models, the
- * modes and the rule between them come from lib/classifyOptions.ts, the
- * seasons from lib/solarOptions.ts, and every value is the map screen's own
- * state passed straight through. Two renderings of one set of choices is a
+ * modes and the rule between them come from lib/classifyOptions.ts, and every
+ * value is the map screen's own state passed straight through. Two renderings of one set of choices is a
  * design decision; two copies of the choices would be a bug waiting for
  * someone to add a model.
  *
@@ -20,29 +19,7 @@
  * carry it, the monthly toggle is boxed rather than native because the theme
  * does not own platform chrome, and the model stays a menu because "Random
  * Forest" and "Temporal Transformer" are names rather than pictures.
- */import {
-  SOLAR_PRODUCTS,
-  type SolarProductEntry,
-} from "@/components/energy/solarProducts"
-import type { SolarParams, SolarProductId } from "@/lib/energyState"
-
-/**
- * The head of each product's name, for a card 8rem wide.
- *
- * Not derived by truncating the table's label: "Resource at the AOI centroid"
- * cut to its first word is "Resource", but "Photovoltaic energy model" cut the
- * same way is "Photovoltaic", which names the other three as much as it names
- * that one. Written out, and typed against the table so a fifth product cannot
- * be added without one.
  */
-const SHORT_SOLAR: Record<SolarProductEntry["id"], string> = {
-  resource: "Resource",
-  terrain: "Irradiation",
-  siting: "Siting",
-  energy: "Energy model",
-}
-
-
 import {
   ArrowDown,
   Check,
@@ -51,7 +28,6 @@ import {
   GridFour,
   Image as ImageIcon,
   Play,
-  Sun,
   Trash,
   type Icon,
   Upload,
@@ -75,21 +51,9 @@ import {
   type ClassifyMode,
 } from "@/lib/classifyOptions"
 import { FLOOD_LEAST_DEMS } from "@/components/flood/floodSetup"
-import {
-  ENERGY_PRODUCTS,
-  energyFamily,
-  type BoardToolId,
-  type EnergyFamily,
-  type EnergyProductId,
-} from "@/lib/mapTools"
+import type { BoardToolId } from "@/lib/mapTools"
 import { methodBrief } from "@/lib/methodBrief"
 import type { RunLogEntry } from "@/lib/runLog"
-import {
-  ENERGY_CAPACITY_DENSITY_BASES,
-  ENERGY_DECLARED_LOSSES,
-  ENERGY_OPTIONAL_LOSSES,
-} from "@/lib/energyDefaults"
-import { SOLAR_SEASONS } from "@/lib/solarOptions"
 import { RGB_PRESETS, INDICES } from "@/lib/compositeCatalog"
 import { WATER_INDICES } from "@/lib/waterOptions"
 import type {
@@ -97,7 +61,6 @@ import type {
   CompositeKind,
   DataCubeScene,
   ModelKind,
-  SolarSeason,
   WaterIndex,
   GeoJSONGeometry,
 } from "@/lib/types"
@@ -142,10 +105,6 @@ export const TOOL_ICON: Record<BoardToolId, Icon> = {
   classify: GridFour,
   compose: ImageIcon,
   water: Drop,
-  // The sun for the whole of energy, and it is the honest glyph for it: the
-  // resource is what every product here is about. A fan would name one
-  // family and hide the other.
-  energy: Sun,
   // Waves rather than a droplet: the envelope reads terrain and no
   // precipitation at all, so a rain glyph would name an input it does not have.
   flood: Waves,
@@ -436,116 +395,6 @@ const fold = (s: string) =>
  * would otherwise grow this one past the graph it sits in.
  */
 
-/**
- * A labelled text value, for the two parameters where BLANK IS A VALUE.
- *
- * The performance ratio and the UTC offset both mean something when empty --
- * the reference ratio, and UTC -- and a NumberField would have to invent a
- * zero to say it. Zero is a legitimate offset, so the two would then be
- * indistinguishable.
- */
-function TextRow({
-  label,
-  value,
-  placeholder,
-  disabled,
-  onChange,
-}: {
-  label: string
-  value: string
-  placeholder?: string
-  disabled?: boolean
-  onChange: (v: string) => void
-}) {
-  return (
-    <label className="flex items-center justify-between gap-2">
-      <span className="shrink-0 text-micro text-muted-foreground">{label}</span>
-      <input
-        type="text"
-        value={value}
-        placeholder={placeholder}
-        disabled={disabled}
-        onChange={(e) => onChange(e.target.value)}
-        className="telemetry h-6 w-20 min-w-0 rounded-sm border border-border bg-sunk px-1.5 text-right text-micro text-foreground outline-none focus-visible:inset-ring-1 focus-visible:inset-ring-ring disabled:opacity-50"
-      />
-    </label>
-  )
-}
-
-/**
- * A labelled menu, for a choice whose options are references rather than
- * pictures.
- *
- * The same argument the classification card makes for keeping the model a
- * menu: "Ong T4, above 20 MW, direct array" does not survive being cut to a
- * chip, and eight of them do not fit a card as chips at all.
- */
-function SelectRow({
-  label,
-  value,
-  options,
-  disabled,
-  onChange,
-}: {
-  label: string
-  value: string
-  options: readonly { id: string; label: string }[]
-  disabled?: boolean
-  onChange: (v: string) => void
-}) {
-  return (
-    <label className="flex flex-col gap-0.5">
-      <span className="text-micro text-muted-foreground">{label}</span>
-      <select
-        value={value}
-        disabled={disabled}
-        onChange={(e) => onChange(e.target.value)}
-        className="h-6 w-full rounded-sm border border-border bg-sunk px-1 text-micro text-foreground outline-none focus-visible:inset-ring-1 focus-visible:inset-ring-ring disabled:opacity-50"
-      >
-        {options.map((o) => (
-          <option key={o.id} value={o.id}>
-            {o.label}
-          </option>
-        ))}
-      </select>
-    </label>
-  )
-}
-
-/** One loss term, as a percentage. Compact because there are eleven of them. */
-function LossRow({
-  label,
-  value,
-  disabled,
-  onChange,
-}: {
-  label: string
-  value: number
-  disabled?: boolean
-  onChange: (v: number) => void
-}) {
-  return (
-    <label className="flex items-center justify-between gap-2">
-      <span className="min-w-0 truncate text-micro text-muted-foreground">
-        {label}
-      </span>
-      <input
-        type="number"
-        step={0.1}
-        min={0}
-        max={30}
-        value={value}
-        disabled={disabled}
-        onChange={(e) => {
-          const v = parseFloat(e.target.value)
-          if (Number.isFinite(v)) onChange(v)
-        }}
-        className="telemetry h-5 w-12 shrink-0 rounded-sm border border-border bg-sunk px-1 text-right text-micro text-foreground outline-none focus-visible:inset-ring-1 focus-visible:inset-ring-ring disabled:opacity-50"
-      />
-    </label>
-  )
-}
-
 function RunLog({ entries }: { entries: RunLogEntry[] }) {
   const endRef = useRef<HTMLLIElement>(null)
   useEffect(() => {
@@ -624,90 +473,6 @@ export interface BoardRunGraphProps {
   onConnect?: (from: string, to: string) => void
   tool: BoardToolId | null
 
-  /**
-   * Which energy product is chosen, and how to change it.
-   *
-   * ONE CARD FOR EVERY FAMILY. The product card used to render one family's
-   * table, chosen by the tool the band was on, and the reader had to have
-   * chosen the family before they could see what it offered. It renders one
-   * list now, and the family is a property of the entry rather than a question
-   * asked before it.
-   *
-   * `blocked` names the families this installation cannot run, so a product
-   * that will not go is greyed WITH ITS REASON rather than hidden. A missing
-   * option reads as a missing feature; a refused one reads as a setup step.
-   */
-  energyProduct?: EnergyProductId
-  onEnergyProduct?: (id: EnergyProductId) => void
-  blockedFamilies?: Partial<Record<EnergyFamily, string>>
-
-  /**
-   * Everything the solar tool needs, or absent where it cannot be run.
-   *
-   * One object rather than nine loose props, because they arrive and leave
-   * together: a graph with no way to start a solar run must not offer solar
-   * cards, and absence is how it says so.
-   */
-  solar?: {
-    product: SolarProductId
-    onProductChange: (p: SolarProductId) => void
-    hourlyYears: number
-    onHourlyYearsChange: (v: number) => void
-    season: SolarSeason
-    onSeasonChange: (s: SolarSeason) => void
-    slopeAcceptableDeg: number
-    slopeRestrictiveDeg: number
-    onSlopeChange: (acceptable: number, restrictive: number) => void
-    /*
-      The rest of what solar sends, back on the graph.
-
-      They lived in an editor of their own on an argument that was true about
-      the energy model and was applied to all four products. One object rather
-      than twenty loose props, for the reason the solar bundle already gives:
-      they arrive and leave together.
-    */
-    climatologyYears: number
-    surfaceAzimuth: number
-    performanceRatio: string
-    reportingBasis: "year_one" | "lifetime_mean"
-    degradationPct: number
-    analysisPeriodYears: number
-    densityBasis: string
-    buildableFraction: number
-    gcrFixed: number
-    gcrTracker: number
-    trackerMaxAngleDeg: number
-    utcOffset: string
-    applyShading: boolean
-    declaredLoss: Record<string, number>
-    optionalLoss: Record<string, number>
-    onParamsChange: (patch: Partial<SolarParams>) => void
-    onLossChange: (
-      group: "declared" | "optional",
-      key: string,
-      pct: number
-    ) => void
-  }
-
-  /**
-   * Everything the wind screening needs, or absent where it cannot be run.
-   *
-   * One object for the reason the solar bundle is one: they arrive and leave
-   * together, and a graph with no way to start a wind run must not draw cards
-   * for one.
-   */
-  wind?: {
-    recordYears: number
-    onRecordYearsChange: (v: number) => void
-    hubHeightM: number
-    onHubHeightChange: (v: number) => void
-    calmThresholdMS: number
-    onCalmThresholdChange: (v: number) => void
-    roughnessLowM: number
-    roughnessHighM: number
-    onRoughnessChange: (low: number, high: number) => void
-  }
-
   /** Everything the flood envelope needs, or absent where it cannot be run. */
   flood?: {
     demIds: string[]
@@ -723,9 +488,8 @@ export interface BoardRunGraphProps {
   /**
    * Everything a composition is built from, or absent where it cannot be made.
    *
-   * One object for the same reason the solar bundle is one: these arrive and
-   * leave together, and a graph with no way to apply a composition must not
-   * draw cards for one.
+   * One object because these arrive and leave together, and a graph with no way
+   * to apply a composition must not draw cards for one.
    */
   compose?: {
     scenes: readonly DataCubeScene[]
@@ -801,7 +565,7 @@ export interface BoardRunGraphProps {
    * WHAT IT IS FOR is the difference between "a run succeeded" and "the answer
    * on screen is an answer about THIS value". The first is one fact and would
    * be drawn identically on every wire; the second is per wire, and it is what
-   * lets a season changed after a run take its wire back to pending while the
+   * lets a period changed after a run take its wire back to pending while the
    * area's stays read.
    *
    * HELD BY THE CALLER, not here, because this component is unmounted whenever
@@ -827,21 +591,6 @@ export interface BoardRunGraphProps {
    * themselves, so a callback rebuilt on every render would report on every render.
    */
   onInputs?: (inputs: Record<string, string>) => void
-}
-
-/**
- * What one loss chain costs, as a percentage.
- *
- * Series, not sum: each factor takes its share of what the one before it left.
- * Both groups the card edits are in the chain, because both are sent.
- */
-function compoundLoss(solar: NonNullable<BoardRunGraphProps["solar"]>): number {
-  const all = [
-    ...Object.values(solar.declaredLoss),
-    ...Object.values(solar.optionalLoss),
-  ]
-  const kept = all.reduce((acc, pct) => acc * (1 - pct / 100), 1)
-  return Math.round((1 - kept) * 1000) / 10
 }
 
 /**
@@ -935,28 +684,16 @@ const EDGE_NOTE: Record<EdgeState, string> = {
  *
  * `none` IS A REAL ANSWER, and it covers two cases that are not the same. The
  * catalogue and the run card supply nothing to a run by their nature. The
- * rest are cards whose bundle is absent -- a board with no solar parameters
- * draws no solar cards at all, so no wire asks these what they hold.
+ * rest are cards whose bundle is absent -- a board with no composition draws
+ * no composition cards at all, so no wire asks these what they hold.
  *
- * A CARD HOLDING SEVERAL NUMBERS ALSO ANSWERS `none`, and that is a limit
- * rather than an omission: the loss card carries nine declared percentages and
- * the radiation card three unrelated figures, and no single reading is the
- * value of either. Their wires draw without one rather than with a guess at
- * which of the numbers is the card.
+ * A CARD HOLDING SEVERAL NUMBERS REPORTS THE ONE IT IS ABOUT. The threshold
+ * card carries a reference height and a drainage area, and its wire carries
+ * the height, which is what the envelope is taken at.
  */
 function cardValues(p: BoardRunGraphProps): Record<RunNodeId, RunValue> {
-  const { solar, wind, compose, flood, water } = p
+  const { compose, flood, water } = p
   const none: RunValue = { kind: "none" }
-  const onWind =
-    p.tool === "energy" &&
-    !!p.energyProduct &&
-    energyFamily(p.energyProduct) === "wind"
-  const productLabel =
-    p.tool === "energy"
-      ? (ENERGY_PRODUCTS.find((e) => e.id === p.energyProduct)?.label ?? null)
-      : solar
-        ? SHORT_SOLAR[solar.product]
-        : null
 
   return {
     area: { kind: "ground", label: p.hasArea ? p.areaLabel || "drawn" : null },
@@ -997,38 +734,6 @@ function cardValues(p: BoardRunGraphProps): Record<RunNodeId, RunValue> {
         }
       : none,
     waterIndex: water ? { kind: "choice", label: water.index } : none,
-    product: { kind: "choice", label: productLabel },
-    record: onWind
-      ? wind
-        ? { kind: "record", years: wind.recordYears, of: "hourly" }
-        : none
-      : solar
-        ? { kind: "record", years: solar.hourlyYears, of: "hourly" }
-        : none,
-    season: solar
-      ? {
-          kind: "choice",
-          label:
-            SOLAR_SEASONS.find((o) => o.id === solar.season)?.label ?? null,
-        }
-      : none,
-    slope: solar
-      ? {
-          kind: "band",
-          low: solar.slopeAcceptableDeg,
-          high: solar.slopeRestrictiveDeg,
-          unit: "deg",
-        }
-      : none,
-    turbine: wind ? { kind: "measure", of: wind.hubHeightM, unit: "m" } : none,
-    roughness: wind
-      ? {
-          kind: "band",
-          low: wind.roughnessLowM,
-          high: wind.roughnessHighM,
-          unit: "m",
-        }
-      : none,
     models: flood
       ? {
           kind: "several",
@@ -1042,38 +747,6 @@ function cardValues(p: BoardRunGraphProps): Record<RunNodeId, RunValue> {
     // it: two measures in different units are not one reading.
     threshold: flood
       ? { kind: "measure", of: flood.referenceThresholdM, unit: "m" }
-      : none,
-    /*
-      THE FOUR CARDS THAT HELD SEVERAL FIGURES, each now reporting the one it
-      is about.
-
-      They answered `none` on the argument that no single reading is the value
-      of a card carrying nine percentages -- which was true of the card and
-      false of the request. Every one of them has a headline the rest qualify:
-      the climatology is a depth of record with an azimuth and a ratio set
-      against it, the plant is an analysis period, the array is its ground
-      cover ratio, and the losses are their own compound. Leaving them blank
-      left half of the busiest graph in the neutral grey that means "this card
-      answers no part of the question", which is the one thing they do not.
-    */
-    radiation: solar
-      ? { kind: "record", years: solar.climatologyYears, of: "climatology" }
-      : none,
-    plant: solar
-      ? { kind: "record", years: solar.analysisPeriodYears, of: "analysis" }
-      : none,
-    array: solar
-      ? { kind: "measure", of: solar.gcrFixed, unit: "GCR" }
-      : none,
-    /*
-      The compound, not the sum. Losses apply in series -- each takes its share
-      of what the one before it left -- so two percent and two percent is 3.96
-      and not four. It is the figure the model itself derives; reporting the
-      sum on the wire would put a different number on the board from the one in
-      the answer.
-    */
-    losses: solar
-      ? { kind: "measure", of: compoundLoss(solar), unit: "% loss" }
       : none,
     run: none,
   }
@@ -1159,12 +832,7 @@ export function BoardRunGraph(props: BoardRunGraphProps) {
 
   const graph = runGraph(
     props.tool,
-    props.solar ? props.solar.product : null,
     props.compose ? props.compose.kind : null,
-    // Without this the Energy entry has no family to dispatch on and the graph
-    // comes back null, which the surface renders as "pick a product above" --
-    // over a product card that is already showing one picked.
-    props.energyProduct ?? null,
     props.components ?? []
   )
 
@@ -1182,17 +850,6 @@ export function BoardRunGraph(props: BoardRunGraphProps) {
       end: props.end,
       maxCloud: props.maxCloud,
       monthlyBest: props.monthlyBest,
-      solar: props.solar && {
-        product: props.solar.product,
-        hourlyYears: props.solar.hourlyYears,
-        // The label rather than the id, since the panel is read and the id is
-        // stored. SOLAR_SEASONS is the one place that pairing lives.
-        season:
-          SOLAR_SEASONS.find((o) => o.id === props.solar?.season)?.label ??
-          props.solar.season,
-        slopeAcceptableDeg: props.solar.slopeAcceptableDeg,
-        slopeRestrictiveDeg: props.solar.slopeRestrictiveDeg,
-      },
     })
 
   if (!graph) {
@@ -1573,446 +1230,6 @@ export function BoardRunGraph(props: BoardRunGraphProps) {
     ) : null,
 
     /*
-      ALL FOUR, from the table that declares them. It offered the two that
-      draw a raster, which was the whole of what the board could show at the
-      time; the resource and the energy model report figures, and the studio
-      reads those in the Solar result editor now.
-
-      The labels are the table's own, cut to their head: "Resource at the AOI
-      centroid" and "Photovoltaic energy model" are the names a reading gives
-      them, and a card 8rem wide is not where a name is spelled in full.
-    */
-    product: (
-      /*
-        One card, two tables, and the tool decides which it reads.
-
-        Not one node kind per family. A product card per family would be cards
-        that are never on screen together, drawn from separate tables, saying
-        the same thing about different subjects -- and the graph would have to
-        explain why the choice is called one name under solar and another under
-        wind.
-      */
-      <div className="flex flex-wrap gap-1">
-        {props.tool === "energy"
-          ? ENERGY_PRODUCTS.map((p) => (
-              <Choice
-                key={p.id}
-                label={p.label}
-                chosen={props.energyProduct === p.id}
-                disabled={busy}
-                blockedBy={props.blockedFamilies?.[p.family]}
-                onPick={() => props.onEnergyProduct?.(p.id)}
-              />
-            ))
-          : SOLAR_PRODUCTS.map((p) => (
-              <Choice
-                key={p.id}
-                label={SHORT_SOLAR[p.id]}
-                chosen={props.solar?.product === p.id}
-                disabled={busy}
-                onPick={() => props.solar?.onProductChange(p.id)}
-              />
-            ))}
-      </div>
-    ),
-
-    /*
-      SHARED BY TWO PRODUCTS, because it is one question: how many years of the
-      NASA POWER hourly record to read. Solar reads it for irradiation and wind
-      reads it for the speed distribution, and the card writes to whichever
-      bundle is present -- the graph only ever places it under one of them.
-    */
-    record:
-      props.tool === "energy" &&
-      props.energyProduct &&
-      energyFamily(props.energyProduct) === "wind" &&
-      props.wind ? (
-        <NumberField
-          label="Hourly"
-          value={props.wind.recordYears}
-          min={3}
-          max={20}
-          step={1}
-          disabled={busy}
-          format={(v) => `${Math.round(v)} yr`}
-          parse={(t) => {
-            const v = parseFloat(t.replace("yr", "").trim())
-            return Number.isFinite(v) ? v : null
-          }}
-          onChange={(v) => props.wind?.onRecordYearsChange(Math.round(v))}
-        />
-      ) : props.solar ? (
-        <NumberField
-          label="Hourly"
-          value={props.solar.hourlyYears}
-          min={3}
-          max={20}
-          step={1}
-          disabled={busy}
-          format={(v) => `${Math.round(v)} yr`}
-          parse={(t) => {
-            const v = parseFloat(t.replace("yr", "").trim())
-            return Number.isFinite(v) ? v : null
-          }}
-          onChange={(v) => props.solar?.onHourlyYearsChange(Math.round(v))}
-        />
-      ) : null,
-
-    season: (
-      /*
-        Choices rather than a select. Six short labels wrap into a card at this
-        width, and each one is then a target rather than a row inside a menu
-        that has to be opened to see what the options are.
-      */
-      <div className="flex flex-wrap gap-1">
-        {SOLAR_SEASONS.map((o) => (
-          <Choice
-            key={o.id}
-            label={o.label}
-            chosen={props.solar?.season === o.id}
-            disabled={busy}
-            onPick={() => props.solar?.onSeasonChange(o.id)}
-          />
-        ))}
-      </div>
-    ),
-
-    radiation: props.solar ? (
-      <div className="flex flex-col gap-1.5">
-        <NumberField
-          label="Climatology"
-          value={props.solar.climatologyYears}
-          min={5}
-          max={40}
-          step={1}
-          disabled={busy}
-          format={(v) => `${Math.round(v)} yr`}
-          parse={(t) => {
-            const v = parseFloat(t.replace("yr", "").trim())
-            return Number.isFinite(v) ? v : null
-          }}
-          onChange={(v) => props.solar?.onParamsChange({ climatologyYears: v })}
-        />
-        <NumberField
-          label="Azimuth"
-          value={props.solar.surfaceAzimuth}
-          min={-180}
-          max={180}
-          step={5}
-          disabled={busy}
-          format={(v) => `${Math.round(v)}°`}
-          parse={(t) => {
-            const v = parseFloat(t.replace("°", "").trim())
-            return Number.isFinite(v) ? v : null
-          }}
-          onChange={(v) => props.solar?.onParamsChange({ surfaceAzimuth: v })}
-        />
-        {/*
-          Blank is a value here and not an omission: it applies the reference
-          ratio, and the result reports both it and the modelled one. A number
-          field would have to invent a zero for that.
-        */}
-        <TextRow
-          label="Ratio"
-          value={props.solar.performanceRatio}
-          placeholder="0.80"
-          disabled={busy}
-          onChange={(v) => props.solar?.onParamsChange({ performanceRatio: v })}
-        />
-      </div>
-    ) : null,
-    plant: props.solar ? (
-      <div className="flex flex-col gap-1.5">
-        <div className="flex flex-wrap gap-1">
-          <Choice
-            label="Year one"
-            chosen={props.solar.reportingBasis === "year_one"}
-            disabled={busy}
-            onPick={() =>
-              props.solar?.onParamsChange({ reportingBasis: "year_one" })
-            }
-          />
-          <Choice
-            label="Lifetime"
-            chosen={props.solar.reportingBasis === "lifetime_mean"}
-            disabled={busy}
-            onPick={() =>
-              props.solar?.onParamsChange({ reportingBasis: "lifetime_mean" })
-            }
-          />
-        </div>
-        <NumberField
-          label="Degradation"
-          value={props.solar.degradationPct}
-          min={0}
-          max={5}
-          step={0.1}
-          disabled={busy}
-          format={(v) => `${v.toFixed(2)} %/yr`}
-          parse={(t) => {
-            const v = parseFloat(t.replace("%/yr", "").trim())
-            return Number.isFinite(v) ? v : null
-          }}
-          onChange={(v) => props.solar?.onParamsChange({ degradationPct: v })}
-        />
-        <NumberField
-          label="Period"
-          value={props.solar.analysisPeriodYears}
-          min={1}
-          max={40}
-          step={1}
-          disabled={busy}
-          format={(v) => `${Math.round(v)} yr`}
-          parse={(t) => {
-            const v = parseFloat(t.replace("yr", "").trim())
-            return Number.isFinite(v) ? v : null
-          }}
-          onChange={(v) =>
-            props.solar?.onParamsChange({ analysisPeriodYears: v })
-          }
-        />
-        <NumberField
-          label="Buildable"
-          value={props.solar.buildableFraction}
-          min={0.05}
-          max={1}
-          step={0.05}
-          disabled={busy}
-          format={(v) => v.toFixed(2)}
-          parse={(t) => {
-            const v = parseFloat(t.trim())
-            return Number.isFinite(v) ? v : null
-          }}
-          onChange={(v) =>
-            props.solar?.onParamsChange({ buildableFraction: v })
-          }
-        />
-        {/*
-          A menu and not chips: eight density bases with names like "Ong T4,
-          above 20 MW, direct array" are references rather than pictures, which
-          is the same reason the model stays a menu on the classification card.
-        */}
-        <SelectRow
-          label="Density"
-          value={props.solar.densityBasis}
-          disabled={busy}
-          options={ENERGY_CAPACITY_DENSITY_BASES}
-          onChange={(v) => props.solar?.onParamsChange({ densityBasis: v })}
-        />
-      </div>
-    ) : null,
-    array: props.solar ? (
-      <div className="flex flex-col gap-1.5">
-        <NumberField
-          label="GCR fixed"
-          value={props.solar.gcrFixed}
-          min={0.1}
-          max={0.9}
-          step={0.005}
-          disabled={busy}
-          format={(v) => v.toFixed(3)}
-          parse={(t) => {
-            const v = parseFloat(t.trim())
-            return Number.isFinite(v) ? v : null
-          }}
-          onChange={(v) => props.solar?.onParamsChange({ gcrFixed: v })}
-        />
-        <NumberField
-          label="GCR tracker"
-          value={props.solar.gcrTracker}
-          min={0.1}
-          max={0.9}
-          step={0.005}
-          disabled={busy}
-          format={(v) => v.toFixed(3)}
-          parse={(t) => {
-            const v = parseFloat(t.trim())
-            return Number.isFinite(v) ? v : null
-          }}
-          onChange={(v) => props.solar?.onParamsChange({ gcrTracker: v })}
-        />
-        <NumberField
-          label="Rotation"
-          value={props.solar.trackerMaxAngleDeg}
-          min={0}
-          max={90}
-          step={5}
-          disabled={busy}
-          format={(v) => `${Math.round(v)}°`}
-          parse={(t) => {
-            const v = parseFloat(t.replace("°", "").trim())
-            return Number.isFinite(v) ? v : null
-          }}
-          onChange={(v) =>
-            props.solar?.onParamsChange({ trackerMaxAngleDeg: v })
-          }
-        />
-        {/*
-          Blank labels the diurnal profile in UTC, which is what POWER
-          publishes. Not zero: an unstated offset and an offset of zero are the
-          same number and different claims.
-        */}
-        <TextRow
-          label="UTC offset"
-          value={props.solar.utcOffset}
-          placeholder="UTC"
-          disabled={busy}
-          onChange={(v) => props.solar?.onParamsChange({ utcOffset: v })}
-        />
-      </div>
-    ) : null,
-    losses: props.solar ? (
-      <div className="flex flex-col gap-1.5">
-        {/*
-          Two tables, and the split between them is not cosmetic. The declared
-          terms are in the modelled ratio; the optional ones are omitted from
-          it and are what the reference ratio covers instead. Merging them
-          would put a term the model applies beside one it does not.
-        */}
-        <span className="eyebrow !text-micro">Declared</span>
-        {ENERGY_DECLARED_LOSSES.map((l) => (
-          <LossRow
-            key={l.key}
-            label={l.label}
-            value={props.solar?.declaredLoss[l.key] ?? l.defaultPct}
-            disabled={busy}
-            onChange={(v) => props.solar?.onLossChange("declared", l.key, v)}
-          />
-        ))}
-        <span className="eyebrow mt-1 !text-micro">Optional</span>
-        {ENERGY_OPTIONAL_LOSSES.map((l) => (
-          <LossRow
-            key={l.key}
-            label={l.label}
-            value={props.solar?.optionalLoss[l.key] ?? l.defaultPct}
-            disabled={busy}
-            onChange={(v) => props.solar?.onLossChange("optional", l.key, v)}
-          />
-        ))}
-      </div>
-    ) : null,
-    slope: props.solar ? (
-      <>
-        <NumberField
-          label="Acceptable"
-          value={props.solar.slopeAcceptableDeg}
-          min={1}
-          max={45}
-          step={1}
-          disabled={busy}
-          format={(v) => `${Math.round(v)}°`}
-          parse={(t) => {
-            const v = parseFloat(t.replace("°", "").trim())
-            return Number.isFinite(v) ? v : null
-          }}
-          onChange={(v) =>
-            props.solar?.onSlopeChange(
-              Math.round(v),
-              props.solar.slopeRestrictiveDeg
-            )
-          }
-        />
-        <NumberField
-          label="Restrictive"
-          value={props.solar.slopeRestrictiveDeg}
-          min={1}
-          max={45}
-          step={1}
-          disabled={busy}
-          format={(v) => `${Math.round(v)}°`}
-          parse={(t) => {
-            const v = parseFloat(t.replace("°", "").trim())
-            return Number.isFinite(v) ? v : null
-          }}
-          onChange={(v) =>
-            props.solar?.onSlopeChange(
-              props.solar.slopeAcceptableDeg,
-              Math.round(v)
-            )
-          }
-        />
-      </>
-    ) : null,
-
-    turbine: props.wind ? (
-      <>
-        <NumberField
-          label="Hub height"
-          value={props.wind.hubHeightM}
-          min={10}
-          max={200}
-          step={5}
-          disabled={busy}
-          format={(v) => `${Math.round(v)} m`}
-          parse={(t) => {
-            const v = parseFloat(t.replace("m", "").trim())
-            return Number.isFinite(v) ? v : null
-          }}
-          onChange={(v) => props.wind?.onHubHeightChange(Math.round(v))}
-        />
-        <NumberField
-          label="Calm below"
-          value={props.wind.calmThresholdMS}
-          min={0.5}
-          max={10}
-          step={0.5}
-          disabled={busy}
-          format={(v) => `${v.toFixed(1)} m/s`}
-          parse={(t) => {
-            const v = parseFloat(t.replace("m/s", "").trim())
-            return Number.isFinite(v) ? v : null
-          }}
-          onChange={(v) => props.wind?.onCalmThresholdChange(v)}
-        />
-      </>
-    ) : null,
-
-    /*
-      TWO VALUES AND NOT ONE, which is the reading rather than a setting.
-
-      Hub-height speed comes from a log profile over an assumed surface
-      roughness, and two roughnesses that both describe the ground plausibly
-      give materially different speeds. The screening reports the span instead
-      of choosing, so the span is what the card edits.
-    */
-    roughness: props.wind ? (
-      <>
-        <NumberField
-          label="Low"
-          value={props.wind.roughnessLowM}
-          min={0.001}
-          max={2}
-          step={0.01}
-          disabled={busy}
-          format={(v) => `${v.toFixed(3)} m`}
-          parse={(t) => {
-            const v = parseFloat(t.replace("m", "").trim())
-            return Number.isFinite(v) ? v : null
-          }}
-          onChange={(v) =>
-            props.wind?.onRoughnessChange(v, props.wind.roughnessHighM)
-          }
-        />
-        <NumberField
-          label="High"
-          value={props.wind.roughnessHighM}
-          min={0.001}
-          max={2}
-          step={0.01}
-          disabled={busy}
-          format={(v) => `${v.toFixed(3)} m`}
-          parse={(t) => {
-            const v = parseFloat(t.replace("m", "").trim())
-            return Number.isFinite(v) ? v : null
-          }}
-          onChange={(v) =>
-            props.wind?.onRoughnessChange(props.wind.roughnessLowM, v)
-          }
-        />
-      </>
-    ) : null,
-
-    /*
       A MULTIPLE CHOICE, and the only one on this graph.
 
       The envelope is the disagreement between products, so one product is not
@@ -2301,7 +1518,7 @@ export function BoardRunGraph(props: BoardRunGraphProps) {
 
     READ AND FAILED ARE ABOUT THE ANSWER ON SCREEN, not about the run that is
     over: the comparison is between what this card supplies NOW and what the
-    last run read. Change the season afterwards and its wire falls back to
+    last run read. Change the period afterwards and its wire falls back to
     pending while the area's stays read, which is the true state of a raster
     that answers about one and not the other.
 

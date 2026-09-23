@@ -96,31 +96,6 @@ func (a *App) AnalyzeWater(req analysis.WaterRequest) (*analysis.WaterAnalysis, 
 	return res, nil
 }
 
-/*
-savedRun is what one product contributes to a run row: the parts the writer
-below cannot know.
-
-Six products persist a run, and apart from these fields the path is one
-sequence written six times. That is how it drifted: the "run-" prefix, the
-trimmed project id and the area link each had to be added in every copy,
-and the thumbnail column the classification path fills never reached any of
-the others.
-*/
-
-// AnalyzeSolar computes the solar resource and photovoltaic yield at the AOI.
-func (a *App) AnalyzeSolar(req analysis.SolarRequest) (*analysis.SolarAnalysis, error) {
-	runner := a.currentRunner()
-	if runner == nil {
-		return nil, errors.New("runner not initialized")
-	}
-	res, err := runner.AnalyzeSolar(a.ctx, req)
-	if err != nil {
-		return nil, err
-	}
-	res.RunID = a.persistSolarRun(req, res)
-	return res, nil
-}
-
 // AnalyzeDomainShift compares two cached domain fingerprints for shift diagnosis.
 func (a *App) AnalyzeDomainShift(req analysis.DomainShiftRequest) (*analysis.DomainShiftReport, error) {
 	runner := a.currentRunner()
@@ -139,85 +114,6 @@ func (a *App) AnalyzeDomainShiftCohort(
 		return nil, errors.New("runner not initialized")
 	}
 	return runner.AnalyzeDomainShiftCohort(a.ctx, req)
-}
-
-// AnalyzeSolarTerrain maps plane-of-array irradiation over the AOI terrain.
-func (a *App) AnalyzeSolarTerrain(req analysis.SolarTerrainRequest) (*analysis.SolarTerrainAnalysis, error) {
-	runner := a.currentRunner()
-	if runner == nil {
-		return nil, errors.New("runner not initialized")
-	}
-	res, err := runner.AnalyzeSolarTerrain(a.ctx, req)
-	if err != nil {
-		return nil, err
-	}
-	/*
-		The rendering is withheld from the payload that reaches the database.
-
-		persistSolarRaster writes the PNG into the run's asset directory and
-		LoadAnalysis reads it back from there, so a data URI left on the stored
-		copy is the same image held twice -- once as base64 inside result_json
-		and once as the file that base64 was decoded into. The classification
-		and flood paths already withhold theirs and say so; these two did not,
-		and on one installation the rows they wrote carried 512 KB of base64
-		duplicating 452 KB of PNG already on disk.
-
-		A copy rather than clearing the field on res: res is what the frontend
-		is about to draw, and it needs the URI.
-	*/
-	stored := *res
-	stored.OverlayURI = ""
-	res.RunID = a.persistSolarRaster(req.PolygonGeoJSON, req.Label,
-		req.RunLabel, req.ProjectID, req.AreaID, "solar_terrain", res.Season, &stored,
-		res.OverlayURI, res.NDates())
-	return res, nil
-}
-
-// AnalyzeSolarSiting classifies the AOI for fixed-tilt photovoltaic siting.
-func (a *App) AnalyzeSolarSiting(req analysis.SolarSitingRequest) (*analysis.SolarSitingAnalysis, error) {
-	runner := a.currentRunner()
-	if runner == nil {
-		return nil, errors.New("runner not initialized")
-	}
-	res, err := runner.AnalyzeSolarSiting(a.ctx, req)
-	if err != nil {
-		return nil, err
-	}
-	// Withheld from the stored copy for the reason AnalyzeSolarTerrain states.
-	stored := *res
-	stored.OverlayURI = ""
-	res.RunID = a.persistSolarRaster(req.PolygonGeoJSON, req.Label,
-		req.RunLabel, req.ProjectID, req.AreaID, "solar_siting", "siting", &stored,
-		res.OverlayURI, 0)
-	return res, nil
-}
-
-// AnalyzeEnergyModel runs the photovoltaic energy model over the AOI.
-func (a *App) AnalyzeEnergyModel(req analysis.EnergyModelRequest) (*analysis.EnergyModelAnalysis, error) {
-	runner := a.currentRunner()
-	if runner == nil {
-		return nil, errors.New("runner not initialized")
-	}
-	res, err := runner.AnalyzeEnergyModel(a.ctx, req)
-	if err != nil {
-		return nil, err
-	}
-	res.RunID = a.persistEnergyModelRun(req, res)
-	return res, nil
-}
-
-// AnalyzeWind screens the wind resource at the AOI.
-func (a *App) AnalyzeWind(req analysis.WindRequest) (*analysis.WindAnalysis, error) {
-	runner := a.currentRunner()
-	if runner == nil {
-		return nil, errors.New("runner not initialized")
-	}
-	res, err := runner.AnalyzeWind(a.ctx, req)
-	if err != nil {
-		return nil, err
-	}
-	res.RunID = a.persistWindRun(req, res)
-	return res, nil
 }
 
 func (a *App) AnalyzeFlood(req analysis.FloodRequest) (*analysis.FloodAnalysis, error) {
