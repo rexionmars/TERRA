@@ -5242,7 +5242,23 @@ export function BoardSurface({
             slots={headerSlotsFor(id)[editor]}
             modes={editorModesFor(id)}
             onRetype={(next) => setTree(retypeArea(tree, id, next))}
-            onSplit={(dir) => setTree(splitArea(tree, id, dir, "properties"))}
+            /*
+              The new half is a second copy of what was split, as Solara's
+              and Blender's are: splitting a table is asking for two tables.
+              An editor that exists once -- the viewport's single context,
+              the globe's, the rover -- cannot be copied, and Properties is
+              what the half becomes then, as every split used to.
+            */
+            onSplit={(dir) =>
+              setTree(
+                splitArea(
+                  tree,
+                  id,
+                  dir,
+                  studioEditor(editor).unique ? "properties" : editor
+                )
+              )
+            }
             onClose={() => setTree(joinArea(tree, id))}
             onMaximize={() => {
               const kept = restoreTree[workspaceId]
