@@ -11,61 +11,32 @@
  * Nothing about runs is in here, as nothing about runs is in `NodeCanvas`. A
  * caller supplies what the card says.
  */
-import type { Icon as PhosphorIcon } from "@phosphor-icons/react"
-
 import { cn } from "@/lib/utils"
 
 /**
- * A card's header row: the glyph and its label.
+ * A card's header: its name, and nothing else.
+ *
+ * As Solara writes it and Blender before it. The glyph that stood before the
+ * name, and the small letter-spaced type the name was set in, were chosen for
+ * a header that was a wash over the card; a node header is a band of its own,
+ * and on it the name in body type is the whole of what needs saying. The
+ * category is the band's colour.
+ *
+ * NO COLOUR NAMED HERE. The band sets `color` -- --b-node-ink on every header
+ * -- and this inherits it, so the pair is measured where both are written
+ * down, in index.css.
  */
-export function Head({
-  icon: Icon,
-  label,
-}: {
-  icon: PhosphorIcon
-  label: string
-}) {
+export function Head({ label }: { label: string }) {
+  /*
+    Truncated at the card's width, and `title` is how the whole of it is still
+    reachable: the run node's header is the tool's own sentence, which does not
+    fit 208px, and a name that cannot be read is a card that does not say which
+    run it is.
+  */
   return (
-    <>
-      {/*
-        THE GLYPH INHERITS THE BAND'S INK, which is the only colour that can be
-        stated about it from here.
-
-        It used to take three: the aside token, the accent when the card was
-        holding something, and otherwise the part's own hue. All three were
-        chosen against a header that was a WASH -- a tint over a plate -- and
-        none of them survives a band at full strength: the part's hue on a band
-        painted in the part's hue is the glyph disappearing, and a blue aside
-        mark on Forest Ritual's slate is not far behind it.
-      */}
-      <Icon className="size-3 shrink-0" />
-      {/*
-        The label is truncated at the card's width, and `title` is how the whole
-        of it is still reachable. The run node's header is the tool's own
-        sentence, and a sentence that does not fit 208px at any size this row
-        uses makes the ellipsis the normal case there rather than the
-        exception -- and a name that cannot be read is a card that does not
-        say which run it is.
-      */}
-      {/*
-        NO COLOUR NAMED HERE. `.eyebrow` is drawn in --p-muted, which is
-        measured against the surfaces a PANEL is made of, and this row sits on
-        a card band instead. The override that used to stand here forced it to
-        --p-text, a pale grey, and that was correct for exactly as long as
-        every band was a wash over a plate: on Cyber Punch's yellow it is a
-        title nobody can read.
-
-        The band sets `color` and this inherits it. Which pair lands on which
-        band is decided and measured where the two are written down together,
-        in index.css, rather than half here and half there.
-
-        Small and letter-spaced is what keeps it quiet at this weight. Quiet
-        was never a token's job here; it is the size's.
-      */}
-      <span className="eyebrow !text-[9px] truncate !text-current" title={label}>
-        {label}
-      </span>
-    </>
+    <span className="min-w-0 flex-1 truncate" title={label}>
+      {label}
+    </span>
   )
 }
 

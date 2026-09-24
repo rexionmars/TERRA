@@ -602,18 +602,19 @@ export interface BoardRunGraphProps {
  * A tint of an accent over a ground is a ground, which is the whole reason the
  * references keep the two apart and put nothing between them.
  *
- * `ink` IS WHY THIS RETURNS FOUR THINGS AND NOT THREE. A band at full strength
- * decides what can be written on it, so each card carries the colour its own
- * title and glyph are set in. That is a property of the band and belongs
- * beside it, not a global the header picks and hopes for.
+ * THREE THINGS SINCE THE NODES WENT THE WAY OF SOLARA'S. The band is the
+ * part at full strength and is now drawn only where it is small -- a socket, a
+ * wire, a lit control -- with `ink` the colour written on it there. The header
+ * is `head`, a dark tone of the same part with light type, as a node editor's
+ * headers are. The body and the ring went: every node is the same card, and a
+ * node's outline is the hairline the canvas draws for all of them.
  */
 function partPaint(part: Subject | null): CanvasNode["subject"] {
   if (!part) return undefined
   return {
     band: `var(--b-${part}-head)`,
-    body: `var(--b-${part}-body)`,
-    edge: `var(--b-${part}-edge)`,
     ink: `var(--b-${part}-ink)`,
+    head: `var(--b-${part}-node)`,
   }
 }
 
@@ -628,17 +629,6 @@ function partPaint(part: Subject | null): CanvasNode["subject"] {
 const partWire = (part: Subject | null): string | undefined =>
   part ? `var(--b-${part}-head)` : undefined
 
-/**
- * What can be written on that wire.
- *
- * The band's own type colour, the fourth thing partPaint returns and for the
- * same reason: a band at full strength decides what can be written on it, and
- * #FFD000 takes dark type where #7231FF takes white. The canvas cannot pick
- * between them -- it does not know the categories -- so the pair travels
- * together. See CanvasEdge.paintInk.
- */
-const partWireInk = (part: Subject | null): string | undefined =>
-  part ? `var(--b-${part}-ink)` : undefined
 
 /**
  * The state of a wire, in the word drawn where it lands.
@@ -1395,9 +1385,8 @@ export function BoardRunGraph(props: BoardRunGraphProps) {
       spec.id === "catalogue"
         ? {
             band: "var(--b-catalogue-head)",
-            body: "var(--b-catalogue-body)",
-            edge: "var(--b-catalogue-edge)",
             ink: "var(--b-catalogue-ink)",
+            head: "var(--b-catalogue-node)",
           }
         : partPaint(part)
     return {
@@ -1410,9 +1399,9 @@ export function BoardRunGraph(props: BoardRunGraphProps) {
       status: spec.id === "run" && busy ? "busy" : undefined,
       header:
         spec.id === "run" && props.tool ? (
-          <Head icon={TOOL_ICON[props.tool]} label={props.runLabel} />
+          <Head label={props.runLabel} />
         ) : (
-          <Head icon={spec.icon} label={spec.label} />
+          <Head label={spec.label} />
         ),
       children: body[spec.id],
     }
@@ -1449,11 +1438,12 @@ export function BoardRunGraph(props: BoardRunGraphProps) {
   /*
     What each input is called, taken from the graph rather than written again.
 
-    The same word the card's own header carries, in the same case, so a reading
-    on a wire and the card it left are one subject. SPEC is where the pairing
-    lives and this reads it.
+    The same word the node's own header carries, in the same case, so the row
+    a wire lands on and the node it left are one subject. SPEC is where the
+    pairing lives and this reads it. Every wire has one now, gates included:
+    each lands on a row of its own, and a row has to say which node it is from.
   */
-  const named = new Map(graph.nodes.map((n) => [n.id, n.label.toUpperCase()]))
+  const named = new Map<string, string>(graph.nodes.map((n) => [n.id, n.label]))
   /*
     THE WIRES THE READER MADE, kept apart from the graph's own.
 
@@ -1475,7 +1465,7 @@ export function BoardRunGraph(props: BoardRunGraphProps) {
     if (!from || !to || !present.has(from as RunNodeId) || !present.has(to as RunNodeId)) {
       return []
     }
-    return [{ from, to, state: "read" as const }]
+    return [{ from, to, state: "read" as const, name: named.get(from) }]
   })
 
   const canvasEdges: CanvasEdge[] = graph.edges.map(([from, to]) => {
@@ -1496,7 +1486,7 @@ export function BoardRunGraph(props: BoardRunGraphProps) {
       to,
       state,
       label: to === "run" ? reading(value) : undefined,
-      name: to === "run" ? named.get(from) : undefined,
+      name: named.get(from),
       note: state ? EDGE_NOTE[state] : undefined,
       /*
         The wire in the colour of the card it leaves, for as long as it has no
@@ -1505,7 +1495,6 @@ export function BoardRunGraph(props: BoardRunGraphProps) {
         parts are about what a run is made of.
       */
       paint: to === "run" ? partWire(subject(value)) : undefined,
-      paintInk: to === "run" ? partWireInk(subject(value)) : undefined,
     }
   })
 
