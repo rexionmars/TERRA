@@ -84,6 +84,7 @@ const L = (from: string, fromSocket: string, to: string, toSocket: string): Grap
 
 function ready(r: Result | undefined): RasterValue {
   if (r?.status !== "ready") throw new Error(`not ready: ${JSON.stringify(r)}`)
+  if (r.value.type === "fields") throw new Error("a raster was expected, not fields")
   return r.value
 }
 

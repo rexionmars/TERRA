@@ -31,12 +31,14 @@ import { MAPBIOMAS_CLASS_LEGEND } from "@/lib/classPalette"
 import type {
   Bounds,
   CompositionOverlay,
+  FieldsAnalysis,
   MineralAnalysis,
   ModelKind,
   PredictResult,
   WaterAnalysis,
 } from "@/lib/types"
-import { isZeroExtent, predictionSource } from "@/lib/mapLayers"
+import { fieldsLayers, isZeroExtent, predictionSource } from "@/lib/mapLayers"
+import { fieldLayerDefaultVisible, sceneDate } from "@/lib/fields"
 import {
   MINERAL_MASKED_COLOR,
   MINERAL_NO_ANSWER_COLOR,
@@ -297,6 +299,9 @@ export interface RunAssetInput {
    */
   mineral?: MineralAnalysis | null
   mineralLayers?: Readonly<Record<string, { visible?: boolean; opacity?: number }>>
+  /** A field delineation's rasters, and their switches (see VisibleLayerInput.fieldLayers). */
+  fields?: FieldsAnalysis | null
+  fieldLayers?: Readonly<Record<string, { visible?: boolean; opacity?: number }>>
 }
 
 /**
@@ -508,6 +513,46 @@ export function runAssets(i: RunAssetInput): RunAsset[] {
       exportTif: m.geotiff
         ? { via: "file", src: m.geotiff, filename: "terra_mineral_map.tif" }
         : null,
+    })
+  }
+
+  /*
+    A field delineation: its class map and the two scenes, each exportable as
+    the PNG on the board; the class map also as its GeoTIFF, which is the
+    measurement the PNG is a picture of. The polygons are exported from the
+    reading, where they are read.
+  */
+  const f = i.fields
+  for (const layer of f ? fieldsLayers(f) : []) {
+    if (!f) break
+    const isClasses = layer.id === "fields:classes"
+    out.push({
+      id: layer.id.replace(":", "-"),
+      sceneId: layer.id,
+      title: layer.title,
+      params: isClasses
+        ? [
+            f.checkpoint.title,
+            `${f.n_fields} fields`,
+            `${sceneDate(f.window_a.date)} and ${sceneDate(f.window_b.date)}`,
+          ].join(" · ")
+        : "Sentinel-2 L2A true colour, the scene the delineation read",
+      previewUri: layer.uri,
+      extent: placeable(f.extent),
+      pixelated: layer.pixelated,
+      onBoard: i.fieldLayers
+        ? (i.fieldLayers[layer.id]?.visible ?? fieldLayerDefaultVisible(layer.id))
+        : false,
+      selectId: null,
+      removeId: null,
+      exportPng: {
+        src: layer.uri,
+        filename: `terra_${layer.id.replace(/[:-]/g, "_")}.png`,
+      },
+      exportTif:
+        isClasses && f.classes_tif
+          ? { via: "file", src: f.classes_tif, filename: "terra_field_classes.tif" }
+          : null,
     })
   }
 

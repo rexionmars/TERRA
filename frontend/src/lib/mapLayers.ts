@@ -16,6 +16,7 @@
 import type {
   Bounds,
   CompositionOverlay,
+  FieldsAnalysis,
   MineralAnalysis,
   PredictResult,
   WaterAnalysis,
@@ -25,6 +26,7 @@ import {
   mineralLayerDefaultVisible,
   mineralLayerId,
 } from "@/lib/mineral"
+import { FIELD_LAYER, fieldLayerDefaultVisible, sceneDate } from "@/lib/fields"
 
 export interface RasterLayer {
   /** Stable across renders, so a consumer can key on it. */
@@ -120,6 +122,13 @@ export interface VisibleLayerInput {
    */
   mineral?: MineralAnalysis | null
   mineralLayers?: Readonly<Record<string, { visible?: boolean; opacity?: number }>>
+  /**
+   * A field delineation's rasters: its class map and the two scenes it read.
+   * Optional for the reason the mineral map is; the switches are per layer id,
+   * and one with no entry takes fieldLayerDefaultVisible.
+   */
+  fields?: FieldsAnalysis | null
+  fieldLayers?: Readonly<Record<string, { visible?: boolean; opacity?: number }>>
 }
 
 /** Which of the three maps the `prediction` layer draws. */
@@ -182,6 +191,41 @@ export function mineralLayers(
 }
 
 /**
+ * A field delineation's rasters as drawn layers.
+ *
+ * The two scenes go under the composition, where imagery sits: they are the
+ * evidence the polygons were drawn from, not a measurement over it. The class
+ * map sits above the mineral maps and below the classification, and is not
+ * interpolated -- a blend of the boundary and interior colours names neither.
+ * The polygons themselves are vector, drawn by the globe (see fieldOutlines).
+ */
+export function fieldsLayers(
+  f: FieldsAnalysis | null | undefined,
+  state: Readonly<Record<string, { visible?: boolean; opacity?: number }>> = {}
+): RasterLayer[] {
+  if (!f || isZeroExtent(f.extent)) return []
+  const out: RasterLayer[] = []
+  const add = (id: string, title: string, uri: string | undefined, order: number, pixelated: boolean) => {
+    if (!uri) return
+    out.push({
+      id,
+      title,
+      uri,
+      extent: f.extent,
+      opacity: state[id]?.opacity ?? 1,
+      order,
+      pixelated,
+      smooth: false,
+      visible: state[id]?.visible ?? fieldLayerDefaultVisible(id),
+    })
+  }
+  add(FIELD_LAYER.windowA, `Window A, ${sceneDate(f.window_a.date)}`, f.window_a_uri, 341, false)
+  add(FIELD_LAYER.windowB, `Window B, ${sceneDate(f.window_b.date)}`, f.window_b_uri, 342, false)
+  add(FIELD_LAYER.classes, "Field boundaries", f.classes_uri, 366, true)
+  return out
+}
+
+/**
  * Every raster this run could draw, bottom of the stack first.
  *
  * The prediction slot falls back through the classification, the MapBiomas
@@ -226,6 +270,7 @@ export function rasterLayers(i: VisibleLayerInput): RasterLayer[] {
   }
 
   layers.push(...mineralLayers(i.mineral, i.mineralLayers))
+  layers.push(...fieldsLayers(i.fields, i.fieldLayers))
 
   const prediction = predictionSource(i.result)
   const predictionUri = prediction?.uri

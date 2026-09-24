@@ -38,6 +38,8 @@ import {
   DeleteArea,
   AnalyzeWater,
   AnalyzeMinerals,
+  AnalyzeFields,
+  AdoptFields,
   GetEarthdataStatus,
   SetBoardDirty,
 } from "../wailsjs/go/main/App"
@@ -66,7 +68,10 @@ import type {
   WaterRequest,
   MineralAnalysis,
   MineralRequest,
+  FieldsAnalysis,
+  FieldsRequest,
 } from "@/lib/types"
+import { fieldWindows, MIN_PERIOD_DAYS } from "@/lib/fields"
 import {
   parsePreferenceExtras,
 } from "@/lib/preferenceExtras"
@@ -260,6 +265,7 @@ function App() {
       r.run_id ||
       r.water?.run_id ||
       r.mineral?.run_id ||
+      r.fields?.run_id ||
       r.overlay_uri ||
       null
     )
@@ -309,7 +315,8 @@ function App() {
       (!!outgoing.class_stats?.length ||
         !!outgoing.overlay_uri ||
         !!outgoing.water ||
-        !!outgoing.mineral)
+        !!outgoing.mineral ||
+        !!outgoing.fields)
     if (!outgoing || !carries) {
       return
     }
@@ -333,6 +340,7 @@ function App() {
         outgoing.run_id ||
         outgoing.water?.run_id ||
         outgoing.mineral?.run_id ||
+        outgoing.fields?.run_id ||
         `unsaved:${prev.length + 1}`
       /*
         ONE ENTRY PER RUN, WHATEVER IT WAS FILED UNDER.
@@ -687,6 +695,16 @@ function AppBody(props: {
   const [reveal, setReveal] = useState<EditorId | null>(null)
   const [mineral, setMineral] = useState<MineralAnalysis | null>(null)
   const [mineralRun, setMineralRun] = useState({
+    active: false,
+    progress: 0,
+    message: "",
+  })
+  /*
+    The field delineation and its run status, held here for the reason the
+    mineral map's are: the screen unmounts on every navigation away.
+  */
+  const [fields, setFields] = useState<FieldsAnalysis | null>(null)
+  const [fieldsRun, setFieldsRun] = useState({
     active: false,
     progress: 0,
     message: "",
@@ -1168,6 +1186,7 @@ function AppBody(props: {
     setCurrentRunId(null)
     setWater(null)
     setMineral(null)
+    setFields(null)
   }, [props.setResult])
 
   const activateProject = useCallback(
@@ -1532,6 +1551,26 @@ function AppBody(props: {
     setMineral(null)
   }, [aoiSignature, mineral])
 
+  /** The AOI the field delineation on screen was drawn over, and its area. */
+  const fieldsAoiRef = useRef<string>("")
+  const fieldsAreaRef = useRef<string>("")
+
+  /*
+    The same for the field delineation, WITH ONE EXCEPTION: moving onto one of
+    the delineated area's own fields keeps it. Choosing a field is what the
+    delineation is for, and a reading that vanished the moment a field was
+    chosen would take the table of fields, and the adoption beside it, away
+    from the reader at the point they were being used.
+  */
+  useEffect(() => {
+    if (!fields) return
+    if (aoiSignature === fieldsAoiRef.current) return
+    const active = props.areas.find((a) => a.id === props.activeAreaId)
+    const area = fieldsAreaRef.current
+    if (area && (props.activeAreaId === area || active?.parent_id === area)) return
+    setFields(null)
+  }, [aoiSignature, fields, props.areas, props.activeAreaId])
+
   /**
    * The sidecar's progress channel, and the two displays that read it.
    *
@@ -1553,6 +1592,9 @@ function AppBody(props: {
   const mineralRunRef = useRef(mineralRun)
   mineralRunRef.current = mineralRun
   const mineralSeenRef = useRef({ progress: 0, message: "" })
+  const fieldsRunRef = useRef(fieldsRun)
+  fieldsRunRef.current = fieldsRun
+  const fieldsSeenRef = useRef({ progress: 0, message: "" })
   const setProgressRef = useRef(props.setProgress)
   setProgressRef.current = props.setProgress
   const setProgressMsgRef = useRef(props.setProgressMsg)
@@ -1565,6 +1607,17 @@ function AppBody(props: {
         if (ev.progress >= 0) seen.progress = ev.progress
         if (ev.msg) seen.message = ev.msg
         setMineralRun({
+          active: true,
+          progress: seen.progress,
+          message: seen.message,
+        })
+        return
+      }
+      if (fieldsRunRef.current.active) {
+        const seen = fieldsSeenRef.current
+        if (ev.progress >= 0) seen.progress = ev.progress
+        if (ev.msg) seen.message = ev.msg
+        setFieldsRun({
           active: true,
           progress: seen.progress,
           message: seen.message,
@@ -1721,6 +1774,113 @@ function AppBody(props: {
       notifyError("Mineral map error", e)
     } finally {
       setMineralRun({ active: false, progress: 0, message: "" })
+    }
+  }
+
+  /*
+    The field boundaries over the area in hand, from two scenes of the period.
+
+    THE WINDOWS ARE THE PERIOD'S FIRST AND LAST THIRD (lib/fields.ts says why),
+    so a period that cannot hold two is refused here rather than by a search
+    that finds one scene for both.
+
+    A FIELD CANNOT BE DELINEATED. Its fields would be areas inside an area
+    inside an area, which the store refuses; and a network run over one field
+    finds the one field. The check is here as well as in the band, which
+    withholds the button, because a run can also be started from the console.
+
+    The cloud ceiling is the period card's: the sidecar reads the scene-level
+    cover as a first cut and then measures each candidate over the area itself.
+  */
+  const handleRunFields = async () => {
+    if (!props.customPolygon) {
+      notifyError("Draw an area on the map first.")
+      return
+    }
+    const windows = fieldWindows(props.start, props.end)
+    if (!windows) {
+      notifyError(
+        `Set a period of at least ${MIN_PERIOD_DAYS} days that spans a season: its first third gives window A, its last third window B.`
+      )
+      return
+    }
+    const active = props.areas.find((a) => a.id === props.activeAreaId)
+    if (active?.parent_id) {
+      notifyError("Choose the area the field belongs to: fields are delineated over an area, not over one field.")
+      return
+    }
+    fieldsSeenRef.current = { progress: 0, message: "starting" }
+    setFieldsRun({ active: true, progress: 0, message: "starting" })
+    const runAoi = aoiSignature
+    const runArea = props.activeAreaId ?? ""
+    try {
+      const aoiLabel = props.analysisLabel?.trim() || "Custom AOI"
+      const req: FieldsRequest = {
+        polygon_geojson: props.customPolygon,
+        window_a: windows.a,
+        window_b: windows.b,
+        max_cloud: props.maxCloud,
+        min_area_m2: 0,
+        label: aoiLabel,
+        run_label: nameThisRun(aoiLabel),
+        area_id: props.activeAreaId ?? undefined,
+        project_id: activeProjectId || undefined,
+      }
+      const res = (await AnalyzeFields(req as never)) as unknown as FieldsAnalysis
+      fieldsAoiRef.current = runAoi
+      fieldsAreaRef.current = runArea
+      setCurrentRunId(res.run_id || null)
+      setFields(res)
+      /*
+        No reveal. The delineation's actions are compositor nodes, placed by
+        the board (withFieldNodes), and the compositor's floor is wider than
+        the area a reveal would retype in the Layout preset -- it arrived as a
+        note saying it did not fit. The Field boundaries preset shows the
+        compositor beside the globe, and the notification says where.
+      */
+      const sizes = res.field_area_ha
+      notifySuccess(
+        `Field boundaries: ${res.n_fields} fields` +
+          (sizes ? `, median ${sizes.median.toFixed(1)} ha` : "") +
+          `, from ${res.window_a.date} and ${res.window_b.date}` +
+          `${res.run_id ? " (saved)" : ""}. Filter, make and save them in the Compositor.`
+      )
+      void refreshRuns()
+      void refreshProjects()
+      settleRun(true)
+    } catch (e) {
+      settleRun(false)
+      notifyError("Field boundaries error", e)
+    } finally {
+      setFieldsRun({ active: false, progress: 0, message: "" })
+    }
+  }
+
+  /*
+    A delineation's fields made areas of the area it was run over, with the
+    thresholds the compositor's filters applied on the way to the node.
+
+    Returns whether it was done, so the node can close its confirmation. The
+    area listing is re-read rather than patched, for the reason refreshAreas
+    gives: the store names the fields.
+  */
+  const handleAdoptFields = async (
+    runId: string,
+    minHa: number,
+    minCropland: number,
+    replace: boolean
+  ): Promise<boolean> => {
+    try {
+      const made = await AdoptFields(runId, minHa, minCropland, replace)
+      await refreshAreas(activeProjectId)
+      const parent = props.areas.find((a) => a.id === made[0]?.parent_id)
+      notifySuccess(
+        `${made.length} fields made areas of ${parent?.name ?? "the area"}; choose one in the outliner or on the globe to run over it.`
+      )
+      return true
+    } catch (e) {
+      notifyError("Could not make the fields", e)
+      return false
     }
   }
 
@@ -1980,6 +2140,15 @@ function AppBody(props: {
           setMineral(res.mineral)
         } else {
           setMineral(null)
+        }
+        // And a field delineation, which also records the area it was of so
+        // choosing one of that area's fields keeps it on screen.
+        if (res.fields) {
+          fieldsAoiRef.current = restoredAoi
+          fieldsAreaRef.current = run.area_id ?? ""
+          setFields(res.fields)
+        } else {
+          setFields(null)
         }
         const centroid = geometryCentroid(polygon)
         if (centroid) {
@@ -2766,7 +2935,7 @@ function AppBody(props: {
       // once: this counted a loaded result, the clearing did not remove it, and
       // the detail view rebuilt itself from what the clearing left behind.
       // Adding a product here means adding it there.
-      if (!props.result && !water && !mineral) {
+      if (!props.result && !water && !mineral && !fields) {
         return null
       }
       return {
@@ -2784,9 +2953,10 @@ function AppBody(props: {
         run_id: currentRunId ?? "",
         water,
         mineral,
+        fields,
       }
     },
-    [props.result, water, mineral, currentRunId]
+    [props.result, water, mineral, fields, currentRunId]
   )
 
   /**
@@ -2917,6 +3087,12 @@ function AppBody(props: {
                   mineralProgress={mineralRun.progress}
                   mineralProgressMsg={mineralRun.message}
                   onClearMineral={() => setMineral(null)}
+                  fields={fields}
+                  onRunFields={() => void handleRunFields()}
+                  fieldsBusy={fieldsRun.active}
+                  fieldsProgress={fieldsRun.progress}
+                  fieldsProgressMsg={fieldsRun.message}
+                  onAdoptFields={handleAdoptFields}
                   reveal={reveal}
                   onRevealed={() => setReveal(null)}
                   initialView={initialMapView}

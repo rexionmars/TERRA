@@ -27,6 +27,7 @@ import {
   Diamond,
   Drop,
   GridFour,
+  Polygon,
   Image as ImageIcon,
   Play,
   Trash,
@@ -107,6 +108,8 @@ export const TOOL_ICON: Record<BoardToolId, Icon> = {
   // A cut stone for the mineral map: the subject is what the surface is made
   // of, and no other product here reads composition.
   mineral: Diamond,
+  // A polygon: the product's output is outlines, one per field.
+  fields: Polygon,
 }
 
 /**
@@ -910,10 +913,11 @@ export function BoardRunGraph(props: BoardRunGraphProps) {
         />
         {/*
           Withheld under the mineral map, which takes each cell's answer from
-          one pass and has no monthly pick to make: the toggle would be a
-          control that moves nothing in the request.
+          one pass and has no monthly pick to make, and under the field
+          boundaries, which take the clearest scene of each window: in both the
+          toggle would be a control that moves nothing in the request.
         */}
-        {props.tool !== "mineral" && (
+        {props.tool !== "mineral" && props.tool !== "fields" && (
           <>
             {/*
               A boxed toggle rather than a native checkbox, which was the one

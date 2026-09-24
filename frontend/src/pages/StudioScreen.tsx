@@ -13,6 +13,7 @@ import type {
   DataCubeScene,
   GeoJSONGeometry,
   InferenceRun,
+  FieldsAnalysis,
   MineralAnalysis,
   ModelKind,
   PredictResult,
@@ -27,6 +28,7 @@ import {
 import type { AoiContourSchemeId } from "@/lib/aoiStyle";
 import { isMapTool, type BoardToolId } from "@/lib/mapTools";
 import { mineralGroupOfLayer } from "@/lib/mineral";
+import { fieldWindows, isFieldLayer, MIN_PERIOD_DAYS } from "@/lib/fields";
 import { cn } from "@/lib/utils";
 import { CaretDown, Database } from "@phosphor-icons/react";
 import { BoardRunGraph, TOOL_ICON } from "@/components/studio/BoardRunGraph";
@@ -255,6 +257,17 @@ export interface StudioScreenProps {
   mineralProgress?: number;
   mineralProgressMsg?: string;
   onClearMineral?: () => void;
+  /**
+   * The field delineation, as the mineral map's props are: absent runner, no
+   * band entry. Adoption is asked for by the compositor's Make fields node,
+   * with the run and the thresholds that reached it.
+   */
+  fields?: FieldsAnalysis | null;
+  onRunFields?: () => void;
+  fieldsBusy?: boolean;
+  fieldsProgress?: number;
+  fieldsProgressMsg?: string;
+  onAdoptFields?: (runId: string, minHa: number, minCropland: number, replace: boolean) => Promise<boolean>;
   reveal?: EditorId | null;
   onRevealed?: () => void;
   waterIndex: WaterIndex;
@@ -355,6 +368,10 @@ export function StudioScreen(props: StudioScreenProps) {
   const [mineralLayerState, setMineralLayerState] = useState<
     Record<string, { visible?: boolean; opacity?: number }>
   >({});
+  /* The field delineation's three rasters, for the same reason. */
+  const [fieldLayerState, setFieldLayerState] = useState<
+    Record<string, { visible?: boolean; opacity?: number }>
+  >({});
   /**
    * Whether the board is showing a map to draw an area on.
    *
@@ -444,6 +461,8 @@ export function StudioScreen(props: StudioScreenProps) {
     waterOpacity: props.waterOpacity,
     mineral: props.mineral,
     mineralLayers: mineralLayerState,
+    fields: props.fields,
+    fieldLayers: fieldLayerState,
   });
 
   /**
@@ -489,6 +508,7 @@ export function StudioScreen(props: StudioScreenProps) {
     props.result?.run_id ||
     props.water?.run_id ||
     props.mineral?.run_id ||
+    props.fields?.run_id ||
     "current";
 
   const boardAssets = runAssets({
@@ -508,6 +528,8 @@ export function StudioScreen(props: StudioScreenProps) {
     waterOpacity: props.waterOpacity,
     mineral: props.mineral,
     mineralLayers: mineralLayerState,
+    fields: props.fields,
+    fieldLayers: fieldLayerState,
   });
 
   const changeBoardLayer = (
@@ -530,6 +552,17 @@ export function StudioScreen(props: StudioScreenProps) {
     }
     // One entry per group's layer, merged so a patch naming only the opacity
     // leaves the switch where the reader put it.
+    if (isFieldLayer(id)) {
+      setFieldLayerState((prev) => ({
+        ...prev,
+        [id]: {
+          ...prev[id],
+          ...(patch.visible !== undefined ? { visible: patch.visible } : {}),
+          ...(patch.opacity !== undefined ? { opacity: patch.opacity } : {}),
+        },
+      }));
+      return;
+    }
     if (mineralGroupOfLayer(id) !== null) {
       setMineralLayerState((prev) => ({
         ...prev,
@@ -608,6 +641,9 @@ export function StudioScreen(props: StudioScreenProps) {
     is the band's alone and brings its own state and its own enabling rule.
   */
   const mineralRunnable = !!props.onRunMinerals;
+  const fieldsRunnable = !!props.onRunFields;
+  const fieldPeriodOk = !!fieldWindows(props.start, props.end);
+  const activeIsField = !!props.areas?.find((a) => a.id === props.activeAreaId)?.parent_id;
   const boardRun =
     bandTool === "mineral" && mineralRunnable
       ? {
@@ -624,7 +660,21 @@ export function StudioScreen(props: StudioScreenProps) {
             !props.mineralBusy,
           onRun: () => props.onRunMinerals?.(),
         }
-      : run;
+      : bandTool === "fields" && fieldsRunnable
+        ? {
+            running: props.fieldsBusy ?? false,
+            progress: props.fieldsProgress ?? 0,
+            progressMsg: props.fieldsProgressMsg ?? "",
+            label: props.fieldsBusy ? "Delineating" : "Delineate fields",
+            // Two windows out of the period, over an area and not a field.
+            canRun:
+              props.hasArea &&
+              fieldPeriodOk &&
+              !activeIsField &&
+              !props.fieldsBusy,
+            onRun: () => props.onRunFields?.(),
+          }
+        : run;
 
   /*
     What the run in progress has said. Built from the SAME resolved run the band
@@ -674,7 +724,11 @@ export function StudioScreen(props: StudioScreenProps) {
             its action.
           */
           const offered = BOARD_TOOLS.filter((t) =>
-            t.id === "mineral" ? !!props.onRunMinerals : true,
+            t.id === "mineral"
+              ? !!props.onRunMinerals
+              : t.id === "fields"
+                ? !!props.onRunFields
+                : true,
           );
           /*
             ONE ENTRANCE PER SUBJECT, WHICH IS THE SHAPE THE OTHER TWO BARS
@@ -1000,8 +1054,13 @@ export function StudioScreen(props: StudioScreenProps) {
       blockedBy={
         !props.hasArea
           ? "Draw an area on the globe, or bring one in from the Areas tab."
-          : bandTool === "mineral" && props.mineralBusy
+          : (bandTool === "mineral" && props.mineralBusy) ||
+              (bandTool === "fields" && props.fieldsBusy)
             ? "The sidecar runs one analysis at a time."
+            : bandTool === "fields" && activeIsField
+              ? "Choose the area this field belongs to: fields are delineated over an area, not over one field."
+            : bandTool === "fields" && !fieldPeriodOk
+              ? `Set a period of at least ${MIN_PERIOD_DAYS} days spanning the season: its first third is window A, its last third window B.`
             : bandTool === "mineral" && (!props.start || !props.end)
               ? "Set the period: the EMIT passes are searched inside it."
               : bandTool === "compose" && !props.selectedSceneId
@@ -1214,6 +1273,8 @@ export function StudioScreen(props: StudioScreenProps) {
           polygonGeoJSON={props.polygonGeoJSON}
           mineralResult={props.mineral}
           onClearMineral={props.onClearMineral}
+          fieldsResult={props.fields}
+          onAdoptFields={props.onAdoptFields}
           reveal={props.reveal}
           onRevealed={props.onRevealed}
           /*

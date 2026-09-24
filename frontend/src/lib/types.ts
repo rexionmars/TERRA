@@ -388,6 +388,11 @@ export interface PredictResult {
    */
   mineral?: MineralAnalysis | null
   /**
+   * Field boundaries delineated over the area, reopened from the store. The
+   * polygons are what the network separates, not what a farmer calls a field.
+   */
+  fields?: FieldsAnalysis | null
+  /**
    * Compact spectral / NDVI fingerprint cached at classify time for
    * domain-shift diagnostics. Absent on older runs and non-classify products.
    */
@@ -944,4 +949,92 @@ export interface MineralAnalysis {
   geotiff: string
   extent: Bounds
   notes: string[]
+}
+
+/** One of the two date ranges a delineation takes its scenes from. */
+export interface FieldsWindow {
+  start: string
+  end: string
+}
+
+/** Asks for the field boundaries of one area (internal/analysis/types_fields.go). */
+export interface FieldsRequest {
+  polygon_geojson: GeoJSONGeometry
+  /** Window A near sowing, window B near harvest; the clearest scene of each. */
+  window_a: FieldsWindow
+  window_b: FieldsWindow
+  /** Scene-level cloud ceiling, percent; 0 selects the sidecar default. */
+  max_cloud: number
+  /** Fields smaller than this are dropped, m²; 0 selects the default of 500. */
+  min_area_m2: number
+  /** The FTW checkpoint; empty selects the sidecar default. */
+  checkpoint?: string
+  label?: string
+  run_label?: string
+  area_id?: string
+  project_id?: string
+}
+
+/** The scene one window was read from: every tile of one pass. */
+export interface FieldsScene {
+  date: string
+  items: string[]
+  cloud_cover: number
+  /** Share of the area's cells the scene classification calls clear. */
+  clear_fraction: number | null
+}
+
+/** A field polygon's properties, as the sidecar writes them. */
+export interface FieldProperties {
+  field: number
+  area_ha: number
+  perimeter_m: number
+  /**
+   * The network's mean interior vote over the field, not a probability of
+   * being right. Null for a polygon narrower than a cell, which holds none.
+   */
+  mean_interior_prob: number | null
+  /**
+   * Share of the field MapBiomas calls cropland; absent when MapBiomas was not
+   * read, null for a polygon that holds no cell.
+   */
+  cropland_share?: number | null
+}
+
+export interface FieldsAnalysis {
+  run_id?: string
+  extent: Bounds
+  checkpoint: { name: string; title: string; license: string }
+  window_a: FieldsScene
+  window_b: FieldsScene
+  grid: {
+    crs: string
+    width: number
+    height: number
+    pixel_size_m: number
+    buffer_m: number
+  }
+  resize_factor: number
+  min_area_m2: number
+  simplify_m: number
+  area_ha: number
+  /** Of the area's cells, those either window could not see clearly. */
+  masked_fraction: number
+  class_fraction: { background: number; interior: number; boundary: number }
+  n_fields: number
+  field_area_ha: {
+    total: number
+    median: number
+    p10: number
+    p90: number
+    max: number
+  } | null
+  cropland_reference: string | null
+  /** A GeoJSON FeatureCollection in WGS84, one feature per field, largest first. */
+  fields_geojson: string
+  classes_uri?: string
+  window_a_uri?: string
+  window_b_uri?: string
+  /** The class map as a GeoTIFF on disk: 0 background, 1 interior, 2 boundary, 255 masked. */
+  classes_tif: string
 }

@@ -143,7 +143,13 @@ import {
   CompositorEditor,
   type CompositorGlobeOverlay,
 } from "@/components/studio/CompositorEditor"
-import { disconnect, linkInto, type CompositorGraph } from "@/lib/compositorGraph"
+import {
+  disconnect,
+  EMPTY_GRAPH,
+  linkInto,
+  withFieldNodes,
+  type CompositorGraph,
+} from "@/lib/compositorGraph"
 import {
   drawnByCompositor,
   layersBySource,
@@ -153,6 +159,7 @@ import {
 import { StartScreen, claimLaunchStart } from "@/components/studio/StartScreen"
 import { ResearchPackModal } from "@/components/ResearchPackModal"
 import { MineralReadingColumn } from "@/components/mineral/MineralReading"
+import type { FieldsTarget } from "@/lib/fields"
 import type { BoardHandle, PlaneState } from "@/components/studio/boardScene"
 import {
   createBoard,
@@ -470,6 +477,8 @@ export function BoardSurface({
   onOpenReading,
   mineralResult = null,
   onClearMineral,
+  fieldsResult = null,
+  onAdoptFields,
   reveal = null,
   onRevealed,
 }: {
@@ -623,6 +632,13 @@ export function BoardSurface({
    */
   mineralResult?: MineralAnalysis | null
   onClearMineral?: () => void
+  /**
+   * The field delineation in hand, for the proposed outlines on the globe and
+   * the compositor's Fields output; and the adoption the compositor's Make
+   * fields node asks for.
+   */
+  fieldsResult?: import("@/lib/types").FieldsAnalysis | null
+  onAdoptFields?: (runId: string, minHa: number, minCropland: number, replace: boolean) => Promise<boolean>
   /**
    * An editor a just-finished run needs on screen, or null.
    *
@@ -2011,8 +2027,23 @@ export function BoardSurface({
     through both filters, appearing neither as the live area nor as a
     catalogued one.
   */
+  /*
+    FIELDS GO WHERE THEIR AREA GOES. A field adopted from a delineation has no
+    run of its own and is not the live ground, so by the rule above every one
+    of them was off the board the moment it was made -- the delineation's
+    dashed outlines went away and nothing replaced them. A field is on the
+    board when its area is; and when the live ground is itself a field, its
+    area and the other fields of that area are on it too, since the field is
+    read against them.
+  */
+  const liveParent = catalogAreas.find((a) => a.id === live)?.parent_id || ""
+  const rootOnBoard = (id: string) =>
+    id === live || id === liveParent || groundOnBoard.has(id)
   const offBoardDrawings = catalogAreas.filter(
-    (a) => a.id !== live && !groundOnBoard.has(a.id)
+    (a) =>
+      a.id !== live &&
+      !groundOnBoard.has(a.id) &&
+      !(a.parent_id ? rootOnBoard(a.parent_id) : a.id === liveParent)
   )
   const offBoard = new Set(offBoardDrawings.map((a) => a.id))
 
@@ -2497,9 +2528,20 @@ export function BoardSurface({
       ? ({ type: "Polygon", coordinates: [ring] } as GeoJSONGeometry)
       : null
     const saved = catalogAreas.find((s) => s.id === a.id)
+    /*
+      The live row is the SHOWN RUN's ground, which is the active area only
+      until the two part: a field delineation stays on screen while one of its
+      fields is chosen, so the live row is the area it was run over and the
+      active area is the field. Naming the live row after the active area then
+      gave the row titled with the area the field's id -- the fields lost their
+      parent in the list, and renaming or deleting that row reached the field.
+      Where the live ground is itself a saved area, the row is that area.
+    */
     const catalogId =
       a.id === live
-        ? activeAreaId
+        ? saved
+          ? a.id
+          : activeAreaId
         : saved
           ? a.id
           : undefined
@@ -2515,6 +2557,7 @@ export function BoardSurface({
       current: a.id === live,
       saved: !!catalogId,
       catalogId,
+      parentId: catalogAreas.find((c) => c.id === catalogId)?.parent_id || undefined,
     }
   })
 
@@ -2537,6 +2580,8 @@ export function BoardSurface({
   */
   for (const a of catalogAreas) {
     if (offBoard.has(a.id)) continue
+    // A field follows its area off the board, as it does on the globe.
+    if (a.parent_id && offBoard.has(a.parent_id)) continue
     if (areaInfo.some((x) => x.id === a.id || x.catalogId === a.id)) continue
     const ring = polygonOuterRing(a.geometry)
     areaInfo.push({
@@ -2546,9 +2591,11 @@ export function BoardSurface({
       hectares: geometryAreaHectares(a.geometry),
       vertices: ring?.length ? ring.length - 1 : null,
       layers: 0,
-      current: false,
+      // The active area, where the live row is another ground (see above).
+      current: a.id === activeAreaId,
       saved: true,
       catalogId: a.id,
+      parentId: a.parent_id || undefined,
     })
   }
 
@@ -4075,14 +4122,81 @@ export function BoardSurface({
     catalogued drawing, so opening any studio put the whole project in orbit
     around it whether or not the board had asked for any of it.
   */
+  /*
+    A field follows its area on and off the board: fields are ground inside
+    an area, and an area taken off leaves nothing for them to be inside.
+  */
   const globeAreas = useMemo<GlobeArea[]>(
     () =>
       catalogAreas
-        .filter((a) => !offBoard.has(a.id))
-        .map((a) => toGlobeArea(`aoi:${a.id}`, a.name, a.geometry))
+        .filter((a) => !offBoard.has(a.id) && !(a.parent_id && offBoard.has(a.parent_id)))
+        .map((a) => toGlobeArea(`aoi:${a.id}`, a.name, a.geometry, !!a.parent_id))
         .filter((a): a is GlobeArea => a !== null),
     [catalogAreas, offBoard]
   )
+
+  /*
+    The delineation's polygons while they are only proposed. Once any field
+    names this run as its source they exist as areas and are drawn as such, so
+    the dashed copy would be a second outline over each.
+  */
+  const fieldDrafts = useMemo<GeoJSON.FeatureCollection | null>(() => {
+    const f = fieldsResult
+    if (!f?.fields_geojson) return null
+    if (f.run_id && catalogAreas.some((a) => a.source_run_id === f.run_id)) return null
+    try {
+      return JSON.parse(f.fields_geojson) as GeoJSON.FeatureCollection
+    } catch {
+      return null
+    }
+  }, [fieldsResult, catalogAreas])
+
+  /*
+    A run's field delineation, wherever the board holds it: the live result,
+    a run the map has moved on from, or one brought in with the picker.
+  */
+  const fieldsOfRun = (runId: string) =>
+    (fieldsResult?.run_id === runId ? fieldsResult : null) ??
+    retainedRuns.find((r) => r.id === runId)?.result.fields ??
+    extraRuns.find((x) => x.run.id === runId)?.result.fields ??
+    null
+
+  /*
+    The area a delineation's fields would belong to: the area its run was made
+    over, when that is a saved area and not itself a field. Null for a run the
+    store has no record of, which has no area to ask the store about.
+  */
+  const fieldsTargetOf = (runId: string): FieldsTarget | null => {
+    const areaId = runs.find((r) => r.id === runId)?.area_id
+    const area = catalogAreas.find((a) => a.id === areaId && !a.parent_id)
+    if (!area) return null
+    const adopted = catalogAreas.filter((a) => a.parent_id === area.id && a.source_run_id)
+    return {
+      name: area.name,
+      adopted: adopted.length,
+      adoptedWithRuns: adopted.filter((a) => a.run_count > 0).length,
+    }
+  }
+
+  /*
+    A FINISHED DELINEATION'S NODES ARE PLACED FOR IT, once per run. What is
+    done with a delineation -- filtering its fields, making them areas, saving
+    them -- is compositor nodes rather than a panel, so a run whose nodes had
+    to be built by hand would leave its actions out of sight. withFieldNodes
+    reuses the last delineation's nodes where the graph has them.
+  */
+  const placedFieldsRef = useRef<string | null>(null)
+  useEffect(() => {
+    const runId = fieldsResult?.run_id
+    if (!runId || placedFieldsRef.current === runId) return
+    const run = assetRuns.find((r) => r.runId === runId)
+    if (!run) return
+    placedFieldsRef.current = runId
+    const classOutput = run.assets.some((a) => a.id === "fields-classes") ? "fields-classes" : null
+    setCompositor(withFieldNodes(compositor ?? EMPTY_GRAPH, runId, classOutput))
+    // assetRuns is rebuilt on every render; the run id is what decides.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [fieldsResult?.run_id, assetRuns.some((r) => r.runId === fieldsResult?.run_id)])
 
   const renderEditor = (
     areaId: AreaId
@@ -4137,6 +4251,7 @@ export function BoardSurface({
           polygon={customPolygon}
           onPolygonDrawn={onPolygonDrawn}
           overlays={globeOverlays}
+          fieldDrafts={fieldDrafts}
           /*
             The same memory the work map keeps. The globe opened over Brazil at
             zoom 1.6 every time, however far the reader had travelled on it,
@@ -4355,6 +4470,9 @@ export function BoardSurface({
         onChange={setCompositor}
         onGlobe={setCompositorGlobe}
         surface={surfaceRef.current}
+        fieldsOf={fieldsOfRun}
+        fieldsTargetOf={fieldsTargetOf}
+        onAdoptFields={onAdoptFields}
       />
     ),
     mineralReading: mineralResult ? (

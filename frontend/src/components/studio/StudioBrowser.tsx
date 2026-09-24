@@ -69,6 +69,7 @@ import {
   Check,
   Diamond,
   Folder,
+  Polygon,
   FolderOpen,
   FolderPlus,
   Folders,
@@ -181,6 +182,8 @@ const KINDS = [
   { id: "water", label: "Surface water", token: "--p-kind-water", icon: Waves },
   // A cut stone: the mineral map is about what the surface is made of.
   { id: "mineral", label: "Mineral map", token: "--p-kind-mineral", icon: Diamond },
+  // A polygon: what the product returns is outlines, one per field.
+  { id: "fields", label: "Field boundaries", token: "--p-kind-fields", icon: Polygon },
 ] as const
 
 /** The token as a colour, at an alpha. One place, so the syntax is right once. */

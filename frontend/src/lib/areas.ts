@@ -30,6 +30,16 @@ export interface Area {
   notes: string
   /** Runs measured on this ground. Filled by the listing query. */
   run_count: number
+  /**
+   * The area this one is a field of, or "" for an area drawn or imported.
+   * One level: a field holds no fields (internal/store/areas.go).
+   */
+  parent_id: string
+  /**
+   * The delineation run this field was adopted from, or "" for a field drawn
+   * by hand -- the fields a later delineation replaces, and the ones it leaves.
+   */
+  source_run_id: string
 }
 
 /**
@@ -58,10 +68,45 @@ export function toArea(row: store.Area): Area | null {
     created_at: row.created_at,
     notes: row.notes ?? "",
     run_count: row.run_count ?? 0,
+    parent_id: row.parent_id ?? "",
+    source_run_id: row.source_run_id ?? "",
   }
 }
 
 /** A listing as Areas, dropping any row whose shape cannot be read. */
 export function toAreas(rows: store.Area[]): Area[] {
   return rows.map(toArea).filter((a): a is Area => a !== null)
+}
+
+/** Whether an area is a field of another. */
+export function isField(a: Pick<Area, "parent_id">): boolean {
+  return !!a.parent_id
+}
+
+/**
+ * The fields of each area, keyed by the parent's id, in the order listed.
+ *
+ * The store lists fields beside the roots, each naming its parent, and leaves
+ * the tree to the reader; this is that tree, one level deep.
+ */
+export function fieldsByParent(areas: readonly Area[]): Map<string, Area[]> {
+  const out = new Map<string, Area[]>()
+  for (const a of areas) {
+    if (!a.parent_id) continue
+    const list = out.get(a.parent_id)
+    if (list) list.push(a)
+    else out.set(a.parent_id, [a])
+  }
+  return out
+}
+
+/**
+ * The area whose fields are in view: the area itself, or its parent when it
+ * is a field. Null when neither is known.
+ */
+export function rootOf(areas: readonly Area[], id: string | null | undefined): Area | null {
+  if (!id) return null
+  const a = areas.find((x) => x.id === id)
+  if (!a) return null
+  return a.parent_id ? (areas.find((x) => x.id === a.parent_id) ?? null) : a
 }

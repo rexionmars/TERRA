@@ -142,6 +142,24 @@ export function runRowLine(run: {
       ]
         .filter(Boolean)
         .join(" · ")
+    case "fields": {
+      /*
+        How many fields, and the two scenes they were drawn from. The dates
+        are the scenes' own, not the windows': a run over a season is read
+        by which days the network saw.
+      */
+      const j = runSummaryObject(run.summary)
+      const n = typeof j.fields_n === "number" ? `${j.fields_n} fields` : ""
+      const a = typeof j.fields_window_a === "string" ? j.fields_window_a : ""
+      const b = typeof j.fields_window_b === "string" ? j.fields_window_b : ""
+      return [
+        "Field boundaries",
+        n,
+        a && b ? `${a} and ${b}` : "",
+      ]
+        .filter(Boolean)
+        .join(" · ")
+    }
     case "mineral":
       /*
         The observed area beside the AOI, for the reason the summary carries
@@ -181,6 +199,7 @@ export function runRowLine(run: {
 export function runKindLabel(kind?: string): string {
   if (kind === "water") return "water"
   if (kind === "mineral") return "mineral"
+  if (kind === "fields") return "fields"
   return "class"
 }
 
