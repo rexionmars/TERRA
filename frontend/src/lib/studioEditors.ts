@@ -27,6 +27,7 @@ import {
   Globe,
   Ruler,
   SlidersHorizontal,
+  Scroll,
   Table,
   TreeStructure,
   TreeView,
@@ -48,6 +49,7 @@ export type EditorId =
   | "globe"
   | "mineralReading"
   | "browser"
+  | "reports"
 
 /**
  * What kind of work a thing is FOR, named once for the whole studio.
@@ -357,6 +359,24 @@ export const STUDIO_EDITORS: readonly StudioEditorMeta[] = [
       the other could disagree with, since what they show is the store.
     */
     hint: "Every saved analysis, filed under its project",
+  },
+  {
+    id: "reports",
+    group: "board",
+    label: "Reports",
+    icon: Scroll,
+    /*
+      A log: one line per report, a timestamp, a glyph and the text. Wide
+      enough for a line to carry a sentence before it wraps, and four rows are
+      enough to be worth reading, since it follows the foot.
+    */
+    minRem: 18,
+    minRowRem: 4,
+    /*
+      Not unique. It reads one list and holds no control another could
+      disagree with; two are two filters over the same log.
+    */
+    hint: "Every notification and command run, kept after the toast leaves",
   },
 ]
 

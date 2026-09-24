@@ -49,6 +49,7 @@ import {
 
 import { RELEASE_NAME } from "@/lib/brand"
 import { notifyError, notifyInfo } from "@/lib/notify"
+import { report } from "@/lib/reports"
 
 /**
  * Where an operator's keys work.
@@ -335,6 +336,8 @@ export function runOperator(id: OperatorId): boolean {
     notifyInfo(label, poll)
     return false
   }
+  // What ran, for the Reports editor: a key leaves no other trace of itself.
+  report("operator", label)
   try {
     void Promise.resolve(impl.run()).catch((e) => notifyError(label, e))
   } catch (e) {

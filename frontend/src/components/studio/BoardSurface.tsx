@@ -134,6 +134,7 @@ function EditorEmpty({ children }: { children: React.ReactNode }) {
   )
 }
 import { StudioBrowser } from "@/components/studio/StudioBrowser"
+import { ReportsEditor } from "@/components/studio/ReportsEditor"
 import { ResearchPackModal } from "@/components/ResearchPackModal"
 import { MineralReadingColumn } from "@/components/mineral/MineralReading"
 import type { BoardHandle, PlaneState } from "@/components/studio/boardScene"
@@ -4188,6 +4189,8 @@ export function BoardSurface({
         busy={loadingRun}
       />
     ),
+    // The log is the application's, not the board's; this area only shows it.
+    reports: <ReportsEditor surface={surfaceRef.current} />,
     mineralReading: mineralResult ? (
       <MineralReadingColumn
         mineral={mineralResult}

@@ -1,4 +1,5 @@
 import { toast, type ExternalToast } from "sonner"
+import { report } from "@/lib/reports"
 import { playNotifySound } from "@/lib/sounds"
 
 function errText(e: unknown): string {
@@ -19,6 +20,8 @@ export function notifySuccess(
   opts?: ExternalToast
 ) {
   playNotifySound("success")
+  // Kept in the Reports editor after the toast leaves; see lib/reports.ts.
+  report("success", title, description)
   toast.success(title, {
     description,
     duration: 4200,
@@ -32,8 +35,10 @@ export function notifyError(
   opts?: ExternalToast
 ) {
   playNotifySound("error")
+  const why = error !== undefined ? errText(error) : undefined
+  report("error", title, why)
   toast.error(title, {
-    description: error !== undefined ? errText(error) : undefined,
+    description: why,
     duration: 6500,
     ...opts,
   })
@@ -44,6 +49,7 @@ export function notifyInfo(
   description?: string,
   opts?: ExternalToast
 ) {
+  report("info", title, description)
   toast.message(title, {
     description,
     duration: 4000,
