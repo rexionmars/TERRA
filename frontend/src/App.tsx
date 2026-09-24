@@ -87,6 +87,7 @@ import { toArea, toAreas, type Area } from "@/lib/areas"
 
 import { ThemeSync } from "@/components/ThemeSync"
 import { TitleBar } from "@/components/TitleBar"
+import { OperatorHost } from "@/components/OperatorHost"
 import { SplashScreen } from "@/components/SplashScreen"
 import { WhatsNewGate } from "@/components/WhatsNewGate"
 import { StudioScreen } from "@/pages/StudioScreen"
@@ -2836,6 +2837,8 @@ function AppBody(props: {
         result={props.result}
         credit={credit}
       />
+      {/* The keymap and the operator search, on every screen. */}
+      <OperatorHost />
 
       <div className="flex min-h-0 flex-1">
         {/*

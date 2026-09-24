@@ -6,6 +6,7 @@ import {
   X,
 } from "@phosphor-icons/react"
 import { BRAND_TAGLINE } from "@/lib/brand"
+import { shortcut } from "@/lib/operators"
 import { AvatarCircle } from "@/components/AvatarCircle"
 import {
   useEffect,
@@ -329,7 +330,7 @@ export function TitleBar({
             type="button"
             onClick={() => (user ? goProfile() : goAuth())}
             className="app-no-drag flex h-7 w-7 items-center justify-center rounded-sm text-muted-foreground transition-colors hover:bg-hover hover:text-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
-            title={user ? "Settings" : "Sign in"}
+            title={user ? `Settings (${shortcut("PREFERENCES")})` : "Sign in"}
           >
             {user?.avatar_uri ? (
               <AvatarCircle uri={user.avatar_uri} size="sm" />

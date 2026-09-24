@@ -54,6 +54,7 @@ import {
   StudioMenuRule,
   StudioPopover,
 } from "@/components/studio/StudioPopover"
+import { shortcut } from "@/lib/operators"
 import { StudioHeaderPopoverButton } from "@/components/studio/StudioHeaderControls"
 import { cn } from "@/lib/utils"
 
@@ -463,7 +464,7 @@ export function StudioArea({
           <StudioMenuItem
             icon={maximized ? ArrowsIn : ArrowsOut}
             label={maximized ? "Restore areas" : "Maximise area"}
-            note="Ctrl Space"
+            note={shortcut("AREA_MAXIMIZE")}
             onSelect={() => {
               onMaximize()
               setAreaMenu(false)

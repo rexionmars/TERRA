@@ -26,12 +26,6 @@ import {
   FloppyDisk,
   FolderSimple,
   Package,
-  SlidersHorizontal,
-  HardDrive,
-  ImageSquare,
-  Info,
-  Sparkle,
-  Terminal,
 } from "@phosphor-icons/react"
 import type { RasterLayer } from "@/lib/mapLayers"
 import type { LayerPatch } from "@/components/studio/BoardSidebar"
@@ -198,11 +192,13 @@ import {
   type StudioEditorMode,
 } from "@/components/studio/StudioArea"
 import {
+  OperatorMenuItem,
   StudioMenuGroup,
   StudioMenuItem,
   StudioMenuRule,
   StudioPopover,
 } from "@/components/studio/StudioPopover"
+import { setEditorUnderPointer, useOperators } from "@/lib/operators"
 import {
   StudioHeaderMenu,
   StudioHeaderPopoverButton,
@@ -211,13 +207,11 @@ import {
 } from "@/components/studio/StudioHeaderControls"
 import { NumberField } from "@/components/ui/NumberField"
 import {
-  ArrowCounterClockwise,
   ArrowsSplit,
   CaretDown,
   CaretRight,
   Cube,
   Drop,
-  Eraser,
   EyeSlash,
   FunnelSimple,
   GitDiff,
@@ -225,9 +219,7 @@ import {
   Link,
   PaintBrush,
   Pentagon,
-  Plus,
   Ruler,
-  Selection,
   Stack,
   Tag,
   Waves,
@@ -3401,43 +3393,48 @@ export function BoardSurface({
   */
 
   /*
-    Ctrl-Space maximises the area under the pointer, and restores it.
+    The area under the pointer: what Ctrl-Space maximises, and which editor a
+    keystroke is meant for.
 
-    The area menu named this shortcut in writing before anything bound it,
-    which is a promise the interface was not keeping. Bound here rather than
-    in StudioArea because the area under the pointer is not the area a
-    keystroke is delivered to -- there is no focus on a region -- so the
-    surface resolves it from the rects it already computes.
+    The pointer and not the focus, because no region holds focus -- a key is
+    delivered to the window, and the area a reader means is the one they are
+    looking at. Resolved when a key arrives rather than tracked on every move,
+    from the same rectangles the tree draws, so a press in the gap between two
+    areas belongs to neither.
   */
-  useEffect(() => {
-    const onKey = (e: KeyboardEvent) => {
-      if (e.code !== "Space" || !(e.ctrlKey || e.metaKey)) return
-      e.preventDefault()
-      const kept = restoreTreeRef.current[workspaceIdRef.current]
-      if (kept) {
-        setTree(kept)
-        setRestoreTree((p) => ({ ...p, [workspaceIdRef.current]: null }))
-        return
-      }
-      const { x, y } = pointerRef.current
-      /*
-        Called rather than subscribed: this runs on a keypress, outside React's
-        tree, and what it needs is the geometry as it is at that moment.
-      */
-      const hit = areaRects(
-        treeRef.current,
-        surfaceRef2.current,
-        studioGutterPx()
-      ).leaves.find(
+  const leafUnderPointer = useCallback(() => {
+    const { x, y } = pointerRef.current
+    return (
+      areaRects(treeRef.current, surfaceRef2.current, studioGutterPx()).leaves.find(
         (l) => x >= l.x && x < l.x + l.w && y >= l.y && y < l.y + l.h
-      )
-      if (!hit) return
-      setRestoreTree((p) => ({ ...p, [workspaceIdRef.current]: treeRef.current }))
-      setTree(maximizeArea(treeRef.current, hit.id))
+      ) ?? null
+    )
+  }, [])
+
+  useEffect(
+    () => setEditorUnderPointer(() => leafUnderPointer()?.editor ?? null),
+    [leafUnderPointer]
+  )
+
+  /*
+    Maximise the area under the pointer, or restore the arrangement.
+
+    The area menu named Ctrl-Space in writing before anything bound it, which
+    is a promise the interface was not keeping. It is the AREA_MAXIMIZE
+    operator now, so the menu's note and the key come from one table.
+  */
+  const toggleMaximize = () => {
+    const kept = restoreTreeRef.current[workspaceIdRef.current]
+    if (kept) {
+      setTree(kept)
+      setRestoreTree((p) => ({ ...p, [workspaceIdRef.current]: null }))
+      return
     }
-    window.addEventListener("keydown", onKey)
-    return () => window.removeEventListener("keydown", onKey)
-  }, [setTree, setRestoreTree])
+    const hit = leafUnderPointer()
+    if (!hit) return
+    setRestoreTree((p) => ({ ...p, [workspaceIdRef.current]: treeRef.current }))
+    setTree(maximizeArea(treeRef.current, hit.id))
+  }
 
   /*
     The runs behind the selected planes, deduplicated by area.
@@ -3763,27 +3760,13 @@ export function BoardSurface({
               />
             )}
           >
-            <StudioMenuItem
-              icon={Selection}
-              label="Select all planes"
-              onSelect={() => {
-                setSelection(
-                  areas.flatMap((a) =>
-                    a.layers.map((l) => layerRow(a.id, l.id))
-                  )
-                )
-                setViewMenu(false)
-              }}
+            <OperatorMenuItem
+              id="SELECT_ALL"
+              onDone={() => setViewMenu(false)}
             />
-            <StudioMenuItem
-              icon={Eraser}
-              label="Clear selection"
-              note="Esc"
-              disabled={!selection.length}
-              onSelect={() => {
-                setSelection([])
-                setViewMenu(false)
-              }}
+            <OperatorMenuItem
+              id="SELECT_NONE"
+              onDone={() => setViewMenu(false)}
             />
           </StudioPopover>
         </>
@@ -4289,6 +4272,123 @@ export function BoardSurface({
   }
 
 
+  /*
+    THE BOARD'S OPERATORS: what lib/operators.ts names, done with the state
+    this component owns. The menus above run them by id, and the window's
+    keymap runs them by key, so each is written once here.
+  */
+  const resetWorkspace = () => {
+    setTrees((prev) => {
+      const next = { ...prev }
+      delete next[workspaceId]
+      return next
+    })
+    setRestoreTree((p) => ({ ...p, [workspaceId]: null }))
+  }
+
+  // In the order the bar lists them, wrapping at either end.
+  const stepWorkspace = (step: 1 | -1) => {
+    const n = STUDIO_WORKSPACES.length
+    const i = STUDIO_WORKSPACES.findIndex((w) => w.id === workspaceId)
+    setWorkspaceId(STUDIO_WORKSPACES[(i + step + n) % n].id)
+  }
+
+  /*
+    Hide the selected planes, or show them again when every one is hidden --
+    one key both ways, as H is in the outliner's eye column it stands for.
+  */
+  const hideSelected = () => {
+    const picked = selectedPlanes.flatMap((p) => {
+      const l = areas.find((a) => a.id === p.groupId)?.layers.find((x) => x.id === p.id)
+      return l ? [{ areaId: p.groupId, id: p.id, visible: l.visible }] : []
+    })
+    const show = picked.every((p) => !p.visible)
+    for (const p of picked) {
+      if (p.visible !== show) changeLayer(p.areaId, p.id, { visible: show })
+    }
+  }
+
+  const showAll = () => {
+    for (const a of areas) {
+      for (const l of a.layers) {
+        if (!l.visible) changeLayer(a.id, l.id, { visible: true })
+      }
+    }
+  }
+
+  const needPlanes = () => (planeCount ? true : "The board has no planes")
+  const needSelection = () =>
+    selectedPlanes.length ? true : "Select a plane first"
+
+  useOperators({
+    STUDIO_SAVE: {
+      run: () => {
+        if (savedName) {
+          void doSave(savedName)
+          return
+        }
+        setNamingFor("save")
+        setNaming("")
+      },
+      poll: () => (saving ? "Already saving" : true),
+    },
+    STUDIO_RENAME: {
+      run: () => {
+        setNamingFor("save")
+        setNaming(savedName ?? "")
+      },
+      poll: () => (savedName ? true : "This studio has no name yet; save it first"),
+    },
+    STUDIO_NEW: {
+      run: newBoard,
+      poll: () => (onNewStudio ? true : "A new studio needs a project"),
+    },
+    STUDIO_MANAGE: {
+      run: () => setManaging(true),
+      poll: () => (studios.length ? true : "No studios saved yet"),
+    },
+    WORKSPACE_RESET: { run: resetWorkspace },
+    WORKSPACE_NEXT: { run: () => stepWorkspace(1) },
+    WORKSPACE_PREV: { run: () => stepWorkspace(-1) },
+    AREA_MAXIMIZE: {
+      run: toggleMaximize,
+      poll: () =>
+        restoreTree[workspaceId] || leafUnderPointer()
+          ? true
+          : "Point at the area to maximise",
+    },
+    SPLASH: { run: app.items.splash.onSelect },
+    RELEASE_NOTES: { run: app.items.releaseNotes.onSelect },
+    ENVIRONMENT: { run: app.items.environment.onSelect },
+    STORAGE: {
+      run: app.items.storage.onSelect,
+      poll: () => (app.items.storage.disabled ? "Still measuring" : true),
+    },
+    ABOUT: { run: app.items.about.onSelect },
+    SELECT_ALL: {
+      run: () =>
+        setSelection(areas.flatMap((a) => a.layers.map((l) => layerRow(a.id, l.id)))),
+      poll: needPlanes,
+    },
+    SELECT_NONE: {
+      run: () => setSelection([]),
+      poll: () => (selection.length ? true : "Nothing is selected"),
+    },
+    HIDE_SELECTED: { run: hideSelected, poll: needSelection },
+    SHOW_ALL: { run: showAll, poll: needPlanes },
+    FRAME_SELECTED: {
+      run: () => {
+        const last = selectedPlanes[selectedPlanes.length - 1]
+        if (last) boardRef.current?.focusPlane(last.groupId, last.id)
+      },
+      poll: needSelection,
+    },
+    BRUSH: {
+      run: () => setBrushOn((v) => !v),
+      poll: () => (detailPrediction ? true : "Select a prediction plane to brush it"),
+    },
+  })
+
   return (
     <motion.div
       /*
@@ -4307,6 +4407,11 @@ export function BoardSurface({
       onPointerMove={(e) => {
         const r = surfaceRef.current?.getBoundingClientRect()
         if (r) pointerRef.current = { x: e.clientX - r.left, y: e.clientY - r.top }
+      }}
+      // Off the board, no area is under it: a key pressed over the title bar
+      // is not meant for the last area the pointer crossed.
+      onPointerLeave={() => {
+        pointerRef.current = { x: -1, y: -1 }
       }}
       className="app-no-drag absolute inset-0 z-[500] overflow-hidden"
       style={{
@@ -4625,30 +4730,25 @@ export function BoardSurface({
             </button>
           )}
         >
-          <StudioMenuItem
-            icon={FloppyDisk}
+          <OperatorMenuItem
+            id="STUDIO_SAVE"
             label={savedName ? `Save over "${savedName}"` : "Save studio"}
-            disabled={saving}
-            onSelect={() => {
-              savedName ? void doSave(savedName) : setNaming("")
-              setAppMenu(false)
-            }}
+            onDone={() => setAppMenu(false)}
           />
           <StudioMenuRule />
-          <StudioMenuItem
-            icon={ArrowCounterClockwise}
-            label="Reset this workspace"
-            title="Put the arrangement back the way it ships"
-            onSelect={() => {
-              setTrees((prev) => {
-                const next = { ...prev }
-                delete next[workspaceId]
-                return next
-              })
-              setRestoreTree((p) => ({ ...p, [workspaceId]: null }))
-              setAppMenu(false)
-            }}
+          <OperatorMenuItem
+            id="WORKSPACE_RESET"
+            onDone={() => setAppMenu(false)}
           />
+          {/*
+            How to find everything else: every command by name, and every key.
+            Here because this is the menu a reader opens when they do not know
+            where something is.
+          */}
+          <StudioMenuRule />
+          <OperatorMenuItem id="SEARCH" onDone={() => setAppMenu(false)} />
+          <OperatorMenuItem id="KEYMAP" onDone={() => setAppMenu(false)} />
+          <OperatorMenuItem id="PREFERENCES" onDone={() => setAppMenu(false)} />
           {/*
             AND THE THINGS THAT ARE ABOUT THE APPLICATION RATHER THAN THIS
             BOARD, which is what the two above are.
@@ -4666,49 +4766,13 @@ export function BoardSurface({
             they open; this file only says where they are pressed.
           */}
           <StudioMenuRule />
-          <StudioMenuItem
-            icon={ImageSquare}
-            label={app.items.splash.label}
-            onSelect={() => {
-              app.items.splash.onSelect()
-              setAppMenu(false)
-            }}
-          />
-          <StudioMenuItem
-            icon={Sparkle}
-            label={app.items.releaseNotes.label}
-            onSelect={() => {
-              app.items.releaseNotes.onSelect()
-              setAppMenu(false)
-            }}
-          />
+          <OperatorMenuItem id="SPLASH" onDone={() => setAppMenu(false)} />
+          <OperatorMenuItem id="RELEASE_NOTES" onDone={() => setAppMenu(false)} />
           <StudioMenuRule />
-          <StudioMenuItem
-            icon={Terminal}
-            label={app.items.environment.label}
-            onSelect={() => {
-              app.items.environment.onSelect()
-              setAppMenu(false)
-            }}
-          />
-          <StudioMenuItem
-            icon={HardDrive}
-            label={app.items.storage.label}
-            disabled={app.items.storage.disabled}
-            onSelect={() => {
-              app.items.storage.onSelect()
-              setAppMenu(false)
-            }}
-          />
+          <OperatorMenuItem id="ENVIRONMENT" onDone={() => setAppMenu(false)} />
+          <OperatorMenuItem id="STORAGE" onDone={() => setAppMenu(false)} />
           <StudioMenuRule />
-          <StudioMenuItem
-            icon={Info}
-            label={app.items.about.label}
-            onSelect={() => {
-              app.items.about.onSelect()
-              setAppMenu(false)
-            }}
-          />
+          <OperatorMenuItem id="ABOUT" onDone={() => setAppMenu(false)} />
         </StudioPopover>
 
         <span
@@ -5020,14 +5084,9 @@ export function BoardSurface({
               of an arrangement built by hand that is not wanted.
             */}
             {onNewStudio && (
-              <StudioMenuItem
-                icon={Plus}
-                label="New studio"
-                title="Clear the board and start an empty studio — this arrangement is replaced by it"
-                onSelect={() => {
-                  setBoardMenu(false)
-                  newBoard()
-                }}
+              <OperatorMenuItem
+                id="STUDIO_NEW"
+                onDone={() => setBoardMenu(false)}
               />
             )}
             {/*
@@ -5036,14 +5095,11 @@ export function BoardSurface({
               here rather than beside the button, because the name being
               changed is the one this block shows.
             */}
-            <StudioMenuItem
+            <OperatorMenuItem
+              id={savedName ? "STUDIO_RENAME" : "STUDIO_SAVE"}
+              label={savedName ? undefined : "Save studio\u2026"}
               icon={FloppyDisk}
-              label={savedName ? "Save under another name…" : "Save studio…"}
-              onSelect={() => {
-                setBoardMenu(false)
-                setNamingFor("save")
-                setNaming(savedName ?? "")
-              }}
+              onDone={() => setBoardMenu(false)}
             />
             {/*
               Renaming a board that is NOT open, and removing one, are the two
@@ -5053,13 +5109,9 @@ export function BoardSurface({
               something to manage.
             */}
             {studios.length > 0 && (
-              <StudioMenuItem
-                icon={SlidersHorizontal}
-                label="Manage studios…"
-                onSelect={() => {
-                  setBoardMenu(false)
-                  setManaging(true)
-                }}
+              <OperatorMenuItem
+                id="STUDIO_MANAGE"
+                onDone={() => setBoardMenu(false)}
               />
             )}
           </StudioPopover>
