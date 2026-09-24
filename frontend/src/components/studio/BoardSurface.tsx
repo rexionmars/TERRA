@@ -4434,7 +4434,21 @@ export function BoardSurface({
       }}
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
-      exit={{ opacity: 0 }}
+      /*
+        NO EXIT, and the absence is load-bearing.
+
+        Nothing inside StudioScreen unmounts this under an AnimatePresence of
+        its own; the only presence it answers to is App's, for the whole
+        screen, whose own fade already covers it. So an `exit` here faded
+        nothing that was not already fading -- and it did one other thing. In
+        motion 12 a component with `exit` registers with that presence when it
+        MOUNTS, as unfinished, and only an update that sees presence change
+        marks it done. This file is lazy: when the screen was asked to leave
+        before the chunk arrived -- the environment gate sending a first launch
+        to Settings does exactly that -- it mounted already leaving, never saw
+        the change, and held the screen in the tree at opacity 0 over Settings,
+        taking its clicks and keeping this board's operators registered.
+      */
       transition={SURFACE}
     >
       {/*
