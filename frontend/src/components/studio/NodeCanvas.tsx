@@ -97,6 +97,13 @@ export interface CanvasEdge {
   note?: string
   /** The wire's colour, and the sockets at both its ends: the node it leaves. */
   paint?: string
+  /**
+   * A wire the reader made and may cut: pressed, it is selected, and X or
+   * Delete takes it away through onDisconnect. The others are the shape of the
+   * request and take no pointer, for the reason the note at the top gives for
+   * the sockets that do not pull.
+   */
+  removable?: boolean
 }
 
 interface View {
@@ -119,6 +126,9 @@ const NOTE_COLOUR: Record<EdgeState, string | null> = {
   read: "var(--success)",
   failed: "var(--p-wire-failed)",
 }
+
+/** Room left around the graph in the wire layer, so a curve's bulge is never clipped. */
+const WIRE_PAD = 240
 
 /** A socket's colour where the caller gave none. */
 const PLAIN = "var(--b-card-ink)"
@@ -223,6 +233,7 @@ export function NodeCanvas({
   onMove,
   onMeasure,
   onConnect,
+  onDisconnect,
   className,
 }: {
   nodes: readonly CanvasNode[]
@@ -232,6 +243,8 @@ export function NodeCanvas({
    * anything; see endDrag for why this field does not.
    */
   onConnect?: (from: string, to: string) => void
+  /** A removable wire was selected and cut with X or Delete. */
+  onDisconnect?: (from: string, to: string) => void
   /** A node was dragged. The caller owns where nodes are. */
   onMove: (id: string, place: Place) => void
   /**
@@ -425,12 +438,53 @@ export function NodeCanvas({
   */
   const [pulling, setPulling] = useState<{ from: string; x: number; y: number } | null>(null)
 
+  /* The selected wire, as "from>to", and whether the pointer is over the field. */
+  const [picked, setPicked] = useState<string | null>(null)
+  const over = useRef(false)
+  const cut = useRef<() => void>(() => {})
+  cut.current = () => {
+    if (!picked || !onDisconnect) return
+    const [from, to] = picked.split(">")
+    onDisconnect(from, to)
+    setPicked(null)
+  }
+  /*
+    X or Delete while the pointer is over the field, as the compositor's field
+    takes them: no area holds the focus in this studio. Marked handled so the
+    window's keymap does not act on the same key.
+  */
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (!over.current || e.defaultPrevented || e.repeat) return
+      if (e.metaKey || e.ctrlKey || e.altKey || e.shiftKey) return
+      if (!(e.code === "KeyX" || e.key === "Delete" || e.key === "Backspace")) return
+      if ((e.target as HTMLElement | null)?.closest?.("input, textarea, select, [contenteditable='true']")) return
+      e.preventDefault()
+      cut.current()
+    }
+    window.addEventListener("keydown", onKey, true)
+    return () => window.removeEventListener("keydown", onKey, true)
+  }, [])
+
+  /*
+    No text is selected while a gesture lasts. The field is select-none, and
+    the figures inside the cards ask for selection back so they can be copied;
+    a drag that crossed them selected them. See .gesture-lock in index.css.
+  */
+  const [gesture, setGesture] = useState(false)
+  const lockText = () => {
+    window.getSelection()?.removeAllRanges()
+    setGesture(true)
+  }
+
   const beginPan = (e: React.PointerEvent) => {
     // Middle button pans from anywhere; the left button pans only from the
     // field itself, so pressing a node is never mistaken for pressing past it.
     if (e.button !== 0 && e.button !== 1) return
     if (e.button === 0 && e.target !== e.currentTarget) return
+    if (e.button === 0) setPicked(null)
     touched.current = true
+    lockText()
     drag.current = { kind: "pan", startX: e.clientX, startY: e.clientY, from: view }
     e.currentTarget.setPointerCapture(e.pointerId)
   }
@@ -447,7 +501,9 @@ export function NodeCanvas({
   const beginNode = (e: React.PointerEvent, id: string, place: Place) => {
     if (e.button !== 0) return
     e.stopPropagation()
+    e.preventDefault()
     touched.current = true
+    lockText()
     setFront(id)
     setLifted(id)
     drag.current = { kind: "node", id, startX: e.clientX, startY: e.clientY, from: place }
@@ -467,7 +523,9 @@ export function NodeCanvas({
   const beginLink = (e: React.PointerEvent, id: string) => {
     if (e.button !== 0) return
     e.stopPropagation()
+    e.preventDefault()
     touched.current = true
+    lockText()
     const at = atBoard(e)
     drag.current = { kind: "link", from: id }
     if (at) setPulling({ from: id, ...at })
@@ -518,10 +576,37 @@ export function NodeCanvas({
     drag.current = null
     setLifted(null)
     setPulling(null)
+    setGesture(false)
   }
 
   const byId = new Map(nodes.map((n) => [n.id, n]))
   const rows = nodeRows(nodes, edges)
+
+  /*
+    The wire layer spans the graph rather than being a 1x1 box that overflows:
+    drawing overflowed SVG is reliable, hit-testing it is not, and removable
+    wires are pressed.
+  */
+  let minX = 0
+  let minY = 0
+  let maxX = 0
+  let maxY = 0
+  nodes.forEach((n, i) => {
+    minX = i ? Math.min(minX, n.place.x) : n.place.x
+    minY = i ? Math.min(minY, n.place.y) : n.place.y
+    maxX = i ? Math.max(maxX, n.place.x + NODE_W) : n.place.x + NODE_W
+    maxY = i ? Math.max(maxY, n.place.y + n.h) : n.place.y + n.h
+  })
+  if (pulling) {
+    minX = Math.min(minX, pulling.x)
+    minY = Math.min(minY, pulling.y)
+    maxX = Math.max(maxX, pulling.x)
+    maxY = Math.max(maxY, pulling.y)
+  }
+  minX -= WIRE_PAD
+  minY -= WIRE_PAD
+  maxX += WIRE_PAD
+  maxY += WIRE_PAD
 
   const headOf = (n: CanvasNode) =>
     n.tone === "action"
@@ -539,8 +624,11 @@ export function NodeCanvas({
       onPointerMove={onPointerMove}
       onPointerUp={endDrag}
       onPointerCancel={() => endDrag()}
+      onPointerEnter={() => (over.current = true)}
+      onPointerLeave={() => (over.current = false)}
       className={cn(
         "app-no-drag relative h-full w-full overflow-hidden touch-none select-none",
+        gesture && "gesture-lock",
         className
       )}
       style={{
@@ -562,10 +650,10 @@ export function NodeCanvas({
       >
         {/* The wires, under the nodes and in the same space. */}
         <svg
-          width={1}
-          height={1}
-          className="pointer-events-none absolute left-0 top-0 overflow-visible"
+          className="pointer-events-none absolute overflow-visible"
+          style={{ left: minX, top: minY, width: maxX - minX, height: maxY - minY }}
         >
+          <g transform={`translate(${-minX} ${-minY})`}>
           {edges.map((edge) => {
             const a = byId.get(edge.from)
             const b = byId.get(edge.to)
@@ -577,8 +665,10 @@ export function NodeCanvas({
             const y2 = inputY(b.place, index, !!rows.get(b.id)?.output, folded.has(b.id))
             const d = wirePath(x1, y1, x2, y2)
             const st = edge.state
-            const stroke =
-              st === "failed"
+            const selected = picked === `${edge.from}>${edge.to}`
+            const stroke = selected
+              ? "rgb(var(--p-accent))"
+              : st === "failed"
                 ? "var(--p-wire-failed)"
                 : st === "missing"
                   ? "rgb(var(--p-line-strong))"
@@ -593,13 +683,30 @@ export function NodeCanvas({
                   d={d}
                   fill="none"
                   stroke={stroke}
-                  strokeWidth={st === "missing" ? 1.5 : 2}
+                  strokeWidth={selected ? 3 : st === "missing" ? 1.5 : 2}
                   strokeOpacity={st === "pending" ? 0.5 : st === "missing" ? 0.6 : 1}
                   strokeDasharray={
                     st === "missing" ? "3 4" : st === "reading" ? "8 4" : undefined
                   }
                   className={st === "reading" ? "wire-flow" : undefined}
                 />
+                {edge.removable && onDisconnect && (
+                  /* What a press lands on: the same curve, wide and invisible. */
+                  <path
+                    d={d}
+                    fill="none"
+                    stroke="transparent"
+                    strokeWidth={12}
+                    style={{ pointerEvents: "stroke", cursor: "pointer" }}
+                    onPointerDown={(e) => {
+                      if (e.button !== 0) return
+                      e.stopPropagation()
+                      setPicked(`${edge.from}>${edge.to}`)
+                    }}
+                  >
+                    <title>Press to select; X or Delete cuts it</title>
+                  </path>
+                )}
               </g>
             )
           })}
@@ -619,6 +726,7 @@ export function NodeCanvas({
               strokeDasharray="4 4"
             />
           )}
+          </g>
         </svg>
 
         {nodes.map((n) => {

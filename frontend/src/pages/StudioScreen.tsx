@@ -932,6 +932,9 @@ export function StudioScreen(props: StudioScreenProps) {
           held.includes(`${from}>${to}`) ? held : [...held, `${from}>${to}`],
         )
       }
+      onDisconnect={(from, to) =>
+        setNodeLinks((held) => held.filter((l) => l !== `${from}>${to}`))
+      }
       /*
         The tool is READ here and changed in the header above, which is the
         only place it was ever changed from. The band declared an

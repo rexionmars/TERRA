@@ -1609,6 +1609,18 @@ pre,
 }
 
 /*
+  For the length of a drag on a node field, nothing inside it is text. The
+  field is select-none already; this outranks the .telemetry rule above, which
+  gives figures their selection back and so let a drag select every figure it
+  crossed. See SocketCanvas.
+*/
+.gesture-lock,
+.gesture-lock * {
+  -webkit-user-select: none !important;
+  user-select: none !important;
+}
+
+/*
   MapLibre paints its own cursors, from its stylesheet rather than from anything
   here, so every map surface kept the platform cursor while the rest of the
   interface had changed.

@@ -470,6 +470,8 @@ export interface BoardRunGraphProps {
   nodeLinks?: readonly string[]
   /** A port was pulled onto a card. */
   onConnect?: (from: string, to: string) => void
+  /** A wire the reader made was cut. */
+  onDisconnect?: (from: string, to: string) => void
   tool: BoardToolId | null
 
   /**
@@ -1465,7 +1467,8 @@ export function BoardRunGraph(props: BoardRunGraphProps) {
     if (!from || !to || !present.has(from as RunNodeId) || !present.has(to as RunNodeId)) {
       return []
     }
-    return [{ from, to, state: "read" as const, name: named.get(from) }]
+    // The reader made it, so the reader may cut it; the request's own wires may not.
+    return [{ from, to, state: "read" as const, name: named.get(from), removable: true }]
   })
 
   const canvasEdges: CanvasEdge[] = graph.edges.map(([from, to]) => {
@@ -1505,6 +1508,7 @@ export function BoardRunGraph(props: BoardRunGraphProps) {
       onMove={move}
       onMeasure={onMeasure}
       onConnect={props.onConnect}
+      onDisconnect={props.onDisconnect}
     />
   )
 }
