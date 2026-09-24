@@ -84,7 +84,18 @@ export interface RaisedRaster {
   opacity: number
   /** How far above the ground, in metres. */
   elevationM: number
+  /**
+   * Sampled nearest rather than linearly: a class raster, where a blend of two
+   * class colours names no class. RasterLayer carries the same flag.
+   */
+  pixelated?: boolean
 }
+
+/*
+  A texture per url AND filter. The same raster drawn once as classes and once
+  as colour is two textures, since the filter is a property of the texture.
+*/
+const textureKey = (r: Pick<RaisedRaster, "url" | "pixelated">) => `${r.pixelated ? "nearest" : "linear"}:${r.url}`
 
 /** Four corners, clockwise from the top left, as the image source takes them. */
 function quad(b: Bounds): Float32Array {
@@ -232,24 +243,27 @@ export function raisedRasterLayer(
     disk here, but decoding one is still tens of milliseconds and the set is
     rebuilt whenever an opacity slider moves.
   */
-  const ensureTexture = (url: string) => {
-    if (!gl || textures.has(url) || pending.has(url)) return
-    pending.add(url)
+  const ensureTexture = (r: RaisedRaster) => {
+    const key = textureKey(r)
+    const url = r.url
+    if (!gl || textures.has(key) || pending.has(key)) return
+    pending.add(key)
     const img = new Image()
     img.crossOrigin = "anonymous"
     img.onload = () => {
-      pending.delete(url)
+      pending.delete(key)
       if (!gl) return
       const tex = gl.createTexture()
       if (!tex) return
       gl.bindTexture(gl.TEXTURE_2D, tex)
       gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE)
       gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE)
-      // Linear, as the map's own raster layers resample by default. A class
-      // raster that must not be interpolated is the caller's business; nothing
-      // here yet draws one.
-      gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR)
-      gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR)
+      // Linear, as the map's own raster layers resample by default, except for
+      // a class raster: interpolated, its boundaries became bands of colours
+      // that belong to no class, which is how a mineral map read on the globe.
+      const filter = r.pixelated ? gl.NEAREST : gl.LINEAR
+      gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, filter)
+      gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, filter)
       gl.texImage2D(
         gl.TEXTURE_2D,
         0,
@@ -258,11 +272,11 @@ export function raisedRasterLayer(
         gl.UNSIGNED_BYTE,
         img
       )
-      textures.set(url, tex)
+      textures.set(key, tex)
       map.triggerRepaint()
     }
     img.onerror = () => {
-      pending.delete(url)
+      pending.delete(key)
     }
     img.src = url
   }
@@ -320,7 +334,7 @@ export function raisedRasterLayer(
     onAdd(_map, ctx) {
       gl = ctx
       buffer = ctx.createBuffer()
-      for (const r of rasters) ensureTexture(r.url)
+      for (const r of rasters) ensureTexture(r)
     },
 
     onRemove() {
@@ -336,18 +350,18 @@ export function raisedRasterLayer(
 
     set(next) {
       rasters = next
-      for (const r of next) ensureTexture(r.url)
+      for (const r of next) ensureTexture(r)
       /*
         Textures for rasters nobody draws any more. Kept while the url is still
         in the set, because taking a raster off the globe and putting it back
         is a gesture, not a session.
       */
-      const live = new Set(next.map((r) => r.url))
+      const live = new Set(next.map(textureKey))
       if (gl) {
-        for (const [url, tex] of textures) {
-          if (live.has(url)) continue
+        for (const [key, tex] of textures) {
+          if (live.has(key)) continue
           gl.deleteTexture(tex)
-          textures.delete(url)
+          textures.delete(key)
         }
       }
       map.triggerRepaint()
@@ -407,7 +421,7 @@ export function raisedRasterLayer(
       // Lowest first: the painter's order for translucent quads.
       const order = [...rasters].sort((a, b) => a.elevationM - b.elevationM)
       for (const r of order) {
-        const tex = textures.get(r.url)
+        const tex = textures.get(textureKey(r))
         if (!tex) continue
         ctx.bufferData(ctx.ARRAY_BUFFER, quad(r.bounds), ctx.DYNAMIC_DRAW)
         ctx.bindTexture(ctx.TEXTURE_2D, tex)
