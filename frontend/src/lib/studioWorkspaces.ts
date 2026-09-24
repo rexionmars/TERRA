@@ -267,25 +267,25 @@ export const STUDIO_WORKSPACES: readonly StudioWorkspace[] = [
     label: "Mineral map",
     hint: "What the exposed surface is made of, and how much of the area was observed",
     /*
-      The class maps are overlays of the ground they were identified over, so
-      the viewport takes the width and the reading stands in a column beside
-      it. Without a preset the reading would be reachable only by retyping an
-      area, and a panel nobody can find without already knowing it is there
-      has been added to the type selector rather than to the studio. Split at
-      0.64 so the column clears the reading's width floor: it is 360x624 at the
-      1000x700 minimum, against the 352x256 the reading asks for.
+      The class maps and the derived rasters are planes of the ground, so the
+      viewport keeps the left with the outliner under it, where they are
+      listed and switched. The figures are cards in the compositor beside it
+      rather than a column of tables: a finished map's cards are placed there
+      (withMineralNodes). The short reading column is still in the type menu.
+      Half, as the field boundaries' preset: the compositor's floor is 28 rem,
+      448 px of the 1000 px minimum.
     */
     build: () =>
       row(
         "w-minerals-split",
-        0.64,
+        0.5,
         col(
           "w-minerals-left",
           0.68,
           leaf("a-viewport", "viewport"),
           leaf("a-outliner", "outliner")
         ),
-        leaf("a-mineral", "mineralReading")
+        leaf("a-compositor", "compositor")
       ),
   },
   {

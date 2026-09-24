@@ -865,14 +865,21 @@ export interface MineralRequest {
   end: string
   /** Scene-level cloud cover, percent, above which a pass is not read. */
   max_cloud: number
+  /** Passes compared per cell; each cell takes the one its ground is most exposed in. */
   max_scenes: number
+  /**
+   * Classifications of the reflectance perturbed by its reported uncertainty,
+   * for each cell's class stability. 0 skips them; each costs a full
+   * classification.
+   */
+  uncertainty_draws?: number
   label?: string
   run_label?: string
   area_id?: string
   project_id?: string
 }
 
-/** One EMIT pass that contributed cells. */
+/** One EMIT pass compared; `cells` is how many it answered for, possibly none. */
 export interface MineralScene {
   granule: string
   date: string
@@ -882,6 +889,16 @@ export interface MineralScene {
   masked_cells: number
   /** Largest band-centre difference against the convolved library, nm. */
   wavelength_offset_nm: number
+  /** Cells it observed usably, and of those the ones it showed exposed. */
+  candidate_cells?: number
+  exposed_cells?: number
+  /** Of the cells it answered for, those exposed in it. */
+  chosen_exposed_cells?: number
+  /** The EMIT L2B fractional cover and mineral granules of the acquisition, "" where none. */
+  frcov_granule?: string
+  l2b_granule?: string
+  /** "2024-08-30 13:54 UTC". */
+  acquired?: string
 }
 
 /** The area identified as one class within one group. */
@@ -945,10 +962,173 @@ export interface MineralAnalysis {
   scenes: MineralScene[]
   groups: MineralGroup[]
   legend: MineralLegendItem[]
-  /** Path of the GeoTIFF: entry index, fit and depth per group, EPSG:4326. */
+  /**
+   * How each cell's pass was chosen. The fields from here to `layers` are
+   * absent on a run saved before the passes were compared per cell.
+   */
+  selection?: MineralSelection | null
+  cover?: MineralCover | null
+  positions?: MineralPosition[]
+  confidence?: MineralConfidence[]
+  agreement?: MineralAgreement[]
+  acid_sulfate?: MineralAcidSulfateRow[]
+  layers?: MineralLayer[]
+  /** Path of the GeoTIFF: every per-cell quantity, one named band each, EPSG:4326. */
   geotiff: string
   extent: Bounds
   notes: string[]
+}
+
+/*
+  What the mineral map reads beside the Tetracorder answer. Mirrors
+  internal/analysis/types_mineral.go.
+*/
+
+/** How each cell's pass was chosen: the one its ground is least covered in. */
+export interface MineralSelection {
+  rule: string
+  compared_passes: number
+  contributing_passes: number
+  /** Cells free of green vegetation and plant residue in the pass used. */
+  exposed_cells: number
+  exposed_area_ha: number
+}
+
+/** Identified area over cells EMIT L2B FRCOV counts as bare ground, one group. */
+export interface MineralCoverGroup {
+  group: number
+  identified_cells: number
+  identified_area_ha: number
+}
+
+/** EMIT L2B fractional cover of the passes used, over the cells that have it. */
+export interface MineralCover {
+  product: string
+  cells: number
+  area_ha: number
+  mean_pv: number
+  mean_npv: number
+  mean_bare: number
+  bare_threshold: number
+  bare_cells: number
+  bare_area_ha: number
+  groups: MineralCoverGroup[]
+}
+
+/** A distribution: count, mean, standard deviation, 10th/50th/90th percentiles. */
+export interface MineralSpread {
+  cells: number
+  mean: number
+  sd: number
+  p10: number
+  p50: number
+  p90: number
+}
+
+export interface MineralPositionClass extends MineralSpread {
+  class: string
+  label: string
+}
+
+/** The same measurement on the library references of one class. */
+export interface MineralPositionReference {
+  class: string
+  references: number
+  min_nm: number
+  max_nm: number
+  median_nm: number
+}
+
+/** How a continuous layer was coloured: clamped at min and max, colours evenly spaced. */
+export interface MineralRamp {
+  min: number
+  max: number
+  unit: string
+  colors: string[]
+  low: string
+  high: string
+}
+
+/** One absorption's fitted wavelength over the cells whose class makes it. */
+export interface MineralPosition {
+  key: string
+  title: string
+  unit: string
+  group: number
+  classes: MineralPositionClass[]
+  references: MineralPositionReference[]
+  ramp: MineralRamp
+}
+
+/** How firmly one group's answers stood. */
+export interface MineralConfidence {
+  group: number
+  /** The answer's fit minus the best fit of a reference of another class. */
+  margin: MineralSpread | null
+  draws: number
+  /** Share of the draws in which the class held, where draws were made. */
+  stability?: MineralSpread | null
+  stable_cells: number
+}
+
+export interface MineralClassPair {
+  here: string
+  l2b: string
+  cells: number
+}
+
+/** One group's classes against the EMIT L2B product's, pixel by pixel. */
+export interface MineralAgreement {
+  group: number
+  granules: string[]
+  compared_cells: number
+  agree: number
+  differ: number
+  port_only: number
+  l2b_only: number
+  neither: number
+  /** Of the cells both identified, the share given the same class. */
+  agree_fraction_of_both: number | null
+  pairs: MineralClassPair[]
+}
+
+/** Cells whose answer is one mineral of acid mine drainage. */
+export interface MineralAcidSulfateRow {
+  key: string
+  label: string
+  setting: string
+  color: string
+  cells: number
+  area_ha: number
+  /**
+   * Cells by the group the match was made in, "1" and "2": group 2 rests on a
+   * band specific to the mineral, group 1 on Fe3+ bands shared with goethite.
+   */
+  groups?: Record<string, number>
+}
+
+export interface MineralLayerLegendItem {
+  label: string
+  color: string
+  /** A colour that is not a class, such as cells observed only under the mask. */
+  excluded?: boolean
+}
+
+/**
+ * One derived raster. `kind` says which of legend, ramp and channels
+ * describes it: hard class colours, a clamped continuous ramp, or three
+ * quantities in three channels.
+ */
+export interface MineralLayer {
+  id: string
+  title: string
+  kind: "classes" | "ramp" | "rgb"
+  png: string
+  uri?: string
+  legend?: MineralLayerLegendItem[]
+  ramp?: MineralRamp | null
+  channels?: Record<string, string>
+  about: string
 }
 
 /** One of the two date ranges a delineation takes its scenes from. */

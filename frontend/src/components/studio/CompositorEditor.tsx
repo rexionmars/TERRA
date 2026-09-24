@@ -24,11 +24,10 @@
  * shown without being stored, so opening the editor is not an edit.
  */
 import { useEffect, useMemo, useRef, useState } from "react"
-import { CaretRight, CircleNotch, DownloadSimple, Polygon, X } from "@phosphor-icons/react"
+import { CaretRight, DownloadSimple, Polygon, X } from "@phosphor-icons/react"
 import { NumberField } from "@/components/ui/NumberField"
-import { cn } from "@/lib/utils"
 import { parseFields, type FieldsTarget } from "@/lib/fields"
-import type { FieldsAnalysis } from "@/lib/types"
+import type { FieldsAnalysis, MineralAnalysis } from "@/lib/types"
 import { notifyExportFail, notifyExportOk } from "@/lib/notify"
 import { ExportOverlayFile } from "../../../wailsjs/go/main/App"
 import {
@@ -41,6 +40,8 @@ import {
   type SocketRow,
 } from "./SocketCanvas"
 import { Choice, Head } from "./nodeCard"
+import { ActionButton, Figure, Note, StatusNote, Swatch } from "./nodeParts"
+import { MineralNodeBody, mineralNodeTitle } from "./mineralNodes"
 import { AreaHeaderMenus } from "./StudioArea"
 import {
   StudioContextMenu,
@@ -63,6 +64,7 @@ import {
   EMPTY_GRAPH,
   FIELDS_SOCKET,
   inputsOf,
+  MINERAL_SOCKET,
   kindMeta,
   linkInto,
   moveNode,
@@ -85,12 +87,14 @@ import {
   classAreas,
   classChange,
   evaluate,
+  isRaster,
   paintValue,
   socketKey,
   type ChangeReading,
   type ClassValue,
   type FieldsValue,
   type ImageValue,
+  type MineralValue,
   type RasterValue,
   type Result,
 } from "@/lib/compositorEval"
@@ -114,6 +118,16 @@ const WIDTH: Record<NodeKind, number> = {
   fieldFilter: 220,
   adoptFields: 230,
   saveFields: 200,
+  mineralCoverage: 300,
+  mineralClasses: 320,
+  mineralReferences: 340,
+  mineralPasses: 330,
+  mineralCover: 280,
+  mineralPositions: 340,
+  mineralAcid: 320,
+  mineralConfidence: 280,
+  mineralAgreement: 340,
+  mineralSave: 200,
 }
 
 const GUESS_H: Record<NodeKind, number> = {
@@ -131,6 +145,16 @@ const GUESS_H: Record<NodeKind, number> = {
   fieldFilter: 150,
   adoptFields: 120,
   saveFields: 100,
+  mineralCoverage: 240,
+  mineralClasses: 260,
+  mineralReferences: 280,
+  mineralPasses: 200,
+  mineralCover: 200,
+  mineralPositions: 220,
+  mineralAcid: 180,
+  mineralConfidence: 200,
+  mineralAgreement: 240,
+  mineralSave: 90,
 }
 
 /*
@@ -146,6 +170,8 @@ const PART: Record<NodeCategory, string> = {
   mask: "catalogue",
   color: "when",
   analysis: "value",
+  // The mineral map's readings are readings, and are drawn as Analysis is.
+  mineral: "value",
   output: "action",
 }
 const paint = (c: NodeCategory) => ({
@@ -165,6 +191,8 @@ const TYPE_COLOUR: Record<SocketType, string> = {
   image: "var(--b-when-head)",
   // Polygons, in the field boundaries' kind colour (index.css).
   fields: "rgb(var(--p-kind-fields))",
+  // A mineral map's figures, in the mineral map's kind colour.
+  mineral: "rgb(var(--p-kind-mineral))",
 }
 const PLAIN = "var(--b-card-ink)"
 
@@ -254,74 +282,6 @@ function RasterCanvas({ image, style }: { image: ImageValue; style: React.CSSPro
       style={{ imageRendering: "pixelated", objectFit: "contain", ...style }}
     />
   )
-}
-
-function Figure({ label, value }: { label: string; value: string }) {
-  return (
-    <div className="flex items-baseline justify-between gap-2 text-meta">
-      <span className="text-muted-foreground">{label}</span>
-      <span className="telemetry truncate text-foreground" title={value}>
-        {value}
-      </span>
-    </div>
-  )
-}
-
-function Note({ children }: { children: React.ReactNode }) {
-  return <p className="text-meta leading-snug text-muted-foreground">{children}</p>
-}
-
-function Swatch({ color }: { color: string }) {
-  return (
-    <span
-      aria-hidden
-      className="inline-block size-2 shrink-0 rounded-[2px]"
-      style={{ background: color, boxShadow: "0 0 0 1px rgb(0 0 0 / 0.35)" }}
-    />
-  )
-}
-
-/**
- * A node's one action, drawn as the run card's button is: filled in the accent
- * while it can go, quiet while it cannot.
- */
-function ActionButton({
-  label,
-  icon,
-  busy,
-  disabled,
-  onClick,
-}: {
-  label: string
-  icon: React.ReactNode
-  busy?: boolean
-  disabled?: boolean
-  onClick: () => void
-}) {
-  const off = disabled || busy
-  return (
-    <button
-      type="button"
-      onPointerDown={(e) => e.stopPropagation()}
-      onClick={onClick}
-      disabled={off}
-      className={cn(
-        "flex w-full items-center justify-center gap-1.5 rounded-sm px-2 py-1 text-meta transition-colors",
-        "focus-visible:outline-none focus-visible:inset-ring-1 focus-visible:inset-ring-ring",
-        off ? "cursor-not-allowed bg-control text-muted-foreground" : "bg-accent text-accent-foreground hover:opacity-90"
-      )}
-    >
-      {busy ? <CircleNotch className="size-3.5 animate-spin" /> : icon}
-      {label}
-    </button>
-  )
-}
-
-/** Why a result is not a value, in a line. */
-function StatusNote({ result }: { result: Result | undefined }) {
-  if (!result || result.status === "ready") return null
-  if (result.status === "busy") return <Note>Decoding the raster.</Note>
-  return <Note>{result.note}</Note>
 }
 
 /** The area of each class in a class map, with a bar per row. */
@@ -532,7 +492,13 @@ export function CompositorEditor({
   fieldsOf,
   fieldsTargetOf,
   onAdoptFields,
+  mineralOf,
 }: {
+  /**
+   * A run's mineral map, where it is one. Its figures are the Run node's
+   * Mineral report output, which the Mineral nodes read.
+   */
+  mineralOf?: (runId: string) => MineralAnalysis | null
   /** The runs on the board, as the outliner lists them. */
   runs: readonly AssetRun[]
   /**
@@ -566,6 +532,7 @@ export function CompositorEditor({
         r.runId,
         r.title,
         `fields:${fieldsOf?.(r.runId)?.fields_geojson.length ?? 0}`,
+        `mineral:${mineralOf?.(r.runId)?.observed_cells ?? 0}:${mineralOf?.(r.runId)?.layers?.length ?? 0}`,
         ...r.assets.map((a) => `${a.id}:${a.title}:${a.previewUri.length}:${a.classes ? 1 : 0}`),
       ].join("\u0000")
     )
@@ -575,6 +542,7 @@ export function CompositorEditor({
 
   const runOf = (runId: string | null) => runsRef.current.find((r) => r.runId === runId)
   const fieldsOfRun = (runId: string | null) => (runId && fieldsOf ? fieldsOf(runId) : null)
+  const mineralOfRun = (runId: string | null) => (runId && mineralOf ? mineralOf(runId) : null)
   const runOutputs = (runId: string | null) => [
     ...(runOf(runId)?.assets ?? []).map((a) => ({
       id: a.id,
@@ -584,6 +552,10 @@ export function CompositorEditor({
     // A delineation's polygons, beside its rasters.
     ...(runOf(runId) && fieldsOfRun(runId)?.fields_geojson
       ? [{ id: FIELDS_SOCKET, label: "Fields", type: "fields" as SocketType }]
+      : []),
+    // A mineral map's figures, beside its rasters.
+    ...(runOf(runId) && mineralOfRun(runId)
+      ? [{ id: MINERAL_SOCKET, label: "Mineral report", type: "mineral" as SocketType }]
       : []),
   ]
 
@@ -690,6 +662,14 @@ export function CompositorEditor({
             },
           }
         }
+        if (assetId === MINERAL_SOCKET) {
+          const m = mineralOfRun(runId)
+          if (!m) return { status: "none", note: "That run is not a mineral map." }
+          return {
+            status: "ready",
+            value: { type: "mineral", key: `mineral:${runId}:${m.observed_cells}`, runId, analysis: m },
+          }
+        }
         if (!run.assets.some((a) => a.id === assetId)) {
           return { status: "none", note: "That run has no such raster." }
         }
@@ -705,9 +685,12 @@ export function CompositorEditor({
 
   const outputOf = (node: string, socket: string) => evaluation.outputs.get(socketKey(node, socket))
   const inputOf = (node: string, socket: string) => evaluation.inputs.get(socketKey(node, socket))
-  /** A ready raster, or null -- for fields as well, which are no raster. */
+  /** A ready raster, or null -- for fields and mineral figures as well, which are no raster. */
   const readyValue = (r: Result | undefined): RasterValue | null =>
-    r?.status === "ready" && r.value.type !== "fields" ? r.value : null
+    r?.status === "ready" && isRaster(r.value) ? r.value : null
+  /** Ready mineral figures, or null. */
+  const readyMineral = (r: Result | undefined): MineralValue | null =>
+    r?.status === "ready" && r.value.type === "mineral" ? r.value : null
   /** Ready fields, or null. */
   const readyFields = (r: Result | undefined): FieldsValue | null =>
     r?.status === "ready" && r.value.type === "fields" ? r.value : null
@@ -1017,7 +1000,7 @@ export function CompositorEditor({
       case "morphology":
         return `${node.op === "open" ? "Opening" : "Closing"} ${node.size}×${node.size}`
       default:
-        return kindMeta(node.kind).label
+        return mineralNodeTitle(node) ?? kindMeta(node.kind).label
     }
   }
 
@@ -1385,6 +1368,25 @@ export function CompositorEditor({
         )
       }
 
+      case "mineralCoverage":
+      case "mineralClasses":
+      case "mineralReferences":
+      case "mineralPasses":
+      case "mineralCover":
+      case "mineralPositions":
+      case "mineralAcid":
+      case "mineralConfidence":
+      case "mineralAgreement":
+      case "mineralSave": {
+        const r = inputOf(node.id, "report")
+        const v = readyMineral(r)
+        return v ? (
+          <MineralNodeBody node={node} value={v} onChange={(next) => edit(updateNode(graph, next))} />
+        ) : (
+          <StatusNote result={r} />
+        )
+      }
+
       case "viewer": {
         const r = inputOf(node.id, "image")
         const v = readyValue(r)
@@ -1482,7 +1484,15 @@ export function CompositorEditor({
       inputs: inputsOf(graph, node).map((i) => ({
         id: i.id,
         label: i.label,
-        colour: TYPE_COLOUR[i.accepts.includes("fields") ? "fields" : i.accepts.includes("image") ? "image" : "classes"],
+        colour: TYPE_COLOUR[
+          i.accepts.includes("fields")
+            ? "fields"
+            : i.accepts.includes("mineral")
+              ? "mineral"
+              : i.accepts.includes("image")
+                ? "image"
+                : "classes"
+        ],
         linked: !!linkInto(graph, node.id, i.id),
       })),
       header: (

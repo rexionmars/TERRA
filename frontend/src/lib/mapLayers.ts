@@ -22,6 +22,7 @@ import type {
   WaterAnalysis,
 } from "@/lib/types"
 import {
+  mineralDerivedLayerId,
   mineralGroupTitle,
   mineralLayerDefaultVisible,
   mineralLayerId,
@@ -185,6 +186,29 @@ export function mineralLayers(
       pixelated: true,
       smooth: false,
       visible: state[id]?.visible ?? mineralLayerDefaultVisible(g.group),
+    })
+  }
+  /*
+    The derived rasters, above the class maps and hidden until chosen: each
+    answers a question of its own -- which pass a cell came from, how exposed
+    it was, where its band sits, how firm its class is -- and drawn over the
+    class maps by default they would hide the answer they qualify.
+  */
+  for (const l of m.layers ?? []) {
+    if (!l.uri) continue
+    const id = mineralDerivedLayerId(l.id)
+    out.push({
+      id,
+      title: l.title,
+      uri: l.uri,
+      extent: m.extent,
+      opacity: state[id]?.opacity ?? 1,
+      order: 365,
+      // Every one is a value per 60 m cell; a blend across a cell edge would
+      // be a value no cell had.
+      pixelated: true,
+      smooth: false,
+      visible: state[id]?.visible ?? false,
     })
   }
   return out

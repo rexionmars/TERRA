@@ -260,7 +260,8 @@ function mineralBrief(i: MethodInputs): MethodBrief {
         lines: [
           "EMIT L2A surface reflectance, 285 channels, 60 m, from the LP DAAC",
           `${i.start} to ${i.end}`,
-          "passes of any scene cloud cover, up to 3, least cloudy first; cloud is excluded per cell by the EMIT mask",
+          "passes of any scene cloud cover, ranked by the area they cover and then by cloud; the Passes card sets how many are compared",
+          "each cell from the pass it is least covered in: NDVI -0.15 to 0.25 (the GEOS3 limit) and cellulose absorption index CAI <= 0 (Nagler et al., 2000) first, then lower NDVI",
           "cells under the EMIT L2A cloud mask are excluded, not answered",
           "read over OPeNDAP for the area's rows only, the mask by byte range; an Earthdata token is required",
         ],
@@ -279,8 +280,11 @@ function mineralBrief(i: MethodInputs): MethodBrief {
       {
         title: "Output",
         lines: [
-          "one answer per group per 60 m cell: the best reference, its fit and its band depth",
-          "a class map per group, and a GeoTIFF of every group's entry, fit and depth",
+          "one answer per group per 60 m cell: the best reference, its fit, its band depth, and its fit margin over the best reference of another class",
+          "a class map per group; the pass used and whether it showed the ground exposed; the Fe3+ and Al-OH band positions; the acid-sulfate minerals",
+          "from the same acquisitions: EMIT L2B FRCOV fractional cover, and the EMIT L2B MIN class compared pixel by pixel",
+          "with draws set on the Passes card, each class's stability under the reflectance uncertainty",
+          "a GeoTIFF of every per-cell quantity, one named band each",
           "the observed area reported beside every identified area",
         ],
         note: "Band depth is not abundance; no unmixing is done. Green vegetation, water and cloud suppress the mineral answer, so over most vegetated ground the identified area is a small part of the AOI.",
