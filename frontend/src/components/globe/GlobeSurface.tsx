@@ -458,6 +458,7 @@ export function GlobeSurface({
           url: o.layer.uri,
           bounds: o.layer.extent,
           opacity: o.layer.opacity,
+          pixelated: o.layer.pixelated,
           /*
             The lowest sits a metre up rather than at zero: at zero it shares a
             depth with the ground it is drawn over, and two surfaces at one
