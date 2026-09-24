@@ -136,6 +136,7 @@ function EditorEmpty({ children }: { children: React.ReactNode }) {
 import { StudioBrowser } from "@/components/studio/StudioBrowser"
 import { ReportsEditor } from "@/components/studio/ReportsEditor"
 import { ConsoleEditor } from "@/components/studio/ConsoleEditor"
+import { StartScreen, claimLaunchStart } from "@/components/studio/StartScreen"
 import { ResearchPackModal } from "@/components/ResearchPackModal"
 import { MineralReadingColumn } from "@/components/mineral/MineralReading"
 import type { BoardHandle, PlaneState } from "@/components/studio/boardScene"
@@ -4307,6 +4308,43 @@ export function BoardSurface({
     }
   }
 
+  /*
+    THE START SCREEN: once per launch, unless turned off from its own foot.
+
+    Decided when the preferences arrive rather than at mount, since that is
+    where the switch is kept; the claim is taken either way, so a launch that
+    had it off does not open it later when the studio remounts.
+  */
+  const [startOpen, setStartOpen] = useState(false)
+  const closeStart = useCallback(() => setStartOpen(false), [])
+  const startAtLaunch =
+    parsePreferenceExtras(prefs?.extras_json).start_screen !== false
+  useEffect(() => {
+    if (prefs && claimLaunchStart() && startAtLaunch) setStartOpen(true)
+    // Once, on the first preferences: the claim makes any later run a no-op.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [prefs])
+  const setStartAtLaunch = (show: boolean) => {
+    if (!prefs) return
+    void savePrefs(
+      {
+        ...prefs,
+        extras_json: mergePreferenceExtras(prefs.extras_json, { start_screen: show }),
+      },
+      { silent: true }
+    ).catch(() => {
+      /* best-effort, as the other preference writers are */
+    })
+  }
+  // The work began without it -- a studio opened, a plane put on the board --
+  // so it has nothing left to offer.
+  const startBasis = useRef({ savedId, planeCount })
+  useEffect(() => {
+    const b = startBasis.current
+    if (b.savedId !== savedId || b.planeCount !== planeCount) setStartOpen(false)
+    startBasis.current = { savedId, planeCount }
+  }, [savedId, planeCount])
+
   const needPlanes = () => (planeCount ? true : "The board has no planes")
   const needSelection = () =>
     selectedPlanes.length ? true : "Select a plane first"
@@ -4348,6 +4386,7 @@ export function BoardSurface({
           ? true
           : "Point at the area to maximise",
     },
+    START: { run: () => setStartOpen(true) },
     SPLASH: { run: app.items.splash.onSelect },
     RELEASE_NOTES: { run: app.items.releaseNotes.onSelect },
     ENVIRONMENT: { run: app.items.environment.onSelect },
@@ -4771,6 +4810,7 @@ export function BoardSurface({
             they open; this file only says where they are pressed.
           */}
           <StudioMenuRule />
+          <OperatorMenuItem id="START" onDone={() => setAppMenu(false)} />
           <OperatorMenuItem id="SPLASH" onDone={() => setAppMenu(false)} />
           <OperatorMenuItem id="RELEASE_NOTES" onDone={() => setAppMenu(false)} />
           <StudioMenuRule />
@@ -5317,6 +5357,22 @@ export function BoardSurface({
         not matter: every one of them is a modal or portals out of this tree.
       */}
       {app.surfaces}
+
+      {/*
+        Over the areas and under every modal, which portal to the body at
+        2000: What's New, opened at the same launch, is read first.
+      */}
+      {startOpen && (
+        <StartScreen
+          onClose={closeStart}
+          studios={studios}
+          openStudioId={savedId}
+          onOpenStudio={openBoard}
+          onBrowse={() => setWorkspaceId("data")}
+          showAtLaunch={startAtLaunch}
+          onShowAtLaunchChange={setStartAtLaunch}
+        />
+      )}
     </motion.div>
   )
 }

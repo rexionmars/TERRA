@@ -32,6 +32,7 @@ import {
   EyeSlash,
   FloppyDisk,
   Gear,
+  House,
   HardDrive,
   ImageSquare,
   Info,
@@ -151,6 +152,12 @@ const DEFS = {
     description: "Every command and the keys that run it",
     menu: "Studio",
     icon: Keyboard,
+  },
+  START: {
+    label: "Start screen",
+    description: "What to begin and what to reopen, as the studio opens with",
+    menu: "Studio",
+    icon: House,
   },
   SPLASH: {
     label: "Splash screen",
