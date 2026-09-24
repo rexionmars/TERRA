@@ -23,9 +23,8 @@ Both directions are asserted. A key Go has no field for is the failure above.
 A field no key fills is the same failure from the other side: a tag renamed in
 Go, and a value that is always zero.
 
-Each row pairs one action's payload with the struct it is decoded into. Only
-the classification is covered so far; another action is covered by adding its
-row.
+Each row pairs one action's payload with the struct it is decoded into; an
+action is covered by adding its row.
 """
 from __future__ import annotations
 
@@ -47,6 +46,13 @@ CONTRACTS = [
         "class_stats",
         TYPES_GO,
         "sidecarResult",
+    ),
+    (
+        REPO / "sidecar" / "terra" / "fields" / "actions.py",
+        "delineate",
+        "n_fields",
+        REPO / "internal" / "analysis" / "types_fields.go",
+        "fieldsSidecarResult",
     ),
 ]
 

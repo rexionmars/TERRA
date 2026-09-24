@@ -2,3 +2,5 @@
 -r requirements.txt
 torch>=2.1
 terratorch>=1.2
+# Field boundary delineation rebuilds the FTW networks with it.
+segmentation-models-pytorch>=0.5

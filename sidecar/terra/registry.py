@@ -35,6 +35,7 @@ ACTIONS: dict[str, str] = {
     'list_datacube': 'terra.scenes.actions:list_datacube',
     'render_composite': 'terra.scenes.actions:render_composite',
     'mineral_map': 'terra.mineral.actions:mineral_map',
+    'field_boundaries': 'terra.fields.actions:delineate',
 }
 
 DEFAULT_ACTION = 'predict'
