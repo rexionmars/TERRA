@@ -49,6 +49,18 @@ func TestEveryRasterRunRecordsItsOverlay(t *testing.T) {
 			},
 		},
 		{
+			name: "fields",
+			persist: func(a *App) string {
+				return a.persistFieldsRun(
+					analysis.FieldsRequest{Label: "AOI"},
+					&analysis.FieldsAnalysis{
+						ClassesURI: onePixelPNG, WindowAURI: onePixelPNG, WindowBURI: onePixelPNG,
+						FieldsGeoJSON: `{"type":"FeatureCollection","features":[]}`,
+					},
+				)
+			},
+		},
+		{
 			name: "mineral",
 			persist: func(a *App) string {
 				return a.persistMineralRun(

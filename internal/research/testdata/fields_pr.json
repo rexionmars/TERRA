@@ -1,0 +1,68 @@
+{
+ "fields": {
+  "extent": {
+   "lon_min": -53.24434014253892,
+   "lon_max": -53.17562112520582,
+   "lat_min": -25.343898372992584,
+   "lat_max": -25.276108653439515
+  },
+  "checkpoint": {
+   "name": "FTW_PRUE_EFNET_B7",
+   "title": "FTW v3: Standard, B7",
+   "license": "Mixed open licences (includes CC-BY-NC-SA data)"
+  },
+  "window_a": {
+   "date": "2024-10-31",
+   "items": [
+    "S2A_MSIL2A_20241031T133831_R124_T21JZM_20241031T173259",
+    "S2A_MSIL2A_20241031T133831_R124_T21JZN_20241031T173259",
+    "S2A_MSIL2A_20241031T133831_R124_T22JBS_20241031T173259",
+    "S2A_MSIL2A_20241031T133831_R124_T22JBT_20241031T173259"
+   ],
+   "cloud_cover": 12.84,
+   "clear_fraction": 1.0
+  },
+  "window_b": {
+   "date": "2025-03-05",
+   "items": [
+    "S2B_MSIL2A_20250305T133839_R124_T21JZM_20250305T172200",
+    "S2B_MSIL2A_20250305T133839_R124_T21JZN_20250305T172200",
+    "S2B_MSIL2A_20250305T133839_R124_T22JBS_20250305T172200",
+    "S2B_MSIL2A_20250305T133839_R124_T22JBT_20250305T172200"
+   ],
+   "cloud_cover": 1.81,
+   "clear_fraction": 1.0
+  },
+  "grid": {
+   "crs": "EPSG:32722",
+   "width": 680,
+   "height": 740,
+   "pixel_size_m": 10.0,
+   "buffer_m": 320.0
+  },
+  "resize_factor": 2,
+  "min_area_m2": 500.0,
+  "simplify_m": 15.0,
+  "area_ha": 4017.48,
+  "masked_fraction": 0.0,
+  "class_fraction": {
+   "background": 0.3263,
+   "interior": 0.6042,
+   "boundary": 0.0696
+  },
+  "n_fields": 389,
+  "field_area_ha": {
+   "total": 2432.14,
+   "median": 1.75,
+   "p10": 0.17,
+   "p90": 11.03,
+   "max": 234.18
+  },
+  "cropland_reference": "MapBiomas Collection 10 (2023)",
+  "fields_geojson": "/nonexistent/terra-fields-recorded/fields.geojson",
+  "classes_png": "/nonexistent/terra-fields-recorded/field_classes.png",
+  "classes_tif": "/nonexistent/terra-fields-recorded/field_classes.tif",
+  "window_a_png": "/nonexistent/terra-fields-recorded/window_a.png",
+  "window_b_png": "/nonexistent/terra-fields-recorded/window_b.png"
+ }
+}

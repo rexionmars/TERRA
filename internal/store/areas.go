@@ -25,6 +25,14 @@ by comparing polygon rings.
 The schema lives here rather than in store.go for the reason studioSchema
 does: the statements that make a subject belong with the subject, and migrate()
 reads as the order they are applied in rather than as their content.
+
+AN AREA CAN HOLD FIELDS. An area drawn or imported is a root: the ground a
+reader chose. The fields found inside it are areas too, each naming the root as
+its parent, so every product that runs over an area runs over one field with no
+change -- a run is OF whichever ground it names, and a field is a ground. One
+level only: a field holds no fields, because nothing measured inside a field is
+a subdivision anything here can act on, and a tree of arbitrary depth would be a
+structure every reader has to walk for a case nobody has.
 */
 
 // areaSchema is applied unconditionally, like every other CREATE TABLE IF NOT
@@ -40,7 +48,9 @@ CREATE TABLE IF NOT EXISTS areas (
   polygon_geojson TEXT NOT NULL,
   notes TEXT NOT NULL DEFAULT '',
   created_at TEXT NOT NULL,
-  updated_at TEXT NOT NULL
+  updated_at TEXT NOT NULL,
+  parent_id TEXT NOT NULL DEFAULT '',
+  source_run_id TEXT NOT NULL DEFAULT ''
 );
 CREATE INDEX IF NOT EXISTS idx_areas_project_created ON areas(project_id, created_at);
 CREATE INDEX IF NOT EXISTS idx_areas_user ON areas(user_id);
@@ -74,6 +84,14 @@ type Area struct {
 	Notes          string `json:"notes"`
 	CreatedAt      string `json:"created_at"`
 	UpdatedAt      string `json:"updated_at"`
+	// The area this one is a field of, or empty for an area a reader drew or
+	// imported. Set when the row is created and never changed: moving a field
+	// to another area would move its runs to ground they were not made over.
+	ParentID string `json:"parent_id"`
+	// The field-boundary run this field was adopted from, or empty for a field
+	// drawn by hand. It is what a later delineation replaces, and what it
+	// leaves alone.
+	SourceRunID string `json:"source_run_id"`
 	// How many runs are of this ground. Filled by the listing query, the way
 	// Project.RunCount is, so a caller can size a list without loading it.
 	RunCount int `json:"run_count"`
@@ -122,6 +140,12 @@ func (s *Store) CreateArea(userID string, a Area) (*Area, error) {
 	}
 
 	a.UserID = owner
+	a.ParentID = strings.TrimSpace(a.ParentID)
+	if a.ParentID != "" {
+		if err := checkParent(tx, a.ParentID, a.ProjectID, owner); err != nil {
+			return nil, err
+		}
+	}
 	/*
 		The name is numbered whether the caller supplied a stem or not.
 
@@ -132,26 +156,7 @@ func (s *Store) CreateArea(userID string, a Area) (*Area, error) {
 		to fix, reached from the other side: the caller cannot see what the
 		project already holds, and this can.
 	*/
-	a.Name, err = provisionalName(tx, a.ProjectID, a.Name)
-	if err != nil {
-		return nil, err
-	}
-	if a.ID == "" {
-		a.ID = uuid.NewString()
-	}
-	ts := nowISO()
-	if a.CreatedAt == "" {
-		a.CreatedAt = ts
-	}
-	a.UpdatedAt = ts
-
-	if _, err := tx.Exec(
-		`INSERT INTO areas
-		 (id, project_id, user_id, name, polygon_geojson, notes, created_at, updated_at)
-		 VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
-		a.ID, a.ProjectID, a.UserID, a.Name, a.PolygonGeoJSON, a.Notes,
-		a.CreatedAt, a.UpdatedAt,
-	); err != nil {
+	if err := insertArea(tx, &a); err != nil {
 		return nil, err
 	}
 	if err := tx.Commit(); err != nil {
@@ -160,8 +165,63 @@ func (s *Store) CreateArea(userID string, a Area) (*Area, error) {
 	return &a, nil
 }
 
+// insertArea names, stamps and writes one area inside tx. The caller has
+// established the project, the owner and the parent.
+func insertArea(tx *sql.Tx, a *Area) error {
+	name, err := provisionalName(tx, a.ProjectID, a.ParentID, a.Name)
+	if err != nil {
+		return err
+	}
+	a.Name = name
+	if a.ID == "" {
+		a.ID = uuid.NewString()
+	}
+	ts := nowISO()
+	if a.CreatedAt == "" {
+		a.CreatedAt = ts
+	}
+	a.UpdatedAt = ts
+	_, err = tx.Exec(
+		`INSERT INTO areas
+		 (id, project_id, user_id, name, polygon_geojson, notes, created_at, updated_at,
+		  parent_id, source_run_id)
+		 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+		a.ID, a.ProjectID, a.UserID, a.Name, a.PolygonGeoJSON, a.Notes,
+		a.CreatedAt, a.UpdatedAt, a.ParentID, a.SourceRunID,
+	)
+	return err
+}
+
 /*
-provisionalName is the stem, then the stem and 2, and so on within one project.
+checkParent is the rule for putting an area inside another: the parent exists,
+is this user's, is in the same project, and is itself a root.
+
+ErrInvalidInput for a parent that is a field, because the one-level rule is a
+statement about the request, not about what exists; ErrNotFound for the rest,
+for the reason CreateArea gives -- "not yours" and "not there" said apart would
+tell a caller which ids exist in another account.
+*/
+func checkParent(tx *sql.Tx, parentID, projectID, userID string) error {
+	var project, owner, grandparent string
+	err := tx.QueryRow(
+		`SELECT project_id, user_id, parent_id FROM areas WHERE id = ?`, parentID,
+	).Scan(&project, &owner, &grandparent)
+	if errors.Is(err, sql.ErrNoRows) || (err == nil && (owner != userID || project != projectID)) {
+		return ErrNotFound
+	}
+	if err != nil {
+		return err
+	}
+	if grandparent != "" {
+		return ErrInvalidInput
+	}
+	return nil
+}
+
+/*
+provisionalName is the stem, then the stem and 2, and so on, among one area's
+siblings: the project's roots for an area with no parent, and the parent's
+fields for a field.
 
 "drawn" when the caller has no stem of its own, which is the sequence this
 started as. A caller that does have one -- the file name an import carries, the
@@ -169,18 +229,22 @@ studio a ground was drawn under -- passes it and gets the same treatment, since
 a name that is provisional is provisional whatever it was derived from.
 
 Scoped to the project rather than to the user: two projects each holding a
-"drawn" is not a collision, it is two fields with the same provisional name, and
-numbering across them would make the second project open at "drawn 4".
+"drawn" is not a collision, it is two grounds with the same provisional name, and
+numbering across them would make the second project open at "drawn 4". Scoped
+to the siblings within the project for the same reason one level down: "field 1"
+inside one area and "field 1" inside another are the first field of each.
 
 Counted by asking rather than by taking the row count, because an area renamed
 by hand leaves a gap the count would step on.
 */
-func provisionalName(tx *sql.Tx, projectID, stem string) (string, error) {
+func provisionalName(tx *sql.Tx, projectID, parentID, stem string) (string, error) {
 	stem = strings.TrimSpace(stem)
 	if stem == "" {
 		stem = "drawn"
 	}
-	rows, err := tx.Query(`SELECT name FROM areas WHERE project_id = ?`, projectID)
+	rows, err := tx.Query(
+		`SELECT name FROM areas WHERE project_id = ? AND parent_id = ?`, projectID, parentID,
+	)
 	if err != nil {
 		return "", err
 	}
@@ -209,7 +273,8 @@ func provisionalName(tx *sql.Tx, projectID, stem string) (string, error) {
 
 // ListAreas returns a project's grounds, oldest first, each with how many runs
 // are of it. The order is the order they were drawn in, which is the only order
-// that does not change under the reader.
+// that does not change under the reader. Fields are listed with the roots, each
+// naming its parent; the tree is the reader's to build.
 func (s *Store) ListAreas(userID, projectID string) ([]Area, error) {
 	if userID == "" {
 		userID = LocalUserID
@@ -219,7 +284,7 @@ func (s *Store) ListAreas(userID, projectID string) ([]Area, error) {
 	}
 	rows, err := s.db.Query(
 		`SELECT a.id, a.project_id, a.user_id, a.name, a.polygon_geojson, a.notes,
-		        a.created_at, a.updated_at,
+		        a.created_at, a.updated_at, a.parent_id, a.source_run_id,
 		        (SELECT COUNT(1) FROM inference_runs r WHERE r.area_id = a.id)
 		 FROM areas a
 		 WHERE a.project_id = ? AND a.user_id = ?
@@ -236,7 +301,7 @@ func (s *Store) ListAreas(userID, projectID string) ([]Area, error) {
 		var a Area
 		if err := rows.Scan(
 			&a.ID, &a.ProjectID, &a.UserID, &a.Name, &a.PolygonGeoJSON, &a.Notes,
-			&a.CreatedAt, &a.UpdatedAt, &a.RunCount,
+			&a.CreatedAt, &a.UpdatedAt, &a.ParentID, &a.SourceRunID, &a.RunCount,
 		); err != nil {
 			return nil, err
 		}
@@ -256,12 +321,12 @@ func (s *Store) GetArea(userID, areaID string) (*Area, error) {
 	var a Area
 	err := s.db.QueryRow(
 		`SELECT id, project_id, user_id, name, polygon_geojson, notes,
-		        created_at, updated_at
+		        created_at, updated_at, parent_id, source_run_id
 		 FROM areas WHERE id = ? AND user_id = ?`,
 		areaID, userID,
 	).Scan(
 		&a.ID, &a.ProjectID, &a.UserID, &a.Name, &a.PolygonGeoJSON, &a.Notes,
-		&a.CreatedAt, &a.UpdatedAt,
+		&a.CreatedAt, &a.UpdatedAt, &a.ParentID, &a.SourceRunID,
 	)
 	if errors.Is(err, sql.ErrNoRows) {
 		return nil, ErrNotFound
@@ -303,8 +368,10 @@ func (s *Store) UpdateArea(userID string, a Area) (*Area, error) {
 /*
 DeleteArea removes one ground and everything that is OF it.
 
-Its runs go, and their rasters with them, because a run is a measurement of this
-ground and means nothing without it. So do the board members naming those runs
+Its fields go with it, and their runs, because a field is ground inside this
+one and has no meaning once the area it was found in is gone. Its runs go, and
+their rasters with them, because a run is a measurement of this ground and
+means nothing without it. So do the board members naming those runs
 and the compositions filed under the area. None of that happens on its own:
 foreign keys here are declared and never enforced, so every cascade in this
 package is written where the delete is -- DeleteProject and DeleteStudio
@@ -337,13 +404,39 @@ func (s *Store) DeleteArea(userID, areaID string) error {
 		return err
 	}
 
+	children, err := childAreaIDs(tx, areaID, false)
+	if err != nil {
+		return err
+	}
+	var runIDs []string
+	for _, id := range append(children, areaID) {
+		ids, err := removeAreaRows(tx, id, userID)
+		if err != nil {
+			return err
+		}
+		runIDs = append(runIDs, ids...)
+	}
+	if err := tx.Commit(); err != nil {
+		return err
+	}
+	for _, id := range runIDs {
+		_ = os.RemoveAll(s.RunsDir(id))
+	}
+	return nil
+}
+
+/*
+removeAreaRows deletes one area's row and every row that is of it, inside tx,
+and returns the ids of the runs removed so the caller can remove their
+directories once the transaction has committed.
+*/
+func removeAreaRows(tx *sql.Tx, areaID, userID string) ([]string, error) {
 	// Collected before the rows go, since afterwards there is nothing left to
 	// ask which directories were theirs.
 	runIDs, err := runIDsOfArea(tx, areaID)
 	if err != nil {
-		return err
+		return nil, err
 	}
-
 	for _, stmt := range []struct {
 		sql  string
 		args []any
@@ -356,16 +449,128 @@ func (s *Store) DeleteArea(userID, areaID string) error {
 		{`DELETE FROM areas WHERE id = ? AND user_id = ?`, []any{areaID, userID}},
 	} {
 		if _, err := tx.Exec(stmt.sql, stmt.args...); err != nil {
-			return err
+			return nil, err
 		}
 	}
+	return runIDs, nil
+}
+
+// childAreaIDs lists the fields of one area; adoptedOnly keeps those a
+// delineation produced and leaves out the ones drawn by hand.
+func childAreaIDs(tx *sql.Tx, parentID string, adoptedOnly bool) ([]string, error) {
+	q := `SELECT id FROM areas WHERE parent_id = ?`
+	if adoptedOnly {
+		q += ` AND source_run_id <> ''`
+	}
+	rows, err := tx.Query(q, parentID)
+	if err != nil {
+		return nil, err
+	}
+	defer func() { _ = rows.Close() }()
+	var out []string
+	for rows.Next() {
+		var id string
+		if err := rows.Scan(&id); err != nil {
+			return nil, err
+		}
+		out = append(out, id)
+	}
+	return out, rows.Err()
+}
+
+// ErrFieldsExist is an adoption into an area that already holds fields from an
+// earlier delineation, asked without leave to replace them.
+var ErrFieldsExist = errors.New("the area already holds fields from a delineation")
+
+/*
+AdoptFields makes one delineation's polygons the fields of an area, in one
+transaction.
+
+WHAT IT REPLACES, AND WHAT IT DOES NOT. Fields adopted from an earlier
+delineation are the previous answer to the same question, so with replace set
+they go -- and their runs with them, which is why replace is the caller's to
+set and not a default: a field with a classification of its own is work, and
+the caller is the one that can ask before discarding it. Without replace, an
+area already holding adopted fields refuses with ErrFieldsExist. Fields drawn
+by hand are never touched by either: a delineation is not a statement about
+them.
+
+Each field is named by the caller (the frontend passes "field N" in the
+delineation's own order) and numbered among its siblings if that name is taken
+by a field drawn by hand.
+*/
+func (s *Store) AdoptFields(userID, parentID, sourceRunID string, fields []Area, replace bool) ([]Area, error) {
+	if userID == "" {
+		userID = LocalUserID
+	}
+	parentID = strings.TrimSpace(parentID)
+	sourceRunID = strings.TrimSpace(sourceRunID)
+	if parentID == "" || sourceRunID == "" || len(fields) == 0 {
+		return nil, ErrInvalidInput
+	}
+
+	tx, err := s.db.Begin()
+	if err != nil {
+		return nil, err
+	}
+	defer func() { _ = tx.Rollback() }()
+
+	var projectID, owner, grandparent string
+	err = tx.QueryRow(
+		`SELECT project_id, user_id, parent_id FROM areas WHERE id = ?`, parentID,
+	).Scan(&projectID, &owner, &grandparent)
+	if errors.Is(err, sql.ErrNoRows) || (err == nil && owner != userID) {
+		return nil, ErrNotFound
+	}
+	if err != nil {
+		return nil, err
+	}
+	if grandparent != "" {
+		return nil, ErrInvalidInput
+	}
+
+	previous, err := childAreaIDs(tx, parentID, true)
+	if err != nil {
+		return nil, err
+	}
+	if len(previous) > 0 && !replace {
+		return nil, ErrFieldsExist
+	}
+	var runIDs []string
+	for _, id := range previous {
+		ids, err := removeAreaRows(tx, id, userID)
+		if err != nil {
+			return nil, err
+		}
+		runIDs = append(runIDs, ids...)
+	}
+
+	out := make([]Area, 0, len(fields))
+	for _, f := range fields {
+		if strings.TrimSpace(f.PolygonGeoJSON) == "" {
+			return nil, ErrInvalidInput
+		}
+		a := Area{
+			ProjectID:      projectID,
+			UserID:         owner,
+			Name:           f.Name,
+			PolygonGeoJSON: f.PolygonGeoJSON,
+			Notes:          f.Notes,
+			ParentID:       parentID,
+			SourceRunID:    sourceRunID,
+		}
+		if err := insertArea(tx, &a); err != nil {
+			return nil, err
+		}
+		out = append(out, a)
+	}
 	if err := tx.Commit(); err != nil {
-		return err
+		return nil, err
 	}
 	for _, id := range runIDs {
 		_ = os.RemoveAll(s.RunsDir(id))
 	}
-	return nil
+	return out, nil
 }
 
 func runIDsOfArea(tx *sql.Tx, areaID string) ([]string, error) {

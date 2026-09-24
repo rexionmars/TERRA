@@ -14,7 +14,7 @@ import "testing"
 func TestRunKindsRoundTrip(t *testing.T) {
 	s := openTestStore(t)
 	for _, kind := range []string{
-		RunKindClassification, RunKindWater, RunKindMineral,
+		RunKindClassification, RunKindWater, RunKindMineral, RunKindFields,
 	} {
 		saved, err := s.SaveRun(InferenceRun{
 			UserID: LocalUserID, Kind: kind, ModelKind: "test",
@@ -54,8 +54,8 @@ func TestRunKindsRoundTrip(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(runs) != 4 {
-		t.Fatalf("listed %d runs, want 4", len(runs))
+	if len(runs) != 5 {
+		t.Fatalf("listed %d runs, want 5", len(runs))
 	}
 	seen := map[string]bool{}
 	for _, r := range runs {
@@ -66,5 +66,8 @@ func TestRunKindsRoundTrip(t *testing.T) {
 	}
 	if !seen[RunKindMineral] {
 		t.Fatal("a mineral run did not survive ListRuns")
+	}
+	if !seen[RunKindFields] {
+		t.Fatal("a field-boundary run did not survive ListRuns")
 	}
 }

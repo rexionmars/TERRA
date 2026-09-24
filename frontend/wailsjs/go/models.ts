@@ -817,6 +817,232 @@ export namespace analysis {
 	        this.include_tsne = source["include_tsne"];
 	    }
 	}
+	export class FieldsAreaSummary {
+	    total: number;
+	    median: number;
+	    p10: number;
+	    p90: number;
+	    max: number;
+	
+	    static createFrom(source: any = {}) {
+	        return new FieldsAreaSummary(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.total = source["total"];
+	        this.median = source["median"];
+	        this.p10 = source["p10"];
+	        this.p90 = source["p90"];
+	        this.max = source["max"];
+	    }
+	}
+	export class FieldsClassFraction {
+	    background: number;
+	    interior: number;
+	    boundary: number;
+	
+	    static createFrom(source: any = {}) {
+	        return new FieldsClassFraction(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.background = source["background"];
+	        this.interior = source["interior"];
+	        this.boundary = source["boundary"];
+	    }
+	}
+	export class FieldsGrid {
+	    crs: string;
+	    width: number;
+	    height: number;
+	    pixel_size_m: number;
+	    buffer_m: number;
+	
+	    static createFrom(source: any = {}) {
+	        return new FieldsGrid(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.crs = source["crs"];
+	        this.width = source["width"];
+	        this.height = source["height"];
+	        this.pixel_size_m = source["pixel_size_m"];
+	        this.buffer_m = source["buffer_m"];
+	    }
+	}
+	export class FieldsScene {
+	    date: string;
+	    items: string[];
+	    cloud_cover: number;
+	    clear_fraction?: number;
+	
+	    static createFrom(source: any = {}) {
+	        return new FieldsScene(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.date = source["date"];
+	        this.items = source["items"];
+	        this.cloud_cover = source["cloud_cover"];
+	        this.clear_fraction = source["clear_fraction"];
+	    }
+	}
+	export class FieldsCheckpoint {
+	    name: string;
+	    title: string;
+	    license: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new FieldsCheckpoint(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.name = source["name"];
+	        this.title = source["title"];
+	        this.license = source["license"];
+	    }
+	}
+	export class FieldsAnalysis {
+	    run_id?: string;
+	    extent: Bounds;
+	    checkpoint: FieldsCheckpoint;
+	    window_a: FieldsScene;
+	    window_b: FieldsScene;
+	    grid: FieldsGrid;
+	    resize_factor: number;
+	    min_area_m2: number;
+	    simplify_m: number;
+	    area_ha: number;
+	    masked_fraction: number;
+	    class_fraction: FieldsClassFraction;
+	    n_fields: number;
+	    field_area_ha?: FieldsAreaSummary;
+	    cropland_reference?: string;
+	    fields_geojson: string;
+	    classes_uri?: string;
+	    window_a_uri?: string;
+	    window_b_uri?: string;
+	    classes_tif: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new FieldsAnalysis(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.run_id = source["run_id"];
+	        this.extent = this.convertValues(source["extent"], Bounds);
+	        this.checkpoint = this.convertValues(source["checkpoint"], FieldsCheckpoint);
+	        this.window_a = this.convertValues(source["window_a"], FieldsScene);
+	        this.window_b = this.convertValues(source["window_b"], FieldsScene);
+	        this.grid = this.convertValues(source["grid"], FieldsGrid);
+	        this.resize_factor = source["resize_factor"];
+	        this.min_area_m2 = source["min_area_m2"];
+	        this.simplify_m = source["simplify_m"];
+	        this.area_ha = source["area_ha"];
+	        this.masked_fraction = source["masked_fraction"];
+	        this.class_fraction = this.convertValues(source["class_fraction"], FieldsClassFraction);
+	        this.n_fields = source["n_fields"];
+	        this.field_area_ha = this.convertValues(source["field_area_ha"], FieldsAreaSummary);
+	        this.cropland_reference = source["cropland_reference"];
+	        this.fields_geojson = source["fields_geojson"];
+	        this.classes_uri = source["classes_uri"];
+	        this.window_a_uri = source["window_a_uri"];
+	        this.window_b_uri = source["window_b_uri"];
+	        this.classes_tif = source["classes_tif"];
+	    }
+	
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
+	}
+	
+	
+	
+	
+	export class FieldsWindow {
+	    start: string;
+	    end: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new FieldsWindow(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.start = source["start"];
+	        this.end = source["end"];
+	    }
+	}
+	export class FieldsRequest {
+	    polygon_geojson?: GeoJSONGeometry;
+	    window_a: FieldsWindow;
+	    window_b: FieldsWindow;
+	    max_cloud: number;
+	    min_area_m2: number;
+	    checkpoint: string;
+	    label: string;
+	    run_label: string;
+	    area_id: string;
+	    project_id: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new FieldsRequest(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.polygon_geojson = this.convertValues(source["polygon_geojson"], GeoJSONGeometry);
+	        this.window_a = this.convertValues(source["window_a"], FieldsWindow);
+	        this.window_b = this.convertValues(source["window_b"], FieldsWindow);
+	        this.max_cloud = source["max_cloud"];
+	        this.min_area_m2 = source["min_area_m2"];
+	        this.checkpoint = source["checkpoint"];
+	        this.label = source["label"];
+	        this.run_label = source["run_label"];
+	        this.area_id = source["area_id"];
+	        this.project_id = source["project_id"];
+	    }
+	
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
+	}
+	
+	
 	
 	export class LULCAgreementBlock {
 	    row: number;
@@ -1812,6 +2038,7 @@ export namespace analysis {
 	    lulc?: LULCAnalysis;
 	    water?: WaterAnalysis;
 	    mineral?: MineralAnalysis;
+	    fields?: FieldsAnalysis;
 	    domain_fingerprint?: DomainFingerprint;
 	
 	    static createFrom(source: any = {}) {
@@ -1845,6 +2072,7 @@ export namespace analysis {
 	        this.lulc = this.convertValues(source["lulc"], LULCAnalysis);
 	        this.water = this.convertValues(source["water"], WaterAnalysis);
 	        this.mineral = this.convertValues(source["mineral"], MineralAnalysis);
+	        this.fields = this.convertValues(source["fields"], FieldsAnalysis);
 	        this.domain_fingerprint = this.convertValues(source["domain_fingerprint"], DomainFingerprint);
 	    }
 	
@@ -2208,6 +2436,8 @@ export namespace store {
 	    notes: string;
 	    created_at: string;
 	    updated_at: string;
+	    parent_id: string;
+	    source_run_id: string;
 	    run_count: number;
 	
 	    static createFrom(source: any = {}) {
@@ -2224,6 +2454,8 @@ export namespace store {
 	        this.notes = source["notes"];
 	        this.created_at = source["created_at"];
 	        this.updated_at = source["updated_at"];
+	        this.parent_id = source["parent_id"];
+	        this.source_run_id = source["source_run_id"];
 	        this.run_count = source["run_count"];
 	    }
 	}

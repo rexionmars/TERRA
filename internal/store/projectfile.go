@@ -293,12 +293,16 @@ func (s *Store) projectDocument(userID, projectID, appVersion string) (*ProjectD
 		set is still open waits for it forever.
 	*/
 	err = s.eachRow(
-		`SELECT id, name, polygon_geojson, COALESCE(notes,''), created_at, updated_at
+		`SELECT id, name, polygon_geojson, COALESCE(notes,''), created_at, updated_at,
+		        parent_id, source_run_id
 		 FROM areas WHERE project_id = ? AND user_id = ? ORDER BY created_at, id`,
 		[]any{p.ID, userID},
 		func(rows *sql.Rows) error {
 			a := Area{ProjectID: p.ID}
-			if err := rows.Scan(&a.ID, &a.Name, &a.PolygonGeoJSON, &a.Notes, &a.CreatedAt, &a.UpdatedAt); err != nil {
+			if err := rows.Scan(
+				&a.ID, &a.Name, &a.PolygonGeoJSON, &a.Notes, &a.CreatedAt, &a.UpdatedAt,
+				&a.ParentID, &a.SourceRunID,
+			); err != nil {
 				return err
 			}
 			d.Areas = append(d.Areas, a)
@@ -703,14 +707,25 @@ func (s *Store) importProjectDocument(userID string, d *ProjectDocument) (err er
 		return fmt.Errorf("writing the project: %w", err)
 	}
 
+	/*
+		parent_id and source_run_id arrive empty from a document written before
+		fields existed, which reads every area as a root -- what those areas
+		were. The format version is unchanged for the same reason in the other
+		direction: a build that predates fields ignores the two keys and opens
+		the fields as areas of their own, which loses the nesting and nothing
+		else.
+	*/
 	for _, a := range d.Areas {
 		if _, err = tx.Exec(
-			`INSERT INTO areas (id, project_id, user_id, name, polygon_geojson, notes, created_at, updated_at)
-			 VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+			`INSERT INTO areas (id, project_id, user_id, name, polygon_geojson, notes, created_at, updated_at,
+			                    parent_id, source_run_id)
+			 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 			 ON CONFLICT(id) DO UPDATE SET
 			   name = excluded.name, polygon_geojson = excluded.polygon_geojson,
-			   notes = excluded.notes, updated_at = excluded.updated_at`,
+			   notes = excluded.notes, updated_at = excluded.updated_at,
+			   parent_id = excluded.parent_id, source_run_id = excluded.source_run_id`,
 			a.ID, p.ID, userID, a.Name, a.PolygonGeoJSON, a.Notes, a.CreatedAt, a.UpdatedAt,
+			a.ParentID, a.SourceRunID,
 		); err != nil {
 			return fmt.Errorf("writing area %s: %w", a.ID, err)
 		}
