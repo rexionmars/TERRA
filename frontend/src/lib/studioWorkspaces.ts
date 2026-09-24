@@ -107,26 +107,41 @@ export const STUDIO_WORKSPACES: readonly StudioWorkspace[] = [
       bars in the same places and could reasonably conclude nothing had
       changed.
 
-      Fractions checked at the 1000x700 minimum: the right column is 220px
-      against an 11rem floor, its two halves 167px and 354px against an 8rem
-      and a 6rem floor, and the run strip 85px against a 3rem one.
+      THE FOOT IS A FIELD NOW, NOT A STRIP. It was 14% of the height, sized
+      for the run editor's old 3rem floor; the editor became a node canvas
+      with a 14rem one, and at a 1440x900 window the preset opened on an area
+      that could only say what it needed. The foot is 40%, which is the least
+      that clears 14rem at the 1000x700 minimum, and the stack above it moves
+      its division down to keep the outliner over its 8rem floor.
+
+      Reports shares the foot, as it does in Solara's Layout: the log of what
+      the application said beside the run that is most of what it says about.
+
+      Checked by studioWorkspaces.test.ts rather than written here, since the
+      figures written here were the ones that went stale: at 1000x700 the run
+      area is 42x14.7rem and Reports 19.6x14.7rem.
     */
     build: () =>
       col(
         "w-layout-foot",
-        0.86,
+        0.6,
         row(
           "w-layout-right",
           0.78,
           leaf("a-viewport", "viewport"),
           col(
             "w-layout-stack",
-            0.32,
+            0.42,
             leaf("a-outliner", "outliner"),
             leaf("a-properties", "properties")
           )
         ),
-        leaf("a-run", "runParams")
+        row(
+          "w-layout-foot-row",
+          0.68,
+          leaf("a-run", "runParams"),
+          leaf("a-reports", "reports")
+        )
       ),
   },
   {
@@ -140,6 +155,10 @@ export const STUDIO_WORKSPACES: readonly StudioWorkspace[] = [
       relation needs -- two identity blocks, a transition matrix and a delta
       list set beside one another. It is the arrangement that retires the modal:
       what is being compared stays visible above what the comparison says.
+
+      The outliner at a fifth rather than 0.18, and the viewport's share of
+      the rest at 0.75 rather than 0.78: at the 1000x700 minimum the old
+      fractions left the outliner 10.9rem wide against its 11rem floor.
     */
     build: () =>
       col(
@@ -147,11 +166,11 @@ export const STUDIO_WORKSPACES: readonly StudioWorkspace[] = [
         0.56,
         row(
           "w-compare-top",
-          0.18,
+          0.2,
           leaf("a-outliner", "outliner"),
           row(
             "w-compare-topright",
-            0.78,
+            0.75,
             leaf("a-viewport", "viewport"),
             leaf("a-properties", "properties")
           )
