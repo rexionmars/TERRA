@@ -19,6 +19,41 @@ hand-written "unreleased" section beside a generated one is the same list twice,
 and only one of them is kept current.
 
 
+## [0.7.0](https://github.com/rexionmars/TERRA/compare/v0.6.0...v0.7.0) (2026-09-24)
+
+
+### Features
+
+* **app:** project file bindings, a document type, and files from the Finder ([07ecd88](https://github.com/rexionmars/TERRA/commit/07ecd88ccc5905205467394dffa384c9d3aad0b3))
+* **mineral:** mineral map tool, layers, reading panel and token setting ([45272ad](https://github.com/rexionmars/TERRA/commit/45272ad0c0ed57f496fadd2991baa3bac6ca330f))
+* **mineral:** Tetracorder on EMIT reflectance, over the area alone ([61187e3](https://github.com/rexionmars/TERRA/commit/61187e3fa54714c23f6cb6012dfdaa29f0e8b6cb))
+* **mineral:** the mineral map as a run, and the Earthdata token it needs ([fe32fca](https://github.com/rexionmars/TERRA/commit/fe32fcad21f3ac20097123fd06c2b5f47218174b))
+* **settings:** a Keymap page, drawn from the operator table ([278b940](https://github.com/rexionmars/TERRA/commit/278b9406525f884350487ff103a77896a5a96ad6))
+* **splash:** outline the website's wordmark as a path ([99f9514](https://github.com/rexionmars/TERRA/commit/99f951415ec139e05c33b40c6027deecae1d88ee))
+* **splash:** the website's design, in one stylesheet for both copies ([2099fd1](https://github.com/rexionmars/TERRA/commit/2099fd1770ed3953372ce53bb070826ebf2d2135))
+* **store:** a project as a .terra file, saved out and opened in ([62c3cd1](https://github.com/rexionmars/TERRA/commit/62c3cd1cc7647011c765acaba0b4d66e0607899b))
+* **studio:** a Console, which runs operators by name ([a507302](https://github.com/rexionmars/TERRA/commit/a507302f2a0c8566223f1c74cc6d9f7b7eadcbd7))
+* **studio:** a Reports editor, which keeps what the toasts said ([eade5ac](https://github.com/rexionmars/TERRA/commit/eade5acdb3b3b87af67dc2d1f85423668e21c5ae))
+* **studio:** a split copies its editor, and a division resets on double-click ([3925ea4](https://github.com/rexionmars/TERRA/commit/3925ea4f73158ab27f0f7bc14d7903ca23e1aa20))
+* **studio:** a start screen, once per launch ([a60ab47](https://github.com/rexionmars/TERRA/commit/a60ab474ff7a390d013f953205b91ce38e095b84))
+* **studio:** an operator registry, and the keymap that reads it ([5f32664](https://github.com/rexionmars/TERRA/commit/5f32664a0093685c8bbcdeb570fc9cb25ef73ae5))
+* **studio:** ask before a close would discard an unsaved board ([2c7138f](https://github.com/rexionmars/TERRA/commit/2c7138fec7f8b71611e1af51eb00c3dcf037668b))
+* **studio:** every workspace on the bar, as a tab ([217955d](https://github.com/rexionmars/TERRA/commit/217955d0f052379f94f2fc6cfda51e0b98f6c274))
+* **studio:** menus walked with the arrow keys ([7af816f](https://github.com/rexionmars/TERRA/commit/7af816fca1e6e2ef6da0407ffe091ce676a9c0b0))
+* **studio:** menus, keys and an operator search, run through the registry ([c5fedaa](https://github.com/rexionmars/TERRA/commit/c5fedaabc3e1bf39367de0d2cbdc711b93246702))
+* **studio:** open and save project files from the studio ([5bfd7cd](https://github.com/rexionmars/TERRA/commit/5bfd7cd5fa6defa147fba2817e74dea974ee6cbd))
+* **studio:** undo and redo for what is on the board ([14d6afd](https://github.com/rexionmars/TERRA/commit/14d6afdd7f8546cba3312c061f8d2c1f9d2c4ca7))
+
+
+### Bug fixes
+
+* **compose:** every composition made over an area stays in its list ([e147730](https://github.com/rexionmars/TERRA/commit/e147730475213e3532e069f7c10a68ec31c91b98))
+* **flood:** the envelope's raster reaches the studio ([fe07b52](https://github.com/rexionmars/TERRA/commit/fe07b5253f3e240e77190fc06f12ae81ef3f87cb))
+* **landcover:** the spectral response reaches the run again ([e2f97a1](https://github.com/rexionmars/TERRA/commit/e2f97a1ea8454f62c538cb475a8c04ad904d2889))
+* **store:** purge the runs the sensor simulator wrote ([f3bb2c8](https://github.com/rexionmars/TERRA/commit/f3bb2c839ae01a56a650ad6897e81bb1ea895712))
+* **studio:** every preset draws its editors at the minimum window ([9fb4044](https://github.com/rexionmars/TERRA/commit/9fb40444dc2512919f1d52ce4c197b3f70efe349))
+* **studio:** the board no longer holds the screen in the tree after it leaves ([5c3c8da](https://github.com/rexionmars/TERRA/commit/5c3c8da6d8249db54a61fd4624883f9106e3fd2e))
+
 ## [0.6.0](https://github.com/rexionmars/TERRA/compare/v0.5.0...v0.6.0) (2026-09-10)
 
 
