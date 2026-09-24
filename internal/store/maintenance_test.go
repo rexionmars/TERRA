@@ -15,7 +15,8 @@ belongs to, and nothing else moves.
 Seeded the way the releases that still had the products left them: a solar run
 and a flood run of the local user and a wind run of another user, each with its
 asset directory on disk, a board of each user naming its runs, and a
-composition made under the solar run and another under the flood run. The flood
+composition made under the solar run and another under the flood run. A
+sensor-simulation run stands for the kind development builds wrote. The flood
 directory holds the agreement GeoTIFF beside its rendering, so the purge is
 seen to take a directory with more than one file in it. A classification sits
 beside them on the same board and in the same project, with files of its own,
@@ -50,6 +51,7 @@ func TestOpenPurgesRetiredRunKinds(t *testing.T) {
 	seed("solar-1", LocalUserID, "solar", p.ID)
 	seed("wind-1", other.ID, "wind", "")
 	seed("flood-1", LocalUserID, "flood", p.ID)
+	seed("hsi-1", LocalUserID, "hsi", "")
 	seed("class-1", LocalUserID, RunKindClassification, p.ID)
 	if err := os.WriteFile(
 		filepath.Join(s.RunsDir("flood-1"), "flood_agreement.tif"),
@@ -106,6 +108,7 @@ func TestOpenPurgesRetiredRunKinds(t *testing.T) {
 		{"solar-1", LocalUserID},
 		{"wind-1", other.ID},
 		{"flood-1", LocalUserID},
+		{"hsi-1", LocalUserID},
 	} {
 		if _, err := s.GetRun(gone.userID, gone.id); !errors.Is(err, ErrNotFound) {
 			t.Errorf("%s: GetRun = %v, want ErrNotFound", gone.id, err)
@@ -116,7 +119,7 @@ func TestOpenPurgesRetiredRunKinds(t *testing.T) {
 	}
 	var left int
 	if err := s.db.QueryRow(
-		`SELECT COUNT(1) FROM inference_runs WHERE kind IN ('solar', 'wind', 'flood')`,
+		`SELECT COUNT(1) FROM inference_runs WHERE kind IN ('solar', 'wind', 'flood', 'hsi')`,
 	).Scan(&left); err != nil {
 		t.Fatal(err)
 	}

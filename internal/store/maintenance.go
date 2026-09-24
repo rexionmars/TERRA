@@ -29,6 +29,9 @@ retiredRunKinds are the run kinds this build has no product for.
 
 Solar, wind and flood runs were written by products that have since been
 removed, and every reader that could open what they stored went with them.
+hsi runs were written by the hyperspectral sensor simulator, which never
+reached a release but did write runs into the databases of the development
+builds that carried it, and which was dropped rather than merged.
 LoadAnalysis has no branch for any of these kinds, so a row of one falls through
 to the classification path and reopens as an empty classification with nothing
 raising an error, while the run list and the storage screen go on offering it
@@ -36,12 +39,12 @@ as a run that can be opened. The rows are deleted instead, with everything that
 refers to them.
 
 A list rather than literals inside the step, so a kind retired later is one
-entry here and not a second copy of purgeRetiredRunKinds; flood was added that
-way. A kind stays on it once its rows are gone: on a database that never held
+entry here and not a second copy of purgeRetiredRunKinds; flood and hsi were
+added that way. A kind stays on it once its rows are gone: on a database that never held
 one the step costs a query that returns nothing, and an archive written before
 the removal and restored after it is exactly the file that still holds them.
 */
-var retiredRunKinds = []string{"solar", "wind", "flood"}
+var retiredRunKinds = []string{"solar", "wind", "flood", "hsi"}
 
 /*
 purgeRetiredRunKinds deletes every run of a retired kind, whoever it belongs
