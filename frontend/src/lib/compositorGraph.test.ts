@@ -12,7 +12,9 @@ import {
   defaultGraph,
   disconnect,
   EMPTY_GRAPH,
+  inputsOf,
   linkInto,
+  nodeOf,
   outputType,
   parseGraph,
   removeNode,
@@ -82,6 +84,33 @@ describe("connect", () => {
     expect(connect(g, link("sieve-1", "classes", "majority-1", "classes"), runOutputs).ok).toBe(false)
   })
 
+  it("lets a Viewer's output feed a Globe, and a class input when a class map reaches it", () => {
+    let g = graphOf("run", "viewer", "globe", "majority")
+    const r = connect(g, link("run-1", "prediction", "viewer-1", "image"), runOutputs)
+    if (r.ok) g = r.graph
+    expect(connect(g, link("viewer-1", "image", "globe-1", "layer-1"), runOutputs).ok).toBe(true)
+    expect(outputType(g, "viewer-1", "image", runOutputs)).toBe("classes")
+    expect(connect(g, link("viewer-1", "image", "majority-1", "classes"), runOutputs).ok).toBe(true)
+  })
+
+  it("gives a Globe one more layer than it has links, and keeps them in order", () => {
+    let g = graphOf("run", "globe")
+    const layers = () => inputsOf(g, nodeOf(g, "globe-1")!).map((i) => `${i.id}=${i.label}`)
+    expect(layers()).toEqual(["layer-1=Layer 1"])
+    for (const [out, socket] of [
+      ["prediction", "layer-1"],
+      ["ndvi", "layer-2"],
+    ] as const) {
+      const r = connect(g, link("run-1", out, "globe-1", socket), runOutputs)
+      if (r.ok) g = r.graph
+    }
+    expect(layers()).toEqual(["layer-1=Layer 1", "layer-2=Layer 2", "layer-3=Layer 3"])
+    // Unlinking the first keeps the second's id and relabels it by position.
+    g = disconnect(g, "globe-1", "layer-1")
+    expect(layers()).toEqual(["layer-2=Layer 1", "layer-3=Layer 2"])
+    expect(connect(g, link("run-1", "ndvi", "globe-1", "image"), runOutputs).ok).toBe(false)
+  })
+
   it("gives a Mask the type of what reaches its raster input", () => {
     let g = graphOf("run", "mask", "majority")
     expect(outputType(g, "mask-1", "raster", runOutputs)).toBeNull()
@@ -123,6 +152,7 @@ describe("parseGraph", () => {
         { id: "sieve-1", kind: "sieve", minPixels: -5, connectivity: 6 },
         { id: "x", kind: "unknown" },
         { id: "mix-1", kind: "mix", opacity: 4 },
+        { id: "globe-1", kind: "globe", opacity: "x" },
       ],
       links: [
         { from: "run-1", fromSocket: "anything", to: "sieve-1", toSocket: "classes" },
@@ -133,12 +163,24 @@ describe("parseGraph", () => {
       places: { "run-1": { x: 3, y: "4" }, "sieve-1": { x: 1, y: 2 } },
       viewer: "sieve-1",
     })
-    expect(g?.nodes.map((n) => n.id)).toEqual(["run-1", "sieve-1", "mix-1"])
+    expect(g?.nodes.map((n) => n.id)).toEqual(["run-1", "sieve-1", "mix-1", "globe-1"])
+    expect(g?.nodes[3]).toEqual({ id: "globe-1", kind: "globe", opacity: 0.85 })
     expect(g?.nodes[1]).toEqual({ id: "sieve-1", kind: "sieve", minPixels: SIEVE_MIN, connectivity: 8 })
     expect(g?.nodes[2]).toEqual({ id: "mix-1", kind: "mix", opacity: 1 })
     expect(g?.links).toEqual([link("run-1", "anything", "sieve-1", "classes")])
     expect(g?.places).toEqual({ "sieve-1": { x: 1, y: 2 } })
     expect(g?.viewer).toBeNull()
+  })
+
+  it("reads a Globe's single image input as its first layer", () => {
+    const g = parseGraph({
+      nodes: [
+        { id: "run-1", kind: "run", runId: "r" },
+        { id: "globe-1", kind: "globe", opacity: 0.5 },
+      ],
+      links: [{ from: "run-1", fromSocket: "prediction", to: "globe-1", toSocket: "image" }],
+    })
+    expect(g?.links).toEqual([link("run-1", "prediction", "globe-1", "layer-1")])
   })
 
   it("answers null for a board saved before the compositor existed", () => {

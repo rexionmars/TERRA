@@ -82,6 +82,12 @@ interface View {
 
 const clamp = (v: number, lo: number, hi: number) => Math.min(hi, Math.max(lo, v))
 
+/** What names a link: the input it lands on, since an input takes one link. */
+export const linkKey = (to: string, toSocket: string) => `${to}\u0000${toSocket}`
+
+/** Room left around the graph in the wire layer, so a curve's bulge is never clipped. */
+const WIRE_PAD = 240
+
 export function outputSocketY(node: SocketNode, index: number, folded: boolean): number {
   if (folded) return node.place.y + HEAD_H / 2
   return node.place.y + HEAD_H + BODY_PAD + index * ROW_H + ROW_H / 2
@@ -133,6 +139,8 @@ export function SocketCanvas({
   onLink,
   onUnlink,
   onSelect,
+  selectedLink,
+  onSelectLink,
   apiRef,
   className,
 }: {
@@ -151,6 +159,10 @@ export function SocketCanvas({
   onUnlink: (to: string, toSocket: string) => void
   /** A node was pressed, or the empty field (null). */
   onSelect: (id: string | null, mods: { ctrl: boolean; shift: boolean }) => void
+  /** The selected link, by linkKey; drawn in the accent. */
+  selectedLink?: string | null
+  /** A link was pressed. */
+  onSelectLink?: (to: string, toSocket: string) => void
   apiRef?: React.RefObject<CanvasApi | null>
   className?: string
 }) {
@@ -308,7 +320,21 @@ export function SocketCanvas({
   } | null>(null)
   const [front, setFront] = useState<string | null>(null)
 
-  const capture = (e: React.PointerEvent) => hostRef.current?.setPointerCapture(e.pointerId)
+  /*
+    WHILE A GESTURE LASTS, NOTHING IN THE FIELD CAN BE SELECTED AS TEXT.
+
+    The field is select-none, and that was not enough: the figures inside the
+    nodes are .telemetry, which asks for text selection back so a number can be
+    copied, and a drag that crossed them selected every one it passed. The lock
+    is a class on the field for the length of the gesture, and whatever was
+    already selected is let go when one starts.
+  */
+  const [gesture, setGesture] = useState(false)
+  const capture = (e: React.PointerEvent) => {
+    hostRef.current?.setPointerCapture(e.pointerId)
+    window.getSelection()?.removeAllRanges()
+    setGesture(true)
+  }
 
   const beginPan = (e: React.PointerEvent) => {
     if (e.button !== 0 && e.button !== 1) return
@@ -322,6 +348,7 @@ export function SocketCanvas({
   const beginNode = (e: React.PointerEvent, n: SocketNode) => {
     if (e.button !== 0) return
     e.stopPropagation()
+    e.preventDefault()
     touched.current = true
     setFront(n.id)
     drag.current = { kind: "node", id: n.id, startX: e.clientX, startY: e.clientY, from: n.place }
@@ -331,6 +358,7 @@ export function SocketCanvas({
   const beginLink = (e: React.PointerEvent, from: string, fromSocket: string) => {
     if (e.button !== 0) return
     e.stopPropagation()
+    e.preventDefault()
     touched.current = true
     drag.current = { kind: "link", from, fromSocket }
     setPulling({ from, fromSocket, ...toBoard(e.clientX, e.clientY) })
@@ -397,6 +425,7 @@ export function SocketCanvas({
     if (d?.kind === "node") onMoveEnd?.()
     drag.current = null
     setPulling(null)
+    setGesture(false)
   }
 
   const byId = new Map(nodes.map((n) => [n.id, n]))
@@ -406,6 +435,32 @@ export function SocketCanvas({
     return { x: n.place.x + n.w, y: outputSocketY(n, i, folded.has(n.id)) }
   }
 
+  /*
+    The wire layer spans the graph rather than being a 1x1 box that overflows.
+    Drawing overflowed SVG is reliable; hit-testing it is not, and the links
+    are pressed now, to be selected and removed.
+  */
+  let minX = 0
+  let minY = 0
+  let maxX = 0
+  let maxY = 0
+  nodes.forEach((n, i) => {
+    minX = i ? Math.min(minX, n.place.x) : n.place.x
+    minY = i ? Math.min(minY, n.place.y) : n.place.y
+    maxX = i ? Math.max(maxX, n.place.x + n.w) : n.place.x + n.w
+    maxY = i ? Math.max(maxY, n.place.y + n.h) : n.place.y + n.h
+  })
+  if (pulling) {
+    minX = Math.min(minX, pulling.x)
+    minY = Math.min(minY, pulling.y)
+    maxX = Math.max(maxX, pulling.x)
+    maxY = Math.max(maxY, pulling.y)
+  }
+  minX -= WIRE_PAD
+  minY -= WIRE_PAD
+  maxX += WIRE_PAD
+  maxY += WIRE_PAD
+
   return (
     <div
       ref={hostRef}
@@ -413,7 +468,11 @@ export function SocketCanvas({
       onPointerMove={onPointerMove}
       onPointerUp={endDrag}
       onPointerCancel={() => endDrag()}
-      className={cn("app-no-drag relative h-full w-full overflow-hidden touch-none select-none", className)}
+      className={cn(
+        "app-no-drag relative h-full w-full overflow-hidden touch-none select-none",
+        gesture && "gesture-lock",
+        className
+      )}
       style={{
         background: "var(--s-field)",
         backgroundImage: "radial-gradient(rgb(var(--p-line) / 0.45) 1px, transparent 1px)",
@@ -426,7 +485,11 @@ export function SocketCanvas({
         className="pointer-events-none absolute left-0 top-0 origin-top-left"
         style={{ transform: `translate(${view.x}px, ${view.y}px) scale(${view.z})` }}
       >
-        <svg width={1} height={1} className="absolute left-0 top-0 overflow-visible">
+        <svg
+          className="absolute overflow-visible"
+          style={{ left: minX, top: minY, width: maxX - minX, height: maxY - minY }}
+        >
+          <g transform={`translate(${-minX} ${-minY})`}>
           {links.map((l) => {
             const a = byId.get(l.from)
             const b = byId.get(l.to)
@@ -435,18 +498,39 @@ export function SocketCanvas({
             if (j < 0) return null
             const p = outputPoint(a, l.fromSocket)
             const d = wirePath(p.x, p.y, b.place.x, inputSocketY(b, j, folded.has(b.id)))
-            const stroke = l.state === "failed" ? "var(--p-wire-failed)" : l.colour
+            const selected = selectedLink === linkKey(l.to, l.toSocket)
+            const stroke = selected
+              ? "rgb(var(--p-accent))"
+              : l.state === "failed"
+                ? "var(--p-wire-failed)"
+                : l.colour
             return (
               <g key={`${l.to}-${l.toSocket}`}>
-                <path d={d} fill="none" stroke="rgb(0 0 0 / 0.45)" strokeWidth={4} />
+                <path d={d} fill="none" stroke="rgb(0 0 0 / 0.45)" strokeWidth={selected ? 5.5 : 4} />
                 <path
                   d={d}
                   fill="none"
                   stroke={stroke}
-                  strokeWidth={2}
-                  strokeOpacity={l.state === "pending" ? 0.5 : 1}
-                  strokeDasharray={l.state === "pending" ? "8 4" : undefined}
-                  className={l.state === "pending" ? "wire-flow" : undefined}
+                  strokeWidth={selected ? 3 : 2}
+                  strokeOpacity={l.state === "pending" && !selected ? 0.5 : 1}
+                  strokeDasharray={l.state === "pending" && !selected ? "8 4" : undefined}
+                  className={l.state === "pending" && !selected ? "wire-flow" : undefined}
+                />
+                {/*
+                  What a press lands on: the same curve, wide and invisible, so
+                  a two-pixel line can be hit without aiming at it.
+                */}
+                <path
+                  d={d}
+                  fill="none"
+                  stroke="transparent"
+                  strokeWidth={12}
+                  style={{ pointerEvents: "stroke", cursor: "pointer" }}
+                  onPointerDown={(e) => {
+                    if (e.button !== 0) return
+                    e.stopPropagation()
+                    onSelectLink?.(l.to, l.toSocket)
+                  }}
                 />
               </g>
             )
@@ -465,6 +549,7 @@ export function SocketCanvas({
               strokeDasharray="4 4"
             />
           )}
+          </g>
         </svg>
 
         {nodes.map((n) => {

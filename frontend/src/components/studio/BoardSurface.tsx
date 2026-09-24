@@ -139,8 +139,17 @@ function EditorEmpty({ children }: { children: React.ReactNode }) {
 import { StudioBrowser } from "@/components/studio/StudioBrowser"
 import { ReportsEditor } from "@/components/studio/ReportsEditor"
 import { ConsoleEditor } from "@/components/studio/ConsoleEditor"
-import { CompositorEditor } from "@/components/studio/CompositorEditor"
-import type { CompositorGraph } from "@/lib/compositorGraph"
+import {
+  CompositorEditor,
+  type CompositorGlobeOverlay,
+} from "@/components/studio/CompositorEditor"
+import { disconnect, linkInto, type CompositorGraph } from "@/lib/compositorGraph"
+import {
+  drawnByCompositor,
+  layersBySource,
+  planesOnGlobe,
+  toggleOnGlobe,
+} from "@/lib/globePresence"
 import { StartScreen, claimLaunchStart } from "@/components/studio/StartScreen"
 import { ResearchPackModal } from "@/components/ResearchPackModal"
 import { MineralReadingColumn } from "@/components/mineral/MineralReading"
@@ -1014,12 +1023,56 @@ export function BoardSurface({
   const [propertyOnMap, setPropertyOnMap] = useState<ReadonlySet<string>>(
     () => new Set()
   )
+  /*
+    The compositor's graph, held here rather than in its editor for two
+    reasons: a save records it, which is what `useKept`'s third argument says,
+    and two areas showing the editor must show one graph rather than two
+    copies drifting apart. Null until the reader changes the default.
+  */
+  const [compositor, setCompositor] = useKept<CompositorGraph | null>(COMPOSITOR, null, true)
+  /*
+    What the compositor's Globe nodes last sent, drawn with the planes above.
+
+    Kept here, and kept when the compositor's area closes: turning that area
+    into a Globe is the ordinary way to look at what was sent, and an overlay
+    that left with the editor could never be seen that way. What keeps it
+    honest is the check where it is drawn -- the Globe node must still be on
+    the graph and every run it derives from still on the board.
+  */
+  const [compositorGlobe, setCompositorGlobe] = useState<CompositorGlobeOverlay[]>([])
+  /**
+   * Which of those the outliner's eye has taken off the globe, by key.
+   *
+   * The globe's own state, like `sentToGlobe`: hiding a layer is a question
+   * about what the globe shows, not an edit to the graph, which is what
+   * removing one from the outliner is.
+   */
+  const [hiddenOnGlobe, setHiddenOnGlobe] = useState<ReadonlySet<string>>(() => new Set())
+  /*
+    Send a plane to the globe, or take it off -- the plane's RASTER, whichever
+    way it got there. When the compositor already draws that same raster (see
+    onGlobeKeys), taking it off hides the compositor's layer and putting it
+    back shows that layer again, rather than adding a second copy of one
+    raster beside the first. Through refs, since this is handed to the scene.
+  */
   const toggleGlobe = useCallback((key: string) => {
-    setSentToGlobe((prev) => {
-      const next = new Set(prev)
-      if (!next.delete(key)) next.add(key)
-      return next
-    })
+    const t = toggleOnGlobe(key, onGlobeKeysRef.current, compositorBySourceRef.current)
+    if (t.sent !== "keep") {
+      setSentToGlobe((prev) => {
+        const next = new Set(prev)
+        if (t.sent === "add") next.add(key)
+        else next.delete(key)
+        return next
+      })
+    }
+    if (t.hide.length || t.show.length) {
+      setHiddenOnGlobe((prev) => {
+        const next = new Set(prev)
+        for (const k of t.hide) next.add(k)
+        for (const k of t.show) next.delete(k)
+        return next
+      })
+    }
   }, [])
   const toggleProperty = useCallback((key: string) => {
     setPropertyOnMap((prev) => {
@@ -2595,7 +2648,7 @@ export function BoardSurface({
    * other about the same plane.
    *
    * Everything live is read through a ref, because the scene's callback holds
-   * the scope it was built in -- see sentToGlobeRef, which is where that cost
+   * the scope it was built in -- see onGlobeKeysRef, which is where that cost
    * was paid.
    */
   const openPlaneMenu = useCallback(
@@ -2617,7 +2670,7 @@ export function BoardSurface({
         soloed: isSoloed(areasRef.current, groupId, id),
         // By the PLANE, area and layer together, which is what the set holds
         // and why -- see its docblock.
-        onMap: sentToGlobeRef.current.has(sceneKey(groupId, id)),
+        onMap: onGlobeKeysRef.current.has(sceneKey(groupId, id)),
         propertyOnMap: propertyOnMapRef.current.has(sceneKey(groupId, id)),
         /* Whether anything published what its colours mean. Resolved here, so
            the entry is disabled rather than drawing an empty box. */
@@ -2645,6 +2698,60 @@ export function BoardSurface({
     set here: this runs during a restore too, where planes are briefly absent,
     and pruning would quietly forget what the reader had sent.
   */
+  /*
+    The compositor's globe layers that still stand: the link that fills the
+    layer is still on the graph -- which also means its Globe node is -- and
+    every run it derives from is still on the board. The editor that sent them
+    may be closed and cannot take them back, so the check is made here, where
+    both the graph and the board are.
+  */
+  const compositorLive = useMemo(() => {
+    const onBoard = new Set(assetRuns.map((r) => r.runId))
+    return compositorGlobe.filter(
+      (o) =>
+        !!compositor &&
+        !!linkInto(compositor, o.nodeId, o.socket) &&
+        o.runIds.every((id) => onBoard.has(id))
+    )
+  }, [compositor, compositorGlobe, assetRuns])
+
+  /*
+    ONE RASTER, ONE PRESENCE ON THE GLOBE.
+
+    A Globe node fed a run's raster through Viewers alone draws exactly the
+    plane the outliner lists for that raster. Counted apart, the outliner said
+    the plane was not on the globe while it was, and "Show on the globe" drew a
+    second copy over the first. So a plane is on the globe when it was sent OR
+    when the compositor draws it unchanged and its layer is not hidden -- and
+    where both hold, it is drawn once, as the compositor's layer, which keeps
+    the stack order its Globe node sets.
+  */
+  const compositorBySource = useMemo(
+    () =>
+      layersBySource(
+        compositorLive.map((o) => ({
+          key: o.key,
+          sourceKey: o.source ? sceneKey(o.source.areaId, o.source.sceneId) : null,
+        }))
+      ),
+    [compositorLive]
+  )
+  const onGlobeKeys = useMemo<ReadonlySet<string>>(
+    () => planesOnGlobe(sentToGlobe, compositorBySource, hiddenOnGlobe),
+    [sentToGlobe, compositorBySource, hiddenOnGlobe]
+  )
+  const compositorBySourceRef = useRef(compositorBySource)
+  compositorBySourceRef.current = compositorBySource
+  /*
+    Through a ref because `createBoard` is called once and its callbacks hold
+    the scope they were built in, so state read straight out of that scope is
+    frozen at whatever it was then. The plane menu's globe entry once read the
+    set that way and named a direction that had nothing to do with the plane:
+    the label stopped following the action.
+  */
+  const onGlobeKeysRef = useRef(onGlobeKeys)
+  onGlobeKeysRef.current = onGlobeKeys
+
   const globeOverlays = useMemo(() => {
     const out: {
       key: string
@@ -2665,6 +2772,8 @@ export function BoardSurface({
       for (const l of a.layers) {
         const key = sceneKey(a.id, l.id)
         if (!sentToGlobe.has(key)) continue
+        // Drawn by the compositor already, unchanged: once is the raster.
+        if (drawnByCompositor(key, compositorBySource, hiddenOnGlobe)) continue
         /*
           The legend travels with the raster, so the globe never composes one.
           lib/layerLegend.ts records why: a legend hand-written beside the
@@ -2703,10 +2812,34 @@ export function BoardSurface({
         out.push({ key, areaId: a.id, layer: l, caption })
       }
     }
+    // The compositor's, after the planes, so each sits on top of the stack it joins.
+    for (const o of compositorLive) {
+      if (hiddenOnGlobe.has(o.key)) continue
+      /*
+        A plane's raster drawn unchanged carries the plane's legend where the
+        reader asked for it, since it is that plane on the globe.
+      */
+      let caption: OverlayCaption | undefined
+      if (o.source) {
+        const { areaId: srcArea, sceneId } = o.source
+        const src = propertyOnMap.has(sceneKey(srcArea, sceneId)) ? legendByArea.get(srcArea) : null
+        const legend = src ? legendFor(sceneId, src) : null
+        if (legend) {
+          caption = {
+            legend,
+            area: areas.find((a) => a.id === srcArea)?.title ?? "",
+            detail:
+              assetRuns.find((r) => r.areaId === srcArea)?.assets.find((x) => x.sceneId === sceneId)
+                ?.params ?? null,
+          }
+        }
+      }
+      out.push({ key: o.key, areaId: o.areaId, layer: o.layer, caption })
+    }
     return out
     // `areas` is a new array on every render, which is what keeps an edit to a
     // layer reaching the globe; sentToGlobe changes only when one is sent.
-  }, [areas, sentToGlobe, propertyOnMap, legendByArea, assetRuns])
+  }, [areas, sentToGlobe, propertyOnMap, legendByArea, assetRuns, compositorLive, compositorBySource, hiddenOnGlobe])
 
   const areasRef = useRef(areas)
   areasRef.current = areas
@@ -2720,17 +2853,6 @@ export function BoardSurface({
   legendByAreaRef.current = legendByArea
   const flatRef = useRef(flat)
   flatRef.current = flat
-  /*
-    Through a ref for the reason the two above are: `createBoard` is called
-    once and its callbacks hold the scope they were built in, so state read
-    straight out of that scope is frozen at whatever it was then.
-
-    This one was, and the plane menu's globe entry therefore named a direction
-    that had nothing to do with the plane -- it read the set as it stood when
-    the board was built, so the label stopped following the action.
-  */
-  const sentToGlobeRef = useRef(sentToGlobe)
-  sentToGlobeRef.current = sentToGlobe
   /*
     What the board is still waiting for. Reported by the scene as each texture
     lands, including the ones that fail -- a board with one unreadable raster
@@ -2781,13 +2903,6 @@ export function BoardSurface({
     hid stayed in the list taking a row.
   */
   const [hideInvisible, setHideInvisible] = useKept("hideInvisible", false)
-  /*
-    The compositor's graph, held here rather than in its editor for two
-    reasons: a save records it, which is what `useKept`'s third argument says,
-    and two areas showing the editor must show one graph rather than two
-    copies drifting apart. Null until the reader changes the default.
-  */
-  const [compositor, setCompositor] = useKept<CompositorGraph | null>(COMPOSITOR, null, true)
   const [brushRadius, setBrushRadius] = useState<BrushRadiusPx>(2)
   const [probeUv, setProbeUv] = useState<{
     groupId: string
@@ -4060,6 +4175,21 @@ export function BoardSurface({
             areas={areas}
             areaId={live}
             assetRuns={assetRuns}
+            compositorRows={compositorLive.map((o) => ({
+              key: o.key,
+              areaId: o.areaId,
+              title: o.layer.title,
+              visible: !hiddenOnGlobe.has(o.key),
+              onToggle: () =>
+                setHiddenOnGlobe((prev) => {
+                  const next = new Set(prev)
+                  if (!next.delete(o.key)) next.add(o.key)
+                  return next
+                }),
+              onRemove: () => {
+                if (compositor) setCompositor(disconnect(compositor, o.nodeId, o.socket))
+              },
+            }))}
             addRun={
               <RunPicker
                 runs={runs}
@@ -4074,7 +4204,7 @@ export function BoardSurface({
             onAddToScene={addToScene}
             onRemoveFromScene={removeFromScene}
             globe={{
-              onGlobe: sentToGlobe,
+              onGlobe: onGlobeKeys,
               withProperty: propertyOnMap,
               onToggleGlobe: (areaId, sceneId) =>
                 toggleGlobe(sceneKey(areaId, sceneId)),
@@ -4223,6 +4353,7 @@ export function BoardSurface({
         runs={assetRuns}
         graph={compositor}
         onChange={setCompositor}
+        onGlobe={setCompositorGlobe}
         surface={surfaceRef.current}
       />
     ),

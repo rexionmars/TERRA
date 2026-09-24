@@ -6,7 +6,9 @@
  * declares its sockets; a link joins one output socket to one input socket;
  * an input takes one link and an output feeds any number. The Run node is the
  * Render Layers node of this editor: one output per raster the run produced.
- * The Viewer is the Viewer node: whatever reaches it is drawn in its card.
+ * The Viewer is the Viewer node: whatever reaches it is drawn in its card, and
+ * passed on through its output. The Globe node is where a raster leaves the
+ * graph: it is drawn on the Globe editor, over the ground it was measured on.
  *
  * NO NODE IS FOR ONE PURPOSE. The filters, the masks, the mix and the readings
  * are categories of one Add menu, as Blender's are, and any output goes to any
@@ -64,6 +66,7 @@ export type GraphNode =
   | { id: string; kind: "areas" }
   | { id: string; kind: "change" }
   | { id: string; kind: "viewer" }
+  | { id: string; kind: "globe"; opacity: number }
 
 export type NodeKind = GraphNode["kind"]
 
@@ -182,8 +185,17 @@ export const NODE_KINDS: readonly KindMeta[] = [
     kind: "viewer",
     category: "output",
     label: "Viewer",
-    hint: "Draws what reaches it, in its own card",
+    hint: "Draws what reaches it in its own card, and passes it on",
     inputs: [{ id: "image", label: "Image", accepts: ANY }],
+    outputs: [{ id: "image", label: "Image", type: { follow: "image" } }],
+  },
+  {
+    kind: "globe",
+    category: "output",
+    label: "Globe",
+    hint: "Draws each raster that reaches it on the Globe editor, stacked in the order of its layers",
+    // Its inputs are its layers, which grow with its links: see inputsOf.
+    inputs: [],
     outputs: [],
   },
 ]
@@ -202,6 +214,32 @@ const META = new Map(NODE_KINDS.map((k) => [k.kind, k]))
 
 export function kindMeta(kind: NodeKind): KindMeta {
   return META.get(kind)!
+}
+
+const LAYER = /^layer-(\d+)$/
+
+/**
+ * The inputs a node has on this graph.
+ *
+ * Declared per kind, except the Globe's. Its inputs are the layers of one
+ * stack on the globe, and a stack has as many as the reader links: every
+ * linked layer, in the order of their numbers, then one empty layer to link
+ * the next raster to. Labelled by position rather than by id, so a stack
+ * whose second layer was unlinked reads Layer 1, Layer 2 rather than 1, 3.
+ */
+export function inputsOf(graph: CompositorGraph, node: GraphNode): readonly InputDef[] {
+  if (node.kind !== "globe") return kindMeta(node.kind).inputs
+  const used = graph.links
+    .filter((l) => l.to === node.id && LAYER.test(l.toSocket))
+    .map((l) => Number(LAYER.exec(l.toSocket)![1]))
+    .sort((a, b) => a - b)
+  const next = (used[used.length - 1] ?? 0) + 1
+  return [...used, next].map((n, i) => ({ id: `layer-${n}`, label: `Layer ${i + 1}`, accepts: ANY }))
+}
+
+/** Whether `socket` names an input a node of this kind can have at all. */
+function canHaveInput(node: GraphNode, socket: string): boolean {
+  return node.kind === "globe" ? LAYER.test(socket) : kindMeta(node.kind).inputs.some((i) => i.id === socket)
 }
 
 /** The sieve's threshold bounds, in pixels. Below 2 the sieve does nothing. */
@@ -238,6 +276,8 @@ export function createNode(kind: NodeKind, id: string): GraphNode {
       return { id, kind }
     case "viewer":
       return { id, kind }
+    case "globe":
+      return { id, kind, opacity: 0.85 }
   }
 }
 
@@ -322,7 +362,9 @@ export function connect(
   const b = nodeOf(graph, link.to)
   if (!a || !b) return { ok: false, reason: "That node is no longer on the graph." }
   if (a.id === b.id) return { ok: false, reason: "A node cannot read its own output." }
-  const input = kindMeta(b.kind).inputs.find((i) => i.id === link.toSocket)
+  const input = canHaveInput(b, link.toSocket)
+    ? (inputsOf(graph, b).find((i) => i.id === link.toSocket) ?? { id: link.toSocket, label: "Layer", accepts: ANY })
+    : undefined
   if (!input) return { ok: false, reason: `${kindMeta(b.kind).label} has no input called ${link.toSocket}.` }
   if (!outputsOf(a, runOutputs).some((o) => o.id === link.fromSocket)) {
     return { ok: false, reason: "That output is no longer on its node." }
@@ -476,6 +518,10 @@ function parseNode(raw: unknown): GraphNode | null {
       return { id, kind: "change" }
     case "viewer":
       return { id, kind: "viewer" }
+    case "globe": {
+      const v = Number(o.opacity)
+      return { id, kind: "globe", opacity: Number.isFinite(v) ? Math.min(1, Math.max(0, v)) : 0.85 }
+    }
     default:
       return null
   }
@@ -516,8 +562,10 @@ export function parseGraph(raw: unknown): CompositorGraph | null {
     const from = nodeOf(graph, link.from)
     const to = nodeOf(graph, link.to)
     if (!from || !to || from.id === to.id) continue
+    // The Globe took one input, `image`, before it took layers.
+    if (to.kind === "globe" && link.toSocket === "image") link.toSocket = "layer-1"
     if (linkInto(graph, link.to, link.toSocket)) continue
-    if (!kindMeta(to.kind).inputs.some((i) => i.id === link.toSocket)) continue
+    if (!canHaveInput(to, link.toSocket)) continue
     // Structure only. A Run node's outputs, and so the types, are not known
     // until its run has loaded; the evaluation reports a link that is wrong.
     if (from.kind !== "run" && !kindMeta(from.kind).outputs.some((x) => x.id === link.fromSocket)) continue
