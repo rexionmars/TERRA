@@ -2381,6 +2381,32 @@ export namespace store {
 	        this.overlay_count = source["overlay_count"];
 	    }
 	}
+	export class ProjectFileSummary {
+	    path: string;
+	    project_id: string;
+	    project_name: string;
+	    areas: number;
+	    runs: number;
+	    overlays: number;
+	    studios: number;
+	    missing_assets: number;
+	
+	    static createFrom(source: any = {}) {
+	        return new ProjectFileSummary(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.path = source["path"];
+	        this.project_id = source["project_id"];
+	        this.project_name = source["project_name"];
+	        this.areas = source["areas"];
+	        this.runs = source["runs"];
+	        this.overlays = source["overlays"];
+	        this.studios = source["studios"];
+	        this.missing_assets = source["missing_assets"];
+	    }
+	}
 	export class ProjectOverlay {
 	    id: string;
 	    project_id: string;

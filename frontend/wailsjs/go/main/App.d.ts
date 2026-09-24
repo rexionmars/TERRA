@@ -98,6 +98,8 @@ export function ManageOptionalPackage(arg1:string,arg2:boolean):Promise<void>;
 
 export function OpenExternal(arg1:string):Promise<void>;
 
+export function OpenProjectFile(arg1:string):Promise<store.ProjectFileSummary>;
+
 export function Predict(arg1:analysis.PredictRequest):Promise<analysis.PredictResult>;
 
 export function PurgeOrphanedRunAssets():Promise<store.PurgeResult>;
@@ -112,11 +114,15 @@ export function RestoreBackup(arg1:string):Promise<store.RestoreResult>;
 
 export function RevealMainWindow():Promise<void>;
 
+export function RevealProjectFile(arg1:string):Promise<void>;
+
 export function RunActivity(arg1:number):Promise<Array<store.ActivityDay>>;
 
 export function RunOverlayURL(arg1:string):Promise<string>;
 
 export function SavePreferences(arg1:store.Preferences):Promise<void>;
+
+export function SaveProjectFile(arg1:string,arg2:string):Promise<store.ProjectFileSummary>;
 
 export function SaveProjectOverlay(arg1:main.SaveProjectOverlayRequest):Promise<store.ProjectOverlay>;
 
@@ -131,6 +137,8 @@ export function SetEarthdataToken(arg1:string):Promise<main.EarthdataStatus>;
 export function SetProjectLastArea(arg1:string,arg2:string):Promise<store.Project>;
 
 export function SetRunProject(arg1:string,arg2:string):Promise<void>;
+
+export function TakeOpenedFiles():Promise<Array<string>>;
 
 export function UpdateArea(arg1:store.Area):Promise<store.Area>;
 
