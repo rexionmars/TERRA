@@ -35,6 +35,7 @@ import {
   EyeSlash,
   Gauge,
   GridFour,
+  Graph,
   Image as ImageIcon,
   MapTrifold,
   Minus,
@@ -419,6 +420,55 @@ interface Row {
    * you do to something in a scene.
    */
   removeAll?: () => void
+  /**
+   * A row that is listed but is not a plane on the board, so pressing it
+   * selects nothing and the arrows step over it: the compositor's globe
+   * layers.
+   */
+  inert?: boolean
+  /** Its own removal, for a row that is not a plane and not an area. */
+  remove?: { label: string; title: string; run: () => void }
+}
+
+/** The group that holds compositor layers whose area is not on the board. */
+const COMPOSITOR_GROUP = "compositor"
+
+/** A compositor globe layer as a scene row. See the compositorRows prop. */
+function compositorRow(
+  c: {
+    key: string
+    areaId: string
+    title: string
+    visible: boolean
+    onToggle: () => void
+    onRemove: () => void
+  },
+  index: number,
+  count: number
+): Row {
+  return {
+    id: `comp::${c.areaId}::${c.key}`,
+    areaId: c.areaId,
+    layerId: null,
+    title: c.title,
+    icon: Graph,
+    kind: "Compositor",
+    depth: 1,
+    visible: c.visible,
+    toggle: c.onToggle,
+    expandable: false,
+    dimmed: !c.visible,
+    renamable: false,
+    removeId: null,
+    inert: true,
+    remove: {
+      label: `Unlink ${c.title} from its Globe node`,
+      title: "Take off the globe: unlinks this layer in the compositor",
+      run: c.onRemove,
+    },
+    posinset: index + 1,
+    setsize: count,
+  }
 }
 
 export function BoardSidebar({
@@ -457,6 +507,7 @@ export function BoardSidebar({
   onSelectComposition,
   onRemoveComposition,
   hideInvisible = false,
+  compositorRows = [],
 }: {
   /**
    * The areas on the board, each with its own stack, bottom first.
@@ -629,6 +680,22 @@ export function BoardSidebar({
    * a filter belongs; the tree only obeys it.
    */
   hideInvisible?: boolean
+  /**
+   * What the compositor's Globe nodes have put on the globe.
+   *
+   * Listed under the area each is stacked with, above its planes, since that
+   * is where it stands on the globe. Not planes: nothing on the board draws
+   * them, so a row is not selected as one. The eye takes one off the globe
+   * and puts it back; the minus unlinks it from its Globe node.
+   */
+  compositorRows?: {
+    key: string
+    areaId: string
+    title: string
+    visible: boolean
+    onToggle: () => void
+    onRemove: () => void
+  }[]
 }) {
   /*
     Every row the scene tree has, open or not, for every area on the board.
@@ -698,6 +765,15 @@ export function BoardSidebar({
       setsize: areas.length,
     })
 
+    /*
+      The compositor's layers stacked with this area, above its planes: on the
+      globe they stand on top of the stack they join.
+    */
+    const sent = compositorRows.filter(
+      (c) => c.areaId === area.id && (!hideInvisible || c.visible)
+    )
+    sent.forEach((c, i) => allRows.push(compositorRow(c, i, sent.length)))
+
     for (const l of stack) {
       // Only the current run's classification carries a transform: the
       // majority filter is the map's switch, and a loaded run does not answer
@@ -741,6 +817,39 @@ export function BoardSidebar({
         })
       }
     }
+  }
+
+  /*
+    Layers whose area is not on the board -- a run whose planes were all taken
+    off still feeds the compositor -- under a group of their own, so every
+    layer on the globe has a row.
+  */
+  const orphans = compositorRows.filter(
+    (c) => !areas.some((a) => a.id === c.areaId) && (!hideInvisible || c.visible)
+  )
+  if (orphans.length) {
+    const allOn = orphans.every((c) => c.visible)
+    allRows.push({
+      id: stackRow(COMPOSITOR_GROUP),
+      areaId: COMPOSITOR_GROUP,
+      layerId: null,
+      title: "Compositor",
+      icon: Graph,
+      kind: "Compositor",
+      depth: 0,
+      visible: allOn,
+      toggle: () => orphans.forEach((c) => c.visible === allOn && c.onToggle()),
+      expandable: true,
+      dimmed: false,
+      renamable: false,
+      removeId: null,
+      inert: true,
+      posinset: areas.length + 1,
+      setsize: areas.length + 1,
+    })
+    orphans.forEach((c, i) =>
+      allRows.push({ ...compositorRow(c, i, orphans.length), areaId: COMPOSITOR_GROUP })
+    )
   }
 
   // Shown only where every ancestor is open. Depth is enough to decide it,
@@ -821,8 +930,9 @@ export function BoardSidebar({
   )
 
   /** The area's layer rows, top first, as the tree lists them. */
+  // Planes only: a compositor row is listed among them and is not one of them.
   const layerRowsOf = (areaId: string) =>
-    allRows.filter((r) => r.areaId === areaId && r.depth === 1)
+    allRows.filter((r) => r.areaId === areaId && r.depth === 1 && r.layerId !== null)
 
   /**
    * Where a pointer at this height would insert, in the area's tree order.
@@ -927,8 +1037,14 @@ export function BoardSidebar({
       setDraft(row.title)
       return
     }
-    if (e.key === "ArrowDown") return go(rows[i + 1])
-    if (e.key === "ArrowUp") return go(rows[i - 1])
+    // Past the rows that cannot be selected, in either direction.
+    const step = (by: 1 | -1) => {
+      let j = i + by
+      while (rows[j]?.inert) j += by
+      return rows[j]
+    }
+    if (e.key === "ArrowDown") return go(step(1))
+    if (e.key === "ArrowUp") return go(step(-1))
     if (e.key === "ArrowRight") {
       if (row.expandable && !expanded.has(row.id)) {
         e.preventDefault()
@@ -1107,6 +1223,7 @@ export function BoardSidebar({
                 onClick={(e) => {
                   // A press that travelled was a reorder, not a choice.
                   if (dragRef.current?.moved) return
+                  if (row.inert) return
                   onActivate(row.id, e.shiftKey)
                 }}
                 onContextMenu={(e) => {
@@ -1316,6 +1433,21 @@ export function BoardSidebar({
                     tabIndex={-1}
                     aria-label={`Remove ${row.title} from the board`}
                     title="Remove from the studio"
+                    className="shrink-0 rounded-sm text-muted-foreground/50 transition-colors hover:text-foreground"
+                  >
+                    <Minus className="size-3.5" />
+                  </button>
+                )}
+                {row.remove && (
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      row.remove!.run()
+                    }}
+                    tabIndex={-1}
+                    aria-label={row.remove.label}
+                    title={row.remove.title}
                     className="shrink-0 rounded-sm text-muted-foreground/50 transition-colors hover:text-foreground"
                   >
                     <Minus className="size-3.5" />

@@ -146,6 +146,18 @@ describe("evaluate", () => {
     expect([...v.rgba]).toEqual([100, 50, 0, 255])
   })
 
+  it("passes a Viewer's input through its output, unchanged, to a Globe", () => {
+    const cls = classes(["ab"])
+    const { run } = build(
+      [{ id: "run-1", kind: "run", runId: "r" }, createNode("viewer", "viewer-1"), createNode("globe", "globe-1")],
+      [L("run-1", "cls", "viewer-1", "image"), L("viewer-1", "image", "globe-1", "layer-1")],
+      { cls }
+    )
+    const e = run()
+    expect(ready(e.outputs.get(socketKey("viewer-1", "image")))).toBe(cls)
+    expect(ready(e.inputs.get(socketKey("globe-1", "layer-1")))).toBe(cls)
+  })
+
   it("evaluates a node's own output even where nothing reads it", () => {
     const { run } = build(
       [{ id: "run-1", kind: "run", runId: "r" }, createNode("sieve", "sieve-1")],

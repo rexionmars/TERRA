@@ -26,6 +26,7 @@
 import { useEffect, useMemo, useRef, useState } from "react"
 import { CaretRight, X } from "@phosphor-icons/react"
 import {
+  linkKey,
   SocketCanvas,
   type CanvasApi,
   type Place,
@@ -54,6 +55,7 @@ import {
   defaultGraph,
   disconnect,
   EMPTY_GRAPH,
+  inputsOf,
   kindMeta,
   linkInto,
   moveNode,
@@ -85,6 +87,7 @@ import {
   type Result,
 } from "@/lib/compositorEval"
 import type { AssetRun, ClassRaster } from "@/lib/runAssets"
+import { isZeroExtent, type RasterLayer } from "@/lib/mapLayers"
 import { notifyInfo } from "@/lib/notify"
 
 /** How wide each kind is drawn: settings at the run graph's width, readings wider. */
@@ -99,6 +102,7 @@ const WIDTH: Record<NodeKind, number> = {
   areas: 300,
   change: 330,
   viewer: 320,
+  globe: 220,
 }
 
 const GUESS_H: Record<NodeKind, number> = {
@@ -112,6 +116,7 @@ const GUESS_H: Record<NodeKind, number> = {
   areas: 220,
   change: 300,
   viewer: 290,
+  globe: 130,
 }
 
 /*
@@ -416,10 +421,61 @@ function AddCascade({
   )
 }
 
+/**
+ * A raster a Globe node sends out of the graph, as the board hands it to the
+ * Globe editor.
+ */
+export interface CompositorGlobeOverlay {
+  key: string
+  /** The Globe node it comes from; the board drops the overlay when the node goes. */
+  nodeId: string
+  /** The node's layer it fills; the board drops the overlay when that link goes. */
+  socket: string
+  /**
+   * The run raster this overlay IS, where it reaches the Globe unprocessed --
+   * through Viewers alone -- as the plane key's two halves. The board counts
+   * it as that raster being on the globe, so the outliner does not offer to
+   * send a second copy of it. Null for anything a node has changed.
+   */
+  source: { areaId: string; sceneId: string } | null
+  /**
+   * The ground it is stacked with: the area of the first run it derives from,
+   * so the globe's spread lifts it over that run's own rasters rather than
+   * drawing it in the same plane.
+   */
+  areaId: string
+  /** Every run it derives from; the board drops the overlay when one leaves. */
+  runIds: string[]
+  layer: RasterLayer
+}
+
+/*
+  An image as a PNG data URI, encoded once per image. The globe loads its
+  overlays as textures from a URL, which is the one place in this editor a
+  picture has to be encoded at all.
+*/
+const encoded = new WeakMap<ImageValue, string>()
+function dataUriOf(image: ImageValue): string {
+  const hit = encoded.get(image)
+  if (hit) return hit
+  const canvas = document.createElement("canvas")
+  canvas.width = image.width
+  canvas.height = image.height
+  const ctx = canvas.getContext("2d")
+  if (!ctx) return ""
+  const data = ctx.createImageData(image.width, image.height)
+  data.data.set(image.rgba)
+  ctx.putImageData(data, 0, 0)
+  const uri = canvas.toDataURL("image/png")
+  encoded.set(image, uri)
+  return uri
+}
+
 export function CompositorEditor({
   runs,
   graph: stored,
   onChange,
+  onGlobe,
   surface,
 }: {
   /** The runs on the board, as the outliner lists them. */
@@ -427,6 +483,12 @@ export function CompositorEditor({
   /** The stored graph, or null where the reader has not changed the default. */
   graph: CompositorGraph | null
   onChange: (next: CompositorGraph) => void
+  /**
+   * What the Globe nodes send out, whenever it changes. The board keeps the
+   * last list after this editor closes, so an area can be turned into a
+   * Globe to look at it.
+   */
+  onGlobe?: (overlays: CompositorGlobeOverlay[]) => void
   surface: HTMLElement | null
 }) {
   /*
@@ -555,9 +617,144 @@ export function CompositorEditor({
   const inputOf = (node: string, socket: string) => evaluation.inputs.get(socketKey(node, socket))
   const readyValue = (r: Result | undefined) => (r?.status === "ready" ? r.value : null)
 
+  /** The runs whose rasters reach a node, through any chain of links. */
+  const runsFeeding = (id: string): string[] => {
+    const out: string[] = []
+    const seen = new Set<string>()
+    const stack = [id]
+    while (stack.length) {
+      const at = stack.pop()!
+      if (seen.has(at)) continue
+      seen.add(at)
+      const node = nodeOf(graph, at)
+      if (node?.kind === "run" && node.runId && !out.includes(node.runId)) out.push(node.runId)
+      for (const l of graph.links) if (l.to === at) stack.push(l.from)
+    }
+    return out
+  }
+
+  /* ---- What the Globe nodes send out ------------------------------------ */
+
+  /*
+    One overlay per linked layer, bottom layer first. Every layer of one Globe
+    node is stacked on one ground -- the area of the first run the node reads
+    -- so the globe's spread separates them, as it separates the planes of one
+    area sent from the viewport.
+  */
+  const sent = graph.nodes.flatMap((node) => {
+    if (node.kind !== "globe") return []
+    const ground = runOf(runsFeeding(node.id)[0] ?? null)?.areaId ?? `compositor:${node.id}`
+    return inputsOf(graph, node).flatMap((input) => {
+      const link = linkInto(graph, node.id, input.id)
+      const v = readyValue(inputOf(node.id, input.id))
+      if (!link || !v?.extent || isZeroExtent(v.extent)) return []
+      return [
+        {
+          node,
+          socket: input.id,
+          label: input.label,
+          from: link.from,
+          fromSocket: link.fromSocket,
+          value: v,
+          extent: v.extent,
+          runIds: runsFeeding(link.from),
+          areaId: ground,
+        },
+      ]
+    })
+  })
+  // A Globe whose raster is still decoding keeps what it last sent, rather
+  // than blinking off the globe until the decode lands.
+  const decoding = graph.nodes.some(
+    (n) =>
+      n.kind === "globe" && inputsOf(graph, n).some((i) => inputOf(n.id, i.id)?.status === "busy")
+  )
+  const sentKey = sent
+    .map((s) => `${s.node.id}:${s.socket}:${s.label}:${s.value.key}:${s.node.opacity}:${s.areaId}:${s.runIds.join(",")}`)
+    .join("|")
+
+  /**
+   * What a layer is called where it is listed: the node its raster came from,
+   * looking through Viewers, since "Viewer" says nothing about the raster.
+   */
+  const describe = (from: string, fromSocket: string): string => {
+    const seen = new Set<string>()
+    let at = { from, fromSocket }
+    for (;;) {
+      const n = nodeOf(graph, at.from)
+      if (!n || seen.has(n.id)) return "Compositor"
+      seen.add(n.id)
+      if (n.kind === "viewer") {
+        const up = linkInto(graph, n.id, "image")
+        if (!up) return "Viewer"
+        at = { from: up.from, fromSocket: up.fromSocket }
+        continue
+      }
+      if (n.kind === "run") return outputsOf(n, runOutputs).find((o) => o.id === at.fromSocket)?.label ?? at.fromSocket
+      return title(n)
+    }
+  }
+
+  /** The run raster a link carries unchanged, looking through Viewers; null past any other node. */
+  const sourceOf = (from: string, fromSocket: string): CompositorGlobeOverlay["source"] => {
+    const seen = new Set<string>()
+    let at = { from, fromSocket }
+    for (;;) {
+      const n = nodeOf(graph, at.from)
+      if (!n || seen.has(n.id)) return null
+      seen.add(n.id)
+      if (n.kind === "viewer") {
+        const up = linkInto(graph, n.id, "image")
+        if (!up) return null
+        at = { from: up.from, fromSocket: up.fromSocket }
+        continue
+      }
+      if (n.kind !== "run") return null
+      const run = runOf(n.runId)
+      const asset = run?.assets.find((a) => a.id === at.fromSocket)
+      return run && asset ? { areaId: run.areaId, sceneId: asset.sceneId } : null
+    }
+  }
+  useEffect(() => {
+    if (decoding || !onGlobe) return
+    onGlobe(
+      sent.map((s) => ({
+        key: `compositor:${s.node.id}:${s.socket}`,
+        nodeId: s.node.id,
+        socket: s.socket,
+        source: sourceOf(s.from, s.fromSocket),
+        areaId: s.areaId,
+        runIds: s.runIds,
+        layer: {
+          id: `compositor-${s.node.id}-${s.socket}`,
+          title: `${describe(s.from, s.fromSocket)} \u00b7 ${s.label}`,
+          uri: dataUriOf(painted(s.value)),
+          extent: s.extent,
+          opacity: s.node.opacity,
+          order: 10_000,
+          // The graph's rasters are pixel grids, class maps among them: a
+          // blend of two class colours names no class.
+          pixelated: true,
+          smooth: false,
+          visible: true,
+        },
+      }))
+    )
+    // `sent` is rebuilt every render; its key is what changes.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [sentKey, decoding])
+
   /* ---- Selection, measurement, keys ---------------------------------------- */
 
   const [selected, setSelected] = useState<string | null>(null)
+  /** A selected link, by linkKey. One thing is selected at a time: a node or a link. */
+  const [selectedLink, setSelectedLink] = useState<string | null>(null)
+  const unlinkSelected = () => {
+    if (!selectedLink) return
+    const [to, toSocket] = selectedLink.split("\u0000")
+    edit(disconnect(graph, to, toSocket))
+    setSelectedLink(null)
+  }
 
   /*
     Where nodes are while one is being dragged, written to the graph when the
@@ -622,7 +819,7 @@ export function CompositorEditor({
     if (sel) {
       outer: for (const out of outputsOf(sel, runOutputs)) {
         const type = outputType(next, sel.id, out.id, runOutputs)
-        for (const input of kindMeta(kind).inputs) {
+        for (const input of inputsOf(next, node)) {
           if (type && !input.accepts.includes(type)) continue
           const r = connect(next, { from: sel.id, fromSocket: out.id, to: id, toSocket: input.id }, runOutputs)
           if (r.ok) {
@@ -649,7 +846,7 @@ export function CompositorEditor({
       // Let go over a node's body: the first input that takes this output,
       // an empty one before one already linked.
       const type = outputType(graph, from, fromSocket, runOutputs)
-      const fits = kindMeta(target.kind).inputs.filter((i) => !type || i.accepts.includes(type))
+      const fits = inputsOf(graph, target).filter((i) => !type || i.accepts.includes(type))
       socket = (fits.find((i) => !linkInto(graph, to, i.id)) ?? fits[0])?.id ?? null
       if (!socket) {
         notifyInfo("That link was not made", `${kindMeta(target.kind).label} has no input that takes this output.`)
@@ -696,6 +893,8 @@ export function CompositorEditor({
     if ((e.target as HTMLElement | null)?.closest?.("input, textarea, select, [contenteditable='true']")) return
     const plain = !e.metaKey && !e.ctrlKey && !e.altKey
     if (e.code === "KeyA" && e.shiftKey && plain) setAddAt({ ...pointer.current })
+    else if ((e.code === "KeyX" || e.key === "Delete" || e.key === "Backspace") && plain && !e.shiftKey && selectedLink)
+      unlinkSelected()
     else if ((e.code === "KeyX" || e.key === "Delete" || e.key === "Backspace") && plain && !e.shiftKey && selected)
       remove(selected)
     else if (e.key === "Home" && plain) api.current?.fit()
@@ -989,6 +1188,47 @@ export function CompositorEditor({
           </>
         )
       }
+
+      case "globe": {
+        const layers = inputsOf(graph, node).filter((i) => linkInto(graph, node.id, i.id))
+        const values = layers.map((i) => ({ input: i, result: inputOf(node.id, i.id) }))
+        const unplaced = values.filter((x) => {
+          const v = readyValue(x.result)
+          return v && (!v.extent || isZeroExtent(v.extent))
+        })
+        const waiting = values.find((x) => x.result?.status !== "ready")
+        return (
+          <>
+            <label className="flex items-center gap-2 text-meta">
+              <span className="text-muted-foreground">Opacity</span>
+              <input
+                type="range"
+                min={0}
+                max={1}
+                step={0.05}
+                value={node.opacity}
+                onChange={(e) => edit(updateNode(graph, { ...node, opacity: Number(e.target.value) }))}
+                className="min-w-0 flex-1 accent-[var(--b-lit)]"
+              />
+              <span className="telemetry w-8 text-right text-foreground">{Math.round(node.opacity * 100)}%</span>
+            </label>
+            {!layers.length ? (
+              <Note>Link a raster to a layer. Each layer is drawn over the one above it in this list.</Note>
+            ) : (
+              <>
+                <Figure label="Layers" value={String(layers.length - unplaced.length)} />
+                {waiting && <StatusNote result={waiting.result} />}
+                {unplaced.map((x) => (
+                  <Note key={x.input.id}>{x.input.label} has no extent to place it by, so it is not drawn.</Note>
+                ))}
+                <Note>
+                  Drawn in every Globe area, Layer 1 lowest; the Globe's spread sets how far apart they stand.
+                </Note>
+              </>
+            )}
+          </>
+        )
+      }
     }
   }
 
@@ -1021,7 +1261,7 @@ export function CompositorEditor({
       selected: selected === node.id,
       status: busy ? "busy" : undefined,
       outputs: outs,
-      inputs: meta.inputs.map((i) => ({
+      inputs: inputsOf(graph, node).map((i) => ({
         id: i.id,
         label: i.label,
         colour: TYPE_COLOUR[i.accepts.includes("image") ? "image" : "classes"],
@@ -1111,11 +1351,12 @@ export function CompositorEditor({
           trigger={(p) => <StudioHeaderMenu {...p} label="Node" />}
         >
           <StudioMenuItem
-            label="Remove"
+            label={selectedLink ? "Remove link" : "Remove"}
             note="X"
-            disabled={!selected}
+            disabled={!selected && !selectedLink}
             onSelect={() => {
-              if (selected) remove(selected)
+              if (selectedLink) unlinkSelected()
+              else if (selected) remove(selected)
               setMenu(null)
             }}
           />
@@ -1166,7 +1407,13 @@ export function CompositorEditor({
             onUnlink={(to, toSocket) => edit(disconnect(graph, to, toSocket))}
             onSelect={(id, mods) => {
               setSelected(id)
+              setSelectedLink(null)
               if (id && mods.ctrl && mods.shift) toViewer(id)
+            }}
+            selectedLink={selectedLink}
+            onSelectLink={(to, toSocket) => {
+              setSelectedLink(linkKey(to, toSocket))
+              setSelected(null)
             }}
             apiRef={api}
           />

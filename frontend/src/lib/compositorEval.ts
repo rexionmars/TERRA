@@ -34,6 +34,7 @@ import {
   type ClassGrid,
 } from "@/lib/classFilters"
 import {
+  inputsOf,
   kindMeta,
   linkInto,
   nodeOf,
@@ -248,7 +249,7 @@ export function evaluate(graph: CompositorGraph, ctx: EvalContext): Evaluation {
     if (!link) r = { status: "none", note: "Not connected." }
     else {
       r = output(link.from, link.fromSocket, trail)
-      const def = kindMeta(node.kind).inputs.find((i) => i.id === inputId)
+      const def = inputsOf(graph, node).find((i) => i.id === inputId)
       if (r.status === "ready" && def && !def.accepts.includes(r.value.type)) {
         r = {
           status: "failed",
@@ -364,13 +365,19 @@ export function evaluate(graph: CompositorGraph, ctx: EvalContext): Evaluation {
         return typeof made === "string" ? { status: "failed", note: made } : { status: "ready", value: made }
       }
 
+      case "viewer": {
+        // What it shows is what it passes on, unchanged.
+        const up = input(node, "image", trail)
+        return up.status === "ready" ? up : notReady(up)
+      }
+
       default:
         return { status: "failed", note: "This node has no outputs." }
     }
   }
 
   for (const node of graph.nodes) {
-    for (const def of kindMeta(node.kind).inputs) input(node, def.id, new Set([node.id]))
+    for (const def of inputsOf(graph, node)) input(node, def.id, new Set([node.id]))
     // A node's own outputs even where nothing reads them, since the node
     // reports on what it made. Not a Run node's: those are decoded rasters,
     // and only the ones something reads are worth decoding.
