@@ -124,6 +124,8 @@ export function SaveStudio(arg1:store.Studio):Promise<store.Studio>;
 
 export function SetAvatar(arg1:string):Promise<store.User>;
 
+export function SetBoardDirty(arg1:boolean):Promise<void>;
+
 export function SetEarthdataToken(arg1:string):Promise<main.EarthdataStatus>;
 
 export function SetProjectLastArea(arg1:string,arg2:string):Promise<store.Project>;

@@ -13,6 +13,7 @@ import type { Studio } from "@/lib/studios"
 import { listStudios, openStudio, saveStudio } from "@/lib/studios"
 import {
   clearBoardMemory,
+  onBoardDirtyChange,
   readBoardMemory,
   restoreBoard,
   snapshotBoard,
@@ -38,6 +39,7 @@ import {
   AnalyzeWater,
   AnalyzeMinerals,
   GetEarthdataStatus,
+  SetBoardDirty,
 } from "../wailsjs/go/main/App"
 import { EventsOn, EventsOff } from "../wailsjs/runtime/runtime"
 import type {
@@ -646,6 +648,17 @@ function AppBody(props: {
     savePrefs,
   } = useAuth()
   const [loadingRun, setLoadingRun] = useState(false)
+
+  /*
+    The board's unsaved state, told to the shell as it changes, so a close or
+    Cmd-Q that would discard it is asked about first -- see beforeClose in
+    app_studios.go. Here rather than in the board, which unmounts on every
+    trip to Settings while what it holds does not.
+  */
+  useEffect(
+    () => onBoardDirtyChange((dirty) => void SetBoardDirty(dirty).catch(() => {})),
+    []
+  )
 
   /**
    * Saved studios, and the request to open one.

@@ -107,6 +107,8 @@ func main() {
 		},
 		OnStartup:  app.startup,
 		OnDomReady: app.domReady,
+		// Asks before a close would discard an unsaved board; see app_studios.go.
+		OnBeforeClose: app.beforeClose,
 		Bind: []interface{}{
 			app,
 		},
