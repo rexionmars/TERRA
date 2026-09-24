@@ -96,15 +96,11 @@ export const SPLASH_STILLS: SplashStill[] = [
       cloud edge against blue is the first place WebP shows its blocks. At q82
       the decoded file holds the edges and the street grid on the valley floor.
 
-      AGAINST THE SCRIM it reads 3.44 under the mark, where Draugen read 2.98 --
-      by the procedure index.css sets out, reimplemented outside this repository
-      as that comment requires, which returns 2.99 for Draugen and so is
-      measuring the same thing. Both are under WCAG's 4.5 knowingly, and both
-      are conservative for the reason given there: the text in that band carries
-      a drop shadow that no measurement of the background models. The foot is
-      clear by a wide margin on either still, but the reconstruction of that
-      band does not return Draugen's recorded 8.06, so it ranked the two stills
-      here and was not read as an absolute.
+      AGAINST THE SCRIM every line of the splash clears WCAG's 4.5 at its
+      brightest pixel, on the first frame of the pan and on the last; the
+      lowest is the tagline at 4.70. The figures, and the procedure that
+      produced them, are beside the scrim in splash.css. Under the previous
+      scrim this still read 3.44 under the mark, where Draugen read 2.98.
     */
     source: "https://www.pexels.com — upload 2764181",
     photographer: "Midtrack",

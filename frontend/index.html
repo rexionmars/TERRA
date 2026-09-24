@@ -44,10 +44,12 @@
           localStorage.setItem(nextKey, String((index + 1) % images.length));
           sessionStorage.setItem(currentKey, String(index));
         } catch (e) {}
-        var css =
-          "linear-gradient(to bottom, rgba(23,23,23,0.22) 0%, rgba(23,23,23,0.28) 40%, rgba(23,23,23,0.55) 100%)," +
-          'url("' + images[index] + '") center / cover no-repeat';
-        document.documentElement.style.setProperty("--splash-html-bg", css);
+        // Only the image: the scrim over it is src/splash.css's, shared with
+        // the React splash, so the two cannot disagree about it.
+        document.documentElement.style.setProperty(
+          "--splash-still",
+          'url("' + images[index] + '")'
+        );
 
         // Only this launch's still is fetched. The React splash used to render
         // all three as background layers, so the browser pulled every one --
@@ -60,6 +62,11 @@
         document.head.appendChild(link);
       })();
     </script>
+    <!-- The splash's styles, shared with SplashScreen.tsx. Linked here rather
+         than imported by the bundle, because the markup below paints before
+         the bundle loads -- in development, CSS a module imports arrives only
+         once that module runs. -->
+    <link rel="stylesheet" href="/src/splash.css"/>
     <style>
       html, body {
         margin: 0;
@@ -67,105 +74,34 @@
         background: rgb(23, 23, 23);
         overflow: hidden;
       }
-      /* Compact centered splash until React SplashScreen mounts */
-      #splash {
-        position: fixed;
-        inset: 0;
-        z-index: 9999;
-        display: flex;
-        flex-direction: column;
-        align-items: center;
-        justify-content: center;
-        gap: 0.85rem;
-        padding: 1.25rem;
-        box-sizing: border-box;
-        background: var(--splash-html-bg, rgb(23, 23, 23));
-        opacity: 1;
-        transition: opacity 280ms ease;
-        pointer-events: none;
-      }
-      #splash.is-done {
-        opacity: 0;
-      }
-      #splash .splash-logo {
-        width: 56px;
-        height: 56px;
-        object-fit: contain;
-        filter: drop-shadow(0 2px 12px rgba(0, 0, 0, 0.55));
-      }
-      #splash .splash-brand {
-        margin: 0;
-        font-family: "Space Grotesk", ui-sans-serif, system-ui, sans-serif;
-        font-weight: 600;
-        font-size: 1.05rem;
-        letter-spacing: 0.18em;
-        color: rgb(226, 220, 212);
-        text-shadow: 0 1px 8px rgba(0, 0, 0, 0.65);
-      }
-      #splash .splash-eyebrow {
-        margin: 0;
-        font-family: "JetBrains Mono", ui-monospace, "SF Mono", Menlo, monospace;
-        font-size: 0.62rem;
-        letter-spacing: 0.12em;
-        text-transform: uppercase;
-        color: rgb(196, 186, 172);
-        text-shadow: 0 1px 6px rgba(0, 0, 0, 0.55);
-      }
-      #splash .splash-still {
-        margin: 0;
-        min-height: 0.8rem;
-        font-family: "JetBrains Mono", ui-monospace, "SF Mono", Menlo, monospace;
-        font-size: 0.58rem;
-        letter-spacing: 0.08em;
-        color: rgba(226, 220, 212, 0.7);
-        text-shadow: 0 1px 6px rgba(0, 0, 0, 0.55);
-      }
-      #splash .splash-log {
-        position: absolute;
-        left: 1rem;
-        right: 1rem;
-        bottom: 1rem;
-        margin: 0;
-        overflow: hidden;
-        text-overflow: ellipsis;
-        white-space: nowrap;
-        text-align: center;
-        font-family: "JetBrains Mono", ui-monospace, "SF Mono", Menlo, monospace;
-        font-size: 0.62rem;
-        letter-spacing: 0.04em;
-        color: rgba(226, 220, 212, 0.85);
-        text-shadow: 0 1px 6px rgba(0, 0, 0, 0.75);
-      }
-      #splash .splash-led {
-        width: 6px;
-        height: 6px;
-        margin-top: 0.25rem;
-        border-radius: 1px;
-        background: rgb(242, 86, 35);
-        animation: splash-blink 1.2s ease-in-out infinite;
-      }
-      /* The pulse is decoration, not status: it blinks at a fixed rate whatever
-         the boot is doing. Held steady when motion is unwelcome. */
-      @media (prefers-reduced-motion: reduce) {
-        #splash .splash-led { animation: none; opacity: 0.85; }
-        #splash { transition: none; }
-      }
-      @keyframes splash-blink {
-        0%, 100% { opacity: 0.35; }
-        50% { opacity: 1; }
-      }
     </style>
 </head>
 <body>
-<div id="splash" aria-hidden="true">
-  <img class="splash-logo" src="/terra-logo.png" alt="" width="56" height="56"/>
-  <p class="splash-brand">TERRA</p>
-  <p class="splash-eyebrow">__BRAND_TAGLINE__</p>
-  <!-- The release name, fixed for the version. React adds the version number
-       to it once the Go side answers. -->
-  <p class="splash-still">__RELEASE_NAME__</p>
-  <p class="splash-log" id="splash-log">booting…</p>
-  <div class="splash-led" aria-hidden="true"></div>
+<!-- The splash until React mounts. The same markup SplashScreen.tsx renders,
+     without the orbit: that one is SMIL, and a copy here would restart under
+     the React one at the handoff. -->
+<div id="splash" class="splash" aria-hidden="true">
+  <div class="splash__still"></div>
+  <div class="splash__scrim"></div>
+  <div class="splash__grid"></div>
+  <div class="splash__bar">
+    <span class="splash__state"><span class="splash__dot"></span>Booting</span>
+    <span class="splash__spacer"></span>
+    <!-- The release name, fixed for the version. React adds the version number
+         to it once the Go side answers. -->
+    <span>__RELEASE_NAME__</span>
+  </div>
+  <div class="splash__body">
+    <div class="splash__lockup">
+      <img class="splash__mark" src="/terra-logo.png" alt=""/>
+      <p class="splash__tagline">__BRAND_TAGLINE__</p>
+    </div>
+    <img class="splash__word" src="/terra-wordmark.svg" alt="" width="4669" height="728"/>
+  </div>
+  <div class="splash__foot">
+    <p class="splash__label">Boot</p>
+    <p class="splash__log">booting…</p>
+  </div>
 </div>
 <div id="root"></div>
 <script src="./src/main.tsx" type="module"></script>

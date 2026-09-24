@@ -265,7 +265,7 @@ func (a *App) probeSidecar(ctx context.Context) {
 		Three seconds is the deliberate choice: long enough to read the release
 		name and see the still it is named for, short enough that nobody is
 		waiting on it. The Ken Burns pan is timed against this -- see
-		.splash-kenburns in index.css.
+		.splash__still in frontend/src/splash.css.
 	*/
 	const minSplash = 3 * time.Second
 	if a.bootStarted.IsZero() {

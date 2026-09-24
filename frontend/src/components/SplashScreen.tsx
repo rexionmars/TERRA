@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react"
+import { useEffect, useLayoutEffect, useRef, useState } from "react"
 import { EventsOn, EventsOff } from "../../wailsjs/runtime/runtime"
 import { GetAppVersion, GetBootLogs } from "../../wailsjs/go/main/App"
 import {
@@ -19,9 +19,9 @@ type SplashScreenProps = {
    * The application menu shows this screen again on request, and at that
    * moment nothing is booting: the boot events have long since stopped and the
    * last line would read "booting…" over a window that has been open for an
-   * hour. A still shown deliberately says what it is instead -- the signature
-   * the brand carries everywhere else -- and does not subscribe to a stream
-   * that will never speak again.
+   * hour. A still shown deliberately drops the status and the boot line rather
+   * than claim either, and does not subscribe to a stream that will never
+   * speak again.
    */
   live?: boolean
 }
@@ -29,11 +29,13 @@ type SplashScreenProps = {
 /**
  * Compact boot UI for the small splash window, before the main shell.
  *
- * A full-bleed aerial still with a slow pan, the brand centred, and the boot
- * log's last line along the bottom. One still per launch and never a change
- * during one: the window is up for about a second. The manifest currently
- * holds a single still, so every launch is that one; the claim below is what
- * walks the manifest whenever it holds more.
+ * The website's hero at the size of this window: a full-bleed aerial still
+ * with a slow pan, a status bar with the release, the website header's lockup
+ * over its outlined wordmark, and the boot log's last line in the foot. The
+ * styles are in splash.css, shared with the copy index.html paints first. One
+ * still per launch and never a change during one: the window is up for about a
+ * second. The manifest currently holds a single still, so every launch is that
+ * one; the claim below is what walks the manifest whenever it holds more.
  */
 export function SplashScreen({ exiting = false, live = true }: SplashScreenProps) {
   const [logs, setLogs] = useState<string[]>(["booting…"])
@@ -128,15 +130,11 @@ export function SplashScreen({ exiting = false, live = true }: SplashScreenProps
     }
   }, [live])
 
-  const statusLine = live ? (logs[logs.length - 1] ?? "booting…") : BRAND_TAGLINE
+  const statusLine = logs[logs.length - 1] ?? "booting…"
   const activeImage = SPLASH_STILLS[slide]?.path ?? SPLASH_IMAGES[0]
 
   return (
-    <div
-      className={`app-draggable splash-screen relative flex h-screen w-screen flex-col items-center justify-center overflow-hidden px-5 text-foreground ${
-        exiting ? "splash-screen--exit" : ""
-      }`}
-    >
+    <div className={`splash app-draggable ${exiting ? "splash--exit" : ""}`}>
       {/*
         One layer, for the still this launch claimed.
 
@@ -146,54 +144,128 @@ export function SplashScreen({ exiting = false, live = true }: SplashScreenProps
         covering wants the network. The HTML preloads this one before any of
         this runs, so by here it is already in cache.
       */}
-      <div className="pointer-events-none absolute inset-0" aria-hidden>
-        <div
-          key={activeImage}
-          className={`splash-kenburns splash-kenburns--${(slide % 3) + 1} is-active`}
-          style={{ backgroundImage: `url(${activeImage})` }}
-        />
-        <div className="splash-kenburns-scrim absolute inset-0" />
+      <div
+        key={activeImage}
+        className={`splash__still splash__still--${(slide % 3) + 1}`}
+        style={{ backgroundImage: `url(${activeImage})` }}
+        aria-hidden
+      />
+      <div className="splash__scrim" aria-hidden />
+      <div className="splash__grid" aria-hidden />
+      <SplashOrbit />
+
+      <div className="splash__bar">
+        {live && (
+          <span className="splash__state">
+            <span className="splash__dot" aria-hidden />
+            Booting
+          </span>
+        )}
+        <span className="splash__spacer" />
+        {/*
+          The release, named. Fixed for the version.
+
+          This briefly showed the name of the still on screen, which made it
+          change every launch as the rotation advanced -- a name that moves
+          is a caption, not a name. The photograph rotates; the release does
+          not.
+        */}
+        <span>
+          {version && `v${version} · `}
+          {RELEASE_NAME}
+        </span>
       </div>
 
-      <div className="relative z-10 flex flex-col items-center gap-3.5">
-        <img
-          src="/terra-logo.png"
-          alt=""
-          className="h-14 w-14 object-contain drop-shadow-[0_2px_12px_rgb(0_0_0_/_0.55)]"
-        />
-        <div className="flex flex-col items-center gap-1.5">
-          <p className="font-display text-lg font-semibold tracking-[0.18em] drop-shadow-[0_1px_8px_rgb(0_0_0_/_0.65)]">
-            TERRA
-          </p>
-          <p className="eyebrow drop-shadow-[0_1px_6px_rgb(0_0_0_/_0.55)]">
-            {BRAND_TAGLINE}
-          </p>
-          {/*
-            The release, named. Fixed for the version.
-
-            This briefly showed the name of the still on screen, which made it
-            change every launch as the rotation advanced -- a name that moves
-            is a caption, not a name. The photograph rotates; the release does
-            not.
-          */}
-          <p className="telemetry text-meta text-foreground/70 drop-shadow-[0_1px_6px_rgb(0_0_0_/_0.55)]">
-            {RELEASE_NAME}
-            {version && ` · ${version}`}
-          </p>
-          <div className="mt-1 h-0.5 w-7 rounded-[1px] bg-accent/85" aria-hidden />
+      <div className="splash__body">
+        <div className="splash__lockup">
+          <img className="splash__mark" src="/terra-logo.png" alt="" />
+          <p className="splash__tagline">{BRAND_TAGLINE}</p>
         </div>
-        <span
-          className="mt-1 h-1.5 w-1.5 animate-pulse rounded-[1px] bg-accent"
-          aria-hidden
+        <img
+          className="splash__word"
+          src="/terra-wordmark.svg"
+          alt="TERRA"
+          width={4669}
+          height={728}
         />
       </div>
 
-      <p
-        className="app-no-drag absolute bottom-4 left-4 right-4 z-10 truncate text-center font-telemetry text-[10px] tracking-wide text-foreground/85 drop-shadow-[0_1px_6px_rgb(0_0_0_/_0.75)]"
-        title={statusLine}
-      >
-        {statusLine}
-      </p>
+      {live && (
+        <div className="splash__foot app-no-drag">
+          <p className="splash__label">Boot</p>
+          <p className="splash__log" title={statusLine}>
+            {statusLine}
+          </p>
+        </div>
+      )}
     </div>
+  )
+}
+
+/**
+ * The website hero's orbit, drawn for this window: a track and a satellite on
+ * it, over the part of the photograph nothing is read on.
+ *
+ * SMIL rather than a CSS motion path, because the track is in the SVG's own
+ * coordinates and follows the viewBox to the full-window replay; a CSS path is
+ * in page pixels and would need recomputing per size. SMIL does not answer to
+ * prefers-reduced-motion, so the clock is paused here instead. The negative
+ * begin puts the first frame on the visible stretch of the track, which is
+ * also where a paused satellite stays.
+ *
+ * Not in index.html's copy: a second one there would restart under this one at
+ * the handoff, so the orbit arrives with the cross-fade instead.
+ */
+function SplashOrbit() {
+  const ref = useRef<SVGSVGElement>(null)
+
+  useLayoutEffect(() => {
+    if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
+      ref.current?.pauseAnimations()
+    }
+  }, [])
+
+  return (
+    <svg
+      ref={ref}
+      className="splash__orbit"
+      viewBox="0 0 420 280"
+      preserveAspectRatio="xMidYMid slice"
+      aria-hidden
+    >
+      <g transform="rotate(-14 300 92)">
+        <ellipse
+          className="splash__orbit-track"
+          cx={300}
+          cy={92}
+          rx={160}
+          ry={40}
+          vectorEffect="non-scaling-stroke"
+        />
+        <g>
+          <line
+            className="splash__orbit-nadir"
+            x1={0}
+            y1={0}
+            x2={0}
+            y2={14}
+            vectorEffect="non-scaling-stroke"
+          />
+          <circle
+            className="splash__orbit-ring"
+            r={6.5}
+            vectorEffect="non-scaling-stroke"
+          />
+          <circle className="splash__orbit-sat" r={2.2} />
+          {/* The same ellipse as the track, as a path, from its left end. */}
+          <animateMotion
+            path="M140,92 a160,40 0 1,0 320,0 a160,40 0 1,0 -320,0"
+            dur="36s"
+            begin="-6s"
+            repeatCount="indefinite"
+          />
+        </g>
+      </g>
+    </svg>
   )
 }
