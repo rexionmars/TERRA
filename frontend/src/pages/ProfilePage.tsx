@@ -28,6 +28,7 @@ import { ActivityGrid } from "@/components/ActivityGrid"
 import { PageAside, PageBody, PageShell } from "@/components/ui/PageShell"
 import { btnGhost, btnPrimary } from "@/components/ui/buttons"
 import { EnvironmentPanel } from "@/components/EnvironmentPanel"
+import { KeymapTable } from "@/components/KeymapTable"
 import { StorageModal } from "@/components/StorageModal"
 import {
   setStudioGutter,
@@ -58,7 +59,7 @@ import { runRowLine } from "@/lib/runSummary"
 
 const MAX_AVATAR_BYTES = 2_000_000
 
-type SettingsSectionId = "account" | "telemetry" | "system"
+type SettingsSectionId = "account" | "telemetry" | "system" | "keymap"
 
 /**
  * The pages of settings, grouped by subject.
@@ -104,6 +105,8 @@ const SECTIONS: {
   */
   { id: "telemetry", label: "Telemetry", count: TELEMETRY_FIGURES.length },
   { id: "system", label: "System" },
+  // No count: it is a reference, not a list of settings.
+  { id: "keymap", label: "Keymap" },
 ]
 
 const focusRing =
@@ -1050,6 +1053,12 @@ export function ProfilePage({
                   </label>
                 </SettingRow>
               ))}
+            </Section>
+          )}
+
+          {activeSection === "keymap" && (
+            <Section>
+              <KeymapTable />
             </Section>
           )}
 

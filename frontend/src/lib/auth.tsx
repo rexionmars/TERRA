@@ -42,7 +42,7 @@ export type AppScreen = "studio" | "auth" | "profile"
  * and the first-run gate. It is a settings page like the others; opening it is
  * opening settings at that page.
  */
-export type SettingsPage = "account" | "system"
+export type SettingsPage = "account" | "system" | "keymap"
 
 interface AuthContextValue {
   user: User | null
