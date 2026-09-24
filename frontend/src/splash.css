@@ -1,0 +1,392 @@
+/*
+  The splash, in the website's design system.
+
+  ONE STYLESHEET FOR TWO SPLASHES. index.html paints a splash before any bundle
+  loads, and SplashScreen.tsx replaces it when React mounts. They used to be
+  styled twice -- inline CSS in the HTML, Tailwind classes in the component --
+  and the two disagreed: a different scrim, an orange pulse against the accent,
+  a still that jumped in scale at the handoff. Both now render the same markup
+  with the classes below, so the cross-fade between them is between two copies
+  of one picture. index.html links this file directly, which is why nothing here
+  may depend on index.css: in development that loads only once the bundle runs.
+
+  THE TOKENS ARE THE WEBSITE'S, not the application's. The design is the one
+  TERRA-website names "ground segment" (its src/styles/global.css): a void
+  ground, bone type, and one signal colour that is never used for data. They
+  are fixed rather than read from the theme on purpose. The website is dark
+  only, the scrim below is measured for bone type over a darkened photograph,
+  and under the light theme the application's tokens turned that scrim into a
+  pale wash with dark text over it -- a third look for the same screen.
+
+  The mono face is the application's telemetry face and not the website's IBM
+  Plex Mono: index.html already loads it, and a second mono family fetched for a
+  screen that is up for three seconds would arrive as a visible swap. The
+  display face is not loaded at all; see .splash__word.
+*/
+.splash {
+  --sp-void: 4 6 11;
+  --sp-bone: 236 232 223;
+  --sp-dust: 169 173 184;
+  --sp-faint: 125 130 144;
+  --sp-signal: 200 242 90;
+  --sp-rule: rgb(var(--sp-bone) / 0.12);
+  --sp-mono: "JetBrains Mono", ui-monospace, "SF Mono", Menlo, monospace;
+  /*
+    Sized for two windows: the 420x280 boot window, and the full window the
+    application menu shows this in again. The floors are the boot window's
+    and the ceilings are the website's own sizes for the same roles.
+  */
+  --sp-gutter: clamp(20px, 3.4vw, 48px);
+  --sp-label: clamp(9px, 0.75vw, 11px);
+  --sp-value: clamp(10px, 0.9vw, 13px);
+
+  position: fixed;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  isolation: isolate;
+  background: rgb(var(--sp-void));
+  color: rgb(var(--sp-bone));
+  font-family: var(--sp-mono);
+  -webkit-font-smoothing: antialiased;
+  opacity: 1;
+  transform: scale(1);
+  transition:
+    opacity 480ms ease,
+    transform 480ms ease;
+}
+/* Declared here rather than left to Tailwind's preflight, which is in index.css. */
+.splash,
+.splash *,
+.splash *::before,
+.splash *::after {
+  box-sizing: border-box;
+}
+/* App.tsx waits this long before revealing the main window. */
+.splash--exit {
+  opacity: 0;
+  transform: scale(0.96);
+  pointer-events: none;
+}
+
+/*
+  The pre-bundle copy. It sits over the React one until main.tsx fades it out,
+  and it takes its still from the custom property the head script sets, since
+  the script runs before this element exists.
+*/
+#splash {
+  z-index: 9999;
+  pointer-events: none;
+  transition: opacity 280ms ease;
+}
+#splash.is-done {
+  opacity: 0;
+}
+#splash .splash__still {
+  background-image: var(--splash-still);
+}
+
+/*
+  The still, and its sliding zoom.
+
+  The pre-bundle copy does not move: it shows the frame every variant starts
+  on, and the React copy starts moving from that same frame when it mounts. The
+  variants used to start from three different framings, so whichever launch
+  landed on the second or third jumped at the handoff.
+
+  Timed against the splash, which is held for three seconds plus the fade --
+  see minSplash in app.go. Four seconds completes most of the move within the
+  window and still has somewhere to go if a boot runs long.
+*/
+.splash__still {
+  position: absolute;
+  inset: -8%;
+  z-index: -4;
+  background-position: center;
+  background-size: cover;
+  background-repeat: no-repeat;
+  transform: scale(1.05);
+  will-change: transform;
+}
+.splash__still--1 {
+  animation: splash-kenburns-a 4s ease-out forwards;
+}
+.splash__still--2 {
+  animation: splash-kenburns-b 4s ease-out forwards;
+}
+.splash__still--3 {
+  animation: splash-kenburns-c 4s ease-out forwards;
+}
+@keyframes splash-kenburns-a {
+  to {
+    transform: scale(1.22) translate(-3%, -2%);
+  }
+}
+@keyframes splash-kenburns-b {
+  to {
+    transform: scale(1.24) translate(-2%, 2%);
+  }
+}
+@keyframes splash-kenburns-c {
+  to {
+    transform: scale(1.2) translate(2.5%, -1.5%);
+  }
+}
+
+/*
+  The scrim: the website hero's two gradients, retuned for this window.
+
+  Dark toward the text rather than dark everywhere. The vertical gradient
+  carries the status bar at the top and the boot line at the foot; the
+  horizontal one darkens the left, where the lockup and the wordmark begin. The
+  right half keeps most of the photograph, since nothing is read there.
+
+  MEASURED over Cumulus, at the first frame of the pan and at the last frame
+  of variant 1. The brightest pixel under each line, against that line's
+  colour: status 13.65, version and release 5.25, tagline 4.70, the BOOT label
+  5.25, the boot line 15.87. Every line clears WCAG's 4.5 at its worst pixel,
+  which the previous scrim did not do under the mark (3.44). The wordmark reads
+  5.26 at its worst pixel; as a logotype it has no floor, and is recorded so
+  that a new still can be compared against it.
+
+  The first stops set the version: at 0.72 over the top band it read 3.40 on
+  the last frame, where the pan brings brighter cloud under the right corner.
+  The tagline set the horizontal gradient: 0.78 falling to 0.38 at 48% left it
+  at 3.77.
+
+  TO MEASURE AGAIN, for a new still: render the splash at 420x280 with its text
+  transparent and its images and orbit hidden, once as it mounts and once with
+  .splash__still at its last keyframe; take the brightest pixel inside each
+  line's box and read it against the line's colour. As before, the page that
+  does this is deliberately not in the repository -- a tool run once a release,
+  holding its own copy of these gradients, drifts from them silently.
+*/
+.splash__scrim {
+  position: absolute;
+  inset: 0;
+  z-index: -3;
+  background:
+    linear-gradient(
+      180deg,
+      rgb(var(--sp-void) / 0.84) 0%,
+      rgb(var(--sp-void) / 0.7) 11%,
+      rgb(var(--sp-void) / 0.22) 28%,
+      rgb(var(--sp-void) / 0.46) 58%,
+      rgb(var(--sp-void) / 0.92) 100%
+    ),
+    linear-gradient(
+      90deg,
+      rgb(var(--sp-void) / 0.84) 0%,
+      rgb(var(--sp-void) / 0.5) 45%,
+      rgb(var(--sp-void) / 0) 80%
+    );
+}
+
+/* The hero's survey grid: twelve columns at any width, faded out behind the text. */
+.splash__grid {
+  position: absolute;
+  inset: 0;
+  z-index: -2;
+  background-image:
+    linear-gradient(90deg, rgb(var(--sp-bone) / 0.06) 1px, transparent 1px),
+    linear-gradient(rgb(var(--sp-bone) / 0.06) 1px, transparent 1px);
+  background-size: 8.3333vw 8.3333vw;
+  -webkit-mask-image: linear-gradient(90deg, transparent 0%, transparent 34%, #000 64%);
+  mask-image: linear-gradient(90deg, transparent 0%, transparent 34%, #000 64%);
+}
+
+.splash__orbit {
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+  -webkit-mask-image: linear-gradient(90deg, transparent 0%, transparent 30%, #000 58%);
+  mask-image: linear-gradient(90deg, transparent 0%, transparent 30%, #000 58%);
+}
+.splash__orbit-track {
+  fill: none;
+  stroke: rgb(var(--sp-bone) / 0.5);
+  stroke-dasharray: 2 5;
+}
+.splash__orbit-nadir {
+  stroke: rgb(var(--sp-signal) / 0.45);
+  stroke-dasharray: 1.5 2;
+}
+.splash__orbit-ring {
+  fill: none;
+  stroke: rgb(var(--sp-signal) / 0.4);
+}
+.splash__orbit-sat {
+  fill: rgb(var(--sp-signal));
+}
+
+/*
+  The status bar, at the height of the title bar it shares.
+
+  The window keeps macOS's traffic lights over its content (TitleBarHidden in
+  main.go), so the bar starts clear of them rather than under them.
+*/
+.splash__bar {
+  display: flex;
+  flex: none;
+  align-items: center;
+  gap: 14px;
+  height: 30px;
+  padding: 0 16px 0 80px;
+  border-bottom: 1px solid var(--sp-rule);
+  color: rgb(var(--sp-dust));
+  font-size: var(--sp-label);
+  letter-spacing: 0.12em;
+  line-height: 1;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+.splash__state {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  color: rgb(var(--sp-bone));
+}
+.splash__dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: rgb(var(--sp-signal));
+  animation: splash-pulse 2.4s infinite;
+}
+@keyframes splash-pulse {
+  0% {
+    box-shadow: 0 0 0 0 rgb(var(--sp-signal) / 0.55);
+  }
+  70% {
+    box-shadow: 0 0 0 5px rgb(var(--sp-signal) / 0);
+  }
+  100% {
+    box-shadow: 0 0 0 0 rgb(var(--sp-signal) / 0);
+  }
+}
+.splash__spacer {
+  flex: 1;
+}
+
+.splash__body {
+  position: relative;
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  justify-content: flex-end;
+  gap: clamp(12px, 1.4vw, 20px);
+  min-height: 0;
+  padding: 0 var(--sp-gutter) clamp(14px, 2.6vw, 40px);
+}
+/* Registration marks at the top corners, as the website sets them on a band. */
+.splash__body::before,
+.splash__body::after {
+  content: "+";
+  position: absolute;
+  top: 8px;
+  color: rgb(var(--sp-faint));
+  font-size: 11px;
+  line-height: 1;
+}
+.splash__body::before {
+  left: var(--sp-gutter);
+}
+.splash__body::after {
+  right: var(--sp-gutter);
+}
+
+/* The website header's lockup, with the name moved out to the wordmark below it. */
+.splash__lockup {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.splash__mark {
+  flex: none;
+  width: clamp(30px, 3vw, 44px);
+  height: clamp(30px, 3vw, 44px);
+}
+.splash__tagline {
+  /* One word to a line, as the website stacks "Earth / Observation". */
+  width: min-content;
+  margin: 0;
+  padding-left: 10px;
+  border-left: 1px solid rgb(var(--sp-bone) / 0.26);
+  color: rgb(var(--sp-dust));
+  font-size: var(--sp-label);
+  letter-spacing: 0.14em;
+  line-height: 1.3;
+  text-transform: uppercase;
+}
+
+/*
+  The website footer's outlined wordmark, as outlines rather than as type.
+
+  public/terra-wordmark.svg is "TERRA" in Archivo at the setting the website's
+  .footer__word uses -- width 125, weight 800, 0.04em tracking -- instanced from
+  the website's own @fontsource-variable/archivo file and shaped with its
+  kerning, then written out as a path. Set as text it would need Archivo loaded
+  into the application for five letters, and a face that arrives after first
+  paint is a swap on a screen that lasts three seconds. The stroke does not
+  scale, so it stays a hairline at both window sizes, as it is on the website.
+*/
+.splash__word {
+  display: block;
+  width: 100%;
+  height: auto;
+}
+
+.splash__foot {
+  flex: none;
+  padding: clamp(9px, 1vw, 14px) var(--sp-gutter) clamp(10px, 1.1vw, 16px);
+  border-top: 1px solid var(--sp-rule);
+  background: rgb(var(--sp-void) / 0.55);
+  -webkit-backdrop-filter: blur(10px);
+  backdrop-filter: blur(10px);
+}
+.splash__label {
+  margin: 0;
+  color: rgb(var(--sp-faint));
+  font-size: var(--sp-label);
+  letter-spacing: 0.14em;
+  line-height: 1.35;
+  text-transform: uppercase;
+}
+.splash__log {
+  margin: 2px 0 0;
+  overflow: hidden;
+  color: rgb(var(--sp-bone));
+  font-size: var(--sp-value);
+  line-height: 1.4;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/*
+  Motion is the first thing this application shows, and a full-bleed zoom-and-
+  pan is exactly what this setting exists to turn off. The still, the scrim and
+  the type all stay; only the movement stops. The pulse blinks at a fixed rate
+  whatever the boot is doing, so it is decoration rather than status and has
+  nothing to report by moving. The satellite is SMIL, which CSS cannot stop;
+  SplashScreen.tsx pauses it.
+*/
+@media (prefers-reduced-motion: reduce) {
+  .splash__still--1,
+  .splash__still--2,
+  .splash__still--3,
+  .splash__dot {
+    animation: none;
+  }
+  .splash,
+  .splash--exit {
+    transition: opacity 480ms ease;
+    transform: none;
+  }
+  #splash {
+    transition: none;
+  }
+}

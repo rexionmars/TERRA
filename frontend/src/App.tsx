@@ -452,7 +452,7 @@ function App() {
         )
       }
       setSplashExiting(true)
-      // Match .splash-screen--exit transition (~480ms).
+      // Match the .splash--exit transition in splash.css (~480ms).
       exitTimer = window.setTimeout(async () => {
         if (cancelled) return
         try {
