@@ -14,6 +14,15 @@
     "productName": "TERRA",
     "productVersion": "0.6.0",
     "copyright": "TERRA contributors",
-    "comments": "Desktop land-cover classification from Sentinel-2 time series"
+    "comments": "Desktop land-cover classification from Sentinel-2 time series",
+    "fileAssociations": [
+      {
+        "ext": "terra",
+        "name": "TERRA Project",
+        "description": "TERRA project",
+        "iconName": "projecticon",
+        "role": "Editor"
+      }
+    ]
   }
 }

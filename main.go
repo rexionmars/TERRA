@@ -126,6 +126,8 @@ func main() {
 			*/
 			TitleBar:   mac.TitleBarHidden(),
 			Appearance: mac.NSAppearanceNameDarkAqua,
+			// A .terra file opened from the Finder; see app_projectfile.go.
+			OnFileOpen: app.fileOpened,
 			About: &mac.AboutInfo{
 				Title:   "TERRA",
 				Message: "Classificacao de cobertura de solo - Sentinel-2 / MapBiomas",

@@ -186,6 +186,10 @@ export function OpenExternal(arg1) {
   return window['go']['main']['App']['OpenExternal'](arg1);
 }
 
+export function OpenProjectFile(arg1) {
+  return window['go']['main']['App']['OpenProjectFile'](arg1);
+}
+
 export function Predict(arg1) {
   return window['go']['main']['App']['Predict'](arg1);
 }
@@ -214,6 +218,10 @@ export function RevealMainWindow() {
   return window['go']['main']['App']['RevealMainWindow']();
 }
 
+export function RevealProjectFile(arg1) {
+  return window['go']['main']['App']['RevealProjectFile'](arg1);
+}
+
 export function RunActivity(arg1) {
   return window['go']['main']['App']['RunActivity'](arg1);
 }
@@ -224,6 +232,10 @@ export function RunOverlayURL(arg1) {
 
 export function SavePreferences(arg1) {
   return window['go']['main']['App']['SavePreferences'](arg1);
+}
+
+export function SaveProjectFile(arg1, arg2) {
+  return window['go']['main']['App']['SaveProjectFile'](arg1, arg2);
 }
 
 export function SaveProjectOverlay(arg1) {
@@ -252,6 +264,10 @@ export function SetProjectLastArea(arg1, arg2) {
 
 export function SetRunProject(arg1, arg2) {
   return window['go']['main']['App']['SetRunProject'](arg1, arg2);
+}
+
+export function TakeOpenedFiles() {
+  return window['go']['main']['App']['TakeOpenedFiles']();
 }
 
 export function UpdateArea(arg1) {

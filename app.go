@@ -47,6 +47,11 @@ type App struct {
 	// Whether the board holds changes no saved studio does. Reported by the
 	// interface through SetBoardDirty, read by beforeClose; see app_studios.go.
 	boardDirty atomic.Bool
+
+	// Project files the system asked to open and the interface has not taken
+	// yet; see app_projectfile.go.
+	openedMu sync.Mutex
+	opened   []string
 }
 
 // NewApp creates a new App.
