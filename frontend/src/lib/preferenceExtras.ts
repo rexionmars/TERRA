@@ -33,6 +33,14 @@ export interface PreferenceExtras {
    */
   always_show_whats_new?: boolean
   /**
+   * Whether the start screen opens with the studio, once per launch.
+   *
+   * Absent means yes, as Blender's splash is on until it is turned off -- and
+   * it is turned off from the screen itself, where the reader is when they
+   * decide they have seen enough of it. Only an exact `false` hides it.
+   */
+  start_screen?: boolean
+  /**
    * Whether the studio's panels are separated by a gap.
    *
    * A chrome preference and not a layout one: `studio_layout` below records
