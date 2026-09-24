@@ -286,11 +286,19 @@ func (a *App) persistMineralRun(req analysis.MineralRequest, res *analysis.Miner
 		return ""
 	}
 	label := aoiLabel(req.Label)
+	// The passes that answered for some cell. Every pass compared is listed in
+	// Scenes, including those no cell was taken from.
+	contributing := 0
+	for _, s := range res.Scenes {
+		if s.Cells > 0 {
+			contributing++
+		}
+	}
 	summary := map[string]any{
 		"mineral_expert_system":    res.ExpertSystem,
 		"mineral_aoi_area_ha":      res.AOIAreaHa,
 		"mineral_observed_area_ha": res.ObservedAreaHa,
-		"mineral_n_scenes":         len(res.Scenes),
+		"mineral_n_scenes":         contributing,
 		"aoi_label":                label,
 	}
 	for _, g := range res.Groups {
@@ -320,7 +328,7 @@ func (a *App) persistMineralRun(req analysis.MineralRequest, res *analysis.Miner
 		areaID:      req.AreaID,
 		periodStart: req.Start,
 		periodEnd:   req.End,
-		nDates:      len(res.Scenes),
+		nDates:      contributing,
 		summary:     summary,
 		result: func(assetsDir, assetsRel string) any {
 			stored := *res
@@ -337,6 +345,23 @@ func (a *App) persistMineralRun(req analysis.MineralRequest, res *analysis.Miner
 				}
 				g.ClassURI = ""
 				stored.Groups[i] = g
+			}
+			stored.Layers = make([]analysis.MineralLayer, 0, len(res.Layers))
+			for _, l := range res.Layers {
+				name := mineralLayerPNG(l.ID)
+				if name == "" {
+					continue
+				}
+				src := l.URI
+				if src == "" {
+					src = l.PNG
+				}
+				l.PNG = ""
+				if err := store.WriteDataURIFile(src, filepath.Join(assetsDir, name)); err == nil && src != "" {
+					l.PNG = filepath.Join(assetsRel, name)
+				}
+				l.URI = ""
+				stored.Layers = append(stored.Layers, l)
 			}
 			stored.GeoTIFF = ""
 			if strings.TrimSpace(res.GeoTIFF) != "" {
@@ -531,6 +556,18 @@ func (a *App) LoadAnalysis(runID string) (*analysis.PredictResult, error) {
 			if uri, err := store.ReadFileDataURI(png, "image/png"); err == nil {
 				mineral.Groups[i].ClassURI = uri
 				mineral.Groups[i].ClassPNG = png
+			}
+		}
+		for i := range mineral.Layers {
+			mineral.Layers[i].PNG = ""
+			name := mineralLayerPNG(mineral.Layers[i].ID)
+			if name == "" {
+				continue
+			}
+			png := filepath.Join(assetsDir, name)
+			if uri, err := store.ReadFileDataURI(png, "image/png"); err == nil {
+				mineral.Layers[i].URI = uri
+				mineral.Layers[i].PNG = png
 			}
 		}
 		mineral.GeoTIFF = ""

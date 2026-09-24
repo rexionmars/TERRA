@@ -6,33 +6,75 @@
    "r06emitc",
    "s06emitc"
   ],
-  "aoi_cells": 33856,
-  "aoi_area_ha": 11550.72,
-  "observed_cells": 33227,
-  "observed_area_ha": 11336.15,
-  "masked_cells": 629,
+  "aoi_cells": 8464,
+  "aoi_area_ha": 2888.14,
+  "observed_cells": 8454,
+  "observed_area_ha": 2884.73,
+  "masked_cells": 10,
   "cell_size_deg": [
    0.000542232520256367,
    0.000542232520256367
   ],
   "scenes": [
    {
+    "granule": "EMIT_L2A_RFL_001_20240704T122650_2418608_050",
+    "date": "2024-07-04",
+    "cloud_cover": 2.0,
+    "mask_granule": "EMIT_L2A_MASK_001_20240704T122650_2418608_050",
+    "cells": 208,
+    "masked_cells": 36,
+    "wavelength_offset_nm": 0.001,
+    "candidate_cells": 8410,
+    "exposed_cells": 266,
+    "chosen_exposed_cells": 121,
+    "frcov_granule": "EMIT_L2B_FRCOV_001_20240704T122650_2418608_050",
+    "l2b_granule": null,
+    "acquired": "2024-07-04 12:26 UTC"
+   },
+   {
     "granule": "EMIT_L2A_RFL_001_20240830T135434_2424309_050",
     "date": "2024-08-30",
     "cloud_cover": 3.0,
     "mask_granule": "EMIT_L2A_MASK_001_20240830T135434_2424309_050",
-    "cells": 32151,
-    "masked_cells": 587,
-    "wavelength_offset_nm": 0.001
+    "cells": 2259,
+    "masked_cells": 40,
+    "wavelength_offset_nm": 0.001,
+    "candidate_cells": 8424,
+    "exposed_cells": 218,
+    "chosen_exposed_cells": 163,
+    "frcov_granule": "EMIT_L2B_FRCOV_001_20240830T135434_2424309_050",
+    "l2b_granule": null,
+    "acquired": "2024-08-30 13:54 UTC"
    },
    {
-    "granule": "EMIT_L2A_RFL_001_20240903T122054_2424708_030",
+    "granule": "EMIT_L2A_RFL_001_20240903T122042_2424708_029",
     "date": "2024-09-03",
-    "cloud_cover": 36.0,
-    "mask_granule": "EMIT_L2A_MASK_001_20240903T122054_2424708_030",
-    "cells": 1076,
-    "masked_cells": 599,
-    "wavelength_offset_nm": 0.001
+    "cloud_cover": 9.0,
+    "mask_granule": "EMIT_L2A_MASK_001_20240903T122042_2424708_029",
+    "cells": 5587,
+    "masked_cells": 220,
+    "wavelength_offset_nm": 0.001,
+    "candidate_cells": 6351,
+    "exposed_cells": 78,
+    "chosen_exposed_cells": 55,
+    "frcov_granule": "EMIT_L2B_FRCOV_001_20240903T122042_2424708_029",
+    "l2b_granule": "EMIT_L2B_MIN_001_20240903T122042_2424708_029",
+    "acquired": "2024-09-03 12:20 UTC"
+   },
+   {
+    "granule": "EMIT_L2A_RFL_001_20250701T130711_2518208_051",
+    "date": "2025-07-01",
+    "cloud_cover": 25.0,
+    "mask_granule": "EMIT_L2A_MASK_001_20250701T130711_2518208_051",
+    "cells": 400,
+    "masked_cells": 196,
+    "wavelength_offset_nm": 0.088,
+    "candidate_cells": 8268,
+    "exposed_cells": 299,
+    "chosen_exposed_cells": 186,
+    "frcov_granule": "EMIT_L2B_FRCOV_001_20250701T130711_2518208_051",
+    "l2b_granule": "EMIT_L2B_MIN_001_20250701T130711_2518208_051",
+    "acquired": "2025-07-01 13:07 UTC"
    }
   ],
   "groups": [
@@ -40,199 +82,235 @@
     "group": 1,
     "label": "Fe2+/Fe3+ electronic absorptions, 0.4-1.3 um",
     "class_png": "/tmp/terra-mineral-recorded/mineral_group1.png",
-    "detected_cells": 33153,
-    "detected_area_ha": 11310.9,
+    "detected_cells": 8411,
+    "detected_area_ha": 2870.06,
     "classes": [
      {
       "class": "vegetation",
       "label": "Vegetation",
       "color": "#2f6b3a",
-      "cells": 22142,
-      "area_ha": 7554.42,
-      "fraction_of_observed": 0.6664,
-      "mean_depth": 0.2646
+      "cells": 7306,
+      "area_ha": 2493.01,
+      "fraction_of_observed": 0.8642,
+      "mean_depth": 0.2422
      },
      {
       "class": "hematite",
       "label": "Hematite",
       "color": "#c43c39",
-      "cells": 6254,
-      "area_ha": 2133.46,
-      "fraction_of_observed": 0.1882,
-      "mean_depth": 0.215
-     },
-     {
-      "class": "other",
-      "label": "Other reference",
-      "color": "#8c8c8c",
-      "cells": 4381,
-      "area_ha": 1494.76,
-      "fraction_of_observed": 0.1319,
-      "mean_depth": 0.2325
+      "cells": 887,
+      "area_ha": 302.66,
+      "fraction_of_observed": 0.1049,
+      "mean_depth": 0.1765
      },
      {
       "class": "goethite",
       "label": "Goethite",
       "color": "#edc948",
-      "cells": 260,
-      "area_ha": 88.7,
-      "fraction_of_observed": 0.0078,
-      "mean_depth": 0.1851
+      "cells": 76,
+      "area_ha": 25.93,
+      "fraction_of_observed": 0.009,
+      "mean_depth": 0.1044
      },
      {
-      "class": "jarosite",
-      "label": "Jarosite",
-      "color": "#b6992d",
-      "cells": 58,
-      "area_ha": 19.79,
-      "fraction_of_observed": 0.0017,
-      "mean_depth": 0.1827
+      "class": "fe_sulfate",
+      "label": "Fe sulfates and acid-drainage minerals",
+      "color": "#e3b505",
+      "cells": 62,
+      "area_ha": 21.16,
+      "fraction_of_observed": 0.0073,
+      "mean_depth": 0.1143
+     },
+     {
+      "class": "pyroxene_olivine",
+      "label": "Pyroxene / olivine",
+      "color": "#6e7a2e",
+      "cells": 59,
+      "area_ha": 20.13,
+      "fraction_of_observed": 0.007,
+      "mean_depth": 0.1033
      },
      {
       "class": "water",
       "label": "Water",
       "color": "#1f3b73",
-      "cells": 58,
-      "area_ha": 19.79,
-      "fraction_of_observed": 0.0017,
-      "mean_depth": 0.1456
+      "cells": 10,
+      "area_ha": 3.41,
+      "fraction_of_observed": 0.0012,
+      "mean_depth": 0.1317
+     },
+     {
+      "class": "plastic",
+      "label": "Plastics and roofing",
+      "color": "#39ff14",
+      "cells": 4,
+      "area_ha": 1.37,
+      "fraction_of_observed": 0.0005,
+      "mean_depth": 0.0243
+     },
+     {
+      "class": "fe_oxyhydroxide",
+      "label": "Ferrihydrite / lepidocrocite",
+      "color": "#a0522d",
+      "cells": 3,
+      "area_ha": 1.02,
+      "fraction_of_observed": 0.0004,
+      "mean_depth": 0.177
+     },
+     {
+      "class": "jarosite",
+      "label": "Jarosite",
+      "color": "#b6992d",
+      "cells": 2,
+      "area_ha": 0.68,
+      "fraction_of_observed": 0.0002,
+      "mean_depth": 0.0775
+     },
+     {
+      "class": "copper",
+      "label": "Copper minerals",
+      "color": "#17becf",
+      "cells": 2,
+      "area_ha": 0.68,
+      "fraction_of_observed": 0.0002,
+      "mean_depth": 0.1603
      }
     ],
     "entries": [
      {
-      "id": "dry_long_grass-thick",
-      "title": "dry long grass AV87-2",
-      "class": "vegetation",
-      "cells": 10532,
-      "area_ha": 3593.26,
-      "mean_fit": 0.9448,
-      "mean_depth": 0.1331
-     },
-     {
       "id": "vegetation.dry+green",
       "title": "vegetation: 70% dry +30% green",
       "class": "vegetation",
-      "cells": 8697,
-      "area_ha": 2967.27,
-      "mean_fit": 0.8927,
-      "mean_depth": 0.3134
+      "cells": 3771,
+      "area_ha": 1286.79,
+      "mean_fit": 0.9159,
+      "mean_depth": 0.3002
      },
      {
-      "id": "pyroxene.bronzite.hs9.3b.g1",
-      "title": "Fe2+ pyroxene bronzite HS9.3B",
-      "class": "other",
-      "cells": 3652,
-      "area_ha": 1246.06,
-      "mean_fit": 0.9396,
-      "mean_depth": 0.2535
-     },
-     {
-      "id": "vegetation1",
-      "title": "vegetation.green",
+      "id": "dry_long_grass-thick",
+      "title": "dry long grass AV87-2",
       "class": "vegetation",
-      "cells": 2913,
-      "area_ha": 993.9,
-      "mean_fit": 0.9826,
-      "mean_depth": 0.5945
+      "cells": 3216,
+      "area_ha": 1097.37,
+      "mean_fit": 0.9483,
+      "mean_depth": 0.1437
      },
      {
       "id": "hematite-nano+goethite-fg-amix",
       "title": "Fe3+ nHematit+fg-Goethite",
       "class": "hematite",
-      "cells": 2815,
-      "area_ha": 960.26,
-      "mean_fit": 0.9504,
-      "mean_depth": 0.1972
+      "cells": 332,
+      "area_ha": 113.28,
+      "mean_fit": 0.9395,
+      "mean_depth": 0.1482
+     },
+     {
+      "id": "vegetation1",
+      "title": "vegetation.green",
+      "class": "vegetation",
+      "cells": 319,
+      "area_ha": 108.85,
+      "mean_fit": 0.9484,
+      "mean_depth": 0.5497
      },
      {
       "id": "nanohematite.BR34b2b",
       "title": "Fe3+ nanohematite  BR34B2b",
       "class": "hematite",
-      "cells": 1555,
-      "area_ha": 530.51,
-      "mean_fit": 0.9435,
-      "mean_depth": 0.228
+      "cells": 296,
+      "area_ha": 101.0,
+      "mean_fit": 0.9263,
+      "mean_depth": 0.2065
      },
      {
       "id": "nanohematite.BR34b2",
       "title": "Fe3+ nanohematite  BR34B2",
       "class": "hematite",
-      "cells": 1408,
-      "area_ha": 480.31,
-      "mean_fit": 0.9445,
-      "mean_depth": 0.2428
-     },
-     {
-      "id": "AMD.assemb2",
-      "title": "Fe3+ mix acid mine dr assemb 2",
-      "class": "other",
-      "cells": 657,
-      "area_ha": 224.14,
-      "mean_fit": 0.8363,
-      "mean_depth": 0.127
-     },
-     {
-      "id": "hematite.med.gr.gds27",
-      "title": "Fe3+ hematite GDS27 med grained",
-      "class": "hematite",
-      "cells": 286,
-      "area_ha": 97.57,
-      "mean_fit": 0.9185,
-      "mean_depth": 0.2045
+      "cells": 197,
+      "area_ha": 67.22,
+      "mean_fit": 0.9378,
+      "mean_depth": 0.1746
      },
      {
       "id": "goethite.thincoat",
       "title": "Fe3+ goethite thin coating WS222",
       "class": "goethite",
-      "cells": 237,
-      "area_ha": 80.85,
-      "mean_fit": 0.9343,
-      "mean_depth": 0.1783
+      "cells": 74,
+      "area_ha": 25.25,
+      "mean_fit": 0.8516,
+      "mean_depth": 0.1031
+     },
+     {
+      "id": "AMD.assemb2",
+      "title": "Fe3+ mix acid mine dr assemb 2",
+      "class": "fe_sulfate",
+      "cells": 60,
+      "area_ha": 20.47,
+      "mean_fit": 0.8233,
+      "mean_depth": 0.1144
+     },
+     {
+      "id": "pyroxene.bronzite.hs9.3b.g1",
+      "title": "Fe2+ pyroxene bronzite HS9.3B",
+      "class": "pyroxene_olivine",
+      "cells": 56,
+      "area_ha": 19.11,
+      "mean_fit": 0.9142,
+      "mean_depth": 0.1065
+     },
+     {
+      "id": "hematite.med.gr.gds27",
+      "title": "Fe3+ hematite GDS27 med grained",
+      "class": "hematite",
+      "cells": 52,
+      "area_ha": 17.74,
+      "mean_fit": 0.9309,
+      "mean_depth": 0.2031
      },
      {
       "id": "hematite.lg.gr.br34c",
       "title": "Fe3+ hematite lg gr  BR34C",
       "class": "hematite",
-      "cells": 125,
-      "area_ha": 42.64,
-      "mean_fit": 0.9272,
-      "mean_depth": 0.208
+      "cells": 10,
+      "area_ha": 3.41,
+      "mean_fit": 0.9566,
+      "mean_depth": 0.1287
      },
      {
-      "id": "jarosite_br34a2",
-      "title": "sulfate jarosite BR34A2 on quartzite",
-      "class": "jarosite",
-      "cells": 58,
-      "area_ha": 19.79,
-      "mean_fit": 0.9302,
-      "mean_depth": 0.1827
-     },
-     {
-      "id": "water+mont0.5gpl",
-      "title": "water + mont. (0.5g/liter)",
+      "id": "water+mont16.5gpl",
+      "title": "water + mont. (16.5g/liter)",
       "class": "water",
-      "cells": 45,
-      "area_ha": 15.35,
-      "mean_fit": 0.8518,
-      "mean_depth": 0.1501
+      "cells": 9,
+      "area_ha": 3.07,
+      "mean_fit": 0.7649,
+      "mean_depth": 0.1318
      },
      {
-      "id": "copiapite",
-      "title": "Fe3+ Fe2+ sulfate, copiapite GDS21",
-      "class": "other",
-      "cells": 30,
-      "area_ha": 10.23,
-      "mean_fit": 0.913,
-      "mean_depth": 0.1254
+      "id": "white_pvc_pipe",
+      "title": "white PVC pipe",
+      "class": "plastic",
+      "cells": 4,
+      "area_ha": 1.37,
+      "mean_fit": 0.2559,
+      "mean_depth": 0.0243
      },
      {
-      "id": "hematite.lg.gr.br25c",
-      "title": "Fe3+ hematite large gr BR25c",
-      "class": "hematite",
-      "cells": 23,
-      "area_ha": 7.85,
-      "mean_fit": 0.8981,
-      "mean_depth": 0.0934
+      "id": "pyroxene.hypersthene.pyx02.e.g1",
+      "title": "Fe2+ pyroxene hypersthene NMNHC2368",
+      "class": "pyroxene_olivine",
+      "cells": 3,
+      "area_ha": 1.02,
+      "mean_fit": 0.5417,
+      "mean_depth": 0.0429
+     },
+     {
+      "id": "pitchlimonite",
+      "title": "Fe3+ copper hydroxide pitch_limonite GDS104",
+      "class": "fe_oxyhydroxide",
+      "cells": 3,
+      "area_ha": 1.02,
+      "mean_fit": 0.9402,
+      "mean_depth": 0.177
      }
     ]
    },
@@ -240,107 +318,134 @@
     "group": 2,
     "label": "Vibrational absorptions, 2.0-2.5 um",
     "class_png": "/tmp/terra-mineral-recorded/mineral_group2.png",
-    "detected_cells": 32310,
-    "detected_area_ha": 11023.3,
+    "detected_cells": 8422,
+    "detected_area_ha": 2873.81,
     "classes": [
      {
       "class": "vegetation",
       "label": "Vegetation",
       "color": "#2f6b3a",
-      "cells": 25504,
-      "area_ha": 8701.39,
-      "fraction_of_observed": 0.7676,
-      "mean_depth": 0.1665
-     },
-     {
-      "class": "other",
-      "label": "Other reference",
-      "color": "#8c8c8c",
-      "cells": 2397,
-      "area_ha": 817.76,
-      "fraction_of_observed": 0.0721,
-      "mean_depth": 0.0313
+      "cells": 7614,
+      "area_ha": 2598.11,
+      "fraction_of_observed": 0.9006,
+      "mean_depth": 0.1685
      },
      {
       "class": "kaolinite",
       "label": "Kaolinite group",
       "color": "#4e79a7",
-      "cells": 1469,
-      "area_ha": 501.12,
-      "fraction_of_observed": 0.0442,
-      "mean_depth": 0.0832
-     },
-     {
-      "class": "dolomite",
-      "label": "Dolomite",
-      "color": "#d4a373",
-      "cells": 886,
-      "area_ha": 302.29,
-      "fraction_of_observed": 0.0267,
-      "mean_depth": 0.0326
+      "cells": 210,
+      "area_ha": 71.65,
+      "fraction_of_observed": 0.0248,
+      "mean_depth": 0.0925
      },
      {
       "class": "calcite",
       "label": "Calcite",
       "color": "#f28e2b",
-      "cells": 713,
-      "area_ha": 243.26,
-      "fraction_of_observed": 0.0215,
-      "mean_depth": 0.0523
+      "cells": 165,
+      "area_ha": 56.3,
+      "fraction_of_observed": 0.0195,
+      "mean_depth": 0.0568
      },
      {
-      "class": "smectite",
-      "label": "Smectite (montmorillonite, nontronite)",
-      "color": "#b07aa1",
-      "cells": 514,
-      "area_ha": 175.35,
-      "fraction_of_observed": 0.0155,
-      "mean_depth": 0.0721
+      "class": "pyrophyllite",
+      "label": "Pyrophyllite",
+      "color": "#a0cbe8",
+      "cells": 109,
+      "area_ha": 37.19,
+      "fraction_of_observed": 0.0129,
+      "mean_depth": 0.0243
      },
      {
-      "class": "jarosite",
-      "label": "Jarosite",
-      "color": "#b6992d",
-      "cells": 494,
-      "area_ha": 168.52,
-      "fraction_of_observed": 0.0149,
-      "mean_depth": 0.0698
+      "class": "other",
+      "label": "Other reference",
+      "color": "#8c8c8c",
+      "cells": 83,
+      "area_ha": 28.32,
+      "fraction_of_observed": 0.0098,
+      "mean_depth": 0.0688
      },
      {
       "class": "chlorite",
       "label": "Chlorite",
       "color": "#8cd17d",
-      "cells": 204,
-      "area_ha": 69.59,
-      "fraction_of_observed": 0.0061,
-      "mean_depth": 0.0533
+      "cells": 70,
+      "area_ha": 23.88,
+      "fraction_of_observed": 0.0083,
+      "mean_depth": 0.0752
+     },
+     {
+      "class": "jarosite",
+      "label": "Jarosite",
+      "color": "#b6992d",
+      "cells": 68,
+      "area_ha": 23.2,
+      "fraction_of_observed": 0.008,
+      "mean_depth": 0.094
+     },
+     {
+      "class": "dolomite",
+      "label": "Dolomite",
+      "color": "#d4a373",
+      "cells": 40,
+      "area_ha": 13.65,
+      "fraction_of_observed": 0.0047,
+      "mean_depth": 0.0862
+     },
+     {
+      "class": "epidote_amphibole",
+      "label": "Epidote / prehnite / amphibole",
+      "color": "#a5b83c",
+      "cells": 21,
+      "area_ha": 7.17,
+      "fraction_of_observed": 0.0025,
+      "mean_depth": 0.0649
+     },
+     {
+      "class": "plastic",
+      "label": "Plastics and roofing",
+      "color": "#39ff14",
+      "cells": 20,
+      "area_ha": 6.82,
+      "fraction_of_observed": 0.0024,
+      "mean_depth": 0.0757
      },
      {
       "class": "water",
       "label": "Water",
       "color": "#1f3b73",
-      "cells": 66,
-      "area_ha": 22.52,
-      "fraction_of_observed": 0.002,
-      "mean_depth": 0.1371
+      "cells": 10,
+      "area_ha": 3.41,
+      "fraction_of_observed": 0.0012,
+      "mean_depth": 0.1317
+     },
+     {
+      "class": "talc_serpentine",
+      "label": "Talc / serpentine",
+      "color": "#499894",
+      "cells": 8,
+      "area_ha": 2.73,
+      "fraction_of_observed": 0.0009,
+      "mean_depth": 0.0847
      },
      {
       "class": "gibbsite",
       "label": "Gibbsite",
       "color": "#76b7b2",
-      "cells": 58,
-      "area_ha": 19.79,
-      "fraction_of_observed": 0.0017,
-      "mean_depth": 0.033
+      "cells": 3,
+      "area_ha": 1.02,
+      "fraction_of_observed": 0.0004,
+      "mean_depth": 0.0734
      },
      {
-      "class": "illite_muscovite",
-      "label": "Illite / muscovite",
-      "color": "#ff9da7",
-      "cells": 5,
-      "area_ha": 1.71,
-      "fraction_of_observed": 0.0002,
-      "mean_depth": 0.0136
+      "class": "smectite",
+      "label": "Smectite (montmorillonite, nontronite)",
+      "color": "#b07aa1",
+      "cells": 1,
+      "area_ha": 0.34,
+      "fraction_of_observed": 0.0001,
+      "mean_depth": 0.0349
      }
     ],
     "entries": [
@@ -348,136 +453,136 @@
       "id": "dryveg.grass.golden",
       "title": "golden dry grass GDS480",
       "class": "vegetation",
-      "cells": 19629,
-      "area_ha": 6696.95,
-      "mean_fit": 0.9509,
-      "mean_depth": 0.0937
-     },
-     {
-      "id": "vegetation1",
-      "title": "vegetation.green",
-      "class": "vegetation",
-      "cells": 2805,
-      "area_ha": 957.05,
-      "mean_fit": 0.9852,
-      "mean_depth": 0.598
+      "cells": 5500,
+      "area_ha": 1876.75,
+      "mean_fit": 0.9629,
+      "mean_depth": 0.108
      },
      {
       "id": "vegetation.dry+green",
       "title": "vegetation: 70% dry +30% green",
       "class": "vegetation",
-      "cells": 2415,
-      "area_ha": 823.94,
-      "mean_fit": 0.8904,
-      "mean_depth": 0.2849
+      "cells": 1671,
+      "area_ha": 570.2,
+      "mean_fit": 0.9123,
+      "mean_depth": 0.3035
+     },
+     {
+      "id": "vegetation1",
+      "title": "vegetation.green",
+      "class": "vegetation",
+      "cells": 309,
+      "area_ha": 105.44,
+      "mean_fit": 0.9427,
+      "mean_depth": 0.5476
      },
      {
       "id": "pyrophyllite",
       "title": "pyrophyllite PYS1A fine g",
-      "class": "other",
-      "cells": 1355,
-      "area_ha": 462.27,
-      "mean_fit": 0.8148,
-      "mean_depth": 0.0182
+      "class": "pyrophyllite",
+      "cells": 109,
+      "area_ha": 37.19,
+      "mean_fit": 0.8626,
+      "mean_depth": 0.0243
      },
      {
       "id": "kaolpxl",
       "title": "kaolingroup kaolinite KGa-2 pxl",
       "class": "kaolinite",
-      "cells": 1008,
-      "area_ha": 343.86,
-      "mean_fit": 0.858,
-      "mean_depth": 0.0768
-     },
-     {
-      "id": "dolomite",
-      "title": "carbonate dolomite HS102.3B",
-      "class": "dolomite",
-      "cells": 878,
-      "area_ha": 299.56,
-      "mean_fit": 0.7851,
-      "mean_depth": 0.0329
-     },
-     {
-      "id": "aragonite",
-      "title": "carbonate aragonite GDS898 Moracco",
-      "class": "other",
-      "cells": 623,
-      "area_ha": 212.55,
-      "mean_fit": 0.8012,
-      "mean_depth": 0.0404
-     },
-     {
-      "id": "calcite.ws272.g2",
-      "title": "carbonate calcite WS272",
-      "class": "calcite",
-      "cells": 533,
-      "area_ha": 181.85,
-      "mean_fit": 0.8164,
-      "mean_depth": 0.0566
-     },
-     {
-      "id": "jarosite-lowT",
-      "title": "sulfate jarosite SJ-1 H3O,10-20%",
-      "class": "jarosite",
-      "cells": 419,
-      "area_ha": 142.93,
-      "mean_fit": 0.8186,
-      "mean_depth": 0.0703
-     },
-     {
-      "id": "dryveg.grass.long",
-      "title": "dry long grass AV87-2",
-      "class": "vegetation",
-      "cells": 406,
-      "area_ha": 138.51,
-      "mean_fit": 0.7947,
-      "mean_depth": 0.0406
-     },
-     {
-      "id": "nontronite.ng-1.a.g2",
-      "title": "smectite nontronite NG-1.a",
-      "class": "smectite",
-      "cells": 271,
-      "area_ha": 92.44,
-      "mean_fit": 0.7425,
-      "mean_depth": 0.1247
+      "cells": 94,
+      "area_ha": 32.07,
+      "mean_fit": 0.8643,
+      "mean_depth": 0.0743
      },
      {
       "id": "dry_long_grass-thick",
       "title": "dry long grass AV87-2",
       "class": "vegetation",
-      "cells": 204,
-      "area_ha": 69.59,
-      "mean_fit": 0.9377,
-      "mean_depth": 0.1119
+      "cells": 88,
+      "area_ha": 30.03,
+      "mean_fit": 0.9166,
+      "mean_depth": 0.1089
      },
      {
       "id": "kaolin.5+muscov.medAl",
       "title": "kaolinite .5+ muscovite CU91-250A areal",
       "class": "kaolinite",
-      "cells": 192,
-      "area_ha": 65.5,
-      "mean_fit": 0.9142,
-      "mean_depth": 0.0901
+      "cells": 68,
+      "area_ha": 23.2,
+      "mean_fit": 0.8915,
+      "mean_depth": 0.1051
      },
      {
-      "id": "beidellite_gds123",
-      "title": "smectite beidellite + montmorillonite GDS123",
-      "class": "smectite",
-      "cells": 191,
-      "area_ha": 65.17,
-      "mean_fit": 0.735,
-      "mean_depth": 0.014
+      "id": "calcite.ws272.g2",
+      "title": "carbonate calcite WS272",
+      "class": "calcite",
+      "cells": 64,
+      "area_ha": 21.84,
+      "mean_fit": 0.8331,
+      "mean_depth": 0.0715
      },
      {
       "id": "clinochlore.fe.sc-cca-1",
       "title": "chlorite clinochlore Fe SC-CCa-1.b",
       "class": "chlorite",
-      "cells": 128,
-      "area_ha": 43.67,
-      "mean_fit": 0.7479,
-      "mean_depth": 0.0593
+      "cells": 63,
+      "area_ha": 21.5,
+      "mean_fit": 0.752,
+      "mean_depth": 0.0744
+     },
+     {
+      "id": "jarosite-lowT",
+      "title": "sulfate jarosite SJ-1 H3O,10-20%",
+      "class": "jarosite",
+      "cells": 58,
+      "area_ha": 19.79,
+      "mean_fit": 0.8044,
+      "mean_depth": 0.091
+     },
+     {
+      "id": "calcite+dolomite.5",
+      "title": "carbonate calcite + dolomite .5 areal",
+      "class": "calcite",
+      "cells": 54,
+      "area_ha": 18.43,
+      "mean_fit": 0.9057,
+      "mean_depth": 0.0483
+     },
+     {
+      "id": "aragonite",
+      "title": "carbonate aragonite GDS898 Moracco",
+      "class": "other",
+      "cells": 49,
+      "area_ha": 16.72,
+      "mean_fit": 0.8427,
+      "mean_depth": 0.0774
+     },
+     {
+      "id": "dolomite",
+      "title": "carbonate dolomite HS102.3B",
+      "class": "dolomite",
+      "cells": 40,
+      "area_ha": 13.65,
+      "mean_fit": 0.7714,
+      "mean_depth": 0.0862
+     },
+     {
+      "id": "calcite.33+kaol.33+mus-AMXr2",
+      "title": "Calcite.33+Kaol.33+Mus AMXr2",
+      "class": "calcite",
+      "cells": 39,
+      "area_ha": 13.31,
+      "mean_fit": 0.8211,
+      "mean_depth": 0.0464
+     },
+     {
+      "id": "kaolin.5+muscov.medhighAl",
+      "title": "kaolinite Wxl + 50% muscovite Ruby areal",
+      "class": "kaolinite",
+      "cells": 38,
+      "area_ha": 12.97,
+      "mean_fit": 0.913,
+      "mean_depth": 0.1027
      }
     ]
    }
@@ -549,16 +654,682 @@
     "color": "#1f3b73"
    },
    {
+    "class": "pyrophyllite",
+    "label": "Pyrophyllite",
+    "color": "#a0cbe8"
+   },
+   {
+    "class": "talc_serpentine",
+    "label": "Talc / serpentine",
+    "color": "#499894"
+   },
+   {
+    "class": "epidote_amphibole",
+    "label": "Epidote / prehnite / amphibole",
+    "color": "#a5b83c"
+   },
+   {
+    "class": "gypsum",
+    "label": "Gypsum",
+    "color": "#f3e9c6"
+   },
+   {
+    "class": "vermiculite",
+    "label": "Vermiculite",
+    "color": "#d37295"
+   },
+   {
+    "class": "biotite",
+    "label": "Biotite / phlogopite",
+    "color": "#5c3d2e"
+   },
+   {
+    "class": "fe_sulfate",
+    "label": "Fe sulfates and acid-drainage minerals",
+    "color": "#e3b505"
+   },
+   {
+    "class": "fe_oxyhydroxide",
+    "label": "Ferrihydrite / lepidocrocite",
+    "color": "#a0522d"
+   },
+   {
+    "class": "magnetite",
+    "label": "Magnetite / maghemite",
+    "color": "#2b2b2b"
+   },
+   {
+    "class": "manganese",
+    "label": "Manganese minerals",
+    "color": "#7b2d8b"
+   },
+   {
+    "class": "copper",
+    "label": "Copper minerals",
+    "color": "#17becf"
+   },
+   {
+    "class": "ree",
+    "label": "Rare-earth oxides (Nd, Sm)",
+    "color": "#ff00ff"
+   },
+   {
+    "class": "pyroxene_olivine",
+    "label": "Pyroxene / olivine",
+    "color": "#6e7a2e"
+   },
+   {
+    "class": "plastic",
+    "label": "Plastics and roofing",
+    "color": "#39ff14"
+   },
+   {
     "class": "other",
     "label": "Other reference",
     "color": "#8c8c8c"
    }
   ],
+  "selection": {
+   "rule": "each cell from the pass it is least covered in: exposed ground first (NDVI -0.15 to 0.25, the GEOS3 limit of Dematte et al., 2018, and cellulose absorption index CAI <= 0, Nagler et al., 2000), then lower NDVI",
+   "compared_passes": 4,
+   "contributing_passes": 4,
+   "exposed_cells": 525,
+   "exposed_area_ha": 179.14
+  },
+  "cover": {
+   "product": "EMIT L2B FRCOV V001",
+   "cells": 8092,
+   "area_ha": 2761.2,
+   "mean_pv": 0.3316,
+   "mean_npv": 0.2006,
+   "mean_bare": 0.4678,
+   "bare_threshold": 0.65,
+   "bare_cells": 1894,
+   "bare_area_ha": 646.25,
+   "groups": [
+    {
+     "group": 1,
+     "identified_cells": 1893,
+     "identified_area_ha": 645.91
+    },
+    {
+     "group": 2,
+     "identified_cells": 1890,
+     "identified_area_ha": 644.89
+    }
+   ]
+  },
+  "positions": [
+   {
+    "key": "fe3",
+    "title": "Fe3+ crystal-field band",
+    "unit": "nm",
+    "group": 1,
+    "classes": [
+     {
+      "class": "hematite",
+      "label": "Hematite",
+      "cells": 886,
+      "mean": 911.9894,
+      "sd": 11.0368,
+      "p10": 897.8508,
+      "p50": 913.6106,
+      "p90": 924.9225
+     },
+     {
+      "class": "goethite",
+      "label": "Goethite",
+      "cells": 76,
+      "mean": 916.3019,
+      "sd": 14.6113,
+      "p10": 895.9829,
+      "p50": 919.2168,
+      "p90": 934.5598
+     }
+    ],
+    "references": [
+     {
+      "class": "hematite",
+      "references": 12,
+      "min_nm": 866.4,
+      "max_nm": 933.6,
+      "median_nm": 895.7
+     },
+     {
+      "class": "goethite",
+      "references": 8,
+      "min_nm": 931.4,
+      "max_nm": 993.1,
+      "median_nm": 962.2
+     }
+    ],
+    "ramp": {
+     "min": 870.7,
+     "max": 987.2,
+     "unit": "nm",
+     "colors": [
+      "#c43c39",
+      "#f28e2b",
+      "#edc948"
+     ],
+     "low": "hematite references",
+     "high": "goethite references"
+    }
+   },
+   {
+    "key": "aloh",
+    "title": "Al-OH band",
+    "unit": "nm",
+    "group": 2,
+    "classes": [
+     {
+      "class": "smectite",
+      "label": "Smectite (montmorillonite, nontronite)",
+      "cells": 1,
+      "mean": 2201.0741,
+      "sd": 0.0,
+      "p10": 2201.0741,
+      "p50": 2201.0741,
+      "p90": 2201.0741
+     }
+    ],
+    "references": [
+     {
+      "class": "illite_muscovite",
+      "references": 11,
+      "min_nm": 2190.7,
+      "max_nm": 2220.8,
+      "median_nm": 2202.8
+     },
+     {
+      "class": "smectite",
+      "references": 10,
+      "min_nm": 2179.9,
+      "max_nm": 2227.8,
+      "median_nm": 2204.2
+     }
+    ],
+    "ramp": {
+     "min": 2190.0,
+     "max": 2225.0,
+     "unit": "nm",
+     "colors": [
+      "#2c7bb6",
+      "#abd9e9",
+      "#ffffbf",
+      "#fdae61",
+      "#d7191c"
+     ],
+     "low": "Al-rich (shorter)",
+     "high": "Al-poor, Mg-Fe (longer)"
+    }
+   }
+  ],
+  "confidence": [
+   {
+    "group": 1,
+    "margin": {
+     "cells": 8411,
+     "mean": 0.254,
+     "sd": 0.1911,
+     "p10": 0.0337,
+     "p50": 0.2008,
+     "p90": 0.5643
+    },
+    "draws": 3,
+    "stability": {
+     "cells": 8411,
+     "mean": 0.6397,
+     "sd": 0.3585,
+     "p10": 0.0,
+     "p50": 0.6667,
+     "p90": 1.0
+    },
+    "stable_cells": 3376
+   },
+   {
+    "group": 2,
+    "margin": {
+     "cells": 8422,
+     "mean": 0.0962,
+     "sd": 0.0494,
+     "p10": 0.0378,
+     "p50": 0.102,
+     "p90": 0.1358
+    },
+    "draws": 3,
+    "stability": {
+     "cells": 8422,
+     "mean": 0.467,
+     "sd": 0.347,
+     "p10": 0.0,
+     "p50": 0.3333,
+     "p90": 1.0
+    },
+    "stable_cells": 1535
+   }
+  ],
+  "agreement": [
+   {
+    "group": 1,
+    "granules": [
+     "EMIT_L2B_MIN_001_20240903T122042_2424708_029",
+     "EMIT_L2B_MIN_001_20250701T130711_2518208_051"
+    ],
+    "compared_cells": 5987,
+    "agree": 385,
+    "differ": 82,
+    "port_only": 55,
+    "l2b_only": 25,
+    "neither": 5440,
+    "agree_fraction_of_both": 0.8244,
+    "pairs": [
+     {
+      "here": "hematite",
+      "l2b": "goethite",
+      "cells": 38
+     },
+     {
+      "here": "fe_sulfate",
+      "l2b": "goethite",
+      "cells": 24
+     },
+     {
+      "here": "pyroxene_olivine",
+      "l2b": "goethite",
+      "cells": 10
+     },
+     {
+      "here": "fe_sulfate",
+      "l2b": "hematite",
+      "cells": 3
+     },
+     {
+      "here": "goethite",
+      "l2b": "pyroxene_olivine",
+      "cells": 2
+     },
+     {
+      "here": "jarosite",
+      "l2b": "goethite",
+      "cells": 2
+     },
+     {
+      "here": "goethite",
+      "l2b": "hematite",
+      "cells": 1
+     },
+     {
+      "here": "fe_sulfate",
+      "l2b": "fe_oxyhydroxide",
+      "cells": 1
+     }
+    ]
+   },
+   {
+    "group": 2,
+    "granules": [
+     "EMIT_L2B_MIN_001_20240903T122042_2424708_029",
+     "EMIT_L2B_MIN_001_20250701T130711_2518208_051"
+    ],
+    "compared_cells": 5987,
+    "agree": 116,
+    "differ": 199,
+    "port_only": 67,
+    "l2b_only": 161,
+    "neither": 5444,
+    "agree_fraction_of_both": 0.3683,
+    "pairs": [
+     {
+      "here": "kaolinite",
+      "l2b": "smectite",
+      "cells": 18
+     },
+     {
+      "here": "dolomite",
+      "l2b": "plastic",
+      "cells": 16
+     },
+     {
+      "here": "other",
+      "l2b": "plastic",
+      "cells": 16
+     },
+     {
+      "here": "calcite",
+      "l2b": "plastic",
+      "cells": 12
+     },
+     {
+      "here": "jarosite",
+      "l2b": "plastic",
+      "cells": 12
+     },
+     {
+      "here": "kaolinite",
+      "l2b": "other",
+      "cells": 11
+     },
+     {
+      "here": "chlorite",
+      "l2b": "plastic",
+      "cells": 11
+     },
+     {
+      "here": "kaolinite",
+      "l2b": "gibbsite",
+      "cells": 10
+     }
+    ]
+   }
+  ],
+  "acid_sulfate": [
+   {
+    "key": "jarosite",
+    "label": "Jarosite",
+    "setting": "innermost, most acid zone around mine waste (Swayze et al., 2000)",
+    "color": "#b6992d",
+    "cells": 70,
+    "area_ha": 23.89,
+    "groups": {
+     "1": 2,
+     "2": 68
+    }
+   },
+   {
+    "key": "fe_sulfate_salts",
+    "label": "Efflorescent Fe sulfates",
+    "setting": "salts left by evaporating acid sulfate water",
+    "color": "#e3b505",
+    "cells": 2,
+    "area_ha": 0.68,
+    "groups": {
+     "1": 2,
+     "2": 0
+    }
+   },
+   {
+    "key": "amd_assemblage",
+    "label": "Acid mine drainage assemblage",
+    "setting": "Tetracorder reference assemblages of mine drainage",
+    "color": "#d95f02",
+    "cells": 60,
+    "area_ha": 20.47,
+    "groups": {
+     "1": 60,
+     "2": 0
+    }
+   }
+  ],
+  "layers": [
+   {
+    "id": "pass",
+    "title": "Pass used",
+    "kind": "classes",
+    "png": "/tmp/terra-mineral-recorded/mineral_pass.png",
+    "legend": [
+     {
+      "label": "2024-07-04 12:26 UTC",
+      "color": "#4e79a7"
+     },
+     {
+      "label": "2024-08-30 13:54 UTC",
+      "color": "#f28e2b"
+     },
+     {
+      "label": "2024-09-03 12:20 UTC",
+      "color": "#e15759"
+     },
+     {
+      "label": "2025-07-01 13:07 UTC",
+      "color": "#76b7b2"
+     }
+    ],
+    "about": "The EMIT pass each cell took its answer from."
+   },
+   {
+    "id": "exposure",
+    "title": "Exposed ground",
+    "kind": "classes",
+    "png": "/tmp/terra-mineral-recorded/mineral_exposure.png",
+    "legend": [
+     {
+      "label": "Exposed in the pass used",
+      "color": "#c9a26b"
+     },
+     {
+      "label": "Covered in every pass compared",
+      "color": "#5b8c5a"
+     },
+     {
+      "label": "Masked",
+      "color": "#5a5a5a",
+      "excluded": true
+     }
+    ],
+    "about": "Whether the pass used showed the cell free of green vegetation (NDVI) and of plant residue (CAI)."
+   },
+   {
+    "id": "frcov",
+    "title": "Fractional cover (EMIT L2B)",
+    "kind": "rgb",
+    "png": "/tmp/terra-mineral-recorded/mineral_frcov.png",
+    "channels": {
+     "r": "bare soil",
+     "g": "green vegetation",
+     "b": "dry vegetation"
+    },
+    "about": "EMIT L2B FRCOV of the pass used: red bare soil, green green vegetation, blue dry vegetation."
+   },
+   {
+    "id": "acid_sulfate",
+    "title": "Acid-sulfate minerals",
+    "kind": "classes",
+    "png": "/tmp/terra-mineral-recorded/mineral_acid_sulfate.png",
+    "legend": [
+     {
+      "label": "Jarosite",
+      "color": "#b6992d"
+     },
+     {
+      "label": "Efflorescent Fe sulfates",
+      "color": "#e3b505"
+     },
+     {
+      "label": "Schwertmannite",
+      "color": "#f28e2b"
+     },
+     {
+      "label": "Acid mine drainage assemblage",
+      "color": "#d95f02"
+     },
+     {
+      "label": "Weathered pyrite",
+      "color": "#7570b3"
+     }
+    ],
+    "about": "Cells whose answer in either group is a mineral of acid mine drainage."
+   },
+   {
+    "id": "fe3",
+    "title": "Fe3+ crystal-field band position",
+    "kind": "ramp",
+    "png": "/tmp/terra-mineral-recorded/mineral_fe3.png",
+    "ramp": {
+     "min": 870.7,
+     "max": 987.2,
+     "unit": "nm",
+     "colors": [
+      "#c43c39",
+      "#f28e2b",
+      "#edc948"
+     ],
+     "low": "hematite references",
+     "high": "goethite references"
+    },
+    "about": "Fitted wavelength of the Fe3+ crystal-field band over cells identified as hematite or goethite."
+   },
+   {
+    "id": "aloh",
+    "title": "Al-OH band position",
+    "kind": "ramp",
+    "png": "/tmp/terra-mineral-recorded/mineral_aloh.png",
+    "ramp": {
+     "min": 2190.0,
+     "max": 2225.0,
+     "unit": "nm",
+     "colors": [
+      "#2c7bb6",
+      "#abd9e9",
+      "#ffffbf",
+      "#fdae61",
+      "#d7191c"
+     ],
+     "low": "Al-rich (shorter)",
+     "high": "Al-poor, Mg-Fe (longer)"
+    },
+    "about": "Fitted wavelength of the Al-OH band over cells identified as illite / muscovite or smectite (montmorillonite, nontronite)."
+   },
+   {
+    "id": "margin1",
+    "title": "Fit margin, group 1",
+    "kind": "ramp",
+    "png": "/tmp/terra-mineral-recorded/mineral_margin1.png",
+    "ramp": {
+     "min": 0.0,
+     "max": 0.3,
+     "unit": "fit",
+     "colors": [
+      "#d73027",
+      "#fee08b",
+      "#1a9850"
+     ],
+     "low": "another class fits as well",
+     "high": "no other class near"
+    },
+    "about": "The answer's weighted fit minus the best fit of a reference of another class."
+   },
+   {
+    "id": "stability1",
+    "title": "Class stability, group 1",
+    "kind": "ramp",
+    "png": "/tmp/terra-mineral-recorded/mineral_stability1.png",
+    "ramp": {
+     "min": 0.0,
+     "max": 1.0,
+     "unit": "fraction",
+     "colors": [
+      "#d73027",
+      "#fee08b",
+      "#1a9850"
+     ],
+     "low": "class changed in every draw",
+     "high": "class held in every draw"
+    },
+    "about": "Share of 3 draws, perturbed by the reflectance uncertainty, in which the class held."
+   },
+   {
+    "id": "agreement1",
+    "title": "Agreement with EMIT L2B, group 1",
+    "kind": "classes",
+    "png": "/tmp/terra-mineral-recorded/mineral_agreement1.png",
+    "legend": [
+     {
+      "label": "Same class as L2B",
+      "color": "#1a9850"
+     },
+     {
+      "label": "Different class from L2B",
+      "color": "#d73027"
+     },
+     {
+      "label": "Identified here, not by L2B",
+      "color": "#fdae61"
+     },
+     {
+      "label": "Identified by L2B only",
+      "color": "#4575b4"
+     },
+     {
+      "label": "Identified by neither",
+      "color": "#d9d9d9"
+     }
+    ],
+    "about": "The mineral class here against the EMIT L2B product's, same pixel; vegetation and water count as no mineral on both sides."
+   },
+   {
+    "id": "margin2",
+    "title": "Fit margin, group 2",
+    "kind": "ramp",
+    "png": "/tmp/terra-mineral-recorded/mineral_margin2.png",
+    "ramp": {
+     "min": 0.0,
+     "max": 0.3,
+     "unit": "fit",
+     "colors": [
+      "#d73027",
+      "#fee08b",
+      "#1a9850"
+     ],
+     "low": "another class fits as well",
+     "high": "no other class near"
+    },
+    "about": "The answer's weighted fit minus the best fit of a reference of another class."
+   },
+   {
+    "id": "stability2",
+    "title": "Class stability, group 2",
+    "kind": "ramp",
+    "png": "/tmp/terra-mineral-recorded/mineral_stability2.png",
+    "ramp": {
+     "min": 0.0,
+     "max": 1.0,
+     "unit": "fraction",
+     "colors": [
+      "#d73027",
+      "#fee08b",
+      "#1a9850"
+     ],
+     "low": "class changed in every draw",
+     "high": "class held in every draw"
+    },
+    "about": "Share of 3 draws, perturbed by the reflectance uncertainty, in which the class held."
+   },
+   {
+    "id": "agreement2",
+    "title": "Agreement with EMIT L2B, group 2",
+    "kind": "classes",
+    "png": "/tmp/terra-mineral-recorded/mineral_agreement2.png",
+    "legend": [
+     {
+      "label": "Same class as L2B",
+      "color": "#1a9850"
+     },
+     {
+      "label": "Different class from L2B",
+      "color": "#d73027"
+     },
+     {
+      "label": "Identified here, not by L2B",
+      "color": "#fdae61"
+     },
+     {
+      "label": "Identified by L2B only",
+      "color": "#4575b4"
+     },
+     {
+      "label": "Identified by neither",
+      "color": "#d9d9d9"
+     }
+    ],
+    "about": "The mineral class here against the EMIT L2B product's, same pixel; vegetation and water count as no mineral on both sides."
+   }
+  ],
   "geotiff": "/tmp/terra-mineral-recorded/mineral_map.tif",
   "extent": {
    "lon_min": -43.95,
-   "lon_max": -43.84968698375258,
-   "lat_min": -20.250313016247425,
+   "lon_max": -43.89957237561616,
+   "lat_min": -20.200427624383842,
    "lat_max": -20.15
   },
   "notes": []
