@@ -542,6 +542,12 @@ func (a *App) LoadAnalysis(runID string) (*analysis.PredictResult, error) {
 		return &analysis.PredictResult{Mineral: &mineral, RunID: run.ID}, nil
 	}
 
+	// A field delineation: its polygons are a file of the run, read back with
+	// its images. See loadFieldsRun.
+	if run.Kind == store.RunKindFields {
+		return &analysis.PredictResult{Fields: loadFieldsRun(run, assetsDir), RunID: run.ID}, nil
+	}
+
 	var res analysis.PredictResult
 	if run.ResultJSON != "" && run.ResultJSON != "{}" {
 		_ = json.Unmarshal([]byte(run.ResultJSON), &res)

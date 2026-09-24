@@ -316,6 +316,18 @@ var OptionalPackages = []OptionalPackage{
 		Enables: "Temporal Transformer and Prithvi-EO 2.0",
 		Size:    "about 2-3 GB",
 	},
+	/*
+		The network builder the field-boundary checkpoints are rebuilt with.
+		Its own entry because it is useless without torch and small beside it:
+		the wheel and what it adds to a torch environment (timm,
+		huggingface-hub, safetensors) measured 4 MB, torchvision aside.
+	*/
+	{
+		Spec:    "segmentation-models-pytorch>=0.5",
+		Name:    "segmentation-models-pytorch",
+		Enables: "Field boundary delineation (needs torch)",
+		Size:    "about 10 MB",
+	},
 }
 
 /*

@@ -773,6 +773,7 @@ const (
 var keptWorkDirPrefixes = []string{
 	"terra-run-",
 	"terra-mineral-",
+	"terra-fields-",
 }
 
 /*

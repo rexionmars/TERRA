@@ -276,6 +276,11 @@ func (a *App) ExportOverlayFile(src string, defaultFilename string) (string, err
 		filters = []wruntime.FileFilter{
 			{DisplayName: "PNG", Pattern: "*.png"},
 		}
+	case ".geojson":
+		// A field delineation's polygons, handed over as a data URI.
+		filters = []wruntime.FileFilter{
+			{DisplayName: "GeoJSON", Pattern: "*.geojson;*.json"},
+		}
 	}
 
 	dest, err := wruntime.SaveFileDialog(a.ctx, wruntime.SaveDialogOptions{

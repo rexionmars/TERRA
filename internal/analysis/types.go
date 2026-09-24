@@ -557,6 +557,8 @@ type PredictResult struct {
 	Water *WaterAnalysis `json:"water,omitempty"`
 	// A Tetracorder mineral map from EMIT reflectance, reopened from the store.
 	Mineral *MineralAnalysis `json:"mineral,omitempty"`
+	// Field boundaries delineated over the area, reopened from the store.
+	Fields *FieldsAnalysis `json:"fields,omitempty"`
 	// Compact spectral / NDVI fingerprint cached at classify time for
 	// domain-shift diagnostics against another run. Absent on older runs and
 	// on water-only results.

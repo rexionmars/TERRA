@@ -208,6 +208,8 @@ func kindLabel(kind string) string {
 		return "Surface water"
 	case RunKindMineral:
 		return "Mineral map"
+	case RunKindFields:
+		return "Field boundaries"
 	default:
 		return kind
 	}

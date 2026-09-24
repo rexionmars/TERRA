@@ -269,3 +269,39 @@ func TestProjectFilePath(t *testing.T) {
 		}
 	}
 }
+
+// Fields travel with the file as fields: the parent and the delineation they
+// came from survive a save and an open on another machine.
+func TestProjectFileCarriesFields(t *testing.T) {
+	a := openTestStore(t)
+	f := seedFieldProject(t, a, "a@fields.test")
+	adopted, err := a.AdoptFields(f.userID, f.areaID, f.runID, []Area{
+		{Name: "field 1", PolygonGeoJSON: `{"type":"Polygon","coordinates":[]}`},
+	}, false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	sum, err := a.SaveProjectFile(f.userID, f.projectID, filepath.Join(t.TempDir(), "Fields"), "0.6.0")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if sum.Areas != 2 {
+		t.Fatalf("saved %d areas, want 2", sum.Areas)
+	}
+
+	b := openTestStore(t)
+	u, _, err := b.Register("b@fields.test", "secret12", "Other")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := b.OpenProjectFile(u.ID, sum.Path); err != nil {
+		t.Fatal(err)
+	}
+	got, err := b.GetArea(u.ID, adopted[0].ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got.ParentID != f.areaID || got.SourceRunID != f.runID {
+		t.Fatalf("field came back with parent %q, source %q", got.ParentID, got.SourceRunID)
+	}
+}

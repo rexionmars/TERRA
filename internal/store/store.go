@@ -112,6 +112,10 @@ const (
 	// an index threshold over a Sentinel-2 stack -- and its payload binds to
 	// neither of their structs.
 	RunKindMineral = "mineral"
+	// Field boundaries from two Sentinel-2 dates. Its output is a set of
+	// polygons rather than a raster of classes, and the polygons are what the
+	// fields of an area are adopted from (see AdoptFields).
+	RunKindFields = "fields"
 )
 
 // Project groups AOI, analyses, and overlay assets for an agronomist workflow.
@@ -306,7 +310,7 @@ below it. The number says how far migrate has taken a database; it does not by
 itself say which columns a table has, and addColumns explains why those two are
 not the same question here.
 */
-const schemaVersion = 5
+const schemaVersion = 6
 
 // userVersion reads the version SQLite keeps in the database header.
 func (s *Store) userVersion() (int, error) {
@@ -845,6 +849,31 @@ CREATE INDEX IF NOT EXISTS idx_runs_project_created ON inference_runs(project_id
 			if _, err := s.db.Exec(stmt); err != nil {
 				return fmt.Errorf("migrate area indexes: %w", err)
 			}
+		}
+	}
+	/*
+		Fields inside an area: the area a field belongs to, and the
+		delineation it was adopted from. See areas.go.
+
+		Declared in areaSchema as well, so a file created by this build has
+		them from its first CREATE; addColumns asks the table first, so on
+		such a file this step adds nothing. The index needs the column, which
+		is why it is here and not in areaSchema: there it would run before the
+		ALTER on every file that predates it, and fail.
+	*/
+	if at < 6 {
+		if err := s.addColumns([]columnAdd{
+			{"areas", "parent_id",
+				`ALTER TABLE areas ADD COLUMN parent_id TEXT NOT NULL DEFAULT ''`},
+			{"areas", "source_run_id",
+				`ALTER TABLE areas ADD COLUMN source_run_id TEXT NOT NULL DEFAULT ''`},
+		}); err != nil {
+			return fmt.Errorf("migrate area fields: %w", err)
+		}
+		if _, err := s.db.Exec(
+			`CREATE INDEX IF NOT EXISTS idx_areas_parent ON areas(parent_id)`,
+		); err != nil {
+			return fmt.Errorf("migrate area parent index: %w", err)
 		}
 	}
 	/*
