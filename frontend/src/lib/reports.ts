@@ -6,7 +6,9 @@
  * through lib/notify.ts, so it is recorded there as it is raised; the Reports
  * editor reads this list, and a closed editor loses nothing because the list
  * is not its own. Operator lines record what a key, a menu row or the search
- * ran, as Blender's Info editor does.
+ * ran, as Blender's Info editor does. Input and output lines are the
+ * Console's: what was typed there and what it answered, which the Reports
+ * editor leaves out.
  *
  * A module list rather than React state, because what writes to it -- notify,
  * the operators -- is not a component, and a subscription is what lets any
@@ -14,7 +16,13 @@
  */
 import { useSyncExternalStore } from "react"
 
-export type ReportLevel = "operator" | "info" | "success" | "error"
+export type ReportLevel =
+  | "operator"
+  | "info"
+  | "success"
+  | "error"
+  | "input"
+  | "output"
 
 export interface Report {
   id: number

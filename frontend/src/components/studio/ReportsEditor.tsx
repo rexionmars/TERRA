@@ -48,7 +48,8 @@ export function ReportsEditor({
   /** The studio surface its filter menu is portalled into. */
   surface: HTMLElement | null
 }) {
-  const all = useReports()
+  // The Console's own lines stay in the Console.
+  const all = useReports().filter((r) => r.level !== "input" && r.level !== "output")
   const [hidden, setHidden] = useState<ReadonlySet<ReportLevel>>(new Set())
   const [filterMenu, setFilterMenu] = useState(false)
   const shown = all.filter((r) => !hidden.has(r.level))

@@ -484,6 +484,26 @@ export function installKeymap(): () => void {
   return () => window.removeEventListener("keydown", onKey)
 }
 
+// ---- By name, for the Console -------------------------------------------------
+
+/** The operator an id names, typed in any case; null for a name that is not one. */
+export function findOperator(name: string): OperatorId | null {
+  const id = name.trim().toUpperCase()
+  return Object.hasOwn(DEFS, id) ? (id as OperatorId) : null
+}
+
+/** Ids that begin with what has been typed, for the Console's completion. */
+export function operatorCompletions(prefix: string): OperatorId[] {
+  const p = prefix.trimStart().toUpperCase()
+  if (!p || /\s/.test(p)) return []
+  return OPERATOR_IDS.filter((id) => id.startsWith(p))
+}
+
+/** Whether an operator has an owner on the screen that is up. */
+export function operatorHere(id: OperatorId): boolean {
+  return !!current(id)
+}
+
 // ---- Search -------------------------------------------------------------------
 
 /** Operators matching a search by label, menu, description or id; label matches first. */

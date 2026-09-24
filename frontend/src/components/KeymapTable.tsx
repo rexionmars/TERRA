@@ -17,7 +17,7 @@ export function KeymapTable() {
     if (!q) return true
     const o = OPERATORS[id]
     const keys = (o.keys ?? []).map((k) => formatKeys(k)).join(" ")
-    return `${o.label} ${o.menu} ${keys}`.toLowerCase().includes(q)
+    return `${o.label} ${o.menu} ${keys} ${id}`.toLowerCase().includes(q)
   })
 
   return (
@@ -27,7 +27,8 @@ export function KeymapTable() {
         since no area holds the keyboard. None of them work while typing in a
         field, except the ones that save, search and open settings. Every
         command here can also be found by name with{" "}
-        <span className="telemetry text-foreground">{formatKeys("F3")}</span>.
+        <span className="telemetry text-foreground">{formatKeys("F3")}</span>,
+        or typed in the Console by the name in its last column.
       </p>
       <input
         value={query}
@@ -43,7 +44,8 @@ export function KeymapTable() {
             <th className="py-1 pr-2 font-normal">Command</th>
             <th className="py-1 pr-2 font-normal">Keys</th>
             <th className="py-1 pr-2 font-normal">Where</th>
-            <th className="py-1 font-normal">Menu</th>
+            <th className="py-1 pr-2 font-normal">Menu</th>
+            <th className="py-1 font-normal">Console</th>
           </tr>
         </thead>
         <tbody>
@@ -66,13 +68,16 @@ export function KeymapTable() {
                 <td className="py-1 pr-2 text-muted-foreground">
                   {o.keys?.length ? SCOPE_NAMES[o.scope ?? "window"] : ""}
                 </td>
-                <td className="py-1 text-muted-foreground">{o.menu}</td>
+                <td className="py-1 pr-2 text-muted-foreground">{o.menu}</td>
+                <td className="telemetry selectable py-1 text-meta text-muted-foreground">
+                  {id}
+                </td>
               </tr>
             )
           })}
           {rows.length === 0 && (
             <tr>
-              <td colSpan={4} className="py-2 text-muted-foreground">
+              <td colSpan={5} className="py-2 text-muted-foreground">
                 No command matches.
               </td>
             </tr>

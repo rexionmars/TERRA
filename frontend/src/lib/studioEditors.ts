@@ -29,6 +29,7 @@ import {
   SlidersHorizontal,
   Scroll,
   Table,
+  TerminalWindow,
   TreeStructure,
   TreeView,
   Waves,
@@ -50,6 +51,7 @@ export type EditorId =
   | "mineralReading"
   | "browser"
   | "reports"
+  | "console"
 
 /**
  * What kind of work a thing is FOR, named once for the whole studio.
@@ -377,6 +379,16 @@ export const STUDIO_EDITORS: readonly StudioEditorMeta[] = [
       disagree with; two are two filters over the same log.
     */
     hint: "Every notification and command run, kept after the toast leaves",
+  },
+  {
+    id: "console",
+    group: "board",
+    label: "Console",
+    icon: TerminalWindow,
+    // The report log with a line under it: the same floor as Reports.
+    minRem: 18,
+    minRowRem: 4,
+    hint: "Run any operator by name, with completion and history",
   },
 ]
 
