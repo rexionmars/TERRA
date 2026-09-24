@@ -7,6 +7,7 @@ import (
 	"path/filepath"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"geosense-infer/internal/analysis"
@@ -42,6 +43,10 @@ type App struct {
 	bootMu      sync.Mutex
 	bootLogs    []string
 	bootStarted time.Time
+
+	// Whether the board holds changes no saved studio does. Reported by the
+	// interface through SetBoardDirty, read by beforeClose; see app_studios.go.
+	boardDirty atomic.Bool
 }
 
 // NewApp creates a new App.

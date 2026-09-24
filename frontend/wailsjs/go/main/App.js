@@ -238,6 +238,10 @@ export function SetAvatar(arg1) {
   return window['go']['main']['App']['SetAvatar'](arg1);
 }
 
+export function SetBoardDirty(arg1) {
+  return window['go']['main']['App']['SetBoardDirty'](arg1);
+}
+
 export function SetEarthdataToken(arg1) {
   return window['go']['main']['App']['SetEarthdataToken'](arg1);
 }

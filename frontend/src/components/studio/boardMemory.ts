@@ -98,25 +98,41 @@ export function liveAreaId(
  * differs from what was stored, and a diff would report every board dirty the
  * moment it appeared.
  *
- * Read when a board is about to be replaced by another, which is the one
- * gesture that throws this work away without asking.
+ * Read when a board is about to be replaced by another, and at quit: the two
+ * gestures that throw this work away. The second is the shell's to catch, so
+ * a change of this flag is also announced -- App passes it to Go, which asks
+ * before a close would discard it.
  */
 let dirty = false
+const dirtyListeners = new Set<(dirty: boolean) => void>()
+
+function setDirty(next: boolean): void {
+  if (dirty === next) return
+  dirty = next
+  for (const l of dirtyListeners) l(next)
+}
+
 export function markBoardDirty(): void {
-  dirty = true
+  setDirty(true)
 }
 export function boardIsDirty(): boolean {
   return dirty
 }
 /** Called when what is on disk is what is on screen: a save, or an open. */
 export function clearBoardDirty(): void {
-  dirty = false
+  setDirty(false)
+}
+
+/** Told whenever the board becomes unsaved or saved again. Returns the unsubscribe. */
+export function onBoardDirtyChange(listener: (dirty: boolean) => void): () => void {
+  dirtyListeners.add(listener)
+  return () => dirtyListeners.delete(listener)
 }
 
 /** Forget everything. For a board that should open empty. */
 export function clearBoardMemory(): void {
   kept.clear()
-  dirty = false
+  setDirty(false)
 }
 
 export function readBoardMemory<T>(key: string, fallback: T): T {
