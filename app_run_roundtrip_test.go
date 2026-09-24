@@ -132,9 +132,10 @@ func loadRecordedPayload(t *testing.T, name, key string, dst any) {
 }
 
 // TestMineralRunRoundTrip checks that a mineral map is saved under its own
-// kind, restored through the mineral field, and keeps both class maps and its
-// GeoTIFF, on a payload recorded from a real run: EMIT L2A V001 over the
-// Quadrilatero Ferrifero, 2024-08-30 and 2024-09-03.
+// kind, restored through the mineral field, and keeps both class maps, every
+// derived layer and its GeoTIFF, on a payload recorded from a real run: EMIT
+// L2A V001 over the Quadrilatero Ferrifero, four passes compared per cell
+// between 2024-07-04 and 2025-07-01, with three uncertainty draws.
 func TestMineralRunRoundTrip(t *testing.T) {
 	a := newTestApp(t)
 
@@ -159,6 +160,20 @@ func TestMineralRunRoundTrip(t *testing.T) {
 		res.Groups[i].ClassPNG = ""
 		res.Groups[i].ClassURI = onePixelPNG
 	}
+	if len(res.Layers) == 0 || res.Selection == nil || len(res.Agreement) == 0 {
+		t.Fatalf("the derived figures did not bind: %d layers, selection %v, %d agreements",
+			len(res.Layers), res.Selection, len(res.Agreement))
+	}
+	for i := range res.Layers {
+		res.Layers[i].PNG = ""
+		res.Layers[i].URI = onePixelPNG
+	}
+	used := 0
+	for _, s := range res.Scenes {
+		if s.Cells > 0 {
+			used++
+		}
+	}
 
 	a.persistMineralRun(analysis.MineralRequest{Label: "Quadrilatero", Start: "2024-08-01", End: "2024-09-30"}, &res)
 
@@ -167,8 +182,10 @@ func TestMineralRunRoundTrip(t *testing.T) {
 	if runs[0].Kind != store.RunKindMineral {
 		t.Fatalf("kind = %q, want %q", runs[0].Kind, store.RunKindMineral)
 	}
-	if runs[0].NDates != len(res.Scenes) {
-		t.Fatalf("n_dates = %d, want the %d passes used", runs[0].NDates, len(res.Scenes))
+	// Every pass compared is listed in Scenes; the run row counts those a cell
+	// was taken from.
+	if runs[0].NDates != used {
+		t.Fatalf("n_dates = %d, want the %d passes used", runs[0].NDates, used)
 	}
 	var summary struct {
 		Observed float64 `json:"mineral_observed_area_ha"`
@@ -219,5 +236,37 @@ func TestMineralRunRoundTrip(t *testing.T) {
 	}
 	if m.ObservedCells != res.ObservedCells || len(m.Groups[1].Entries) != len(res.Groups[1].Entries) {
 		t.Fatal("the figures did not survive the round trip")
+	}
+	if len(m.Layers) != len(res.Layers) {
+		t.Fatalf("%d derived layers reopened, want %d", len(m.Layers), len(res.Layers))
+	}
+	for _, l := range m.Layers {
+		if !strings.HasPrefix(l.URI, "data:image/png;base64,") {
+			t.Fatalf("layer %q reopened without its raster", l.ID)
+		}
+		if !strings.HasPrefix(l.PNG, a.store.RunsDir(runID)) {
+			t.Fatalf("layer %q path %q is not in the run's folder", l.ID, l.PNG)
+		}
+	}
+	if m.Selection == nil || *m.Selection != *res.Selection || len(m.Agreement) != len(res.Agreement) ||
+		len(m.Positions) != len(res.Positions) || len(m.Confidence) != len(res.Confidence) {
+		t.Fatal("the pass selection, positions, confidence or agreement did not survive the round trip")
+	}
+}
+
+// TestMineralLayerFileNames refuses a layer id that is not a plain name, since
+// the id comes from the sidecar and becomes part of a path.
+func TestMineralLayerFileNames(t *testing.T) {
+	for id, want := range map[string]string{
+		"margin1":      "mineral_layer_margin1.png",
+		"acid_sulfate": "mineral_layer_acid_sulfate.png",
+		"":             "",
+		"../x":         "",
+		"Pass":         "",
+		"a/b":          "",
+	} {
+		if got := mineralLayerPNG(id); got != want {
+			t.Errorf("mineralLayerPNG(%q) = %q, want %q", id, got, want)
+		}
 	}
 }

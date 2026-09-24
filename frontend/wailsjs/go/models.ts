@@ -1527,6 +1527,410 @@ export namespace analysis {
 		}
 	}
 	
+	export class MineralAcidSulfateRow {
+	    key: string;
+	    label: string;
+	    setting: string;
+	    color: string;
+	    cells: number;
+	    area_ha: number;
+	    groups: Record<string, number>;
+	
+	    static createFrom(source: any = {}) {
+	        return new MineralAcidSulfateRow(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.key = source["key"];
+	        this.label = source["label"];
+	        this.setting = source["setting"];
+	        this.color = source["color"];
+	        this.cells = source["cells"];
+	        this.area_ha = source["area_ha"];
+	        this.groups = source["groups"];
+	    }
+	}
+	export class MineralClassPair {
+	    here: string;
+	    l2b: string;
+	    cells: number;
+	
+	    static createFrom(source: any = {}) {
+	        return new MineralClassPair(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.here = source["here"];
+	        this.l2b = source["l2b"];
+	        this.cells = source["cells"];
+	    }
+	}
+	export class MineralAgreement {
+	    group: number;
+	    granules: string[];
+	    compared_cells: number;
+	    agree: number;
+	    differ: number;
+	    port_only: number;
+	    l2b_only: number;
+	    neither: number;
+	    agree_fraction_of_both?: number;
+	    pairs: MineralClassPair[];
+	
+	    static createFrom(source: any = {}) {
+	        return new MineralAgreement(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.group = source["group"];
+	        this.granules = source["granules"];
+	        this.compared_cells = source["compared_cells"];
+	        this.agree = source["agree"];
+	        this.differ = source["differ"];
+	        this.port_only = source["port_only"];
+	        this.l2b_only = source["l2b_only"];
+	        this.neither = source["neither"];
+	        this.agree_fraction_of_both = source["agree_fraction_of_both"];
+	        this.pairs = this.convertValues(source["pairs"], MineralClassPair);
+	    }
+	
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
+	}
+	export class MineralLayerLegendItem {
+	    label: string;
+	    color: string;
+	    excluded?: boolean;
+	
+	    static createFrom(source: any = {}) {
+	        return new MineralLayerLegendItem(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.label = source["label"];
+	        this.color = source["color"];
+	        this.excluded = source["excluded"];
+	    }
+	}
+	export class MineralLayer {
+	    id: string;
+	    title: string;
+	    kind: string;
+	    png: string;
+	    uri?: string;
+	    legend?: MineralLayerLegendItem[];
+	    ramp?: MineralRamp;
+	    channels?: Record<string, string>;
+	    about: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new MineralLayer(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.id = source["id"];
+	        this.title = source["title"];
+	        this.kind = source["kind"];
+	        this.png = source["png"];
+	        this.uri = source["uri"];
+	        this.legend = this.convertValues(source["legend"], MineralLayerLegendItem);
+	        this.ramp = this.convertValues(source["ramp"], MineralRamp);
+	        this.channels = source["channels"];
+	        this.about = source["about"];
+	    }
+	
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
+	}
+	export class MineralSpread {
+	    cells: number;
+	    mean: number;
+	    sd: number;
+	    p10: number;
+	    p50: number;
+	    p90: number;
+	
+	    static createFrom(source: any = {}) {
+	        return new MineralSpread(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.cells = source["cells"];
+	        this.mean = source["mean"];
+	        this.sd = source["sd"];
+	        this.p10 = source["p10"];
+	        this.p50 = source["p50"];
+	        this.p90 = source["p90"];
+	    }
+	}
+	export class MineralConfidence {
+	    group: number;
+	    margin?: MineralSpread;
+	    draws: number;
+	    stability?: MineralSpread;
+	    stable_cells: number;
+	
+	    static createFrom(source: any = {}) {
+	        return new MineralConfidence(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.group = source["group"];
+	        this.margin = this.convertValues(source["margin"], MineralSpread);
+	        this.draws = source["draws"];
+	        this.stability = this.convertValues(source["stability"], MineralSpread);
+	        this.stable_cells = source["stable_cells"];
+	    }
+	
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
+	}
+	export class MineralRamp {
+	    min: number;
+	    max: number;
+	    unit: string;
+	    colors: string[];
+	    low: string;
+	    high: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new MineralRamp(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.min = source["min"];
+	        this.max = source["max"];
+	        this.unit = source["unit"];
+	        this.colors = source["colors"];
+	        this.low = source["low"];
+	        this.high = source["high"];
+	    }
+	}
+	export class MineralPositionReference {
+	    class: string;
+	    references: number;
+	    min_nm: number;
+	    max_nm: number;
+	    median_nm: number;
+	
+	    static createFrom(source: any = {}) {
+	        return new MineralPositionReference(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.class = source["class"];
+	        this.references = source["references"];
+	        this.min_nm = source["min_nm"];
+	        this.max_nm = source["max_nm"];
+	        this.median_nm = source["median_nm"];
+	    }
+	}
+	export class MineralPositionClass {
+	    class: string;
+	    label: string;
+	    cells: number;
+	    mean: number;
+	    sd: number;
+	    p10: number;
+	    p50: number;
+	    p90: number;
+	
+	    static createFrom(source: any = {}) {
+	        return new MineralPositionClass(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.class = source["class"];
+	        this.label = source["label"];
+	        this.cells = source["cells"];
+	        this.mean = source["mean"];
+	        this.sd = source["sd"];
+	        this.p10 = source["p10"];
+	        this.p50 = source["p50"];
+	        this.p90 = source["p90"];
+	    }
+	}
+	export class MineralPosition {
+	    key: string;
+	    title: string;
+	    unit: string;
+	    group: number;
+	    classes: MineralPositionClass[];
+	    references: MineralPositionReference[];
+	    ramp: MineralRamp;
+	
+	    static createFrom(source: any = {}) {
+	        return new MineralPosition(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.key = source["key"];
+	        this.title = source["title"];
+	        this.unit = source["unit"];
+	        this.group = source["group"];
+	        this.classes = this.convertValues(source["classes"], MineralPositionClass);
+	        this.references = this.convertValues(source["references"], MineralPositionReference);
+	        this.ramp = this.convertValues(source["ramp"], MineralRamp);
+	    }
+	
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
+	}
+	export class MineralCoverGroup {
+	    group: number;
+	    identified_cells: number;
+	    identified_area_ha: number;
+	
+	    static createFrom(source: any = {}) {
+	        return new MineralCoverGroup(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.group = source["group"];
+	        this.identified_cells = source["identified_cells"];
+	        this.identified_area_ha = source["identified_area_ha"];
+	    }
+	}
+	export class MineralCover {
+	    product: string;
+	    cells: number;
+	    area_ha: number;
+	    mean_pv: number;
+	    mean_npv: number;
+	    mean_bare: number;
+	    bare_threshold: number;
+	    bare_cells: number;
+	    bare_area_ha: number;
+	    groups: MineralCoverGroup[];
+	
+	    static createFrom(source: any = {}) {
+	        return new MineralCover(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.product = source["product"];
+	        this.cells = source["cells"];
+	        this.area_ha = source["area_ha"];
+	        this.mean_pv = source["mean_pv"];
+	        this.mean_npv = source["mean_npv"];
+	        this.mean_bare = source["mean_bare"];
+	        this.bare_threshold = source["bare_threshold"];
+	        this.bare_cells = source["bare_cells"];
+	        this.bare_area_ha = source["bare_area_ha"];
+	        this.groups = this.convertValues(source["groups"], MineralCoverGroup);
+	    }
+	
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
+	}
+	export class MineralSelection {
+	    rule: string;
+	    compared_passes: number;
+	    contributing_passes: number;
+	    exposed_cells: number;
+	    exposed_area_ha: number;
+	
+	    static createFrom(source: any = {}) {
+	        return new MineralSelection(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.rule = source["rule"];
+	        this.compared_passes = source["compared_passes"];
+	        this.contributing_passes = source["contributing_passes"];
+	        this.exposed_cells = source["exposed_cells"];
+	        this.exposed_area_ha = source["exposed_area_ha"];
+	    }
+	}
 	export class MineralLegendItem {
 	    class: string;
 	    label: string;
@@ -1643,6 +2047,12 @@ export namespace analysis {
 	    cells: number;
 	    masked_cells: number;
 	    wavelength_offset_nm: number;
+	    candidate_cells: number;
+	    exposed_cells: number;
+	    chosen_exposed_cells: number;
+	    frcov_granule: string;
+	    l2b_granule: string;
+	    acquired: string;
 	
 	    static createFrom(source: any = {}) {
 	        return new MineralScene(source);
@@ -1657,6 +2067,12 @@ export namespace analysis {
 	        this.cells = source["cells"];
 	        this.masked_cells = source["masked_cells"];
 	        this.wavelength_offset_nm = source["wavelength_offset_nm"];
+	        this.candidate_cells = source["candidate_cells"];
+	        this.exposed_cells = source["exposed_cells"];
+	        this.chosen_exposed_cells = source["chosen_exposed_cells"];
+	        this.frcov_granule = source["frcov_granule"];
+	        this.l2b_granule = source["l2b_granule"];
+	        this.acquired = source["acquired"];
 	    }
 	}
 	export class MineralAnalysis {
@@ -1673,6 +2089,13 @@ export namespace analysis {
 	    scenes: MineralScene[];
 	    groups: MineralGroup[];
 	    legend: MineralLegendItem[];
+	    selection?: MineralSelection;
+	    cover?: MineralCover;
+	    positions: MineralPosition[];
+	    confidence: MineralConfidence[];
+	    agreement: MineralAgreement[];
+	    acid_sulfate: MineralAcidSulfateRow[];
+	    layers: MineralLayer[];
 	    geotiff: string;
 	    extent: Bounds;
 	    notes: string[];
@@ -1696,6 +2119,13 @@ export namespace analysis {
 	        this.scenes = this.convertValues(source["scenes"], MineralScene);
 	        this.groups = this.convertValues(source["groups"], MineralGroup);
 	        this.legend = this.convertValues(source["legend"], MineralLegendItem);
+	        this.selection = this.convertValues(source["selection"], MineralSelection);
+	        this.cover = this.convertValues(source["cover"], MineralCover);
+	        this.positions = this.convertValues(source["positions"], MineralPosition);
+	        this.confidence = this.convertValues(source["confidence"], MineralConfidence);
+	        this.agreement = this.convertValues(source["agreement"], MineralAgreement);
+	        this.acid_sulfate = this.convertValues(source["acid_sulfate"], MineralAcidSulfateRow);
+	        this.layers = this.convertValues(source["layers"], MineralLayer);
 	        this.geotiff = source["geotiff"];
 	        this.extent = this.convertValues(source["extent"], Bounds);
 	        this.notes = source["notes"];
@@ -1723,12 +2153,23 @@ export namespace analysis {
 	
 	
 	
+	
+	
+	
+	
+	
+	
+	
+	
+	
+	
 	export class MineralRequest {
 	    polygon_geojson?: GeoJSONGeometry;
 	    start: string;
 	    end: string;
 	    max_cloud: number;
 	    max_scenes: number;
+	    uncertainty_draws: number;
 	    label: string;
 	    run_label: string;
 	    area_id: string;
@@ -1745,6 +2186,7 @@ export namespace analysis {
 	        this.end = source["end"];
 	        this.max_cloud = source["max_cloud"];
 	        this.max_scenes = source["max_scenes"];
+	        this.uncertainty_draws = source["uncertainty_draws"];
 	        this.label = source["label"];
 	        this.run_label = source["run_label"];
 	        this.area_id = source["area_id"];
@@ -1769,6 +2211,8 @@ export namespace analysis {
 		    return a;
 		}
 	}
+	
+	
 	
 	export class PhenologyMetrics {
 	    sos_doy?: number;

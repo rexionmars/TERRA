@@ -56,6 +56,9 @@ func (r *Runner) AnalyzeMinerals(ctx context.Context, req MineralRequest, token 
 	if req.MaxScenes > 0 {
 		payload["max_scenes"] = req.MaxScenes
 	}
+	if req.UncertaintyDraws > 0 {
+		payload["uncertainty_draws"] = req.UncertaintyDraws
+	}
 	reqBytes, err := json.Marshal(payload)
 	if err != nil {
 		return nil, fmt.Errorf("failed to encode request: %w", err)
@@ -73,7 +76,7 @@ func (r *Runner) AnalyzeMinerals(ctx context.Context, req MineralRequest, token 
 }
 
 // parseMineralPayload reads the sidecar's `mineral` object and loads each
-// group's class map into a data URI for the map.
+// group's class map and each derived layer into a data URI for the map.
 func parseMineralPayload(raw []byte) (*MineralAnalysis, error) {
 	var wrapped struct {
 		Mineral *MineralAnalysis `json:"mineral"`
@@ -92,6 +95,14 @@ func parseMineralPayload(raw []byte) (*MineralAnalysis, error) {
 		}
 		if uri, err := pngToDataURI(res.Groups[i].ClassPNG); err == nil {
 			res.Groups[i].ClassURI = uri
+		}
+	}
+	for i := range res.Layers {
+		if res.Layers[i].PNG == "" {
+			continue
+		}
+		if uri, err := pngToDataURI(res.Layers[i].PNG); err == nil {
+			res.Layers[i].URI = uri
 		}
 	}
 	return res, nil

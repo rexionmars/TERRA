@@ -124,6 +124,23 @@ func mineralGroupPNG(group int) string {
 	return fmt.Sprintf("mineral_group%d.png", group)
 }
 
+/*
+mineralLayerPNG is a derived layer's file name, or "" for an id that is not
+one: the id comes from the sidecar's payload and becomes part of a path, so
+only lower-case letters, digits and underscores are taken.
+*/
+func mineralLayerPNG(id string) string {
+	if id == "" {
+		return ""
+	}
+	for _, r := range id {
+		if (r < 'a' || r > 'z') && (r < '0' || r > '9') && r != '_' {
+			return ""
+		}
+	}
+	return "mineral_layer_" + id + ".png"
+}
+
 // earthdataProbeURL is the metadata of one EMIT L2A granule over Minas Gerais,
 // small (tens of kilobytes) and behind the same authorisation as every read the
 // mineral map makes.

@@ -31,12 +31,19 @@ type MineralRequest struct {
 	// means no ceiling, the frontend's choice: cells under cloud inside a pass
 	// are excluded by the EMIT mask, and passes are read least cloudy first.
 	MaxCloud float64 `json:"max_cloud"`
-	// Passes read before stopping, best first. Zero means the sidecar default.
-	MaxScenes int    `json:"max_scenes"`
-	Label     string `json:"label"`
-	RunLabel  string `json:"run_label"`
-	AreaID    string `json:"area_id"`
-	ProjectID string `json:"project_id"`
+	// Passes compared per cell, best ranked first; each cell takes its answer
+	// from the one its ground is most exposed in. Zero means the sidecar
+	// default.
+	MaxScenes int `json:"max_scenes"`
+	// Classifications of the reflectance perturbed by its reported
+	// uncertainty, for the stability of each cell's class. Zero skips them:
+	// each costs a full classification, and the uncertainty is a second cube
+	// as large as the reflectance.
+	UncertaintyDraws int    `json:"uncertainty_draws"`
+	Label            string `json:"label"`
+	RunLabel         string `json:"run_label"`
+	AreaID           string `json:"area_id"`
+	ProjectID        string `json:"project_id"`
 }
 
 // MineralScene is one EMIT pass that contributed cells.
@@ -52,6 +59,184 @@ type MineralScene struct {
 	// reference library was convolved to, in nanometres. Channels are matched
 	// by index, as Tetracorder matches them.
 	WavelengthOffsetNm float64 `json:"wavelength_offset_nm"`
+	// Cells this pass observed usably, of those the ones it showed exposed --
+	// free of green vegetation and plant residue -- and of the cells it
+	// answered for the ones exposed in it.
+	CandidateCells     int `json:"candidate_cells"`
+	ExposedCells       int `json:"exposed_cells"`
+	ChosenExposedCells int `json:"chosen_exposed_cells"`
+	// The EMIT L2B fractional cover and mineral granules of the same
+	// acquisition, empty where none exists.
+	FrcovGranule string `json:"frcov_granule"`
+	L2BGranule   string `json:"l2b_granule"`
+	// The acquisition time, "2024-08-30 13:54 UTC".
+	Acquired string `json:"acquired"`
+}
+
+// MineralSelection says how each cell's pass was chosen, and how many cells
+// were exposed in the pass they were taken from.
+type MineralSelection struct {
+	Rule               string  `json:"rule"`
+	ComparedPasses     int     `json:"compared_passes"`
+	ContributingPasses int     `json:"contributing_passes"`
+	ExposedCells       int     `json:"exposed_cells"`
+	ExposedAreaHa      float64 `json:"exposed_area_ha"`
+}
+
+// MineralCoverGroup is the identified area over cells EMIT L2B FRCOV counts
+// as bare ground, for one group.
+type MineralCoverGroup struct {
+	Group            int     `json:"group"`
+	IdentifiedCells  int     `json:"identified_cells"`
+	IdentifiedAreaHa float64 `json:"identified_area_ha"`
+}
+
+// MineralCover is the EMIT L2B fractional cover of the passes used, over the
+// cells that have it.
+type MineralCover struct {
+	Product       string              `json:"product"`
+	Cells         int                 `json:"cells"`
+	AreaHa        float64             `json:"area_ha"`
+	MeanPV        float64             `json:"mean_pv"`
+	MeanNPV       float64             `json:"mean_npv"`
+	MeanBare      float64             `json:"mean_bare"`
+	BareThreshold float64             `json:"bare_threshold"`
+	BareCells     int                 `json:"bare_cells"`
+	BareAreaHa    float64             `json:"bare_area_ha"`
+	Groups        []MineralCoverGroup `json:"groups"`
+}
+
+// MineralSpread is a distribution: count, mean, standard deviation and the
+// 10th, 50th and 90th percentiles.
+type MineralSpread struct {
+	Cells int     `json:"cells"`
+	Mean  float64 `json:"mean"`
+	SD    float64 `json:"sd"`
+	P10   float64 `json:"p10"`
+	P50   float64 `json:"p50"`
+	P90   float64 `json:"p90"`
+}
+
+// MineralPositionClass is the fitted band position over the cells of one
+// class, as a MineralSpread's fields beside the class. Written out rather than
+// embedded, so the TypeScript the bindings generate has them.
+type MineralPositionClass struct {
+	Class string  `json:"class"`
+	Label string  `json:"label"`
+	Cells int     `json:"cells"`
+	Mean  float64 `json:"mean"`
+	SD    float64 `json:"sd"`
+	P10   float64 `json:"p10"`
+	P50   float64 `json:"p50"`
+	P90   float64 `json:"p90"`
+}
+
+// MineralPositionReference is the same measurement on the library references
+// of one class: the yardstick a cell's position is read against.
+type MineralPositionReference struct {
+	Class      string  `json:"class"`
+	References int     `json:"references"`
+	MinNm      float64 `json:"min_nm"`
+	MaxNm      float64 `json:"max_nm"`
+	MedianNm   float64 `json:"median_nm"`
+}
+
+// MineralRamp is how a continuous layer was coloured: min and max clamp, and
+// the colours are spaced evenly between them.
+type MineralRamp struct {
+	Min    float64  `json:"min"`
+	Max    float64  `json:"max"`
+	Unit   string   `json:"unit"`
+	Colors []string `json:"colors"`
+	Low    string   `json:"low"`
+	High   string   `json:"high"`
+}
+
+// MineralPosition is one absorption's fitted wavelength over the cells whose
+// class makes it: the Fe3+ band (hematite against goethite) or the Al-OH band
+// (white mica composition).
+type MineralPosition struct {
+	Key        string                     `json:"key"`
+	Title      string                     `json:"title"`
+	Unit       string                     `json:"unit"`
+	Group      int                        `json:"group"`
+	Classes    []MineralPositionClass     `json:"classes"`
+	References []MineralPositionReference `json:"references"`
+	Ramp       MineralRamp                `json:"ramp"`
+}
+
+// MineralConfidence is how firmly one group's answers stood: the margin of
+// each answer's fit over the best reference of another class, and, when draws
+// were asked for, how often the class held under the reflectance uncertainty.
+type MineralConfidence struct {
+	Group       int            `json:"group"`
+	Margin      *MineralSpread `json:"margin"`
+	Draws       int            `json:"draws"`
+	Stability   *MineralSpread `json:"stability,omitempty"`
+	StableCells int            `json:"stable_cells"`
+}
+
+// MineralClassPair is one disagreement: the class here, the class EMIT L2B
+// gave the same pixel, and how many cells.
+type MineralClassPair struct {
+	Here  string `json:"here"`
+	L2B   string `json:"l2b"`
+	Cells int    `json:"cells"`
+}
+
+// MineralAgreement compares one group's classes with the EMIT L2B product's.
+type MineralAgreement struct {
+	Group         int      `json:"group"`
+	Granules      []string `json:"granules"`
+	ComparedCells int      `json:"compared_cells"`
+	Agree         int      `json:"agree"`
+	Differ        int      `json:"differ"`
+	PortOnly      int      `json:"port_only"`
+	L2BOnly       int      `json:"l2b_only"`
+	Neither       int      `json:"neither"`
+	// Agree over agree plus differ: of the cells both identified, the share
+	// given the same class. Null where there were none.
+	AgreeFractionOfBoth *float64           `json:"agree_fraction_of_both"`
+	Pairs               []MineralClassPair `json:"pairs"`
+}
+
+// MineralAcidSulfateRow is the area whose answer is one mineral of acid mine
+// drainage, with the setting the literature ties it to. Groups counts the
+// cells by the group the match was made in, keyed "1" and "2": a group 2
+// match rests on a band specific to the mineral, a group 1 match on the broad
+// Fe3+ bands it shares with goethite.
+type MineralAcidSulfateRow struct {
+	Key     string         `json:"key"`
+	Label   string         `json:"label"`
+	Setting string         `json:"setting"`
+	Color   string         `json:"color"`
+	Cells   int            `json:"cells"`
+	AreaHa  float64        `json:"area_ha"`
+	Groups  map[string]int `json:"groups"`
+}
+
+// MineralLayerLegendItem is one colour of a class layer. Excluded marks a
+// colour that is not a class, such as the cells observed only under the mask.
+type MineralLayerLegendItem struct {
+	Label    string `json:"label"`
+	Color    string `json:"color"`
+	Excluded bool   `json:"excluded,omitempty"`
+}
+
+// MineralLayer is one derived raster: the pass each cell was taken from, the
+// exposure, the fractional cover, a band position, a fit margin, an agreement
+// with L2B. Kind says how it is read -- "classes", "ramp" or "rgb" -- and
+// which of Legend, Ramp and Channels describes it.
+type MineralLayer struct {
+	ID       string                   `json:"id"`
+	Title    string                   `json:"title"`
+	Kind     string                   `json:"kind"`
+	PNG      string                   `json:"png"`
+	URI      string                   `json:"uri,omitempty"`
+	Legend   []MineralLayerLegendItem `json:"legend,omitempty"`
+	Ramp     *MineralRamp             `json:"ramp,omitempty"`
+	Channels map[string]string        `json:"channels,omitempty"`
+	About    string                   `json:"about"`
 }
 
 // MineralClassRow is the area identified as one class within one group.
@@ -117,7 +302,16 @@ type MineralAnalysis struct {
 	Scenes      []MineralScene      `json:"scenes"`
 	Groups      []MineralGroup      `json:"groups"`
 	Legend      []MineralLegendItem `json:"legend"`
-	// Every group's entry index, fit and depth, one band each, EPSG:4326.
+	// Null in a run saved before the pass of each cell was chosen.
+	Selection   *MineralSelection       `json:"selection"`
+	Cover       *MineralCover           `json:"cover"`
+	Positions   []MineralPosition       `json:"positions"`
+	Confidence  []MineralConfidence     `json:"confidence"`
+	Agreement   []MineralAgreement      `json:"agreement"`
+	AcidSulfate []MineralAcidSulfateRow `json:"acid_sulfate"`
+	Layers      []MineralLayer          `json:"layers"`
+	// Every quantity per cell, one band each, named in its band description,
+	// EPSG:4326.
 	GeoTIFF string `json:"geotiff"`
 	Extent  Bounds `json:"extent"`
 	// What a reader needs to read the figures, written by the sidecar.
@@ -144,6 +338,29 @@ func (m *MineralAnalysis) NormalizeNilSlices() {
 	}
 	if m.Notes == nil {
 		m.Notes = []string{}
+	}
+	if m.Positions == nil {
+		m.Positions = []MineralPosition{}
+	}
+	if m.Confidence == nil {
+		m.Confidence = []MineralConfidence{}
+	}
+	if m.Agreement == nil {
+		m.Agreement = []MineralAgreement{}
+	}
+	if m.AcidSulfate == nil {
+		m.AcidSulfate = []MineralAcidSulfateRow{}
+	}
+	if m.Layers == nil {
+		m.Layers = []MineralLayer{}
+	}
+	for i := range m.Agreement {
+		if m.Agreement[i].Pairs == nil {
+			m.Agreement[i].Pairs = []MineralClassPair{}
+		}
+		if m.Agreement[i].Granules == nil {
+			m.Agreement[i].Granules = []string{}
+		}
 	}
 	for i := range m.Groups {
 		if m.Groups[i].Classes == nil {
