@@ -222,49 +222,27 @@
   --p-kind-mineral: 199 135 171;
 
   /*
-    THE FOLDER, WHICH IS NOT A PRODUCT AND MUST NOT READ AS ONE.
+    THE FOLDER, AS STUDIO ICONS DRAWS IT.
 
-    A container holds the products above; it is not one of them, and giving it
-    a hue from that scale would say a folder of water runs IS water. So it sits
-    beside the scale rather than in it, and two measurements place it.
+    The reference is Jordan Lowe's Studio Icons for VS Code: a flat tan folder,
+    #d6b882, body and tab one tone, with a dark seam where the front panel
+    meets the back. This replaced a construction of its own -- four tones, a
+    lit top and a shaded foot, a tab darker than the body -- that set out to
+    make a container recede, and read on the board as a khaki slab.
 
-    LOWER CHROMA THAN A PRODUCT, which is the same move the scale above made
-    against the semantic tokens: a status is C 0.149, a product is C 0.09, and
-    the thing that merely holds products is C 0.058. Three tiers, each asking
-    less of the reader's attention than the one above.
+    STILL BELOW THE PRODUCTS. The tan is OKLCH L 0.796 C 0.079 h 82, where the
+    khaki was C 0.057: more colour, and still under the products' 0.09, so a
+    folder does not compete with the runs it holds. A hue from the product
+    scale would say a folder of water runs IS water, and 82 is none of them.
 
-    ONE STEP TOWARDS ITS OWN GROUND, not one step darker. A container should
-    recede, and receding is darker on graphite and lighter on paper -- so the
-    two blocks move in opposite directions and the folder ends up nearly the
-    same colour in both themes. That is the bands' property, for the bands'
-    reason: it is a colour rather than a relation to a ground.
+    THE GLYPH ON THE FOLDER IS DARK NOW, because the folder is light: #4a3f2b
+    reads 5.42 against the tan. The seam is the reference's own #514a3d, 4.61.
 
-    FOUR VALUES, BECAUSE A FLAT SHAPE READ AS A RECTANGLE. The first pass was
-    one tone for the body and one for the tab, and against Blender's own icons
-    it looked like a swatch rather than like a folder. What the reference has
-    and it did not is depth: the body is lighter at its top edge than at its
-    bottom, so the front panel catches light and the shape reads as a thing
-    with a front. `--p-folder` is that lit top and `--p-folder-shade` the foot
-    of the same face; the tree and the list, which draw a folder as a glyph and
-    have no face to light, take the lit value alone.
-
-    The tab is below both, because it is the back of the folder seen over the
-    front. A literal rather than the body at a lower alpha: alpha is darker on
-    graphite and lighter on paper, so a translucent tab would light the folder
-    from opposite sides in the two themes.
-
-    AND THE GLYPH IS LIGHTER THAN THE FOLDER, which is the reference's choice
-    and reads at 16px where the first pass did not. One value across both
-    themes, for a reason stronger than symmetry: every ink token in this file
-    flips, and this ink's ground does not.
-
-    Not gated by check-contrast.ts, for the reason the scale above gives: these
-    are a shape's fill, never a ground for text.
+    Not gated by check-contrast.ts: a shape's fill, never a ground for text.
   */
-  --p-folder: 153 143 103;
-  --p-folder-shade: 137 127 87;
-  --p-folder-tab: 122 112 73;
-  --p-folder-ink: 215 209 187;
+  --p-folder: 214 184 130;
+  --p-folder-seam: 81 74 61;
+  --p-folder-ink: 74 63 43;
 
   /*
     THE PARTS OF A REQUEST, AS COLOUR. A second scale of its own, on the same
@@ -626,15 +604,11 @@
   --p-kind-water: 19 130 130;
   --p-kind-mineral: 151 92 126;
 
-  /* The folder, receding towards THIS ground rather than away from it. The
-     dark block carries the argument; these are the same four tones stepped the
-     other way, which is why they land so close to it. The ink is not stepped
-     at all -- it is the one value both themes share, because the surface it is
-     drawn on is also one value. */
-  --p-folder: 160 150 109;
-  --p-folder-shade: 144 134 94;
-  --p-folder-tab: 129 120 80;
-  --p-folder-ink: 215 209 187;
+  /* The folder a step deeper than the dark block's, so the tan still holds a
+     shape against paper; the seam and the glyph follow it down. */
+  --p-folder: 194 154 92;
+  --p-folder-seam: 110 88 55;
+  --p-folder-ink: 74 63 43;
 
   /*
     THE SAME BLOCK FOR A LIGHT GROUND, and the same rule: every line is a hex

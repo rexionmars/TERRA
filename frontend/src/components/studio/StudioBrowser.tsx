@@ -1201,11 +1201,13 @@ function SourceNode({
             for one thing -- and this row is the same folder the tile is.
           */
           <FolderOpen
+            weight="fill"
             className="size-3.5 shrink-0"
             style={{ color: tint("--p-folder") }}
           />
         ) : (
           <Folder
+            weight="fill"
             className="size-3.5 shrink-0"
             style={{ color: tint("--p-folder") }}
           />
@@ -1376,24 +1378,21 @@ function FolderTile({
       */}
       <span className={cn(TILE_PLATE, "flex items-center justify-start")}>
         <span className="flex h-[3.25rem] w-[4.25rem] flex-col">
-          {/* The tab, a little over a third of the width, and behind the body. */}
+          {/* The tab, a little over a third of the width: the back of the folder. */}
           <span
             className="h-[0.5rem] w-[42%] rounded-t-[3px]"
-            style={{ background: tint("--p-folder-tab") }}
+            style={{ background: tint("--p-folder") }}
           />
           {/*
-            Lit at the top and shaded at the foot, with a hairline along the
-            edge between the two -- the front panel of a folder, catching the
-            light a flat fill cannot. One tone read as a swatch beside the
-            reference this was drawn from; see the note in index.css.
+            The front, the same tone as the tab, with the seam along its top
+            edge where it meets the back -- Studio Icons' folder, drawn at this
+            size; see the note in index.css.
           */}
           <span
             className="flex flex-1 items-center justify-center rounded-b-[3px] rounded-tr-[3px]"
             style={{
-              background: `linear-gradient(${tint("--p-folder")}, ${tint(
-                "--p-folder-shade"
-              )})`,
-              boxShadow: "inset 0 1px 0 rgb(255 255 255 / 0.10)",
+              background: tint("--p-folder"),
+              boxShadow: `inset 0 1.5px 0 ${tint("--p-folder-seam")}`,
             }}
           >
             {Glyph ? (
@@ -1446,6 +1445,7 @@ function FolderRow({
       )}
     >
       <Folder
+        weight="fill"
         className="size-4 shrink-0"
         style={{ color: tint("--p-folder") }}
       />
