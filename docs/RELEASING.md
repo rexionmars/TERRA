@@ -222,8 +222,8 @@ release this exists for.
 ## Code names and the splash still
 
 Each release has a code name, fixed for the version the way Sierra and Sonoma
-are. It is shown on the splash under the wordmark, beside the version number,
-and does not change from launch to launch. It also opens the release's What's
+are. It is shown in the splash's status bar, beside the version number, and
+does not change from launch to launch. It also opens the release's What's
 New entry and titles the GitHub release.
 
 Names come from one set: **what is observable from orbit**. `Ember`, `Amazon`
