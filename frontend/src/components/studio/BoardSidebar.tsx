@@ -24,7 +24,7 @@
  * Read top to bottom as the stack is seen: the topmost layer is the topmost
  * row.
  */
-import { type ReactNode, useRef, useState } from "react"
+import { Fragment, type ReactNode, useRef, useState } from "react"
 import {
   CaretDown,
   CaretRight,
@@ -41,6 +41,7 @@ import {
   Minus,
   Note,
   Pentagon,
+  Polygon,
   Plus,
   Stack,
   Trash,
@@ -121,6 +122,11 @@ export interface AreaInfo {
   saved?: boolean
   /** Catalog id to rename/delete when this row is the active map AOI. */
   catalogId?: string
+  /**
+   * The area this one is a field of, when it is one. The pane lists fields
+   * under their area rather than beside it (lib/areas.ts).
+   */
+  parentId?: string
 }
 
 
@@ -184,6 +190,7 @@ export const sceneKey = (areaId: string, sceneId: string) =>
 function layerIcon(id: string): Icon {
   if (id === "water") return Drop
   if (id.startsWith("mineral:")) return Diamond
+  if (id.startsWith("fields:")) return Polygon
   if (id === "composition") return ImageIcon
   if (id === "confidence") return Gauge
   return GridFour
@@ -203,6 +210,8 @@ function layerIcon(id: string): Icon {
 function layerKind(id: string): string {
   if (id === "water") return "Water"
   if (id.startsWith("mineral:")) return "Mineral"
+  if (id === "fields:classes") return "Fields"
+  if (id.startsWith("fields:")) return "Scene"
   if (id === "composition") return "Composite"
   if (id === "confidence") return "Confidence"
   if (id === "prediction") return "Prediction"
@@ -240,27 +249,55 @@ function AreasPane({
 }) {
   const [editing, setEditing] = useState<string | null>(null)
   const [draft, setDraft] = useState("")
+  /*
+    FIELDS UNDER THEIR AREA, closed until asked for. A delineation can make
+    several hundred fields of one area, and listed beside it they would push
+    every other area off the pane. An area opens on its own when one of its
+    fields is the one in use, so the field being worked on is never hidden.
+  */
+  const [expanded, setExpanded] = useState<ReadonlySet<string>>(new Set())
+  const ids = new Set(areas.map((a) => a.catalogId ?? a.id))
+  const children = new Map<string, AreaInfo[]>()
+  for (const a of areas) {
+    if (!a.parentId || !ids.has(a.parentId)) continue
+    const list = children.get(a.parentId)
+    if (list) list.push(a)
+    else children.set(a.parentId, [a])
+  }
+  const roots = areas.filter((a) => !a.parentId || !ids.has(a.parentId))
+  const toggle = (id: string) =>
+    setExpanded((prev) => {
+      const next = new Set(prev)
+      if (!next.delete(id)) next.add(id)
+      return next
+    })
 
-  return (
-    <ul
-      className="panel-scroll min-h-0 flex-1 overflow-y-auto py-1"
-      aria-label="Geometries on the board"
-    >
-      {areas.length === 0 && (
-        <li className="px-2 py-3 text-meta text-muted-foreground">
-          No geometry yet. Draw one from the Area group on the band below.
-        </li>
-      )}
-      {areas.map((a) => (
+  const renderRow = (a: AreaInfo, depth: number, kids: AreaInfo[], open: boolean) => (
         <li
           key={a.id}
           className={cn(
-            "flex items-center gap-1.5 px-2 py-1.5 transition-colors",
+            "flex items-center gap-1.5 py-1.5 pr-2 transition-colors",
+            depth === 0 ? "pl-2" : "pl-7",
             activeRow === stackRow(a.id)
               ? "bg-selected"
               : "hover:bg-hover"
           )}
         >
+          {depth === 0 && (
+            <button
+              type="button"
+              onClick={() => toggle(a.catalogId ?? a.id)}
+              disabled={!kids.length}
+              aria-expanded={kids.length ? open : undefined}
+              aria-label={open ? `Collapse the fields of ${a.title}` : `Show the fields of ${a.title}`}
+              className={cn(
+                "-ml-1 shrink-0 rounded-sm p-0.5 text-muted-foreground",
+                kids.length ? "hover:bg-hover hover:text-foreground" : "invisible"
+              )}
+            >
+              {open ? <CaretDown className="size-3" /> : <CaretRight className="size-3" />}
+            </button>
+          )}
           {a.geometry ? (
             <AoiFootprint
               geometry={a.geometry}
@@ -316,6 +353,7 @@ function AreasPane({
                 {a.hectares !== null && a.vertices !== null
                   ? `${a.vertices} vertices · ${a.hectares.toFixed(1)} ha`
                   : "shape not stored"}
+                {kids.length > 0 && ` · ${kids.length} ${kids.length === 1 ? "field" : "fields"}`}
               </span>
             </button>
           )}
@@ -359,7 +397,29 @@ function AreasPane({
             </button>
           )}
         </li>
-      ))}
+  )
+
+  return (
+    <ul
+      className="panel-scroll min-h-0 flex-1 overflow-y-auto py-1"
+      aria-label="Geometries on the board"
+    >
+      {areas.length === 0 && (
+        <li className="px-2 py-3 text-meta text-muted-foreground">
+          No geometry yet. Draw one from the Area group on the band below.
+        </li>
+      )}
+      {roots.map((a) => {
+        const key = a.catalogId ?? a.id
+        const kids = children.get(key) ?? []
+        const open = expanded.has(key) || kids.some((k) => k.current)
+        return (
+          <Fragment key={a.id}>
+            {renderRow(a, 0, kids, open)}
+            {open && kids.map((k) => renderRow(k, 1, [], false))}
+          </Fragment>
+        )
+      })}
     </ul>
   )
 }

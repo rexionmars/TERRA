@@ -26,6 +26,11 @@ export interface GlobeArea {
    */
   parts: LonLat[][]
   centre: LonLat
+  /**
+   * A field of another area (lib/areas.ts). Drawn thinner and in the field
+   * colour, and preferred when a press lands on both it and its area.
+   */
+  field?: boolean
 }
 
 /**
@@ -40,7 +45,8 @@ export interface GlobeArea {
 export function toGlobeArea(
   id: string,
   name: string,
-  geometry: GeoJSONGeometry | null | undefined
+  geometry: GeoJSONGeometry | null | undefined,
+  field = false
 ): GlobeArea | null {
   if (!geometry) return null
   const parts = polygonParts(geometry)
@@ -48,5 +54,5 @@ export function toGlobeArea(
     .filter((r): r is LonLat[] => !!r?.length)
   const centre = geometryCentroid(geometry)
   if (!parts.length || !centre) return null
-  return { id, name, parts, centre }
+  return { id, name, parts, centre, field }
 }

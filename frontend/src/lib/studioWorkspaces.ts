@@ -23,7 +23,7 @@
  * 1000x700, so no preset is born with an area under its editor's own floor.
  */
 import type { Icon } from "@phosphor-icons/react"
-import { Cube, Diamond, GitDiff, Graph, Table, Waves } from "@phosphor-icons/react"
+import { Cube, Diamond, GitDiff, Graph, Polygon, Table, Waves } from "@phosphor-icons/react"
 
 import type { AreaNode } from "@/lib/boardAreas"
 import { type EditorId, type StudioGroup } from "@/lib/studioEditors"
@@ -286,6 +286,34 @@ export const STUDIO_WORKSPACES: readonly StudioWorkspace[] = [
           leaf("a-outliner", "outliner")
         ),
         leaf("a-mineral", "mineralReading")
+      ),
+  },
+  {
+    id: "fields",
+    group: "crop",
+    icon: Polygon,
+    label: "Field boundaries",
+    hint: "Where one field ends and the next begins, and the fields of an area",
+    /*
+      The polygons are vector and drawn on the globe, so the globe takes the
+      width where the other presets put the viewport, with the outliner under
+      it, where the fields are listed under their area and chosen. What is done
+      with a delineation -- filtering its fields, making them areas, saving
+      them -- is nodes in the compositor beside it rather than a panel of
+      figures: the delineation's own nodes are placed there when it finishes.
+    */
+    build: () =>
+      row(
+        "w-fields-split",
+        // Half: the compositor's floor is 28 rem, 448 px of the 1000 px minimum.
+        0.5,
+        col(
+          "w-fields-left",
+          0.68,
+          leaf("a-globe", "globe"),
+          leaf("a-outliner", "outliner")
+        ),
+        leaf("a-compositor", "compositor")
       ),
   },
 ]

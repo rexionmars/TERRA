@@ -24,7 +24,13 @@
  * shown without being stored, so opening the editor is not an edit.
  */
 import { useEffect, useMemo, useRef, useState } from "react"
-import { CaretRight, X } from "@phosphor-icons/react"
+import { CaretRight, CircleNotch, DownloadSimple, Polygon, X } from "@phosphor-icons/react"
+import { NumberField } from "@/components/ui/NumberField"
+import { cn } from "@/lib/utils"
+import { parseFields, type FieldsTarget } from "@/lib/fields"
+import type { FieldsAnalysis } from "@/lib/types"
+import { notifyExportFail, notifyExportOk } from "@/lib/notify"
+import { ExportOverlayFile } from "../../../wailsjs/go/main/App"
 import {
   linkKey,
   SocketCanvas,
@@ -55,6 +61,7 @@ import {
   defaultGraph,
   disconnect,
   EMPTY_GRAPH,
+  FIELDS_SOCKET,
   inputsOf,
   kindMeta,
   linkInto,
@@ -82,6 +89,7 @@ import {
   socketKey,
   type ChangeReading,
   type ClassValue,
+  type FieldsValue,
   type ImageValue,
   type RasterValue,
   type Result,
@@ -103,6 +111,9 @@ const WIDTH: Record<NodeKind, number> = {
   change: 330,
   viewer: 320,
   globe: 220,
+  fieldFilter: 220,
+  adoptFields: 230,
+  saveFields: 200,
 }
 
 const GUESS_H: Record<NodeKind, number> = {
@@ -117,6 +128,9 @@ const GUESS_H: Record<NodeKind, number> = {
   change: 300,
   viewer: 290,
   globe: 130,
+  fieldFilter: 150,
+  adoptFields: 120,
+  saveFields: 100,
 }
 
 /*
@@ -149,6 +163,8 @@ const paint = (c: NodeCategory) => ({
 const TYPE_COLOUR: Record<SocketType, string> = {
   classes: "var(--b-source-head)",
   image: "var(--b-when-head)",
+  // Polygons, in the field boundaries' kind colour (index.css).
+  fields: "rgb(var(--p-kind-fields))",
 }
 const PLAIN = "var(--b-card-ink)"
 
@@ -262,6 +278,42 @@ function Swatch({ color }: { color: string }) {
       className="inline-block size-2 shrink-0 rounded-[2px]"
       style={{ background: color, boxShadow: "0 0 0 1px rgb(0 0 0 / 0.35)" }}
     />
+  )
+}
+
+/**
+ * A node's one action, drawn as the run card's button is: filled in the accent
+ * while it can go, quiet while it cannot.
+ */
+function ActionButton({
+  label,
+  icon,
+  busy,
+  disabled,
+  onClick,
+}: {
+  label: string
+  icon: React.ReactNode
+  busy?: boolean
+  disabled?: boolean
+  onClick: () => void
+}) {
+  const off = disabled || busy
+  return (
+    <button
+      type="button"
+      onPointerDown={(e) => e.stopPropagation()}
+      onClick={onClick}
+      disabled={off}
+      className={cn(
+        "flex w-full items-center justify-center gap-1.5 rounded-sm px-2 py-1 text-meta transition-colors",
+        "focus-visible:outline-none focus-visible:inset-ring-1 focus-visible:inset-ring-ring",
+        off ? "cursor-not-allowed bg-control text-muted-foreground" : "bg-accent text-accent-foreground hover:opacity-90"
+      )}
+    >
+      {busy ? <CircleNotch className="size-3.5 animate-spin" /> : icon}
+      {label}
+    </button>
   )
 }
 
@@ -477,9 +529,21 @@ export function CompositorEditor({
   onChange,
   onGlobe,
   surface,
+  fieldsOf,
+  fieldsTargetOf,
+  onAdoptFields,
 }: {
   /** The runs on the board, as the outliner lists them. */
   runs: readonly AssetRun[]
+  /**
+   * A run's field delineation, where it is one. Its polygons are the Run
+   * node's Fields output; a run without them has none.
+   */
+  fieldsOf?: (runId: string) => FieldsAnalysis | null
+  /** The area a delineation's fields would belong to, or null where it has none. */
+  fieldsTargetOf?: (runId: string) => FieldsTarget | null
+  /** Makes a delineation's fields areas, with the thresholds that reached the node. */
+  onAdoptFields?: (runId: string, minHa: number, minCropland: number, replace: boolean) => Promise<boolean>
   /** The stored graph, or null where the reader has not changed the default. */
   graph: CompositorGraph | null
   onChange: (next: CompositorGraph) => void
@@ -498,21 +562,30 @@ export function CompositorEditor({
   */
   const runsKey = runs
     .map((r) =>
-      [r.runId, r.title, ...r.assets.map((a) => `${a.id}:${a.title}:${a.previewUri.length}:${a.classes ? 1 : 0}`)].join(
-        "\u0000"
-      )
+      [
+        r.runId,
+        r.title,
+        `fields:${fieldsOf?.(r.runId)?.fields_geojson.length ?? 0}`,
+        ...r.assets.map((a) => `${a.id}:${a.title}:${a.previewUri.length}:${a.classes ? 1 : 0}`),
+      ].join("\u0000")
     )
     .join("|")
   const runsRef = useRef(runs)
   runsRef.current = runs
 
   const runOf = (runId: string | null) => runsRef.current.find((r) => r.runId === runId)
-  const runOutputs = (runId: string | null) =>
-    (runOf(runId)?.assets ?? []).map((a) => ({
+  const fieldsOfRun = (runId: string | null) => (runId && fieldsOf ? fieldsOf(runId) : null)
+  const runOutputs = (runId: string | null) => [
+    ...(runOf(runId)?.assets ?? []).map((a) => ({
       id: a.id,
       label: a.title,
       type: (a.classes ? "classes" : "image") as SocketType,
-    }))
+    })),
+    // A delineation's polygons, beside its rasters.
+    ...(runOf(runId) && fieldsOfRun(runId)?.fields_geojson
+      ? [{ id: FIELDS_SOCKET, label: "Fields", type: "fields" as SocketType }]
+      : []),
+  ]
 
   const firstClass = runs.flatMap((r) => r.assets.filter((a) => a.classes).map((a) => ({ run: r, asset: a })))[0]
   const graph = useMemo<CompositorGraph>(
@@ -600,6 +673,23 @@ export function CompositorEditor({
       source: (runId, assetId) => {
         const run = runOf(runId)
         if (!run) return { status: "none", note: "That run is not on this board." }
+        if (assetId === FIELDS_SOCKET) {
+          const f = fieldsOfRun(runId)
+          if (!f) return { status: "none", note: "That run drew no fields." }
+          const fields = parseFields(f)
+          return {
+            status: "ready",
+            value: {
+              type: "fields",
+              key: `fields:${runId}:${f.fields_geojson.length}`,
+              runId,
+              fields,
+              total: fields.length,
+              minHa: 0,
+              minCropland: 0,
+            },
+          }
+        }
         if (!run.assets.some((a) => a.id === assetId)) {
           return { status: "none", note: "That run has no such raster." }
         }
@@ -615,7 +705,12 @@ export function CompositorEditor({
 
   const outputOf = (node: string, socket: string) => evaluation.outputs.get(socketKey(node, socket))
   const inputOf = (node: string, socket: string) => evaluation.inputs.get(socketKey(node, socket))
-  const readyValue = (r: Result | undefined) => (r?.status === "ready" ? r.value : null)
+  /** A ready raster, or null -- for fields as well, which are no raster. */
+  const readyValue = (r: Result | undefined): RasterValue | null =>
+    r?.status === "ready" && r.value.type !== "fields" ? r.value : null
+  /** Ready fields, or null. */
+  const readyFields = (r: Result | undefined): FieldsValue | null =>
+    r?.status === "ready" && r.value.type === "fields" ? r.value : null
 
   /** The runs whose rasters reach a node, through any chain of links. */
   const runsFeeding = (id: string): string[] => {
@@ -960,6 +1055,31 @@ export function CompositorEditor({
     return v?.type === "classes" ? v.info.legend.filter((_, i) => !v.info.excluded.includes(i)) : []
   }
 
+  const [adopting, setAdopting] = useState<Record<string, "confirm" | "busy">>({})
+  const setAdoptState = (id: string, state: "confirm" | "busy" | null) =>
+    setAdopting((prev) => {
+      const next = { ...prev }
+      if (state) next[id] = state
+      else delete next[id]
+      return next
+    })
+
+  const saveFields = async (v: FieldsValue) => {
+    const text = JSON.stringify({
+      type: "FeatureCollection",
+      features: v.fields.map((f) => ({ type: "Feature", properties: f.properties, geometry: f.geometry })),
+    })
+    // Base64 of the UTF-8 bytes: btoa alone refuses anything outside Latin-1.
+    let bin = ""
+    for (const b of new TextEncoder().encode(text)) bin += String.fromCharCode(b)
+    try {
+      const dest = await ExportOverlayFile(`data:application/geo+json;base64,${btoa(bin)}`, "terra_fields.geojson")
+      if (dest) notifyExportOk(dest)
+    } catch (e) {
+      notifyExportFail(e)
+    }
+  }
+
   const body = (node: GraphNode): React.ReactNode => {
     switch (node.kind) {
       case "run": {
@@ -1167,6 +1287,104 @@ export function CompositorEditor({
         return <StatusNote result={a?.status === "ready" ? inputOf(node.id, "after") : a} />
       }
 
+      case "fieldFilter": {
+        const out = readyFields(outputOf(node.id, "fields"))
+        const pct = (x: number) => `${Math.round(x * 100)}%`
+        return (
+          <>
+            <NumberField
+              label="Min. area"
+              value={node.minHa}
+              min={0}
+              max={1000}
+              step={0.5}
+              format={(x) => `${x.toFixed(1)} ha`}
+              parse={(t) => {
+                const x = Number(t.replace("ha", "").replace(",", ".").trim())
+                return Number.isFinite(x) ? x : null
+              }}
+              onChange={(x) => edit(updateNode(graph, { ...node, minHa: Math.max(0, x) }))}
+            />
+            <NumberField
+              label="Min. cropland"
+              value={node.minCropland}
+              min={0}
+              max={1}
+              step={0.05}
+              format={pct}
+              parse={(t) => {
+                const x = Number(t.replace("%", "").replace(",", ".").trim())
+                return Number.isFinite(x) ? x / 100 : null
+              }}
+              onChange={(x) => edit(updateNode(graph, { ...node, minCropland: Math.min(1, Math.max(0, x)) }))}
+            />
+            {out ? (
+              <Figure label="Kept" value={`${INT.format(out.fields.length)} of ${INT.format(out.total)}`} />
+            ) : (
+              <StatusNote result={outputOf(node.id, "fields")} />
+            )}
+          </>
+        )
+      }
+
+      case "adoptFields": {
+        const r = inputOf(node.id, "fields")
+        const v = readyFields(r)
+        if (!v) return <StatusNote result={r} />
+        const target = fieldsTargetOf?.(v.runId) ?? null
+        if (!target || !onAdoptFields) {
+          return <Note>Only a saved delineation over a saved area can make its fields.</Note>
+        }
+        const state = adopting[node.id]
+        const n = v.fields.length
+        const go = async (replace: boolean) => {
+          setAdoptState(node.id, "busy")
+          const done = await onAdoptFields(v.runId, v.minHa, v.minCropland, replace)
+          setAdoptState(node.id, done ? null : replace ? "confirm" : null)
+        }
+        if (state === "confirm") {
+          return (
+            <>
+              <Note>
+                {`${target.name} holds ${target.adopted} fields from an earlier delineation`}
+                {target.adoptedWithRuns ? `, ${target.adoptedWithRuns} with runs of their own` : ""}
+                {". Replacing removes them; fields drawn by hand stay."}
+              </Note>
+              <div className="flex gap-1">
+                <ActionButton label="Replace" icon={<Polygon className="size-3.5" />} onClick={() => void go(true)} />
+                <Choice label="Cancel" chosen={false} onPick={() => setAdoptState(node.id, null)} />
+              </div>
+            </>
+          )
+        }
+        return (
+          <>
+            <Figure label="Into" value={target.name} />
+            <ActionButton
+              label={`Make ${INT.format(n)} fields`}
+              icon={<Polygon className="size-3.5" />}
+              busy={state === "busy"}
+              disabled={!n}
+              onClick={() => (target.adopted > 0 ? setAdoptState(node.id, "confirm") : void go(false))}
+            />
+          </>
+        )
+      }
+
+      case "saveFields": {
+        const r = inputOf(node.id, "fields")
+        const v = readyFields(r)
+        if (!v) return <StatusNote result={r} />
+        return (
+          <ActionButton
+            label={`GeoJSON, ${INT.format(v.fields.length)} fields`}
+            icon={<DownloadSimple className="size-3.5" />}
+            disabled={!v.fields.length}
+            onClick={() => void saveFields(v)}
+          />
+        )
+      }
+
       case "viewer": {
         const r = inputOf(node.id, "image")
         const v = readyValue(r)
@@ -1264,7 +1482,7 @@ export function CompositorEditor({
       inputs: inputsOf(graph, node).map((i) => ({
         id: i.id,
         label: i.label,
-        colour: TYPE_COLOUR[i.accepts.includes("image") ? "image" : "classes"],
+        colour: TYPE_COLOUR[i.accepts.includes("fields") ? "fields" : i.accepts.includes("image") ? "image" : "classes"],
         linked: !!linkInto(graph, node.id, i.id),
       })),
       header: (

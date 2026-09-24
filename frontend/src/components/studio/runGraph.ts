@@ -197,6 +197,21 @@ function productGraph(
     readout drawn as a control. The period's cloud field is the scene-level
     ceiling the pass search applies.
   */
+  /*
+    The field boundaries: an area and a period, which the two windows are taken
+    from (lib/fields.ts fieldWindows). The checkpoint is fixed by the product,
+    for the reason the mineral map has no model card.
+  */
+  if (tool === "fields") {
+    return {
+      nodes: [at("area", 0), at("period", 0), at("run", 1)],
+      edges: [
+        ["area", "run"],
+        ["period", "run"],
+      ],
+    }
+  }
+
   if (tool === "mineral") {
     return {
       nodes: [at("area", 0), at("period", 0), at("run", 1)],

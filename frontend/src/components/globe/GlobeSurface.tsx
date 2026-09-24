@@ -40,6 +40,7 @@ import {
 } from "@phosphor-icons/react"
 import {
   Map as MapLibreMap,
+  type ExpressionSpecification,
   type GeoJSONSource,
   type MapMouseEvent,
   type Subscription,
@@ -208,6 +209,25 @@ const AREA_SOURCE = "terra-areas"
 const AREA_FILL = "terra-areas-fill"
 const AREA_LINE = "terra-areas-line"
 
+/*
+  THE FIELDS OF AN AREA, and a delineation's polygons before they are fields.
+
+  Fields are areas and share the areas' source, so a press on one activates it
+  as a press on any area does. They are told apart by colour and weight: the
+  yellow is the boundary colour of the delineation's own class map
+  (sidecar/terra/fields/actions.py), so a field outline and the boundary
+  pixels it was drawn from read as one thing, and the line is thinner because
+  a field sits inside an area whose outline must stay the heavier of the two.
+
+  A delineation's polygons are not areas until adopted, so they are a source
+  of their own that nothing presses, dashed in the same yellow: the dash is
+  what says "proposed", and it goes when the fields it proposed exist.
+*/
+const FIELD_LINE_COLOR = "#FFD92F"
+const FIELD_DRAFT_SOURCE = "terra-field-drafts"
+const FIELD_DRAFT_LINE = "terra-field-drafts-line"
+const IS_FIELD: ExpressionSpecification = ["boolean", ["get", "isField"], false]
+
 /** The custom layer's id, so it is added once and found again. */
 const RAISED_LAYER = "raised-rasters"
 /**
@@ -252,7 +272,7 @@ function toFeatureCollection(areas: readonly GlobeArea[]) {
       // Carried in properties rather than as the feature id: a feature id has
       // to be a number or a string that MapLibre may reuse for state, and this
       // is only ever read back on a press.
-      properties: { areaId: a.id, name: a.name },
+      properties: { areaId: a.id, name: a.name, isField: !!a.field },
       geometry: {
         type: "MultiPolygon" as const,
         coordinates: a.parts.map((ring) => [ring]),
@@ -286,9 +306,15 @@ export function GlobeSurface({
   overlays = [],
   spreadM = 0,
   onSpreadChange,
+  fieldDrafts = null,
   className,
 }: {
   areas: readonly GlobeArea[]
+  /**
+   * A delineation's polygons not yet made fields, as a GeoJSON
+   * FeatureCollection in WGS84, or null. Drawn dashed and not pressable.
+   */
+  fieldDrafts?: GeoJSON.FeatureCollection | null
   /** An area was pressed. Its id, as given in `areas`. */
   onPickArea: (id: string) => void
   /**
@@ -703,6 +729,10 @@ export function GlobeSurface({
               type: "geojson",
               data: { type: "FeatureCollection", features: [] },
             },
+            [FIELD_DRAFT_SOURCE]: {
+              type: "geojson",
+              data: fieldDrafts ?? { type: "FeatureCollection", features: [] },
+            },
           },
           layers: [
             /*
@@ -783,6 +813,16 @@ export function GlobeSurface({
               and returns nothing at `visibility: "none"`.
             */
             {
+              id: FIELD_DRAFT_LINE,
+              type: "line",
+              source: FIELD_DRAFT_SOURCE,
+              paint: {
+                "line-color": FIELD_LINE_COLOR,
+                "line-width": 1,
+                "line-dasharray": [2, 2],
+              },
+            },
+            {
               id: AREA_FILL,
               type: "fill",
               source: AREA_SOURCE,
@@ -792,7 +832,10 @@ export function GlobeSurface({
               id: AREA_LINE,
               type: "line",
               source: AREA_SOURCE,
-              paint: { "line-color": "#ED8744", "line-width": 1.5 },
+              paint: {
+                "line-color": ["case", IS_FIELD, FIELD_LINE_COLOR, "#ED8744"],
+                "line-width": ["case", IS_FIELD, 1, 1.5],
+              },
             },
             /*
               ABOVE the catalog, because it is what is being worked on. And
@@ -843,7 +886,12 @@ export function GlobeSurface({
       if (!map.isStyleLoaded()) return
       const accent = token("--p-accent", "#ED8744")
       // AREA_FILL is not repainted: it paints nothing. See its layer above.
-      map.setPaintProperty(AREA_LINE, "line-color", accent)
+      map.setPaintProperty(AREA_LINE, "line-color", [
+        "case",
+        IS_FIELD,
+        FIELD_LINE_COLOR,
+        accent,
+      ])
     }
 
     /*
@@ -899,9 +947,14 @@ export function GlobeSurface({
     )
     subs.push(
       map.on("click", AREA_FILL, (e: MapMouseEvent & { features?: unknown[] }) => {
-        const f = e.features?.[0] as
-          | { properties?: Record<string, unknown> }
-          | undefined
+        /*
+          A press inside a field is also a press inside its area, and the
+          order MapLibre returns the two in is a rendering detail. The field
+          is the smaller and the more specific target, so it wins whenever
+          one is under the pointer.
+        */
+        const hits = (e.features ?? []) as { properties?: Record<string, unknown> }[]
+        const f = hits.find((h) => h.properties?.isField === true) ?? hits[0]
         const id = f?.properties?.areaId
         if (typeof id === "string") pickAreaRef.current(id)
       })
@@ -994,6 +1047,13 @@ export function GlobeSurface({
     const src = map.getSource<GeoJSONSource>(AREA_SOURCE)
     void src?.setData(toFeatureCollection(areas))
   }, [areas, ready])
+
+  useEffect(() => {
+    const map = mapRef.current
+    if (!map || !ready) return
+    const src = map.getSource<GeoJSONSource>(FIELD_DRAFT_SOURCE)
+    void src?.setData(fieldDrafts ?? { type: "FeatureCollection", features: [] })
+  }, [fieldDrafts, ready])
 
   /*
     The raster sent here from the viewport.

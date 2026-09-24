@@ -24,6 +24,7 @@
 import { MODEL_OPTIONS } from "@/lib/classifyOptions"
 import type { BoardToolId } from "@/lib/mapTools"
 import type { ModelKind } from "@/lib/types"
+import { fieldWindows, MIN_PERIOD_DAYS } from "@/lib/fields"
 
 export interface MethodSection {
   title: string
@@ -288,6 +289,52 @@ function mineralBrief(i: MethodInputs): MethodBrief {
   }
 }
 
+/*
+  The field boundaries. Sentinel-2 like the classification, but two scenes and
+  not a series: the period is cut into the two windows lib/fields.ts states,
+  and the clearest scene over the area is taken from each.
+*/
+function fieldsBrief(i: MethodInputs): MethodBrief {
+  const w = fieldWindows(i.start, i.end)
+  return {
+    subtitle: "Field boundaries from two Sentinel-2 dates",
+    source: "sidecar/terra/fields · FTW PRUE",
+    sections: [
+      {
+        title: "Acquisition",
+        lines: [
+          "Sentinel-2 L2A, B04 B03 B02 B08 at 10 m, from the Planetary Computer",
+          w
+            ? `window A ${w.a.start} to ${w.a.end}, window B ${w.b.start} to ${w.b.end}: the first and last third of the period`
+            : `the first and last third of the period, which must span at least ${MIN_PERIOD_DAYS} days`,
+          "one scene per window: the clearest over the area by its scene classification, all tiles of that pass mosaicked",
+          "cells cloudy or missing in either scene are masked, not delineated",
+        ],
+        note: "The network was trained on a scene near sowing and one near harvest. A period that does not span a season gives it two scenes of one stage, in which neighbouring fields of one crop look alike.",
+      },
+      {
+        title: "Delineation",
+        lines: [
+          "Fields of The World baselines (Kerner et al., 2025): U-Net, EfficientNet-B7, PRUE recipe (Muhawenayo et al., 2026)",
+          "each cell labelled field interior, field boundary or neither, from the two scenes as eight channels divided by 3000",
+          "input enlarged by two before the network, as ftw-tools does by default",
+          "each connected interior region one polygon, simplified by 15 m, under 500 m² dropped, clipped to the area",
+        ],
+        note: "Reported on the FTW test set: pixel IoU 0.76, object F1 0.47. The training data hold no Paraná field; accuracy here is not measured.",
+      },
+      {
+        title: "Output",
+        lines: [
+          "one polygon per field, with its area, perimeter and the network's mean interior vote",
+          "the share of each field MapBiomas calls cropland, where MapBiomas is read",
+          "a class map and its GeoTIFF; the fields can be made areas of their own",
+        ],
+        note: "The polygons are what the network separates. Adjacent fields sown with one crop on one day come out as one; pasture can be segmented as fields, which the cropland share is there to show.",
+      },
+    ],
+  }
+}
+
 /**
  * The brief for what the band is currently set to run.
  *
@@ -305,5 +352,7 @@ export function methodBrief(i: MethodInputs): MethodBrief {
       return composeBrief(i)
     case "mineral":
       return mineralBrief(i)
+    case "fields":
+      return fieldsBrief(i)
   }
 }

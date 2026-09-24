@@ -40,11 +40,12 @@ export interface MapTool {
  * A separate name from MapToolId, and the distinction still means something
  * with both the map screen and the navigation column gone: `MapToolId` is what
  * a stored panel selection can be, and widening it would make a value the
- * store has never written suddenly representable. The mineral map is the one
- * product the band offers that is not a map tool: it was added to the band
- * alone, after the panels were gone, so it is added here and not there.
+ * store has never written suddenly representable. The mineral map and the field
+ * boundaries are the products the band offers that are not map tools: they were
+ * added to the band alone, after the panels were gone, so they are added here
+ * and not there.
  */
-export type BoardToolId = MapToolId | "mineral"
+export type BoardToolId = MapToolId | "mineral" | "fields"
 
 /**
  * Every product the band can start, and the subject each one answers about.
@@ -77,6 +78,12 @@ export const BOARD_TOOLS: readonly BoardTool[] = [
     product would be a menu of one in a bar of three.
   */
   { id: "mineral", label: "Mineral map", group: "crop" },
+  /*
+    Land cover as well: where one field ends and the next begins is the
+    ground's arrangement, read from the same Sentinel-2 bands. Its output is
+    ground in its turn -- the fields become areas the other products run over.
+  */
+  { id: "fields", label: "Field boundaries", group: "crop" },
   { id: "water", label: "Surface water", group: "water" },
 ]
 

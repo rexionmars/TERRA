@@ -30,8 +30,13 @@ export type Place = { x: number; y: number }
  * filtered and compared. `image` is colour per pixel, which can be looked at
  * and composited and nothing else. A class map is also an image -- it is
  * painted in its legend -- so it goes wherever an image is taken.
+ *
+ * `fields` is not a raster at all: the polygons a field delineation drew, one
+ * per field, with their figures. It goes only where fields are read -- a
+ * filter on their size, the node that makes them areas, the one that writes
+ * them to a file -- and no raster goes where it does.
  */
-export type SocketType = "classes" | "image"
+export type SocketType = "classes" | "image" | "fields"
 
 export interface InputDef {
   id: string
@@ -67,6 +72,16 @@ export type GraphNode =
   | { id: string; kind: "change" }
   | { id: string; kind: "viewer" }
   | { id: string; kind: "globe"; opacity: number }
+  | {
+      id: string
+      kind: "fieldFilter"
+      /** Fields smaller than this, in hectares, are left out. */
+      minHa: number
+      /** Fields MapBiomas calls cropland over less than this share are left out. */
+      minCropland: number
+    }
+  | { id: string; kind: "adoptFields" }
+  | { id: string; kind: "saveFields" }
 
 export type NodeKind = GraphNode["kind"]
 
@@ -87,6 +102,7 @@ export interface CompositorGraph {
 
 const CLASSES = ["classes"] as const
 const ANY = ["classes", "image"] as const
+const FIELDS = ["fields"] as const
 
 export interface KindMeta {
   kind: NodeKind
@@ -198,7 +214,37 @@ export const NODE_KINDS: readonly KindMeta[] = [
     inputs: [],
     outputs: [],
   },
+  {
+    kind: "fieldFilter",
+    category: "filter",
+    label: "Field filter",
+    hint: "Fields kept by their size, and by how much of each MapBiomas calls cropland",
+    inputs: [{ id: "fields", label: "Fields", accepts: FIELDS }],
+    outputs: [{ id: "fields", label: "Fields", type: "fields" }],
+  },
+  {
+    kind: "adoptFields",
+    category: "output",
+    label: "Make fields",
+    hint: "The fields that reach it made areas inside the area they were delineated over",
+    inputs: [{ id: "fields", label: "Fields", accepts: FIELDS }],
+    outputs: [],
+  },
+  {
+    kind: "saveFields",
+    category: "output",
+    label: "Save fields",
+    hint: "The fields that reach it written to a GeoJSON file",
+    inputs: [{ id: "fields", label: "Fields", accepts: FIELDS }],
+    outputs: [],
+  },
 ]
+
+/** The Run node's output carrying a field delineation's polygons. */
+export const FIELDS_SOCKET = "fields:polygons"
+
+/** The field filter's defaults: half a hectare, fifty 10 m cells, and no cropland floor. */
+export const FIELD_FILTER_DEFAULT = { minHa: 0.5, minCropland: 0 } as const
 
 /** The Add menu's categories, in Blender's order where Blender has the same one. */
 export const CATEGORIES: readonly { id: NodeCategory; label: string }[] = [
@@ -278,6 +324,12 @@ export function createNode(kind: NodeKind, id: string): GraphNode {
       return { id, kind }
     case "globe":
       return { id, kind, opacity: 0.85 }
+    case "fieldFilter":
+      return { id, kind, ...FIELD_FILTER_DEFAULT }
+    case "adoptFields":
+      return { id, kind }
+    case "saveFields":
+      return { id, kind }
   }
 }
 
@@ -374,10 +426,7 @@ export function connect(
   }
   const type = outputType(graph, a.id, link.fromSocket, runOutputs)
   if (type && !input.accepts.includes(type)) {
-    return {
-      ok: false,
-      reason: `${input.label} needs a class map, and this output is an image: a class cannot be read back out of colour.`,
-    }
+    return { ok: false, reason: refusal(input, type) }
   }
   return {
     ok: true,
@@ -386,6 +435,17 @@ export function connect(
       links: [...graph.links.filter((l) => !(l.to === link.to && l.toSocket === link.toSocket)), link],
     },
   }
+}
+
+/** Why an output of `type` cannot go into `input`, in words. */
+export function refusal(input: InputDef, type: SocketType): string {
+  if (input.accepts.includes("fields")) {
+    return `${input.label} takes the fields a delineation drew, and this output is a raster.`
+  }
+  if (type === "fields") {
+    return `${input.label} takes a raster, and this output is a set of field polygons.`
+  }
+  return `${input.label} needs a class map, and this output is an image: a class cannot be read back out of colour.`
 }
 
 export function disconnect(graph: CompositorGraph, to: string, toSocket: string): CompositorGraph {
@@ -466,6 +526,55 @@ export function defaultGraph(runId: string, classOutput: string): CompositorGrap
   }
 }
 
+/**
+ * A field delineation's nodes on the graph: its polygons through a Field
+ * filter to Make fields and Save fields, and its class map to a Viewer.
+ *
+ * THE LAST DELINEATION'S NODES ARE REUSED. A Run node that already feeds
+ * fields somewhere is pointed at the new run, rather than a second set of
+ * nodes being added beside it: a delineation is usually run again over the
+ * same area with another period, and a graph that grew five nodes each time
+ * would bury the one set the reader is using. A graph with none gets the set,
+ * placed under whatever is already there.
+ */
+export function withFieldNodes(
+  graph: CompositorGraph,
+  runId: string,
+  classOutput: string | null
+): CompositorGraph {
+  const existing = graph.nodes.find(
+    (n): n is Extract<GraphNode, { kind: "run" }> =>
+      n.kind === "run" && graph.links.some((l) => l.from === n.id && l.fromSocket === FIELDS_SOCKET)
+  )
+  if (existing) {
+    return existing.runId === runId ? graph : updateNode(graph, { ...existing, runId })
+  }
+  const bottom = Math.max(0, ...Object.values(graph.places).map((p) => p.y + 320))
+  const id = (kind: NodeKind) => nextNodeId(graph, kind)
+  const run = id("run")
+  const filter = id("fieldFilter")
+  const adopt = id("adoptFields")
+  const save = id("saveFields")
+  const viewer = id("viewer")
+  let g: CompositorGraph = graph
+  g = addNode(g, { id: run, kind: "run", runId }, { x: 0, y: bottom })
+  g = addNode(g, { id: filter, kind: "fieldFilter", ...FIELD_FILTER_DEFAULT }, { x: 280, y: bottom })
+  g = addNode(g, { id: adopt, kind: "adoptFields" }, { x: 540, y: bottom - 40 })
+  g = addNode(g, { id: save, kind: "saveFields" }, { x: 540, y: bottom + 150 })
+  const links: GraphLink[] = [
+    { from: run, fromSocket: FIELDS_SOCKET, to: filter, toSocket: "fields" },
+    { from: filter, fromSocket: "fields", to: adopt, toSocket: "fields" },
+    { from: filter, fromSocket: "fields", to: save, toSocket: "fields" },
+  ]
+  if (classOutput) {
+    // Under the Run node, clear of the filter above it and of Save fields,
+    // which a Viewer 320 px wide beside the filter would cover.
+    g = addNode(g, { id: viewer, kind: "viewer" }, { x: 0, y: bottom + 260 })
+    links.push({ from: run, fromSocket: classOutput, to: viewer, toSocket: "image" })
+  }
+  return { ...g, links: [...g.links, ...links] }
+}
+
 const WINDOWS: readonly number[] = [3, 5, 7]
 
 const str = (v: unknown): string | null => (typeof v === "string" && v ? v : null)
@@ -522,6 +631,20 @@ function parseNode(raw: unknown): GraphNode | null {
       const v = Number(o.opacity)
       return { id, kind: "globe", opacity: Number.isFinite(v) ? Math.min(1, Math.max(0, v)) : 0.85 }
     }
+    case "fieldFilter": {
+      const ha = Number(o.minHa)
+      const crop = Number(o.minCropland)
+      return {
+        id,
+        kind: "fieldFilter",
+        minHa: Number.isFinite(ha) ? Math.max(0, ha) : FIELD_FILTER_DEFAULT.minHa,
+        minCropland: Number.isFinite(crop) ? Math.min(1, Math.max(0, crop)) : FIELD_FILTER_DEFAULT.minCropland,
+      }
+    }
+    case "adoptFields":
+      return { id, kind: "adoptFields" }
+    case "saveFields":
+      return { id, kind: "saveFields" }
     default:
       return null
   }

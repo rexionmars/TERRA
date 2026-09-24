@@ -12,6 +12,12 @@
  * painted in its legend, which is why it goes wherever an image does; nothing
  * goes the other way.
  *
+ * A THIRD KIND, NOT A RASTER: fields. The polygons a field delineation drew,
+ * carried with the thresholds every filter on the way applied, so the node
+ * that makes them areas can ask the store for exactly the set that reached it
+ * (AdoptFields takes the thresholds, not a list). Filters compose by taking
+ * the larger threshold of each, which is the intersection of what each keeps.
+ *
  * RASTERS OF DIFFERENT GRIDS MEET BY WHERE THEY ARE. A mask or an overlay is
  * resampled onto the grid of the raster it is applied to, pixel centre to
  * pixel centre through the two lon/lat extents, nearest neighbour. That is
@@ -42,6 +48,7 @@ import {
   type GraphNode,
 } from "@/lib/compositorGraph"
 import type { ClassRaster } from "@/lib/runAssets"
+import type { Field } from "@/lib/fields"
 import type { Bounds } from "@/lib/types"
 
 export interface ClassValue {
@@ -63,8 +70,24 @@ export interface ImageValue {
 
 export type RasterValue = ClassValue | ImageValue
 
+export interface FieldsValue {
+  type: "fields"
+  key: string
+  /** The delineation run the polygons came from. */
+  runId: string
+  /** The polygons that passed every filter on the way here, largest first. */
+  fields: readonly Field[]
+  /** How many the delineation drew, before any filter. */
+  total: number
+  /** The thresholds applied on the way here; zero where none was. */
+  minHa: number
+  minCropland: number
+}
+
+export type Value = RasterValue | FieldsValue
+
 export type Result =
-  | { status: "ready"; value: RasterValue }
+  | { status: "ready"; value: Value }
   | { status: "busy" }
   | { status: "none"; note: string }
   | { status: "failed"; note: string }
@@ -253,7 +276,11 @@ export function evaluate(graph: CompositorGraph, ctx: EvalContext): Evaluation {
       if (r.status === "ready" && def && !def.accepts.includes(r.value.type)) {
         r = {
           status: "failed",
-          note: `${def.label} needs a class map; an image carries colour, not classes.`,
+          note: def.accepts.includes("fields")
+            ? `${def.label} takes the fields a delineation drew, not a raster.`
+            : r.value.type === "fields"
+              ? `${def.label} takes a raster, not field polygons.`
+              : `${def.label} needs a class map; an image carries colour, not classes.`,
         }
       }
     }
@@ -310,6 +337,7 @@ export function evaluate(graph: CompositorGraph, ctx: EvalContext): Evaluation {
         const mask = input(node, "mask", trail)
         if (mask.status !== "ready") return notReady(mask)
         if (mask.value.type !== "classes") return { status: "failed", note: "The mask needs a class map." }
+        if (raster.value.type === "fields") return { status: "failed", note: "The raster input takes a raster." }
         const v = raster.value
         const m = mask.value
         const made = cached(`mask(${v.key},${m.key})`, (): RasterValue | string => {
@@ -341,8 +369,10 @@ export function evaluate(graph: CompositorGraph, ctx: EvalContext): Evaluation {
         const top = input(node, "overlay", trail)
         if (top.status === "busy") return top
         if (top.status === "failed") return { status: "failed", note: top.note }
+        if (base.value.type === "fields") return { status: "failed", note: "The base takes a raster." }
         const b = painted(base.value)
         if (top.status === "none") return { status: "ready", value: b }
+        if (top.value.type === "fields") return { status: "failed", note: "The overlay takes a raster." }
         const t = painted(top.value)
         const key = `${paramsKey(node)}(${b.key},${t.key})`
         const made = cached(key, (): ImageValue | string => {
@@ -371,6 +401,13 @@ export function evaluate(graph: CompositorGraph, ctx: EvalContext): Evaluation {
         return up.status === "ready" ? up : notReady(up)
       }
 
+      case "fieldFilter": {
+        const up = input(node, "fields", trail)
+        if (up.status !== "ready") return notReady(up)
+        if (up.value.type !== "fields") return { status: "failed", note: "Needs the fields a delineation drew." }
+        return { status: "ready", value: filterFields(up.value, node.minHa, node.minCropland) }
+      }
+
       default:
         return { status: "failed", note: "This node has no outputs." }
     }
@@ -385,6 +422,27 @@ export function evaluate(graph: CompositorGraph, ctx: EvalContext): Evaluation {
   }
   for (const l of graph.links) output(l.from, l.fromSocket, new Set())
   return { outputs, inputs, used }
+}
+
+/**
+ * The fields at least `minHa` in area and at least `minCropland` cropland, with
+ * the thresholds carried on. A field with no cropland share -- none was read,
+ * or it holds no cell -- has nothing to be judged by and is kept.
+ */
+export function filterFields(v: FieldsValue, minHa: number, minCropland: number): FieldsValue {
+  const ha = Math.max(v.minHa, minHa)
+  const crop = Math.max(v.minCropland, minCropland)
+  return {
+    ...v,
+    key: `fieldFilter:${minHa}:${minCropland}(${v.key})`,
+    fields: v.fields.filter((f) => {
+      if (f.properties.area_ha < ha) return false
+      const share = f.properties.cropland_share
+      return typeof share !== "number" || share >= crop
+    }),
+    minHa: ha,
+    minCropland: crop,
+  }
 }
 
 /** One class's pixels in a class map. */

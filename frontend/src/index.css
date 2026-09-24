@@ -220,6 +220,11 @@
     --destructive-quiet, at 0.101.
   */
   --p-kind-mineral: 199 135 171;
+  /*
+    The field boundaries, at the same L 0.699 and C 0.09, at h 110: 85 degrees
+    to water, 125 to the mineral map and 92 to destructive at h18.
+  */
+  --p-kind-fields: 161 163 95;
 
   /*
     THE FOLDER, AS STUDIO ICONS DRAWS IT.
@@ -630,6 +635,7 @@
   --p-kind-class: 113 113 113;
   --p-kind-water: 19 130 130;
   --p-kind-mineral: 151 92 126;
+  --p-kind-fields: 117 118 52;
 
   /* The folder a step deeper than the dark block's, so the tan still holds a
      shape against paper; the seam and the glyph follow it down. */
