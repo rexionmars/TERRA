@@ -1,0 +1,2063 @@
+{
+"source": "EMIT_L2B_MIN_001_20240830T135446_2424309_051.nc, mineral_metadata",
+"rows": [
+{
+"index": 1,
+"record": 6858,
+"library": "splib06",
+"name": "Plastic_Tarp GDS339 Green W1R1Fa",
+"group": 1
+},
+{
+"index": 2,
+"record": 744,
+"library": "sprlb06",
+"name": "Hematite.02+Quartz.98 GDS76 W1R1Ha",
+"group": 1
+},
+{
+"index": 3,
+"record": 882,
+"library": "sprlb06",
+"name": "Goethite WS222 <250um MedGrn W1R1H_ AREF",
+"group": 1
+},
+{
+"index": 4,
+"record": 5736,
+"library": "splib06",
+"name": "Goethite0.02+Quartz GDS240 W1R1Ba",
+"group": 1
+},
+{
+"index": 5,
+"record": 1878,
+"library": "splib06",
+"name": "Goethite MPCMA2-B FineGr adj W1R1Bb",
+"group": 1
+},
+{
+"index": 6,
+"record": 852,
+"library": "sprlb06",
+"name": "Goethite MPCMA2-C M-Crsgrad2 W1R1Hb AREF",
+"group": 1
+},
+{
+"index": 7,
+"record": 894,
+"library": "sprlb06",
+"name": "Goethite WS222 coarse grain W1R1H_",
+"group": 1
+},
+{
+"index": 8,
+"record": 6168,
+"library": "splib06",
+"name": "Goethite_Thin_Film WS222 W1R1Ba",
+"group": 1
+},
+{
+"index": 9,
+"record": 5730,
+"library": "splib06",
+"name": "Goeth+qtz.5+Jarosite.5 AMX11 W1R1BbS",
+"group": 1
+},
+{
+"index": 10,
+"record": 6042,
+"library": "splib06",
+"name": "Pyrite LV95-6A Weath on Tail W1R1Bb",
+"group": 1
+},
+{
+"index": 11,
+"record": 4476,
+"library": "splib06",
+"name": "Schwertmannite BZ93-1 W1R1Bb",
+"group": 1
+},
+{
+"index": 12,
+"record": 6144,
+"library": "splib06",
+"name": "Blck_Mn_Coat_Tailngs LV95-3 W1R1Bb",
+"group": 1
+},
+{
+"index": 13,
+"record": 5316,
+"library": "splib06",
+"name": "Acid_Mine_Dr Assemb1-Fe3+ W1R1Fb",
+"group": 1
+},
+{
+"index": 14,
+"record": 5322,
+"library": "splib06",
+"name": "Acid_Mine_Dr Assemb2-Fe3+ W1R1Fb",
+"group": 1
+},
+{
+"index": 15,
+"record": 2568,
+"library": "splib06",
+"name": "Jarosite GDS99 K 200C Syn W1R1BaS",
+"group": 1
+},
+{
+"index": 16,
+"record": 732,
+"library": "sprlb06",
+"name": "Lepidocrosite GDS80 (Syn) W1R1Hb",
+"group": 1
+},
+{
+"index": 17,
+"record": 5634,
+"library": "splib06",
+"name": "Chlorite+Muscovite CU93-65A W1R1Ba",
+"group": 1
+},
+{
+"index": 18,
+"record": 900,
+"library": "sprlb06",
+"name": "Goethite CU91-252 coatedchip W1R1H_",
+"group": 1
+},
+{
+"index": 19,
+"record": 5604,
+"library": "splib06",
+"name": "Chlor+Goethite CU93-4B Phyl W1R1Ba",
+"group": 1
+},
+{
+"index": 20,
+"record": 1446,
+"library": "splib06",
+"name": "Cummingtonite HS294.3B W1R1Bc",
+"group": 1
+},
+{
+"index": 21,
+"record": 72,
+"library": "splib06",
+"name": "Actinolite NMNHR16485 W1R1Bb",
+"group": 1
+},
+{
+"index": 22,
+"record": 42,
+"library": "splib06",
+"name": "Actinolite HS22.3B W1R1Bb",
+"group": 1
+},
+{
+"index": 23,
+"record": 2334,
+"library": "splib06",
+"name": "Hypersthene NMNHC2368 W1R1Bb",
+"group": 1
+},
+{
+"index": 24,
+"record": 1548,
+"library": "splib06",
+"name": "Diopside NMNHR18685 ~160 Pyx W1R1Bb",
+"group": 1
+},
+{
+"index": 25,
+"record": 2502,
+"library": "splib06",
+"name": "Jadeite HS343.3B W1R1Bb",
+"group": 1
+},
+{
+"index": 26,
+"record": 3966,
+"library": "splib06",
+"name": "Pigeonite HS199.3B W1R1Bb",
+"group": 1
+},
+{
+"index": 27,
+"record": 1668,
+"library": "splib06",
+"name": "Epidote GDS26.a 75-200um W1R1Bb",
+"group": 1
+},
+{
+"index": 28,
+"record": 5724,
+"library": "splib06",
+"name": "Fe-Hydroxide SU93-106 amorph W1R1Bb",
+"group": 1
+},
+{
+"index": 29,
+"record": 1740,
+"library": "splib06",
+"name": "Ferrihydrite GDS75 Syn F6 W1R1Bb",
+"group": 1
+},
+{
+"index": 30,
+"record": 738,
+"library": "sprlb06",
+"name": "Hematite GDS27 W1R1Ha",
+"group": 1
+},
+{
+"index": 31,
+"record": 6198,
+"library": "splib06",
+"name": "Hematite_Thin_Film GDS27 W1R1Ba",
+"group": 1
+},
+{
+"index": 32,
+"record": 2100,
+"library": "splib06",
+"name": "Hematite FE2602 W1R1Bb",
+"group": 1
+},
+{
+"index": 33,
+"record": 906,
+"library": "sprlb06",
+"name": "Hematite WS161 W1R1Hb",
+"group": 1
+},
+{
+"index": 34,
+"record": 3558,
+"library": "splib06",
+"name": "Nontronite NG-1.a W1R1Bb",
+"group": 1
+},
+{
+"index": 35,
+"record": 5328,
+"library": "splib06",
+"name": "Actinolite-Hornfels BR93-5a W1R1Bc",
+"group": 1
+},
+{
+"index": 36,
+"record": 846,
+"library": "sprlb06",
+"name": "Magnetite_skarn BR93-5B W1R1Hb AREF",
+"group": 1
+},
+{
+"index": 37,
+"record": 5334,
+"library": "splib06",
+"name": "Actinolite-Tremolit BR93-22C W1R1Bb",
+"group": 1
+},
+{
+"index": 38,
+"record": 1656,
+"library": "splib06",
+"name": "Epidote BR93-33a W1R1Bb AREF",
+"group": 1
+},
+{
+"index": 39,
+"record": 5490,
+"library": "splib06",
+"name": "Biotite-Chlorite_Mx BR93-36A W1R1Bb",
+"group": 1
+},
+{
+"index": 40,
+"record": 5460,
+"library": "splib06",
+"name": "Basalt_weathered BR93-43 W1R1Bb",
+"group": 1
+},
+{
+"index": 41,
+"record": 5454,
+"library": "splib06",
+"name": "Basalt_fresh BR93-46B W1R1Bb",
+"group": 1
+},
+{
+"index": 42,
+"record": 840,
+"library": "sprlb06",
+"name": "Hematite_Coatd_Qtzt BR93-25A W1R1Hb AREF",
+"group": 1
+},
+{
+"index": 43,
+"record": 6174,
+"library": "splib06",
+"name": "Hematite_Coatd_Qtz BR93-25B W1R1Bb",
+"group": 1
+},
+{
+"index": 44,
+"record": 816,
+"library": "sprlb06",
+"name": "Hematite_Coatd_Qtzt BR93-25C W1R1Hb AREF",
+"group": 1
+},
+{
+"index": 45,
+"record": 3468,
+"library": "splib06",
+"name": "Nanohematite BR93-34B2 W1R1BbS",
+"group": 1
+},
+{
+"index": 46,
+"record": 1026,
+"library": "sprlb06",
+"name": "nHematit+fg-Goethit 34B2+MPC W1R1Hb",
+"group": 1
+},
+{
+"index": 47,
+"record": 918,
+"library": "sprlb06",
+"name": "Nanohematite FBR93-34B2b ed1 W1R1Hb",
+"group": 1
+},
+{
+"index": 48,
+"record": 822,
+"library": "sprlb06",
+"name": "Hematite_Coatd_Qtz BR93-34C W1R1Ha AREF",
+"group": 1
+},
+{
+"index": 49,
+"record": 6210,
+"library": "splib06",
+"name": "Jarosite_on_Qtzite BR93-34A2 W1R1Bb",
+"group": 1
+},
+{
+"index": 50,
+"record": 5340,
+"library": "splib06",
+"name": "Actinolite_Dolomit BR93-60B W1R1BbS",
+"group": 1
+},
+{
+"index": 51,
+"record": 6036,
+"library": "splib06",
+"name": "Phlogopite_Sand_Mix BR93-20 W1R1Ba",
+"group": 1
+},
+{
+"index": 52,
+"record": 6942,
+"library": "splib06",
+"name": "Renyolds_TnlSldgWet SM93-15w W1R1Ba",
+"group": 1
+},
+{
+"index": 53,
+"record": 660,
+"library": "sprlb06",
+"name": "Clinochlore GDS158 Flagst W1R1Hb",
+"group": 1
+},
+{
+"index": 54,
+"record": 1200,
+"library": "splib06",
+"name": "Clinochlore NMNH83369 W1R1Bb",
+"group": 1
+},
+{
+"index": 55,
+"record": 4890,
+"library": "splib06",
+"name": "Thuringite SMR-15.c 32um W1R1Ba",
+"group": 1
+},
+{
+"index": 56,
+"record": 720,
+"library": "splib06",
+"name": "Azurite WS316 W1R1Ba",
+"group": 1
+},
+{
+"index": 57,
+"record": 3990,
+"library": "splib06",
+"name": "Pitch_Limonite GDS104 Cu W1R1B?",
+"group": 1
+},
+{
+"index": 58,
+"record": 2964,
+"library": "splib06",
+"name": "Malachite HS254.3B W1R1Bb",
+"group": 1
+},
+{
+"index": 59,
+"record": 5496,
+"library": "splib06",
+"name": "Blue_Efflorscnt_Min SU93-300 W1R1Bb",
+"group": 1
+},
+{
+"index": 60,
+"record": 6594,
+"library": "splib06",
+"name": "Green_Slime SM93-14A Summitv W1R1Ba",
+"group": 1
+},
+{
+"index": 61,
+"record": 3696,
+"library": "splib06",
+"name": "Olivine HS285.4B Fo80 W1R1Bb",
+"group": 1
+},
+{
+"index": 62,
+"record": 3666,
+"library": "splib06",
+"name": "Olivine GDS71.a Fo91 65um W1R1Bb",
+"group": 1
+},
+{
+"index": 63,
+"record": 4278,
+"library": "splib06",
+"name": "Rhodochrosite HS338.3B W1R1Bb",
+"group": 1
+},
+{
+"index": 64,
+"record": 4560,
+"library": "splib06",
+"name": "Siderite HS271.3B W1R1Ba",
+"group": 1
+},
+{
+"index": 65,
+"record": 4362,
+"library": "splib06",
+"name": "Riebeckite NMNH122689 Amph W1R1Ba",
+"group": 1
+},
+{
+"index": 66,
+"record": 1386,
+"library": "splib06",
+"name": "Coquimbite GDS22 W1R1Bc",
+"group": 1
+},
+{
+"index": 67,
+"record": 1374,
+"library": "splib06",
+"name": "Copiapite GDS21 W1R1Bb",
+"group": 1
+},
+{
+"index": 68,
+"record": 1134,
+"library": "splib06",
+"name": "Chrysocolla HS297.3B W1R1Bb",
+"group": 1
+},
+{
+"index": 69,
+"record": 3498,
+"library": "splib06",
+"name": "Neodymium_Oxide GDS34 W1R1Ba",
+"group": 1
+},
+{
+"index": 70,
+"record": 4410,
+"library": "splib06",
+"name": "Samarium_Oxide GDS36 W1R1Ba",
+"group": 1
+},
+{
+"index": 71,
+"record": 708,
+"library": "splib06",
+"name": "Axinite HS342.3B W1R1Bb",
+"group": 1
+},
+{
+"index": 72,
+"record": 4728,
+"library": "splib06",
+"name": "Staurolite HS188.3B W1R1Bb",
+"group": 1
+},
+{
+"index": 73,
+"record": 216,
+"library": "splib06",
+"name": "Almandine WS479 Garnet W1R1Bb",
+"group": 1
+},
+{
+"index": 74,
+"record": 678,
+"library": "splib06",
+"name": "Augite NMNH120049 W1R1Bb",
+"group": 1
+},
+{
+"index": 75,
+"record": 810,
+"library": "splib06",
+"name": "Bronzite HS9.3B Pyroxene W1R1Bc",
+"group": 1
+},
+{
+"index": 76,
+"record": 858,
+"library": "splib06",
+"name": "Butlerite GDS25 W1R1Ba",
+"group": 1
+},
+{
+"index": 77,
+"record": 882,
+"library": "splib06",
+"name": "Bytownite HS106.3B Plagio W1R1Bc",
+"group": 1
+},
+{
+"index": 78,
+"record": 1002,
+"library": "splib06",
+"name": "Chalcopyrite HS431.3B W1R1Bb",
+"group": 1
+},
+{
+"index": 79,
+"record": 1122,
+"library": "splib06",
+"name": "Chromite HS281.3B W1R1Bb",
+"group": 1
+},
+{
+"index": 80,
+"record": 1164,
+"library": "splib06",
+"name": "Cinnabar HS133.3B W1R1Bc",
+"group": 1
+},
+{
+"index": 81,
+"record": 1458,
+"library": "splib06",
+"name": "Cuprite HS127.3B W1R1Bb",
+"group": 1
+},
+{
+"index": 82,
+"record": 6156,
+"library": "splib06",
+"name": "Desert_Varnish GDS141 W1R1Ba",
+"group": 1
+},
+{
+"index": 83,
+"record": 6162,
+"library": "splib06",
+"name": "Desert_Varnish GDS78A Rhy W1R1Ba",
+"group": 1
+},
+{
+"index": 84,
+"record": 1644,
+"library": "splib06",
+"name": "Enstatite NMNH128288 W1R1Bc",
+"group": 1
+},
+{
+"index": 85,
+"record": 2088,
+"library": "splib06",
+"name": "Hedenbergite NMNH119197 W1R1Bb",
+"group": 1
+},
+{
+"index": 86,
+"record": 2796,
+"library": "splib06",
+"name": "Lazurite HS418.3B W1R1Bb",
+"group": 1
+},
+{
+"index": 87,
+"record": 2928,
+"library": "splib06",
+"name": "Maghemite GDS81 Syn (M-3) W1R1Bb",
+"group": 1
+},
+{
+"index": 88,
+"record": 2940,
+"library": "splib06",
+"name": "Magnetite HS195.3B W1R1Bb",
+"group": 1
+},
+{
+"index": 89,
+"record": 4158,
+"library": "splib06",
+"name": "Pyrolusite HS138.3B W1R1Bb",
+"group": 1
+},
+{
+"index": 90,
+"record": 3042,
+"library": "splib06",
+"name": "Microcline HS103.3B Feldspar W1R1Bc",
+"group": 1
+},
+{
+"index": 91,
+"record": 132,
+"library": "splib06",
+"name": "Albite HS143.3B Plagioclase W1R1Bc",
+"group": 1
+},
+{
+"index": 92,
+"record": 3852,
+"library": "splib06",
+"name": "Orthoclase NMNH142137 Fe W1R1Bb",
+"group": 1
+},
+{
+"index": 93,
+"record": 3882,
+"library": "splib06",
+"name": "Pectolite NMNH94865.a W1R1Bb",
+"group": 1
+},
+{
+"index": 94,
+"record": 4314,
+"library": "splib06",
+"name": "Rhodonite NMNHC6148 >250um W1R1Bb",
+"group": 1
+},
+{
+"index": 95,
+"record": 4776,
+"library": "splib06",
+"name": "Sulfur GDS94 Reagent W1R1Ba",
+"group": 1
+},
+{
+"index": 96,
+"record": 7128,
+"library": "splib06",
+"name": "Dry_Long_Grass AV87-2 W1R1Ba",
+"group": 2
+},
+{
+"index": 97,
+"record": 7248,
+"library": "splib06",
+"name": "Grass_Golden_Dry GDS480 W1R1Fa",
+"group": 2
+},
+{
+"index": 98,
+"record": 6912,
+"library": "splib06",
+"name": "Plywood GDS365 Fresh Pine W1R1Fa",
+"group": 2
+},
+{
+"index": 99,
+"record": 6864,
+"library": "splib06",
+"name": "Plastic_Tarp GDS340 Blu_Wovn W1R1Fa",
+"group": 2
+},
+{
+"index": 100,
+"record": 6876,
+"library": "splib06",
+"name": "Plastic_Vinyl GDS372 White W1R1Fa",
+"group": 2
+},
+{
+"index": 101,
+"record": 6558,
+"library": "splib06",
+"name": "Fiberglass GDS337 Grn Roofng W1R1Fa",
+"group": 2
+},
+{
+"index": 102,
+"record": 6936,
+"library": "splib06",
+"name": "Polystyrene GDS345 BluInsul W1R1Fa",
+"group": 2
+},
+{
+"index": 103,
+"record": 6816,
+"library": "splib06",
+"name": "Plastic_PETE GDS380 Clear W1R1Fa",
+"group": 2
+},
+{
+"index": 104,
+"record": 6810,
+"library": "splib06",
+"name": "Plastic_PETE GDS379 TrnslBrn W1R1Fa",
+"group": 2
+},
+{
+"index": 105,
+"record": 6714,
+"library": "splib06",
+"name": "Plastic_HDPE GDS393 GlosWhTr W1R1Fa",
+"group": 2
+},
+{
+"index": 106,
+"record": 6672,
+"library": "splib06",
+"name": "Painted_Aluminum GDS333 LgGr W1R1Fa",
+"group": 2
+},
+{
+"index": 107,
+"record": 6834,
+"library": "splib06",
+"name": "Plastic_PETE GDS383 Clrbluis W1R1Fa",
+"group": 2
+},
+{
+"index": 108,
+"record": 6810,
+"library": "splib06",
+"name": "Plastic_PETE GDS379 TrnslBrn W1R1Fa",
+"group": 2
+},
+{
+"index": 109,
+"record": 300,
+"library": "splib06",
+"name": "Alunite GDS97 K Syn (150C) W2R4Na",
+"group": 2
+},
+{
+"index": 110,
+"record": 294,
+"library": "splib06",
+"name": "Alunite GDS96 K Syn (250C) W2R4Na",
+"group": 2
+},
+{
+"index": 111,
+"record": 324,
+"library": "splib06",
+"name": "Alunite RES-2 K Syn (450C) W2R4Na",
+"group": 2
+},
+{
+"index": 112,
+"record": 288,
+"library": "splib06",
+"name": "Alunite GDS95 Na Syn (150C) W2R4Na",
+"group": 2
+},
+{
+"index": 113,
+"record": 336,
+"library": "splib06",
+"name": "Alunite RES-4 Na Syn (300C) W2R4Na",
+"group": 2
+},
+{
+"index": 114,
+"record": 330,
+"library": "splib06",
+"name": "Alunite RES-3 Na Syn (450C) W2R4Na",
+"group": 2
+},
+{
+"index": 115,
+"record": 246,
+"library": "splib06",
+"name": "Alunite GDS82 Na82 W1R1Bb",
+"group": 2
+},
+{
+"index": 116,
+"record": 5382,
+"library": "splib06",
+"name": "Alunite+Dickite MV99-6-26b W1R1Fc",
+"group": 2
+},
+{
+"index": 117,
+"record": 252,
+"library": "splib06",
+"name": "Alunite GDS83 Na63 W1R1Bb",
+"group": 2
+},
+{
+"index": 118,
+"record": 342,
+"library": "splib06",
+"name": "Alunite RES-9 Summitv (400C) W2R4Nb",
+"group": 2
+},
+{
+"index": 119,
+"record": 276,
+"library": "splib06",
+"name": "Alunite GDS84 Na03 W2R4Na",
+"group": 2
+},
+{
+"index": 120,
+"record": 348,
+"library": "splib06",
+"name": "Alunite RES10 NA56% Syn 450C W2R4Na",
+"group": 2
+},
+{
+"index": 121,
+"record": 354,
+"library": "splib06",
+"name": "Alunite RES12 NA78% Syn 450C W2R4NaIS",
+"group": 2
+},
+{
+"index": 122,
+"record": 5394,
+"library": "splib06",
+"name": "Alunite0.35K+.65Na CU91-217H W2R4Nb",
+"group": 2
+},
+{
+"index": 123,
+"record": 5418,
+"library": "splib06",
+"name": "Alunite0.73K+.27Na CU91-217D W2R4Na",
+"group": 2
+},
+{
+"index": 124,
+"record": 5412,
+"library": "splib06",
+"name": "Alunite0.66K+.34Na CU91-217A W2R4Nb",
+"group": 2
+},
+{
+"index": 125,
+"record": 5976,
+"library": "splib06",
+"name": "Muscovite CU91-250A med Al W2R4NbS",
+"group": 2
+},
+{
+"index": 126,
+"record": 1038,
+"library": "sprlb06",
+"name": "Calcite.33+Kaol.33+Mus AMXr2 W1R1Ba",
+"group": 2
+},
+{
+"index": 127,
+"record": 654,
+"library": "sprlb06",
+"name": "Muscovite GDS113 Ruby W1R1Bb splib06 3348",
+"group": 2
+},
+{
+"index": 128,
+"record": 3876,
+"library": "splib06",
+"name": "Paragonite GDS109 W1R1Ba",
+"group": 2
+},
+{
+"index": 129,
+"record": 714,
+"library": "sprlb06",
+"name": "Illite IMt-1.b <2um W1R1BaS",
+"group": 2
+},
+{
+"index": 130,
+"record": 726,
+"library": "sprlb06",
+"name": "Illite GDS4.2 Marblehead_WI W1R1H_",
+"group": 2
+},
+{
+"index": 131,
+"record": 3306,
+"library": "splib06",
+"name": "Muscovite CU93-1 low-Al Phyl W2R4Nb",
+"group": 2
+},
+{
+"index": 132,
+"record": 3372,
+"library": "splib06",
+"name": "Muscovite GDS116 Tanzania W1R1Ba",
+"group": 2
+},
+{
+"index": 133,
+"record": 606,
+"library": "sprlb06",
+"name": "Kaolinite CM9 (wxl) W1R1Hb",
+"group": 2
+},
+{
+"index": 134,
+"record": 672,
+"library": "sprlb06",
+"name": "Kaolinite KGa-2 (pxl) W1R1Hb",
+"group": 2
+},
+{
+"index": 135,
+"record": 684,
+"library": "sprlb06",
+"name": "Halloysite NMNH106237 W1R1Ha",
+"group": 2
+},
+{
+"index": 136,
+"record": 3462,
+"library": "splib06",
+"name": "Nacrite GDS88 s06crj3a=c",
+"group": 2
+},
+{
+"index": 137,
+"record": 708,
+"library": "sprlb06",
+"name": "Dickite NMNH106242 W1R1Bb",
+"group": 2
+},
+{
+"index": 138,
+"record": 618,
+"library": "sprlb06",
+"name": "Gypsum HS333.3B (Selenite) W1R1Ha",
+"group": 2
+},
+{
+"index": 139,
+"record": 5868,
+"library": "splib06",
+"name": "Kaolin_Smect H89-FR-2 .5Kaol W1R1Bb",
+"group": 2
+},
+{
+"index": 140,
+"record": 5880,
+"library": "splib06",
+"name": "Kaolin_Smect H89-FR-5 .3Kaol W1R1Bb",
+"group": 2
+},
+{
+"index": 141,
+"record": 588,
+"library": "sprlb06",
+"name": "Montmorillonite SWy-1 W1R1Hb",
+"group": 2
+},
+{
+"index": 142,
+"record": 54,
+"library": "sprlb06",
+"name": "Montmorillonite_Fe GDS759A",
+"group": 2
+},
+{
+"index": 143,
+"record": 600,
+"library": "sprlb06",
+"name": "Montmorillonite SAz-1 W1R1Hb",
+"group": 2
+},
+{
+"index": 144,
+"record": 60,
+"library": "sprlb06",
+"name": "HyBasaltGlassMLUT03-9CMarP&T",
+"group": 2
+},
+{
+"index": 145,
+"record": 66,
+"library": "sprlb06",
+"name": "Kieserite Batch4 GDS671",
+"group": 2
+},
+{
+"index": 146,
+"record": 150,
+"library": "sprlb06",
+"name": "Szomolnokite NMNH104303 UT",
+"group": 2
+},
+{
+"index": 147,
+"record": 192,
+"library": "sprlb06",
+"name": "Szomolnokite GDS874 Heat275C",
+"group": 2
+},
+{
+"index": 148,
+"record": 96,
+"library": "sprlb06",
+"name": "Perchlorate_Mg GDS851.2 220K",
+"group": 2
+},
+{
+"index": 149,
+"record": 144,
+"library": "sprlb06",
+"name": "Perchlorate_Na GDS857 230C r06crj3a=_",
+"group": 2
+},
+{
+"index": 150,
+"record": 5466,
+"library": "splib06",
+"name": "Beidellite+Montmor GDS123 =b",
+"group": 2
+},
+{
+"index": 151,
+"record": 5478,
+"library": "splib06",
+"name": "Beidellite+Montmor GDS124 =b",
+"group": 2
+},
+{
+"index": 152,
+"record": 990,
+"library": "splib06",
+"name": "Chalcedony CU91-6A W1R1Ba",
+"group": 2
+},
+{
+"index": 153,
+"record": 1488,
+"library": "splib06",
+"name": "Diaspore HS416.3B W1R1Bb",
+"group": 2
+},
+{
+"index": 154,
+"record": 4188,
+"library": "splib06",
+"name": "Pyrophyllite PYS1A fine gr W1R1Ba",
+"group": 2
+},
+{
+"index": 155,
+"record": 6054,
+"library": "splib06",
+"name": "Pyrophyl.25+wxlKaol.75 AMX17",
+"group": 2
+},
+{
+"index": 156,
+"record": 6060,
+"library": "splib06",
+"name": "Pyrophyl.50+Ca-Mont.50 AMX16 W1R1Ba",
+"group": 2
+},
+{
+"index": 157,
+"record": 5358,
+"library": "splib06",
+"name": "Alun366+.50PyroPYS1A GDS222 W1R1Bb",
+"group": 2
+},
+{
+"index": 158,
+"record": 5370,
+"library": "splib06",
+"name": "Alunite+Pyrophyl SD1093A W1R1Bb",
+"group": 2
+},
+{
+"index": 159,
+"record": 6048,
+"library": "splib06",
+"name": "Pyrophyl+Muscovite JH_PYRM1 W1R1Fb",
+"group": 2
+},
+{
+"index": 160,
+"record": 5988,
+"library": "splib06",
+"name": "Muscovite+Pyrophyl JH_PYRP1 W1R1Fb",
+"group": 2
+},
+{
+"index": 161,
+"record": 5352,
+"library": "splib06",
+"name": "Alun0.3+Musc0.4+Pyro0.3 AMX1 W1R1Ba",
+"group": 2
+},
+{
+"index": 162,
+"record": 5406,
+"library": "splib06",
+"name": "Alunite0.5+Kaol_KGa-1 AMX3 W1R1Bb",
+"group": 2
+},
+{
+"index": 163,
+"record": 5910,
+"library": "splib06",
+"name": "Kaolwxl.75+Alun_HS295 AMX14 W1R1Bb",
+"group": 2
+},
+{
+"index": 164,
+"record": 5820,
+"library": "splib06",
+"name": "Kalun+kaol+gth mv2-ar3 W1R1Fb",
+"group": 2
+},
+{
+"index": 165,
+"record": 5364,
+"library": "splib06",
+"name": "Alun_Na+Kaol+Hemat MV00-11a W1R1Fc",
+"group": 2
+},
+{
+"index": 166,
+"record": 5832,
+"library": "splib06",
+"name": "Kaol.5+MuscCU91-250A AMX13 W1R1Bb",
+"group": 2
+},
+{
+"index": 167,
+"record": 5838,
+"library": "splib06",
+"name": "Kaol_Wxl+0.5Musc_Ruby AMX12 W1R1Ba",
+"group": 2
+},
+{
+"index": 168,
+"record": 870,
+"library": "sprlb06",
+"name": "Kaol+Musc_intimate CU93-5C W1R1Ha AREF",
+"group": 2
+},
+{
+"index": 169,
+"record": 876,
+"library": "sprlb06",
+"name": "Muscov+Jaros CU93-314 coatng W1R1Hb",
+"group": 2
+},
+{
+"index": 170,
+"record": 5748,
+"library": "splib06",
+"name": "Gyp+jar+ill BRCM1 Marysvale W1R1Fb",
+"group": 2
+},
+{
+"index": 171,
+"record": 5766,
+"library": "splib06",
+"name": "Gyp.5+Kjar.3+hAlmsc.2 AMX24 W1R1Ba",
+"group": 2
+},
+{
+"index": 172,
+"record": 5760,
+"library": "splib06",
+"name": "Gyp.4+jr20+msc.2+dic.2 AMX23 W1R1Ba",
+"group": 2
+},
+{
+"index": 173,
+"record": 5754,
+"library": "splib06",
+"name": "Gyp.3+jr.1+msc.4+dic.2 AMX22 W1R1Ba",
+"group": 2
+},
+{
+"index": 174,
+"record": 5670,
+"library": "splib06",
+"name": "Dic.4+msc.3+gyp.2+jr.1 AMX20 W1R1Ba",
+"group": 2
+},
+{
+"index": 175,
+"record": 5388,
+"library": "splib06",
+"name": "Alunite.5+MuscCU91-250A AMX4 W1R1Ba",
+"group": 2
+},
+{
+"index": 176,
+"record": 5346,
+"library": "splib06",
+"name": "Alun.33+Kaol.33+Musc.33 AMX2 W1R1Ba",
+"group": 2
+},
+{
+"index": 177,
+"record": 5982,
+"library": "splib06",
+"name": "Muscovite+Chlorite CU91-253D W2R4Na",
+"group": 2
+},
+{
+"index": 178,
+"record": 786,
+"library": "sprlb06",
+"name": "Ammonio-Illite/Smectit GDS87 W1R1Hb",
+"group": 2
+},
+{
+"index": 179,
+"record": 846,
+"library": "splib06",
+"name": "Buddingtonite GDS85 D-206 W1R1Bb",
+"group": 2
+},
+{
+"index": 180,
+"record": 5502,
+"library": "splib06",
+"name": "Buddingtnt+Na-Mont CU93-260B W2R4Nb",
+"group": 2
+},
+{
+"index": 181,
+"record": 5502,
+"library": "splib06",
+"name": "Buddingtnt+Na-Mont CU93-260B W2R4Nb",
+"group": 2
+},
+{
+"index": 182,
+"record": 5436,
+"library": "splib06",
+"name": "Alunite_NH4+Jaro NMNH145596A W1R1Bb",
+"group": 2
+},
+{
+"index": 183,
+"record": 390,
+"library": "splib06",
+"name": "Ammonio-Jarosite SCR-NHJ W1R1Ba",
+"group": 2
+},
+{
+"index": 184,
+"record": 612,
+"library": "sprlb06",
+"name": "Dolomite HS102.3B W1R1Hb",
+"group": 2
+},
+{
+"index": 185,
+"record": 72,
+"library": "splib06",
+"name": "Actinolite NMNHR16485 W1R1Bb",
+"group": 2
+},
+{
+"index": 186,
+"record": 402,
+"library": "splib06",
+"name": "Amphibole NMNH78662 W1R1Bb",
+"group": 2
+},
+{
+"index": 187,
+"record": 774,
+"library": "splib06",
+"name": "Biotite HS28.3B W1R1Bb",
+"group": 2
+},
+{
+"index": 188,
+"record": 912,
+"library": "sprlb06",
+"name": "Biotite-phlogopite P23-5 Sam W1R1H_",
+"group": 2
+},
+{
+"index": 189,
+"record": 5664,
+"library": "splib06",
+"name": "Chlorite_Serpentine BR93-22B W1R1Bb",
+"group": 2
+},
+{
+"index": 190,
+"record": 1080,
+"library": "splib06",
+"name": "Chlorite SMR-13.b 60-104um W1R1Ba",
+"group": 2
+},
+{
+"index": 191,
+"record": 252,
+"library": "sprlb06",
+"name": "Prehnite+.50Chlorite AMIX",
+"group": 2
+},
+{
+"index": 192,
+"record": 258,
+"library": "sprlb06",
+"name": "Prehnite+.67Chlorite AMIX",
+"group": 2
+},
+{
+"index": 193,
+"record": 264,
+"library": "sprlb06",
+"name": "Prehnite+.75Chlorite AMIX",
+"group": 2
+},
+{
+"index": 194,
+"record": 276,
+"library": "sprlb06",
+"name": "Aragonite GDS898 Moracco",
+"group": 2
+},
+{
+"index": 195,
+"record": 660,
+"library": "sprlb06",
+"name": "Clinochlore GDS158 Flagst W1R1Hb",
+"group": 2
+},
+{
+"index": 196,
+"record": 1212,
+"library": "splib06",
+"name": "Clinochlore NMNH83369 =bb",
+"group": 2
+},
+{
+"index": 197,
+"record": 648,
+"library": "sprlb06",
+"name": "Clinochlore_Fe GDS157.b W1R1Ha",
+"group": 2
+},
+{
+"index": 198,
+"record": 1260,
+"library": "splib06",
+"name": "Clinochlore_Fe SC-CCa-1.b =aa_",
+"group": 2
+},
+{
+"index": 199,
+"record": 1338,
+"library": "splib06",
+"name": "Cookeite CAr-1.a 104-150um =bb_",
+"group": 2
+},
+{
+"index": 200,
+"record": 1368,
+"library": "splib06",
+"name": "Cookeite CAr-1.c <30um =cc_",
+"group": 2
+},
+{
+"index": 201,
+"record": 4872,
+"library": "splib06",
+"name": "Thuringite SMR-15.b 32um W1R1Ba",
+"group": 2
+},
+{
+"index": 202,
+"record": 1668,
+"library": "splib06",
+"name": "Epidote GDS26.a 75-200um W1R1Bb",
+"group": 2
+},
+{
+"index": 203,
+"record": 2274,
+"library": "splib06",
+"name": "Hornblende_Fe HS115.3B W1R1Bc",
+"group": 2
+},
+{
+"index": 204,
+"record": 2538,
+"library": "splib06",
+"name": "Jarosite GDS24 Na W1R1Bb",
+"group": 2
+},
+{
+"index": 205,
+"record": 2568,
+"library": "splib06",
+"name": "Jarosite GDS99 K 200C Syn W1R1Ba",
+"group": 2
+},
+{
+"index": 206,
+"record": 2604,
+"library": "splib06",
+"name": "Jarosite SJ-1 H3O 10-20% W1R1Bb",
+"group": 2
+},
+{
+"index": 207,
+"record": 3930,
+"library": "splib06",
+"name": "Phlogopite HS23.3B W1R1Bb",
+"group": 2
+},
+{
+"index": 208,
+"record": 5142,
+"library": "splib06",
+"name": "Tremolite HS18.3 W1R1Bc",
+"group": 2
+},
+{
+"index": 209,
+"record": 4800,
+"library": "splib06",
+"name": "Talc GDS23 74-250um fr W1R1Ba",
+"group": 2
+},
+{
+"index": 210,
+"record": 4830,
+"library": "splib06",
+"name": "Talc WS659 W1R1Bb",
+"group": 2
+},
+{
+"index": 211,
+"record": 5538,
+"library": "splib06",
+"name": "Calcite+Talc PC99-1G W1R1Fc",
+"group": 2
+},
+{
+"index": 212,
+"record": 5682,
+"library": "splib06",
+"name": "Dolomit+Calcite+Talc PC99-1E W1R1Fc",
+"group": 2
+},
+{
+"index": 213,
+"record": 5568,
+"library": "splib06",
+"name": "Calcite.8+Ca-Montmor.2 AMX15 W1R1BbS",
+"group": 2
+},
+{
+"index": 214,
+"record": 5922,
+"library": "splib06",
+"name": "Magnesite+Hydroma HS47.3B W1R1Ba",
+"group": 2
+},
+{
+"index": 215,
+"record": 666,
+"library": "sprlb06",
+"name": "Calcite WS272 W1R1Ha",
+"group": 2
+},
+{
+"index": 216,
+"record": 5532,
+"library": "splib06",
+"name": "Calcite+Dolomite.5 AMX8 W1R1Bb",
+"group": 2
+},
+{
+"index": 217,
+"record": 5694,
+"library": "splib06",
+"name": "Dolomite.50+Ca-Montmor AMX10 W1R1Bb",
+"group": 2
+},
+{
+"index": 218,
+"record": 5514,
+"library": "splib06",
+"name": "Calc.25+dolo.25+mont.5 AMX18 W1R1Bb",
+"group": 2
+},
+{
+"index": 219,
+"record": 5508,
+"library": "splib06",
+"name": "Calc.25+Dolo.25+Ca-Mon AMX7 W1R1Bb",
+"group": 2
+},
+{
+"index": 220,
+"record": 4560,
+"library": "splib06",
+"name": "Siderite HS271.3B W1R1Ba",
+"group": 2
+},
+{
+"index": 221,
+"record": 3558,
+"library": "splib06",
+"name": "Nontronite NG-1.a W1R1Bb",
+"group": 2
+},
+{
+"index": 222,
+"record": 696,
+"library": "sprlb06",
+"name": "Hectorite SHCa-1.Ac-B W1R1Hb",
+"group": 2
+},
+{
+"index": 223,
+"record": 702,
+"library": "sprlb06",
+"name": "Saponite SapCa-1.AcB W1R1Hb",
+"group": 2
+},
+{
+"index": 224,
+"record": 690,
+"library": "sprlb06",
+"name": "Sepiolite SepNev-1.AcB W1R1Ha",
+"group": 2
+},
+{
+"index": 225,
+"record": 5574,
+"library": "splib06",
+"name": "Calcite.80+Mont_Swy-1 GDS212 W1R1Ba",
+"group": 2
+},
+{
+"index": 226,
+"record": 5526,
+"library": "splib06",
+"name": "Calcite+.50Ca-Mont AMX6 W1R1Bb",
+"group": 2
+},
+{
+"index": 227,
+"record": 5520,
+"library": "splib06",
+"name": "Calcite+.33Muscov AMX5 Ruby W1R1Ba",
+"group": 2
+},
+{
+"index": 228,
+"record": 30,
+"library": "sprlb06",
+"name": "Grass_dry+0.17%Na-Mont AMX35 W1R1Ba AREF",
+"group": 2
+},
+{
+"index": 229,
+"record": 5688,
+"library": "splib06",
+"name": "Dolomite.5+Na-mont.5 AMX21 W1R1Bb",
+"group": 2
+},
+{
+"index": 230,
+"record": 5544,
+"library": "splib06",
+"name": "Calcite.33+Ca-mont.67 AMX19 W1R1Bb",
+"group": 2
+},
+{
+"index": 231,
+"record": 5580,
+"library": "splib06",
+"name": "Calcite.80wt+Kaol_CM9 GDS213 W1R1Ba",
+"group": 2
+},
+{
+"index": 232,
+"record": 5562,
+"library": "splib06",
+"name": "Calcite.7+Kaolwxl.3 AMX9 W1R1Ba",
+"group": 2
+},
+{
+"index": 233,
+"record": 1314,
+"library": "splib06",
+"name": "Clintonite NMNH126553 W1R1Bc",
+"group": 2
+},
+{
+"index": 234,
+"record": 3870,
+"library": "splib06",
+"name": "Palygorskite PFL-1 Attapulg W1R1Bb",
+"group": 2
+},
+{
+"index": 235,
+"record": 5298,
+"library": "splib06",
+"name": "Zoisite HS347.3B W1R1Bb",
+"group": 2
+},
+{
+"index": 236,
+"record": 1626,
+"library": "splib06",
+"name": "Elbaite NMNH94217-1.c <74 W1R1Bb",
+"group": 2
+},
+{
+"index": 237,
+"record": 1824,
+"library": "splib06",
+"name": "Gibbsite WS214 W1R1Bb",
+"group": 2
+},
+{
+"index": 238,
+"record": 3546,
+"library": "splib06",
+"name": "Niter GDS43 (K-Saltpeter) W1R1Ba",
+"group": 2
+},
+{
+"index": 239,
+"record": 5040,
+"library": "splib06",
+"name": "Topaz Mt._Antero_#5 W1R1Bb",
+"group": 2
+},
+{
+"index": 240,
+"record": 4278,
+"library": "splib06",
+"name": "Rhodochrosite HS338.3B W1R1Bb",
+"group": 2
+},
+{
+"index": 241,
+"record": 5268,
+"library": "splib06",
+"name": "Witherite HS273.3B W1R1Ba",
+"group": 2
+},
+{
+"index": 242,
+"record": 4026,
+"library": "splib06",
+"name": "Prehnite GDS613.a <60um =aa_",
+"group": 2
+},
+{
+"index": 243,
+"record": 3126,
+"library": "splib06",
+"name": "Mizzonite BM1931 12 Scapolte W1R1Bc",
+"group": 2
+},
+{
+"index": 244,
+"record": 3978,
+"library": "splib06",
+"name": "Pinnoite NMNH123943 W1R1Ba",
+"group": 2
+},
+{
+"index": 245,
+"record": 3996,
+"library": "splib06",
+"name": "Polyhalite NMNH92669-4 W1R1Ba",
+"group": 2
+},
+{
+"index": 246,
+"record": 4368,
+"library": "splib06",
+"name": "Rivadavite NMNH170164 Amph W1R1Ba",
+"group": 2
+},
+{
+"index": 247,
+"record": 2298,
+"library": "splib06",
+"name": "Howlite GDS155 W1R1Ba",
+"group": 2
+},
+{
+"index": 248,
+"record": 5190,
+"library": "splib06",
+"name": "Ulexite HS441.3B W1R1Ba",
+"group": 2
+},
+{
+"index": 249,
+"record": 6114,
+"library": "splib06",
+"name": "White_Crust LV30 starkeyite W1R1Fc",
+"group": 2
+},
+{
+"index": 250,
+"record": 414,
+"library": "splib06",
+"name": "Analcime GDS1 Zeolite W1R1Ba",
+"group": 2
+},
+{
+"index": 251,
+"record": 834,
+"library": "splib06",
+"name": "Brucite HS247.3B W1R1Bc",
+"group": 2
+},
+{
+"index": 252,
+"record": 942,
+"library": "splib06",
+"name": "Carnallite NMNH98011 W1R1Bb",
+"group": 2
+},
+{
+"index": 253,
+"record": 1320,
+"library": "splib06",
+"name": "Colemanite GDS143 W1R1Bb",
+"group": 2
+},
+{
+"index": 254,
+"record": 1470,
+"library": "splib06",
+"name": "Datolite HS442.3B W1R1Bb",
+"group": 2
+},
+{
+"index": 255,
+"record": 2310,
+"library": "splib06",
+"name": "Hydrogrossular NMNH120555 W1R1Bb",
+"group": 2
+},
+{
+"index": 256,
+"record": 2862,
+"library": "splib06",
+"name": "Lepidolite NMNH88526-1 W1R1Ba",
+"group": 2
+},
+{
+"index": 257,
+"record": 2976,
+"library": "splib06",
+"name": "Margarite GDS106 W1R1Bc",
+"group": 2
+},
+{
+"index": 258,
+"record": 3012,
+"library": "splib06",
+"name": "Mascagnite GDS65.b (fr) W1R1Ba",
+"group": 2
+},
+{
+"index": 259,
+"record": 3114,
+"library": "splib06",
+"name": "Mirabilite GDS150 Na2SO4 W1R1Ba",
+"group": 2
+},
+{
+"index": 260,
+"record": 3474,
+"library": "splib06",
+"name": "Natrolite HS169.3B Zeolite W1R1Bb",
+"group": 2
+},
+{
+"index": 261,
+"record": 4338,
+"library": "splib06",
+"name": "Richterite NMNH150800 HCl W1R1Bb",
+"group": 2
+},
+{
+"index": 262,
+"record": 1152,
+"library": "splib06",
+"name": "Chrysotile ML99-12A Coar Fib W1R1Fb",
+"group": 2
+},
+{
+"index": 263,
+"record": 1158,
+"library": "splib06",
+"name": "Chrysotile ML99-12C Fine Fib W1R1Fb",
+"group": 2
+},
+{
+"index": 264,
+"record": 1146,
+"library": "splib06",
+"name": "Chrysotile HS323.1B W1R1Ba",
+"group": 2
+},
+{
+"index": 265,
+"record": 1440,
+"library": "splib06",
+"name": "Cronstedtite M3542 =bb_",
+"group": 2
+},
+{
+"index": 266,
+"record": 4380,
+"library": "splib06",
+"name": "Roscoelite EN124 W1R1Bb",
+"group": 2
+},
+{
+"index": 267,
+"record": 4764,
+"library": "splib06",
+"name": "Strontianite HS272.3B W1R1Bb",
+"group": 2
+},
+{
+"index": 268,
+"record": 4788,
+"library": "splib06",
+"name": "Syngenite GDS139 W1R1Ba",
+"group": 2
+},
+{
+"index": 269,
+"record": 1134,
+"library": "splib06",
+"name": "Chrysocolla HS297.3B W1R1Bb",
+"group": 2
+},
+{
+"index": 270,
+"record": 720,
+"library": "splib06",
+"name": "Azurite WS316 W1R1Ba",
+"group": 2
+},
+{
+"index": 271,
+"record": 2964,
+"library": "splib06",
+"name": "Malachite HS254.3B W1R1Bb",
+"group": 2
+},
+{
+"index": 272,
+"record": 6522,
+"library": "splib06",
+"name": "Cyanide_Cadmium_Potassium W2R4Na RREF",
+"group": 2
+},
+{
+"index": 273,
+"record": 6528,
+"library": "splib06",
+"name": "Cyanide_Nickel_Potassium W2R4Na RREF",
+"group": 2
+},
+{
+"index": 274,
+"record": 6534,
+"library": "splib06",
+"name": "Cyanide_Trihydrate CT1 W1R1Ba",
+"group": 2
+},
+{
+"index": 275,
+"record": 6552,
+"library": "splib06",
+"name": "Cyanide_Potassium_Ferro W1R1Ba",
+"group": 2
+},
+{
+"index": 276,
+"record": 6540,
+"library": "splib06",
+"name": "Cyanide_Zinc_Potassium W1R1Ba",
+"group": 2
+},
+{
+"index": 277,
+"record": 6690,
+"library": "splib06",
+"name": "Plastic GGA-54 Grnhouse Roof W1R1Ba",
+"group": 2
+},
+{
+"index": 278,
+"record": 6606,
+"library": "splib06",
+"name": "Montmorill+Benzene SWy 1ml W1R1Ba",
+"group": 2
+},
+{
+"index": 279,
+"record": 6624,
+"library": "splib06",
+"name": "Montmorill+Trichlor SWy 1ml W1R1Ba",
+"group": 2
+},
+{
+"index": 280,
+"record": 6618,
+"library": "splib06",
+"name": "Montmorill+Toluene SWy .5ml W1R1Ba",
+"group": 2
+},
+{
+"index": 281,
+"record": 6630,
+"library": "splib06",
+"name": "Montmorill+Unleaded_Gas SWy W1R1Ba",
+"group": 2
+},
+{
+"index": 282,
+"record": 6612,
+"library": "splib06",
+"name": "Montmorill+TCE SWy saturated W1R1Ba",
+"group": 2
+},
+{
+"index": 283,
+"record": 5310,
+"library": "splib06",
+"name": "Zunyite GDS-241B <150um W1R1B?",
+"group": 2
+},
+{
+"index": 284,
+"record": 7008,
+"library": "splib06",
+"name": "WTC_Dust_Debris WTC01-2 W1R1Fa",
+"group": 2
+},
+{
+"index": 285,
+"record": 7014,
+"library": "splib06",
+"name": "WTC_Dust_Debris WTC01-28 W1R1Fa",
+"group": 2
+},
+{
+"index": 286,
+"record": 6498,
+"library": "splib06",
+"name": "Coated_Steel_Girder WTC01-8 W1R1Fa",
+"group": 2
+},
+{
+"index": 287,
+"record": 4008,
+"library": "splib06",
+"name": "Portlandite GDS525 Ca(OH)2 W1R1Fa",
+"group": 2
+},
+{
+"index": 288,
+"record": 234,
+"library": "sprlb06",
+"name": "Potassium Nitrate GDS43",
+"group": 2
+},
+{
+"index": 289,
+"record": 240,
+"library": "sprlb06",
+"name": "Sodium Nitrate GDS883",
+"group": 2
+},
+{
+"index": 290,
+"record": 624,
+"library": "sprlb06",
+"name": "Vermiculite GDS458 W1R1Hc",
+"group": 2
+},
+{
+"index": 291,
+"record": 630,
+"library": "sprlb06",
+"name": "Vermiculite ALB4SA00 W1R1Hc",
+"group": 2
+},
+{
+"index": 292,
+"record": 636,
+"library": "sprlb06",
+"name": "Vermiculite WS682 W1R1Hc",
+"group": 2
+},
+{
+"index": 293,
+"record": 642,
+"library": "sprlb06",
+"name": "Vermiculite WS681 W1R1Hc",
+"group": 2
+},
+{
+"index": 294,
+"record": 1008,
+"library": "sprlb06",
+"name": "CO2+O2+CH4 TRANSM ModtranZ20 r06crj3a=",
+"group": 2
+}
+]
+}

@@ -119,7 +119,14 @@ def test_placement_inverts_the_geometry_lookup_table(monkeypatch):
     np.testing.assert_array_equal(p.col, expect_col)
 
 
-def test_mapping_places_each_answer_on_the_cell_that_observed_it(monkeypatch, tmp_path):
+def test_each_cell_takes_the_pass_it_is_least_covered_in(monkeypatch, tmp_path):
+    """
+    Two passes over a 2 x 2 grid. Cell (0, 0) is under vegetation in the
+    first-ranked pass A and exposed kaolinite in pass B, so it takes B's
+    answer; (0, 1) is exposed hematite in A and under vegetation in B, so it
+    keeps A's; (1, 0) is masked in A and outside B's swath; (1, 1) is outside
+    both swaths.
+    """
     rules = tc.default_rules()
     data = np.load(tc.DATA_DIR / 'tetracorder_emit_spectra.npz')
     lib = dict(zip([str(r) for r in data['records']], data['values'].astype(np.float64), strict=True))
@@ -127,47 +134,152 @@ def test_mapping_places_each_answer_on_the_cell_that_observed_it(monkeypatch, tm
 
     def spec(ident):
         e = next(e for e in raw if e['id'] == ident)
-        return lib[f"{e['library'][0]}:{e['library'][1]}"]
+        v = lib[f"{e['library'][0]}:{e['library'][1]}"].copy()
+        v[v < -1e30] = np.nan
+        return v
 
-    kao, hem = spec('kaolwxl'), spec('hematite.fine.gr.gds76')
-    gran = emit.Granule('EMIT_L2A_RFL_001_20240830T135446_2424309_051', 'C', '2024-08-30T13:54:46Z',
-                        0.0, AREA.buffer(1.0), '001')
+    hem, kao, veg = spec('hematite.fine.gr.gds76'), spec('kaolwxl'), spec('vegetation1')
+    covered = 0.2 * kao + 0.8 * veg
+    a = emit.Granule('EMIT_L2A_RFL_001_20240830T135446_2424309_051', 'C', '2024-08-30T13:54:46Z',
+                     0.0, AREA.buffer(1.0), '001')
+    b = emit.Granule('EMIT_L2A_RFL_001_20231227T154141_2336110_019', 'C', '2023-12-27T15:41:41Z',
+                     5.0, AREA.buffer(1.0), '001')
     grid = emit.OutputGrid(-43.95, -20.15, 0.05, 0.05, 2, 2)
+    placed = {
+        a.ur: emit.Placement(row=np.array([[0, 0], [1, -1]], dtype=np.int32),
+                             col=np.array([[0, 1], [0, -1]], dtype=np.int32)),
+        b.ur: emit.Placement(row=np.array([[5, 5], [-1, -1]], dtype=np.int32),
+                             col=np.array([[7, 8], [-1, -1]], dtype=np.int32)),
+    }
+    # The spectrum and mask flag of each instrument pixel, by (row, col).
+    pixels = {
+        a.ur: {(0, 0): (covered, False), (0, 1): (hem, False), (1, 0): (kao, True)},
+        b.ur: {(5, 7): (kao, False), (5, 8): (covered, False)},
+    }
 
-    monkeypatch.setattr(emit, 'search', lambda *a, **k: [gran])
+    monkeypatch.setattr(emit, 'search', lambda *a_, **k: [a, b])
     monkeypatch.setattr(emit, 'structure', lambda g: emit.Structure(
         shapes={}, attributes={'geotransform': ['-43.95', '0.05', '0', '-20.15', '0', '-0.05']}))
     monkeypatch.setattr(emit, 'output_grid', lambda poly, gt: grid)
-    monkeypatch.setattr(emit, 'place', lambda g, st, gr, inside: emit.Placement(
-        row=np.array([[0, 0], [1, -1]], dtype=np.int32),
-        col=np.array([[0, 1], [0, -1]], dtype=np.int32)))
+    monkeypatch.setattr(emit, 'place', lambda g, st, gr, inside: placed[g.ur])
     monkeypatch.setattr(emit, 'band_parameters', lambda g, st: {
         'wavelengths': rules.wavelengths * 1000.0, 'fwhm': rules.fwhm * 1000.0,
         'good_wavelengths': np.ones(len(rules.wavelengths))})
-    monkeypatch.setattr(emit, 'find_mask', lambda g: None)
+    monkeypatch.setattr(emit, 'find_mask', lambda g: g if g.ur == a.ur else None)
+    monkeypatch.setattr(emit, 'MaskReader', lambda g: g)
 
     def fake_blocks(g, st, placement, mask, progress=None):
-        yield emit.Block(rows=np.array([0, 0, 1]), cols=np.array([0, 1, 0]),
-                         reflectance=np.stack([kao, hem, kao]).copy(),
-                         masked=np.array([False, False, True]))
+        keys = sorted(pixels[g.ur])
+        yield emit.Block(rows=np.array([k[0] for k in keys]), cols=np.array([k[1] for k in keys]),
+                         reflectance=np.stack([pixels[g.ur][k][0] for k in keys]).copy(),
+                         masked=np.array([pixels[g.ur][k][1] and mask is not None for k in keys]))
 
     monkeypatch.setattr(emit, 'blocks', fake_blocks)
-    result = mapping.run(AREA, '2024-01-01', '2024-12-31', rules=rules)
+    monkeypatch.setattr(emit, 'find_frcov', lambda g: {'pv': 'x/A/pv.tif', 'npv': 'x/A/npv.tif',
+                                                        'bare': 'x/A/bare.tif'} if g.ur == a.ur else None)
+    monkeypatch.setattr(emit, 'frcov_at', lambda urls, gr, cells: {
+        'pv': np.full((2, 2), 0.1), 'npv': np.full((2, 2), 0.2), 'bare': np.full((2, 2), 0.7)})
 
-    g2, g1 = result.entry[2], result.entry[1]
-    assert rules.entries[g2[0, 0]].klass == 'kaolinite'
-    assert rules.entries[g1[0, 1]].klass == 'hematite'
-    assert g2[1, 0] == mapping.NOT_OBSERVED and result.masked[1, 0]   # cloud
-    assert g2[1, 1] == mapping.NOT_OBSERVED and not result.masked[1, 1]  # no pixel
+    metadata = json.loads((Path(__file__).parent / 'data' / 'emit_l2b_min_001_metadata.json').read_text())['rows']
+    hematite_index = next(r['index'] for r in metadata if r['name'].startswith('Hematite.02+Quartz.98'))
+
+    class FakeL2B:
+        def __init__(self, g):
+            self.granule = g
+
+        def metadata(self):
+            return metadata
+
+        def ids(self, placement, groups):
+            need = placement.row >= 0
+            g1 = np.full((2, 2), -1, dtype=np.int32)
+            g1[need] = hematite_index
+            g2 = np.full((2, 2), -1, dtype=np.int32)
+            g2[need] = 0
+            return {1: g1, 2: g2}
+
+    monkeypatch.setattr(emit, 'find_l2b_min', lambda g: emit.Granule('EMIT_L2B_MIN_001_x', '', g.start,
+                                                                       None, None, '001')
+                        if g.ur == a.ur else None)
+    monkeypatch.setattr(emit, 'L2BReader', FakeL2B)
+
+    result = mapping.run(AREA, '2023-01-01', '2024-12-31', rules=rules)
+
+    g1, g2 = result.entry[1], result.entry[2]
+    assert rules.entries[g2[0, 0]].klass == 'kaolinite'          # from B, exposed there
+    assert rules.entries[g1[0, 1]].klass == 'hematite'           # from A, exposed there
+    np.testing.assert_array_equal(result.pass_index, [[1, 0], [-1, -1]])
+    assert result.exposed[0, 0] and result.exposed[0, 1]
+    assert g2[1, 0] == mapping.NOT_OBSERVED and result.masked[1, 0]   # masked where seen
+    assert g2[1, 1] == mapping.NOT_OBSERVED and not result.masked[1, 1]
+    # FRCOV and L2B were read for pass A's cell only.
+    assert result.frcov['bare'][0, 1] == pytest.approx(0.7)
+    assert np.isnan(result.frcov['bare'][0, 0])
+    assert result.l2b_class[1][0, 1] >= 0 and result.l2b_class[1][0, 0] == -2
 
     payload = result.to_payload(tmp_path)
     assert payload['observed_cells'] == 2
     assert payload['masked_cells'] == 1
+    assert payload['selection']['compared_passes'] == 2
+    assert payload['selection']['contributing_passes'] == 2
+    assert payload['selection']['exposed_cells'] == 2
+    assert [s['cells'] for s in payload['scenes']] == [1, 1]
+    assert [s['exposed_cells'] for s in payload['scenes']] == [1, 1]
+    assert [s['candidate_cells'] for s in payload['scenes']] == [2, 2]
+    ids = {layer['id'] for layer in payload['layers']}
+    assert {'pass', 'exposure', 'frcov', 'margin1', 'margin2', 'agreement1'} <= ids
+    for layer in payload['layers']:
+        assert Path(layer['png']).exists()
+    agree1 = next(r for r in payload['agreement'] if r['group'] == 1)
+    assert agree1['agree'] == 1 and agree1['compared_cells'] == 1
+    assert payload['cover']['bare_cells'] == 1
     assert Path(payload['groups'][0]['class_png']).exists()
     assert Path(payload['geotiff']).exists()
     classes = {row['class'] for grp in payload['groups'] for row in grp['classes']}
     assert {'kaolinite', 'hematite'} <= classes
     assert any('no L2A mask' in n for n in payload['notes'])
+
+
+def test_an_area_under_cloud_names_the_passes_outside_the_period(monkeypatch):
+    """
+    One pass in the period, with every cell of the area under the cloud mask:
+    the failure says so in counts, and names the clearer passes the whole
+    record holds outside the period, which is the change that would help.
+    """
+    rules = tc.default_rules()
+    inside_pass = emit.Granule('EMIT_L2A_RFL_001_20260702T121820_2618308_036', 'C',
+                               '2026-07-02T12:18:20Z', 44.0, AREA.buffer(1.0), '001')
+    clearer = [emit.Granule(f'EMIT_L2A_RFL_001_2024083{i}T135434_2424309_050', 'C',
+                            f'2024-08-3{i}T13:54:34Z', float(c), AREA.buffer(1.0), '001')
+               for i, c in ((0, 3), (1, 8))]
+    grid = emit.OutputGrid(-43.95, -20.15, 0.05, 0.05, 2, 1)
+
+    def search(poly, start, end, max_cloud=100.0):
+        return [inside_pass] if start == '2025-09-24' else [inside_pass, *clearer]
+
+    monkeypatch.setattr(emit, 'search', search)
+    monkeypatch.setattr(emit, 'structure', lambda g: emit.Structure(
+        shapes={}, attributes={'geotransform': ['-43.95', '0.05', '0', '-20.15', '0', '-0.05']}))
+    monkeypatch.setattr(emit, 'output_grid', lambda poly, gt: grid)
+    monkeypatch.setattr(emit, 'place', lambda g, st, gr, inside: emit.Placement(
+        row=np.array([[0, 0]], dtype=np.int32), col=np.array([[0, 1]], dtype=np.int32)))
+    monkeypatch.setattr(emit, 'band_parameters', lambda g, st: {
+        'wavelengths': rules.wavelengths * 1000.0, 'fwhm': rules.fwhm * 1000.0,
+        'good_wavelengths': np.ones(len(rules.wavelengths))})
+    monkeypatch.setattr(emit, 'find_mask', lambda g: g)
+    monkeypatch.setattr(emit, 'MaskReader', lambda g: g)
+    monkeypatch.setattr(emit, 'blocks', lambda g, st, placement, mask, progress=None: iter([
+        emit.Block(rows=np.array([0, 0]), cols=np.array([0, 1]),
+                   reflectance=np.full((2, len(rules.wavelengths)), 0.3),
+                   masked=np.array([True, True]))]))
+
+    with pytest.raises(mapping.NoScene) as caught:
+        mapping.run(AREA, '2025-09-24', '2026-09-24', rules=rules)
+    message = str(caught.value)
+    assert 'EMIT passed over the area 1 time between 2025-09-24 and 2026-09-24 (2026-07-02)' in message
+    assert 'the cloud mask covered all 2 cells of the area on every pass' in message
+    assert 'EMIT has 2 other passes over the area since 2022-08-01' in message
+    assert '2024-08-30 (3% scene cloud), 2024-08-31 (8% scene cloud)' in message
 
 
 def test_no_granule_is_a_stated_failure(monkeypatch):

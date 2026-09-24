@@ -44,7 +44,17 @@ OPENDAP = 'https://opendap.earthdata.nasa.gov/collections/{concept}/granules/{gr
 LPDAAC_PROTECTED = 'https://data.lpdaac.earthdatacloud.nasa.gov/lp-prod-protected'
 
 RFL_SHORT_NAME = 'EMITL2ARFL'
+# The first day of EMIT science operations: the start of the record.
+RECORD_START = '2022-08-01'
 MASK_SHORT_NAME = 'EMITL2AMASK'
+# Products of the same acquisition that the mineral map reads beside the
+# reflectance: fractional cover (Cloud Optimized GeoTIFFs on the ortho grid of
+# the reflectance's geometry lookup table) and the official Tetracorder
+# identification (instrument geometry, as the reflectance). Both exist in
+# version 001 only when this was written.
+FRCOV_SHORT_NAME = 'EMITL2BFRCOV'
+L2B_MIN_SHORT_NAME = 'EMITL2BMIN'
+DERIVED_VERSIONS = ('001',)
 
 # Reflectance versions searched, newest first. Version 002 is being produced
 # by reprocessing and, over Brazil, held 1,010 granules against 22,328 of
@@ -64,10 +74,12 @@ TOKEN_ENV = 'EARTHDATA_TOKEN'
 
 RETRY_WAITS = (2, 5, 10)
 
-# Instrument rows read per OPeNDAP request. At 285 channels of float32, 64 rows
-# of a full 1242-column swath are 90 MB; an area narrower than the swath reads
-# proportionally less.
-ROW_BLOCK = 64
+# Bytes of reflectance asked for per OPeNDAP request: 64 rows of a full
+# 1242-column swath at 285 channels of float32. The service answers in about
+# 20 s whatever the size below that -- 21 to 24 s for 5 channels and for 285 of
+# the same rows, measured 2026-09-24 -- so an area narrower than the swath is
+# read in as many rows per request as fit the same budget, not in 64.
+BLOCK_BYTES = 64 * 1242 * 285 * 4
 
 
 class NoToken(protocol.Unavailable):
@@ -260,6 +272,77 @@ def find_mask(rfl: Granule) -> Granule | None:
     return None
 
 
+def _same_acquisition(short_name: str, rfl: Granule,
+                      versions: tuple[str, ...] = DERIVED_VERSIONS) -> tuple[str, list[str]] | None:
+    """
+    The granule UR and download addresses of another product of the
+    acquisition `rfl` belongs to, newest version first, or None.
+
+    Matched by the acquisition timestamp every product of one acquisition
+    carries in its UR, searched over that day: a version 002 reflectance
+    granule has no orbit and scene suffix to build the other UR from.
+    """
+    import json
+
+    day = rfl.acquisition[:8]
+    temporal = f'{day[:4]}-{day[4:6]}-{day[6:]}T00:00:00Z,{day[:4]}-{day[4:6]}-{day[6:]}T23:59:59Z'
+    for version in versions:
+        params = {'short_name': short_name, 'version': version,
+                  'temporal': temporal, 'page_size': 200}
+        body = json.loads(_get(CMR_GRANULES, auth=False, params=params, timeout=60,
+                               what=f'CMR {short_name} search'))
+        for item in body.get('items', []):
+            umm = item['umm']
+            if rfl.acquisition in umm['GranuleUR']:
+                urls = [u['URL'] for u in umm.get('RelatedUrls', [])
+                        if u.get('Type') == 'GET DATA' and u['URL'].startswith('https://')]
+                return umm['GranuleUR'], urls
+    return None
+
+
+def find_frcov(rfl: Granule) -> dict[str, str] | None:
+    """
+    The fractional cover files of the acquisition: `pv`, `npv` and `bare`, each
+    a GeoTIFF address, or None where the product does not exist for it.
+
+    EMIT L2B FRCOV (Ochoa et al., 2025) is spectral unmixing of the same
+    reflectance into photosynthetic vegetation, non-photosynthetic vegetation
+    and bare soil, with an endmember library the EMIT team built for arid
+    regions (EMIT L3 ATBD, section 4.1).
+    """
+    found = _same_acquisition(FRCOV_SHORT_NAME, rfl)
+    if found is None:
+        return None
+    _, urls = found
+    out: dict[str, str] = {}
+    for key, tag in (('pv', 'FRCOVPV_'), ('npv', 'FRCOVNPV_'), ('bare', 'FRCOVBARE_')):
+        match = [u for u in urls if tag in u and u.endswith('.tif')]
+        if match:
+            out[key] = match[0]
+    return out if len(out) == 3 else None
+
+
+def find_l2b_min(rfl: Granule) -> Granule | None:
+    """The EMIT L2B mineral identification of the acquisition, or None."""
+    found = _same_acquisition(L2B_MIN_SHORT_NAME, rfl)
+    if found is None:
+        return None
+    ur, urls = found
+    files = [u for u in urls if u.endswith('.nc') and '_MINUNCERT_' not in u]
+    if not files:
+        return None
+    return Granule(ur, '', rfl.start, None, rfl.footprint, DERIVED_VERSIONS[0], data_url=files[0])
+
+
+def uncertainty_url(rfl: Granule) -> str:
+    """
+    The reflectance uncertainty file of the acquisition. Both versions ship it
+    as a second file of the reflectance granule, EMIT_L2A_RFLUNCERT_<suffix>.
+    """
+    name = rfl.ur.replace('_RFL_', '_RFLUNCERT_', 1)
+    return f'{LPDAAC_PROTECTED}/EMITL2ARFL.{rfl.version}/{rfl.ur}/{name}.nc'
+
+
 # OPeNDAP ------------------------------------------------------------------------
 
 
@@ -403,18 +486,28 @@ class Placement:
     col: np.ndarray       # 0-based crosstrack index, -1 where none
 
 
+def ortho_cells(grid: OutputGrid, gt: list[float], shape: tuple[int, ...]):
+    """
+    The ortho cell of each output cell centre in a grid of geotransform `gt`
+    and `shape` (rows, columns): column and row per output column and row, and
+    which of them fall inside that grid.
+    """
+    lon, lat = grid.centres()
+    gx = np.floor((lon - gt[0]) / gt[1]).astype(int)
+    gy = np.floor((lat - gt[3]) / gt[5]).astype(int)
+    xs = (gx >= 0) & (gx < shape[1])
+    ys = (gy >= 0) & (gy < shape[0])
+    return gx, gy, xs, ys
+
+
 def place(g: Granule, st: Structure, grid: OutputGrid, inside: np.ndarray) -> Placement:
     """Read the geometry lookup table under the grid and invert it."""
     gt = [float(v) for v in st.attributes['geotransform']]
     glt_shape = st.shapes['/location/glt_x']
-    lon, lat = grid.centres()
     # Ortho cell of each output cell centre in this granule's own GLT grid.
-    gx = np.floor((lon - gt[0]) / gt[1]).astype(int)
-    gy = np.floor((lat - gt[3]) / gt[5]).astype(int)
+    gx, gy, xs, ys = ortho_cells(grid, gt, glt_shape)
     row = np.full((grid.height, grid.width), -1, dtype=np.int32)
     col = np.full((grid.height, grid.width), -1, dtype=np.int32)
-    xs = (gx >= 0) & (gx < glt_shape[1])
-    ys = (gy >= 0) & (gy < glt_shape[0])
     if not xs.any() or not ys.any():
         return Placement(row, col)
     x0, x1 = int(gx[xs].min()), int(gx[xs].max()) + 1
@@ -457,6 +550,24 @@ def band_parameters(g: Granule, st: Structure) -> dict[str, np.ndarray]:
     return {k.rsplit('/', 1)[-1]: v for k, v in got.items()}
 
 
+def _resolve(session, url: str) -> tuple[str, int]:
+    """
+    The signed address an authenticated request for `url` is redirected to,
+    and the file's size. The token is sent to the LP DAAC only; every later
+    read goes to the signed address without it.
+    """
+    first = session.get(url, headers={'Authorization': f'Bearer {_token()}',
+                                      'Range': 'bytes=0-0'}, timeout=120)
+    if first.status_code in (401, 403):
+        raise protocol.Unavailable(
+            f'Earthdata refused the file request (HTTP {first.status_code}); the '
+            'token may be expired or the LP DAAC EULA not yet accepted')
+    if first.status_code != 206:
+        raise protocol.Unavailable(f'{url} did not accept a byte-range request '
+                                   f'(HTTP {first.status_code})')
+    return first.url, int(first.headers['Content-Range'].rsplit('/', 1)[1])
+
+
 class RangeFile(io.RawIOBase):
     """
     A read-only file over HTTP byte ranges, for h5py.
@@ -471,17 +582,7 @@ class RangeFile(io.RawIOBase):
         import requests
 
         self._session = requests.Session()
-        first = self._session.get(url, headers={'Authorization': f'Bearer {_token()}',
-                                                'Range': 'bytes=0-0'}, timeout=120)
-        if first.status_code in (401, 403):
-            raise protocol.Unavailable(
-                f'Earthdata refused the file request (HTTP {first.status_code}); the '
-                'token may be expired or the LP DAAC EULA not yet accepted')
-        if first.status_code != 206:
-            raise protocol.Unavailable(f'{url} did not accept a byte-range request '
-                                       f'(HTTP {first.status_code})')
-        self._url = first.url
-        self._size = int(first.headers['Content-Range'].rsplit('/', 1)[1])
+        self._url, self._size = _resolve(self._session, url)
         self._block = block
         self._cache: dict[int, bytes] = {}
         self._pos = 0
@@ -509,6 +610,36 @@ class RangeFile(io.RawIOBase):
                 raise protocol.Unavailable(f'byte-range read failed (HTTP {r.status_code})')
             self._cache[index] = r.content
         return self._cache[index]
+
+    def read_ranges(self, ranges: list[tuple[int, int]], workers: int = 8) -> list[bytes]:
+        """
+        Several (offset, length) byte ranges, fetched concurrently at the
+        signed address. For a contiguous dataset whose rows are read one range
+        each: HDF5 would ask for them one after another, and the time is in the
+        round trips, not the bytes.
+        """
+        from concurrent.futures import ThreadPoolExecutor
+
+        import requests
+
+        def get(r: tuple[int, int]) -> bytes:
+            lo, n = r
+            last: Exception | None = None
+            for wait in (0, *RETRY_WAITS):
+                if wait:
+                    time.sleep(wait)
+                try:
+                    resp = requests.get(self._url, headers={'Range': f'bytes={lo}-{lo + n - 1}'},
+                                        timeout=300)
+                    if resp.status_code == 206 and len(resp.content) == n:
+                        return resp.content
+                    last = RuntimeError(f'HTTP {resp.status_code}, {len(resp.content)} bytes')
+                except Exception as e:  # noqa: BLE001 - network failures take many forms
+                    last = e
+            raise protocol.Unavailable(f'byte-range read failed: {last}')
+
+        with ThreadPoolExecutor(max_workers=workers) as pool:
+            return list(pool.map(get, ranges))
 
     def readinto(self, buf) -> int:
         n = min(len(buf), max(0, self._size - self._pos))
@@ -566,9 +697,10 @@ def blocks(g: Granule, st: Structure, placement: Placement,
     c0, c1 = int(wanted[:, 1].min()), int(wanted[:, 1].max()) + 1
     r_all = np.unique(wanted[:, 0])
     nb = st.shapes['/reflectance'][2]
-    starts = list(range(int(r_all.min()), int(r_all.max()) + 1, ROW_BLOCK))
+    rows_per = max(1, BLOCK_BYTES // ((c1 - c0) * nb * 4))
+    starts = list(range(int(r_all.min()), int(r_all.max()) + 1, rows_per))
     for n, r0 in enumerate(starts):
-        r1 = min(r0 + ROW_BLOCK, int(r_all.max()) + 1)
+        r1 = min(r0 + rows_per, int(r_all.max()) + 1)
         sel = wanted[(wanted[:, 0] >= r0) & (wanted[:, 0] < r1)]
         if len(sel) == 0:
             continue
@@ -582,3 +714,131 @@ def blocks(g: Granule, st: Structure, placement: Placement,
         if progress is not None:
             progress(n + 1, len(starts))
         yield Block(rows=sel[:, 0], cols=sel[:, 1], reflectance=spec, masked=masked)
+
+
+# Beside the reflectance ---------------------------------------------------------
+
+
+def _placed_window(placement: Placement):
+    """Rows and columns of the placed pixels, and the rectangle holding them."""
+    need = placement.row >= 0
+    rows, cols = placement.row[need], placement.col[need]
+    return need, rows, cols, int(rows.min()), int(rows.max()) + 1, int(cols.min()), int(cols.max()) + 1
+
+
+def frcov_at(urls: dict[str, str], grid: OutputGrid, cells: np.ndarray) -> dict[str, np.ndarray]:
+    """
+    Fractional cover at the output cells, 0 to 1, NaN where the product has no
+    value or the cell is not in `cells`.
+
+    The files are Cloud Optimized GeoTIFFs; each is opened at its signed
+    address and read over the window the cells fall in, placed by its own
+    geotransform, which for EMIT is the reflectance's ortho grid.
+    """
+    import rasterio
+    import requests
+    from rasterio.windows import Window
+
+    out: dict[str, np.ndarray] = {}
+    session = requests.Session()
+    with rasterio.Env(GDAL_DISABLE_READDIR_ON_OPEN='EMPTY_DIR',
+                      CPL_VSIL_CURL_ALLOWED_EXTENSIONS='.tif',
+                      GDAL_HTTP_MAX_RETRY='3', GDAL_HTTP_RETRY_DELAY='2'):
+        for key, url in urls.items():
+            signed, _ = _resolve(session, url)
+            vals = np.full((grid.height, grid.width), np.nan)
+            with rasterio.open('/vsicurl/' + signed) as ds:
+                t = ds.transform
+                gx, gy, xs, ys = ortho_cells(grid, [t.c, t.a, t.b, t.f, t.d, t.e], (ds.height, ds.width))
+                ok = cells & ys[:, None] & xs[None, :]
+                if ok.any():
+                    yy, xx = np.meshgrid(gy, gx, indexing='ij')
+                    y0, y1 = int(yy[ok].min()), int(yy[ok].max()) + 1
+                    x0, x1 = int(xx[ok].min()), int(xx[ok].max()) + 1
+                    arr = ds.read(1, window=Window(x0, y0, x1 - x0, y1 - y0)).astype(np.float64)
+                    if ds.nodata is not None:
+                        arr[arr == ds.nodata] = np.nan
+                    arr[(arr < 0.0) | (arr > 1.0)] = np.nan
+                    vals[ok] = arr[yy[ok] - y0, xx[ok] - x0]
+            out[key] = vals
+    return out
+
+
+class L2BReader:
+    """The official Tetracorder identification of one acquisition, by window."""
+
+    def __init__(self, granule: Granule):
+        try:
+            import h5py
+        except ImportError as e:
+            raise protocol.MissingDependency('EMIT reading needs h5py') from e
+        self.granule = granule
+        self._file = h5py.File(RangeFile(granule.data_url), 'r')
+
+    def metadata(self) -> list[dict]:
+        """One row per L2B index: index, library, record, name, group."""
+        md = self._file['mineral_metadata']
+
+        def text(v) -> str:
+            return v.decode('latin1') if isinstance(v, bytes) else str(v)
+
+        return [{'index': int(md['index'][i]), 'library': text(md['library'][i]),
+                 'record': int(md['record'][i]), 'name': text(md['name'][i]),
+                 'group': int(md['group'][i])}
+                for i in range(md['index'].shape[0])]
+
+    def ids(self, placement: Placement, groups: tuple[int, ...]) -> dict[int, np.ndarray]:
+        """
+        Per group, the L2B mineral index at each output cell: 0 where L2B
+        identified nothing, -1 where no pixel was placed or the value is fill.
+        """
+        shape = placement.row.shape
+        out = {g: np.full(shape, -1, dtype=np.int32) for g in groups}
+        if not (placement.row >= 0).any():
+            return out
+        need, rows, cols, r_lo, r_hi, c0, c1 = _placed_window(placement)
+        for g in groups:
+            win = np.asarray(self._file[f'group_{g}_mineral_id'][r_lo:r_hi, c0:c1]).astype(np.int32)
+            v = win[rows - r_lo, cols - c0]
+            v[v < 0] = -1
+            out[g][need] = v
+        return out
+
+
+class UncertaintyReader:
+    """
+    The one-sigma reflectance uncertainty of one acquisition, by window.
+
+    The variable is stored contiguous and uncompressed (EMIT L2A V001, checked
+    2026-09-24), so each instrument row of a window is one byte range at a
+    known offset, and the rows are fetched concurrently: through HDF5 they were
+    fetched one after another, at 15 s for 20 rows. Any other layout is read
+    through HDF5.
+    """
+
+    def __init__(self, rfl: Granule):
+        try:
+            import h5py
+        except ImportError as e:
+            raise protocol.MissingDependency('EMIT reading needs h5py') from e
+        self._range = RangeFile(uncertainty_url(rfl))
+        self._file = h5py.File(self._range, 'r')
+        d = self._file['reflectance_uncertainty']
+        self._shape = d.shape
+        self._dtype = d.dtype
+        self._offset = d.id.get_offset() if d.chunks is None and d.compression is None else None
+
+    def window(self, r0: int, r1: int, c0: int, c1: int) -> np.ndarray:
+        """(rows, cols, bands), NaN where fill."""
+        if self._offset is None:
+            u = np.asarray(self._file['reflectance_uncertainty'][r0:r1, c0:c1, :])
+        else:
+            _, ncols, nb = self._shape
+            size = self._dtype.itemsize
+            ranges = [(int(self._offset) + (r * ncols + c0) * nb * size, (c1 - c0) * nb * size)
+                      for r in range(r0, r1)]
+            rows = self._range.read_ranges(ranges)
+            u = np.stack([np.frombuffer(b, dtype=self._dtype).reshape(c1 - c0, nb) for b in rows])
+        u = u.astype(np.float64)
+        u[u <= FILL + 1] = np.nan
+        return u

@@ -85,6 +85,22 @@ class Entry:
     fratio: tuple[tuple[int, int, tuple[float, float, float, float]], ...]
     nots: tuple[Not, ...]
     competes_in: tuple[int, ...]
+    # The reference's library record, `splib06:5736`, the key its spectrum is
+    # stored under in data/tetracorder_emit_spectra.npz, and its SPECPR title.
+    library: str = ''
+    library_title: str = ''
+
+    @property
+    def primary_component(self) -> str:
+        """
+        The component with the largest listed abundance, the first on a tie:
+        the one build_tetracorder_rules.py's entry_class names the class from.
+        """
+        if not self.components:
+            return ''
+        ranked = sorted(enumerate(self.components),
+                        key=lambda ic: (-(ic[1][1] if ic[1][1] is not None else 0.0), ic[0]))
+        return ranked[0][1][0]
 
 
 @dataclass(frozen=True)
@@ -191,6 +207,8 @@ def load_rules(path: Path = RULES_FILE) -> Rules:
             nots=tuple(Not(n['entry'], n['feature'], n['depth'], n['relative_to'], n['fit'])
                        for n in e['nots']),
             competes_in=tuple(e['competes_in']),
+            library=f"{e['library'][0]}:{e['library'][1]}",
+            library_title=e.get('library_title', ''),
         ))
     return Rules(
         wavelengths=waves,
@@ -547,6 +565,11 @@ class GroupResult:
     fit: np.ndarray
     depth: np.ndarray
     fd: np.ndarray
+    # The weighted fit of the best entry whose class differs from the winner's,
+    # 0 where none scored. fit - runner_up is how far the answer stood from the
+    # nearest other mineral class; references of the winner's own class are
+    # not competitors in that sense and are left out.
+    runner_up: np.ndarray
 
 
 def classify(spectra: np.ndarray, rules: Rules | None = None,
@@ -571,9 +594,13 @@ def classify(spectra: np.ndarray, rules: Rules | None = None,
         spectra[(spectra < rules.data_min) | (spectra > rules.data_max)] = np.nan
     p = spectra.shape[0]
     out = {g: GroupResult(np.full(p, -1, dtype=np.int32), np.zeros(p, np.float32),
-                          np.zeros(p, np.float32), np.zeros(p, np.float32))
+                          np.zeros(p, np.float32), np.zeros(p, np.float32),
+                          np.zeros(p, np.float32))
            for g in rules.reported_groups}
     members = {g: rules.group_members(g) for g in rules.reported_groups}
+    class_index = {c: i for i, c in enumerate(rules.classes)}
+    member_class = {g: np.array([class_index.get(rules.entries[i].klass, -1) for i in idx])
+                    for g, idx in members.items()}
 
     for start in range(0, p, chunk):
         sl = slice(start, min(start + chunk, p))
@@ -590,8 +617,11 @@ def classify(spectra: np.ndarray, rules: Rules | None = None,
             bdepth = np.stack([done[i].depth for i in idx], axis=1)[rows, best]  # type: ignore[union-attr]
             bfd = np.stack([done[i].fd for i in idx], axis=1)[rows, best]  # type: ignore[union-attr]
             found = (bfit > 0.0) & (bdepth > 0.0)
+            other = member_class[g][None, :] != member_class[g][best][:, None]
+            second = np.where(other, fits, 0.0).max(axis=1)
             out[g].entry[sl] = np.where(found, chosen, -1)
             out[g].fit[sl] = np.where(found, bfit, 0.0)
             out[g].depth[sl] = np.where(found, bdepth, 0.0)
             out[g].fd[sl] = np.where(found, bfd, 0.0)
+            out[g].runner_up[sl] = np.where(found, second, 0.0)
     return out

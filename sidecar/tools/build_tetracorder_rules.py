@@ -478,7 +478,20 @@ def component_class(name: str) -> str:
 # the kaolinite-gibbsite-goethite-hematite assemblage of Oxisols and Ultisols,
 # the 2:1 clays and micas of less weathered soils, carbonates and sulfates for
 # the semi-arid northeast, and the two covers that suppress every mineral
-# detection when present. Every other component is reported as `other`, with
+# detection when present.
+#
+# After those, the materials that were reported as `other` until they were
+# given classes of their own, each for a question asked of Brazilian ground:
+# pyrophyllite, where the port and the L2B product disagree most in the
+# Quadrilatero Ferrifero; talc and serpentine over the ultramafic rocks of
+# Goias; the epidote-amphibole-prehnite suite of greenschist and propylitic
+# alteration; gypsum, mined in the Araripe basin; vermiculite, mined in Goias
+# and Piaui; the Fe sulfates of acid mine drainage (Swayze et al., 2000); the
+# other Fe oxyhydroxides and the magnetic oxides of iron-ore districts;
+# manganese minerals (Carajas, Serra do Navio); copper minerals (Carajas); the
+# rare-earth oxides whose 0.74 and 0.80 um absorptions Tetracorder carries; the
+# Fe2+ silicates of mafic rock; and plastics, the one anthropic cover with a
+# reference of its own. Every remaining component is reported as `other`, with
 # the name of the reference that matched.
 CLASS_COMPONENTS: dict[str, tuple[str, ...]] = {
     'kaolinite': ('kaolinite', 'kaolinite_wxl', 'kaolinite_pxl', 'halloysite',
@@ -497,6 +510,30 @@ CLASS_COMPONENTS: dict[str, tuple[str, ...]] = {
     'jarosite': ('jarosite',),
     'vegetation': ('vegetation_photosyn', 'vegetation_nonphotosyn'),
     'water': ('water_liquid',),
+    'pyrophyllite': ('pyrophyllite',),
+    'talc_serpentine': ('talc', 'tremolite_or_talc', 'chrysotile', 'cronstedtite'),
+    'epidote_amphibole': ('epidote', 'zoisite', 'prehnite', 'actinolite',
+                          'fe2+generic_actinolite', 'cummingtonite', 'amphibole',
+                          'fe2+generic_amphibole', 'hornblende', 'richterite'),
+    'gypsum': ('gypsum',),
+    'vermiculite': ('vermiculite',),
+    'biotite': ('biotite', 'phlogopite'),
+    'fe_sulfate': ('schwertmannite', 'copiapite', 'coquimbite', 'szomolnokite',
+                   'fe2+generic_sulfate_butlerite', 'acid_mine_drainage', 'pyrite'),
+    'fe_oxyhydroxide': ('fe3+_ferrihydrite', 'lepidocrosite', 'pitchlimonite',
+                        'fe3+bearing1'),
+    'magnetite': ('magnetite', 'maghemite', 'fe2+fe3+mix'),
+    'manganese': ('pyrolusite', 'black_Mn_Coating', 'rhodonite', 'rhodochrosite'),
+    'copper': ('malachite', 'azurite', 'chrysocolla', 'copper_sulfate',
+               'copper_precipitate', 'cuprite', 'chalcopyrite'),
+    'ree': ('neodymium', 'samarium'),
+    'pyroxene_olivine': ('olivine', 'pyroxene_hypersthene', 'pyroxene_diopside',
+                         'pyroxene_pigeonite', 'pyroxene_augite', 'yroxene.bronzite',
+                         'pyroxene_enstatite', 'pyroxene_hedenbergite',
+                         'fe2+generic_jadeite', 'fe2+generic_basalt'),
+    'plastic': ('organic_plastic-pete', 'organic_plastic_green', 'organic_plastic_pvc',
+                'organic_plastic_blue', 'organic_plastic-vinyl', 'organic_plastic-hdpe',
+                'organic_fiberglass', 'organic_polystyrene', 'organic_paint'),
 }
 
 
@@ -758,9 +795,33 @@ def build(args: argparse.Namespace) -> dict:
     }
 
 
+def reclass(rules_path: Path) -> dict[str, int]:
+    """
+    Rewrite the class of every entry of a built rule file from its components.
+
+    The class is a function of the components alone (entry_class), and the
+    components are in the file, so a change to CLASS_COMPONENTS needs no
+    checkout and no second setup: nothing the analysis reads is touched, and
+    the setup hash in `source` stays the hash of the setup that built it.
+    Returns the number of entries per class.
+    """
+    rules = json.loads(rules_path.read_text())
+    counts: dict[str, int] = {}
+    for e in rules['entries']:
+        e['class'] = entry_class([(c[0], c[1]) for c in e['components']])
+        counts[e['class']] = counts.get(e['class'], 0) + 1
+    rules['classes'] = list(CLASS_COMPONENTS) + ['other']
+    rules_path.write_text(json.dumps(rules, separators=(',', ':')) + '\n')
+    return counts
+
+
 def main(argv: list[str] | None = None) -> int:
     ap = argparse.ArgumentParser(description=__doc__.split('\n\n')[0])
-    ap.add_argument('tetracorder', help='path to a spectroscopy-tetracorder checkout')
+    ap.add_argument('tetracorder', nargs='?',
+                    help='path to a spectroscopy-tetracorder checkout (not needed with --reclass)')
+    ap.add_argument('--reclass', action='store_true',
+                    help='rewrite the classes of the built rule file from its components, '
+                         'after a change to CLASS_COMPONENTS, without a checkout')
     ap.add_argument('--cmds', default='tetracorder5.27e.cmds')
     ap.add_argument('--setup', default='cmd.lib.setup.t5.27e1')
     ap.add_argument('--components-from', default='tetracorder6.00a.cmds/cmd.lib.setup.t6.00a6',
@@ -775,6 +836,14 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument('--out', type=Path, default=OUT_DIR)
     ap.add_argument('--name', default='tetracorder_emit')
     args = ap.parse_args(argv)
+
+    if args.reclass:
+        counts = reclass(args.out / f'{args.name}.json')
+        for cls, n in sorted(counts.items(), key=lambda kv: -kv[1]):
+            print(f'{cls}: {n} entries')
+        return 0
+    if not args.tetracorder:
+        ap.error('a spectroscopy-tetracorder checkout is required unless --reclass is given')
 
     built = build(args)
     args.out.mkdir(parents=True, exist_ok=True)
