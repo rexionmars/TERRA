@@ -32,6 +32,7 @@ export type RunNodeId =
   | "spectralIndex"
   | "stretch"
   | "waterIndex"
+  | "passes"
   | "catalogue"
   | "run"
 
@@ -85,6 +86,12 @@ const SPEC: Record<RunNodeId, Omit<RunNodeSpec, "col">> = {
   spectralIndex: { id: "spectralIndex", label: "Index", h: 74 },
   stretch: { id: "stretch", label: "Stretch", h: 116 },
   waterIndex: { id: "waterIndex", label: "Index", h: 78 },
+  /*
+    The mineral map's passes: how many of the period's EMIT passes are compared
+    per cell, each cell taking the one its ground is least covered in, and how
+    many perturbed classifications measure each class's stability.
+  */
+  passes: { id: "passes", label: "Passes", h: 96 },
   /*
     THE PUBLISHED BOUNDARIES, AS GROUND A RUN CAN BE MADE OVER.
 
@@ -214,10 +221,11 @@ function productGraph(
 
   if (tool === "mineral") {
     return {
-      nodes: [at("area", 0), at("period", 0), at("run", 1)],
+      nodes: [at("area", 0), at("period", 0), at("passes", 0), at("run", 1)],
       edges: [
         ["area", "run"],
         ["period", "run"],
+        ["passes", "run"],
       ],
     }
   }

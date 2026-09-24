@@ -99,6 +99,7 @@ import { ProjectFileHost } from "@/components/ProjectFileHost"
 import { SplashScreen } from "@/components/SplashScreen"
 import { WhatsNewGate } from "@/components/WhatsNewGate"
 import { StudioScreen } from "@/pages/StudioScreen"
+import { DEFAULT_MINERAL_RUN_OPTIONS, mineralPassesUsed, type MineralRunOptions } from "@/lib/mineral"
 import type { BasemapKind } from "@/lib/basemaps"
 import { AuthPage } from "@/pages/AuthPage"
 import { ProfilePage } from "@/pages/ProfilePage"
@@ -699,6 +700,10 @@ function AppBody(props: {
     progress: 0,
     message: "",
   })
+  // The Passes card's two counts, sent with the next run.
+  const [mineralOptions, setMineralOptions] = useState<MineralRunOptions>(
+    DEFAULT_MINERAL_RUN_OPTIONS
+  )
   /*
     The field delineation and its run status, held here for the reason the
     mineral map's are: the screen unmounts on every navigation away.
@@ -1700,9 +1705,8 @@ function AppBody(props: {
     sentence naming where the token is set. The status is read on each run
     rather than cached, so a token saved in Settings a moment ago applies.
 
-    The cloud ceiling is the period card's own, because that is the value the
-    reader sees beside the dates; the sidecar applies it per pass. max_scenes
-    is left at 0, which the sidecar reads as its default of 3.
+    The passes compared and the uncertainty draws are the Passes card's; see
+    lib/mineral.ts DEFAULT_MINERAL_RUN_OPTIONS for what each costs.
   */
   const handleRunMinerals = async () => {
     if (!props.customPolygon) {
@@ -1741,7 +1745,8 @@ function AppBody(props: {
         // clear. Passes are read least cloudy first and cloud is excluded per
         // cell by the EMIT mask.
         max_cloud: 0,
-        max_scenes: 0,
+        max_scenes: mineralOptions.passes,
+        uncertainty_draws: mineralOptions.draws,
         label: aoiLabel,
         run_label: nameThisRun(aoiLabel),
         area_id: props.activeAreaId,
@@ -1754,17 +1759,23 @@ function AppBody(props: {
       mineralAoiRef.current = runAoi
       setCurrentRunId(res.run_id || null)
       setMineral(res)
-      setReveal("mineralReading")
-      // The observed area travels with the identified one, here as in the
-      // reading: over vegetated ground most of an area has no mineral answer.
+      /*
+        No reveal, for the reason a delineation has none: the map's figures are
+        compositor cards, placed by the board (withMineralNodes), and the Mineral
+        map preset shows the compositor beside the viewport. The notification
+        says where.
+      */
+      // The observed area travels with the identified one: over vegetated
+      // ground most of an area has no mineral answer.
       const identified = res.groups
         .map((g) => `group ${g.group} ${g.detected_area_ha.toFixed(1)} ha`)
         .join(", ")
+      const used = mineralPassesUsed(res)
       notifySuccess(
         `Mineral map: ${identified || "no group reported"} identified over ` +
           `${res.observed_area_ha.toFixed(1)} of ${res.aoi_area_ha.toFixed(1)} ha observed, ` +
-          `${res.scenes.length} EMIT ${res.scenes.length === 1 ? "pass" : "passes"}` +
-          `${res.run_id ? " (saved)" : ""}.`
+          `${used} EMIT ${used === 1 ? "pass" : "passes"}` +
+          `${res.run_id ? " (saved)" : ""}. Its figures are cards in the Compositor.`
       )
       void refreshRuns()
       void refreshProjects()
@@ -3083,6 +3094,8 @@ function AppBody(props: {
                   polygonGeoJSON={analysisPolygonGeoJSON}
                   mineral={mineral}
                   onRunMinerals={() => void handleRunMinerals()}
+                  mineralOptions={mineralOptions}
+                  onMineralOptionsChange={setMineralOptions}
                   mineralBusy={mineralRun.active}
                   mineralProgress={mineralRun.progress}
                   mineralProgressMsg={mineralRun.message}

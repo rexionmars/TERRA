@@ -18,6 +18,9 @@
  * (AdoptFields takes the thresholds, not a list). Filters compose by taking
  * the larger threshold of each, which is the intersection of what each keeps.
  *
+ * A FOURTH, NOT A RASTER EITHER: a mineral map's figures, as its run reported
+ * them. Nothing computes on them here; each Mineral node reads its part.
+ *
  * RASTERS OF DIFFERENT GRIDS MEET BY WHERE THEY ARE. A mask or an overlay is
  * resampled onto the grid of the raster it is applied to, pixel centre to
  * pixel centre through the two lon/lat extents, nearest neighbour. That is
@@ -44,12 +47,13 @@ import {
   kindMeta,
   linkInto,
   nodeOf,
+  refusal,
   type CompositorGraph,
   type GraphNode,
 } from "@/lib/compositorGraph"
 import type { ClassRaster } from "@/lib/runAssets"
 import type { Field } from "@/lib/fields"
-import type { Bounds } from "@/lib/types"
+import type { Bounds, MineralAnalysis } from "@/lib/types"
 
 export interface ClassValue {
   type: "classes"
@@ -84,7 +88,18 @@ export interface FieldsValue {
   minCropland: number
 }
 
-export type Value = RasterValue | FieldsValue
+export interface MineralValue {
+  type: "mineral"
+  key: string
+  /** The mineral run the figures came from. */
+  runId: string
+  analysis: MineralAnalysis
+}
+
+export type Value = RasterValue | FieldsValue | MineralValue
+
+/** Whether a value is a raster, the only kind the filters, masks and mixes take. */
+export const isRaster = (v: Value): v is RasterValue => v.type === "classes" || v.type === "image"
 
 export type Result =
   | { status: "ready"; value: Value }
@@ -274,14 +289,7 @@ export function evaluate(graph: CompositorGraph, ctx: EvalContext): Evaluation {
       r = output(link.from, link.fromSocket, trail)
       const def = inputsOf(graph, node).find((i) => i.id === inputId)
       if (r.status === "ready" && def && !def.accepts.includes(r.value.type)) {
-        r = {
-          status: "failed",
-          note: def.accepts.includes("fields")
-            ? `${def.label} takes the fields a delineation drew, not a raster.`
-            : r.value.type === "fields"
-              ? `${def.label} takes a raster, not field polygons.`
-              : `${def.label} needs a class map; an image carries colour, not classes.`,
-        }
+        r = { status: "failed", note: refusal(def, r.value.type) }
       }
     }
     inputs.set(k, r)
@@ -337,7 +345,7 @@ export function evaluate(graph: CompositorGraph, ctx: EvalContext): Evaluation {
         const mask = input(node, "mask", trail)
         if (mask.status !== "ready") return notReady(mask)
         if (mask.value.type !== "classes") return { status: "failed", note: "The mask needs a class map." }
-        if (raster.value.type === "fields") return { status: "failed", note: "The raster input takes a raster." }
+        if (!isRaster(raster.value)) return { status: "failed", note: "The raster input takes a raster." }
         const v = raster.value
         const m = mask.value
         const made = cached(`mask(${v.key},${m.key})`, (): RasterValue | string => {
@@ -369,10 +377,10 @@ export function evaluate(graph: CompositorGraph, ctx: EvalContext): Evaluation {
         const top = input(node, "overlay", trail)
         if (top.status === "busy") return top
         if (top.status === "failed") return { status: "failed", note: top.note }
-        if (base.value.type === "fields") return { status: "failed", note: "The base takes a raster." }
+        if (!isRaster(base.value)) return { status: "failed", note: "The base takes a raster." }
         const b = painted(base.value)
         if (top.status === "none") return { status: "ready", value: b }
-        if (top.value.type === "fields") return { status: "failed", note: "The overlay takes a raster." }
+        if (!isRaster(top.value)) return { status: "failed", note: "The overlay takes a raster." }
         const t = painted(top.value)
         const key = `${paramsKey(node)}(${b.key},${t.key})`
         const made = cached(key, (): ImageValue | string => {

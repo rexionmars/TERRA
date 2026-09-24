@@ -148,6 +148,7 @@ import {
   EMPTY_GRAPH,
   linkInto,
   withFieldNodes,
+  withMineralNodes,
   type CompositorGraph,
 } from "@/lib/compositorGraph"
 import {
@@ -4185,6 +4186,43 @@ export function BoardSurface({
     to be built by hand would leave its actions out of sight. withFieldNodes
     reuses the last delineation's nodes where the graph has them.
   */
+  /*
+    A run's mineral map, wherever the board holds it, for the Run node's
+    Mineral report: the live result, a run the map has moved on from, or one
+    brought in with the picker.
+  */
+  const mineralOfRun = (runId: string) =>
+    (mineralResult?.run_id === runId ? mineralResult : null) ??
+    retainedRuns.find((r) => r.id === runId)?.result.mineral ??
+    extraRuns.find((x) => x.run.id === runId)?.result.mineral ??
+    null
+
+  /*
+    A FINISHED MINERAL MAP'S CARDS ARE PLACED FOR IT, once per run, for the
+    reason a delineation's nodes are: its figures are compositor cards rather
+    than a column of tables, and a run whose cards had to be built by hand
+    would leave its figures out of sight. Only the cards the run has figures
+    for are placed; the rest stay in Add > Mineral.
+  */
+  const placedMineralRef = useRef<string | null>(null)
+  useEffect(() => {
+    const m = mineralResult
+    const runId = m?.run_id
+    if (!m || !runId || placedMineralRef.current === runId) return
+    if (!assetRuns.some((r) => r.runId === runId)) return
+    placedMineralRef.current = runId
+    setCompositor(
+      withMineralNodes(compositor ?? EMPTY_GRAPH, runId, {
+        cover: !!m.cover,
+        bands: (m.positions ?? []).map((p) => p.key).filter((k): k is "fe3" | "aloh" => k === "fe3" || k === "aloh"),
+        acid: (m.acid_sulfate ?? []).length > 0,
+        agreement: (m.agreement ?? []).map((a) => a.group).filter((g): g is 1 | 2 => g === 1 || g === 2),
+      })
+    )
+    // assetRuns is rebuilt on every render; the run id is what decides.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [mineralResult?.run_id, assetRuns.some((r) => r.runId === mineralResult?.run_id)])
+
   const placedFieldsRef = useRef<string | null>(null)
   useEffect(() => {
     const runId = fieldsResult?.run_id
@@ -4473,6 +4511,7 @@ export function BoardSurface({
         fieldsOf={fieldsOfRun}
         fieldsTargetOf={fieldsTargetOf}
         onAdoptFields={onAdoptFields}
+        mineralOf={mineralOfRun}
       />
     ),
     mineralReading: mineralResult ? (

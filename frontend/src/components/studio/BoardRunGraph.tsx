@@ -508,6 +508,18 @@ export interface BoardRunGraphProps {
     onIndexChange: (i: WaterIndex) => void
   }
 
+  /**
+   * The mineral map's passes, or absent where it cannot run: how many passes
+   * are compared per cell, and how many classifications perturbed by the
+   * reflectance uncertainty measure each class's stability (0 skips them).
+   */
+  mineral?: {
+    passes: number
+    onPassesChange: (n: number) => void
+    draws: number
+    onDrawsChange: (n: number) => void
+  }
+
   hasArea: boolean
   /** Display name of the active custom AOI (drawn / drawn 2 / renamed). */
   areaLabel?: string
@@ -712,6 +724,12 @@ function cardValues(p: BoardRunGraphProps): Record<RunNodeId, RunValue> {
         }
       : none,
     waterIndex: water ? { kind: "choice", label: water.index } : none,
+    passes: p.mineral
+      ? {
+          kind: "choice",
+          label: `${p.mineral.passes} compared${p.mineral.draws ? `, ${p.mineral.draws} draws` : ""}`,
+        }
+      : none,
     run: none,
   }
 }
@@ -1201,6 +1219,47 @@ export function BoardRunGraph(props: BoardRunGraphProps) {
           />
         ))}
       </div>
+    ) : null,
+
+    passes: props.mineral ? (
+      /*
+        Two counts. Compared: the period's passes ranked by how much of the
+        area they cover, the first this many read, and each cell answered
+        from the one its ground is least covered in. Draws: classifications of
+        the reflectance perturbed by its reported uncertainty, each as costly
+        as the map itself; 0 leaves the stability unmeasured.
+      */
+      <>
+        <NumberField
+          label="Compared"
+          value={props.mineral.passes}
+          min={1}
+          max={10}
+          step={1}
+          format={(v) => String(Math.round(v))}
+          parse={(t) => {
+            const v = parseInt(t.trim(), 10)
+            return Number.isFinite(v) ? v : null
+          }}
+          disabled={busy}
+          onChange={(v) => props.mineral?.onPassesChange(Math.round(v))}
+        />
+        <NumberField
+          label="Draws"
+          value={props.mineral.draws}
+          min={0}
+          max={50}
+          step={1}
+          format={(v) => (Math.round(v) === 0 ? "off" : String(Math.round(v)))}
+          parse={(t) => {
+            if (t.trim().toLowerCase() === "off") return 0
+            const v = parseInt(t.trim(), 10)
+            return Number.isFinite(v) ? v : null
+          }}
+          disabled={busy}
+          onChange={(v) => props.mineral?.onDrawsChange(Math.round(v))}
+        />
+      </>
     ) : null,
 
     run: (

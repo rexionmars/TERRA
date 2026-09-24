@@ -332,15 +332,12 @@ export const STUDIO_EDITORS: readonly StudioEditorMeta[] = [
     label: "Mineral map",
     icon: Diamond,
     /*
-      A reading beside planes it does not draw: the class maps are on the
-      board, and this carries the passes, the observed area and each group's
-      class and reference tables. Wide enough for the reference table's five
-      columns, which carry a spectrum title of about thirty characters beside
-      three figures; tall because two groups of tables stand under a coverage
-      block.
+      A short summary beside planes it does not draw: the observed area and
+      what each group identified. The tables are compositor cards
+      (components/studio/mineralNodes.tsx). Two figures to a row.
     */
-    minRem: 22,
-    minRowRem: 16,
+    minRem: 18,
+    minRowRem: 12,
     hint: "What the exposed surface is made of, from EMIT and Tetracorder, over what was observed",
   },
   {

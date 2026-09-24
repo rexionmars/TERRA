@@ -33,6 +33,7 @@ import type {
   CompositionOverlay,
   FieldsAnalysis,
   MineralAnalysis,
+  MineralLayer,
   ModelKind,
   PredictResult,
   WaterAnalysis,
@@ -44,8 +45,10 @@ import {
   MINERAL_NO_ANSWER_COLOR,
   mineralCellAreaHa,
   mineralGroupTitle,
+  mineralDerivedLayerId,
   mineralLayerDefaultVisible,
   mineralLayerId,
+  mineralPassesUsed,
 } from "@/lib/mineral"
 
 /**
@@ -189,6 +192,21 @@ function mineralClasses(m: MineralAnalysis): ClassRaster {
   return {
     legend,
     excluded: [noAnswer + 1],
+    pixelAreaHa: mineralCellAreaHa(m),
+    areaIsMean: true,
+  }
+}
+
+/**
+ * The legend of one derived class layer (MineralLayer of kind "classes"), in
+ * its own colours; the colours marked `excluded` are not classes and are set
+ * aside, as the group maps' masked grey is.
+ */
+function mineralLayerClasses(m: MineralAnalysis, l: MineralLayer): ClassRaster | undefined {
+  if (l.kind !== "classes" || !l.legend?.length) return undefined
+  return {
+    legend: l.legend.map((e, i) => ({ id: i, name: e.label, color: e.color })),
+    excluded: l.legend.flatMap((e, i) => (e.excluded ? [i] : [])),
     pixelAreaHa: mineralCellAreaHa(m),
     areaIsMean: true,
   }
@@ -489,7 +507,7 @@ export function runAssets(i: RunAssetInput): RunAsset[] {
       title: mineralGroupTitle(g.group),
       params: [
         m.expert_system || null,
-        m.scenes.length ? `${m.scenes.length} EMIT passes` : null,
+        m.scenes.length ? `${mineralPassesUsed(m)} EMIT passes` : null,
         `${g.detected_area_ha.toFixed(0)} of ${m.observed_area_ha.toFixed(0)} ha observed identified`,
       ]
         .filter(Boolean)
@@ -510,6 +528,29 @@ export function runAssets(i: RunAssetInput): RunAsset[] {
         src: g.class_uri,
         filename: `terra_mineral_group${g.group}.png`,
       },
+      exportTif: m.geotiff
+        ? { via: "file", src: m.geotiff, filename: "terra_mineral_map.tif" }
+        : null,
+    })
+  }
+  // The derived rasters. Their values are bands of the same GeoTIFF, so that is
+  // what each exports as its measurement.
+  for (const l of m?.layers ?? []) {
+    if (!m || !l.uri) continue
+    const id = mineralDerivedLayerId(l.id)
+    out.push({
+      id: `mineral-${l.id}`,
+      sceneId: id,
+      title: l.title,
+      params: l.about,
+      previewUri: l.uri,
+      extent: placeable(m.extent),
+      pixelated: true,
+      classes: mineralLayerClasses(m, l),
+      onBoard: i.mineralLayers ? (i.mineralLayers[id]?.visible ?? false) : false,
+      selectId: null,
+      removeId: null,
+      exportPng: { src: l.uri, filename: `terra_mineral_${l.id}.png` },
       exportTif: m.geotiff
         ? { via: "file", src: m.geotiff, filename: "terra_mineral_map.tif" }
         : null,

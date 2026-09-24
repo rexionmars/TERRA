@@ -27,7 +27,7 @@ import {
 } from "@/lib/panelSelection";
 import type { AoiContourSchemeId } from "@/lib/aoiStyle";
 import { isMapTool, type BoardToolId } from "@/lib/mapTools";
-import { mineralGroupOfLayer } from "@/lib/mineral";
+import { isMineralLayer, type MineralRunOptions } from "@/lib/mineral";
 import { fieldWindows, isFieldLayer, MIN_PERIOD_DAYS } from "@/lib/fields";
 import { cn } from "@/lib/utils";
 import { CaretDown, Database } from "@phosphor-icons/react";
@@ -253,6 +253,9 @@ export interface StudioScreenProps {
    */
   mineral?: MineralAnalysis | null;
   onRunMinerals?: () => void;
+  /** The mineral map's passes compared and uncertainty draws; see the Passes card. */
+  mineralOptions?: MineralRunOptions;
+  onMineralOptionsChange?: (o: MineralRunOptions) => void;
   mineralBusy?: boolean;
   mineralProgress?: number;
   mineralProgressMsg?: string;
@@ -563,7 +566,7 @@ export function StudioScreen(props: StudioScreenProps) {
       }));
       return;
     }
-    if (mineralGroupOfLayer(id) !== null) {
+    if (isMineralLayer(id)) {
       setMineralLayerState((prev) => ({
         ...prev,
         [id]: {
@@ -1025,6 +1028,18 @@ export function StudioScreen(props: StudioScreenProps) {
         index: props.waterIndex,
         onIndexChange: props.onWaterIndexChange,
       }}
+      mineral={
+        props.mineralOptions && props.onMineralOptionsChange
+          ? {
+              passes: props.mineralOptions.passes,
+              draws: props.mineralOptions.draws,
+              onPassesChange: (n) =>
+                props.onMineralOptionsChange?.({ ...props.mineralOptions!, passes: n }),
+              onDrawsChange: (n) =>
+                props.onMineralOptionsChange?.({ ...props.mineralOptions!, draws: n }),
+            }
+          : undefined
+      }
       hasArea={props.hasArea}
       areaLabel={props.areaLabel}
       onImportPolygon={props.onImportPolygon}

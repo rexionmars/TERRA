@@ -35,8 +35,13 @@ export type Place = { x: number; y: number }
  * per field, with their figures. It goes only where fields are read -- a
  * filter on their size, the node that makes them areas, the one that writes
  * them to a file -- and no raster goes where it does.
+ *
+ * `mineral` is not a raster either: the figures of one mineral map, as the run
+ * reported them -- the passes it compared, what each group identified, where
+ * the bands sat, how firm the answers were. It goes only into the Mineral
+ * nodes, each of which reads one part of it into its card.
  */
-export type SocketType = "classes" | "image" | "fields"
+export type SocketType = "classes" | "image" | "fields" | "mineral"
 
 export interface InputDef {
   id: string
@@ -51,7 +56,12 @@ export interface OutputDef {
   type: SocketType | { follow: string }
 }
 
-export type NodeCategory = "input" | "filter" | "mask" | "color" | "analysis" | "output"
+export type NodeCategory = "input" | "filter" | "mask" | "color" | "analysis" | "mineral" | "output"
+
+/** A Tetracorder group: 1 reads the Fe electronic bands, 2 the 2.0-2.5 um vibrational ones. */
+export type MineralGroupId = 1 | 2
+/** An absorption whose position the mineral map fitted. */
+export type MineralBand = "fe3" | "aloh"
 
 export type GraphNode =
   | { id: string; kind: "run"; runId: string | null }
@@ -82,6 +92,16 @@ export type GraphNode =
     }
   | { id: string; kind: "adoptFields" }
   | { id: string; kind: "saveFields" }
+  | { id: string; kind: "mineralCoverage" }
+  | { id: string; kind: "mineralClasses"; group: MineralGroupId }
+  | { id: string; kind: "mineralReferences"; group: MineralGroupId }
+  | { id: string; kind: "mineralPasses" }
+  | { id: string; kind: "mineralCover" }
+  | { id: string; kind: "mineralPositions"; band: MineralBand }
+  | { id: string; kind: "mineralAcid" }
+  | { id: string; kind: "mineralConfidence" }
+  | { id: string; kind: "mineralAgreement"; group: MineralGroupId }
+  | { id: string; kind: "mineralSave" }
 
 export type NodeKind = GraphNode["kind"]
 
@@ -103,6 +123,7 @@ export interface CompositorGraph {
 const CLASSES = ["classes"] as const
 const ANY = ["classes", "image"] as const
 const FIELDS = ["fields"] as const
+const REPORT = [{ id: "report", label: "Mineral report", accepts: ["mineral"] as const }] as const
 
 export interface KindMeta {
   kind: NodeKind
@@ -238,10 +259,98 @@ export const NODE_KINDS: readonly KindMeta[] = [
     inputs: [{ id: "fields", label: "Fields", accepts: FIELDS }],
     outputs: [],
   },
+  /*
+    The mineral map's figures, one card each: what a reading panel used to hold
+    in one column, now read where the reader chooses and placed beside the
+    rasters they describe.
+  */
+  {
+    kind: "mineralCoverage",
+    category: "mineral",
+    label: "Coverage",
+    hint: "How much of the area was observed, exposed and identified, with the run's notes",
+    inputs: REPORT,
+    outputs: [],
+  },
+  {
+    kind: "mineralClasses",
+    category: "mineral",
+    label: "Mineral classes",
+    hint: "The classes one group identified, by area over the observed ground",
+    inputs: REPORT,
+    outputs: [],
+  },
+  {
+    kind: "mineralReferences",
+    category: "mineral",
+    label: "References",
+    hint: "The Tetracorder references that won the most cells in one group",
+    inputs: REPORT,
+    outputs: [],
+  },
+  {
+    kind: "mineralPasses",
+    category: "mineral",
+    label: "Passes",
+    hint: "The EMIT passes compared, and how many cells each answered for",
+    inputs: REPORT,
+    outputs: [],
+  },
+  {
+    kind: "mineralCover",
+    category: "mineral",
+    label: "Fractional cover",
+    hint: "EMIT L2B bare soil, green and dry vegetation over the cells observed",
+    inputs: REPORT,
+    outputs: [],
+  },
+  {
+    kind: "mineralPositions",
+    category: "mineral",
+    label: "Band position",
+    hint: "Where the Fe3+ or the Al-OH band sat, against the library references",
+    inputs: REPORT,
+    outputs: [],
+  },
+  {
+    kind: "mineralAcid",
+    category: "mineral",
+    label: "Acid-sulfate minerals",
+    hint: "The minerals of acid mine drainage the map identified, and in which group",
+    inputs: REPORT,
+    outputs: [],
+  },
+  {
+    kind: "mineralConfidence",
+    category: "mineral",
+    label: "Confidence",
+    hint: "Each group's fit margin over the next class, and its stability under noise",
+    inputs: REPORT,
+    outputs: [],
+  },
+  {
+    kind: "mineralAgreement",
+    category: "mineral",
+    label: "Against EMIT L2B",
+    hint: "One group's classes against the EMIT L2B product's, pixel by pixel",
+    inputs: REPORT,
+    outputs: [],
+  },
+  {
+    kind: "mineralSave",
+    category: "output",
+    label: "Save mineral GeoTIFF",
+    hint: "The mineral map's GeoTIFF: every per-cell quantity, one named band each",
+    inputs: REPORT,
+    outputs: [],
+  },
 ]
 
 /** The Run node's output carrying a field delineation's polygons. */
 export const FIELDS_SOCKET = "fields:polygons"
+
+/** The Run node's output carrying a mineral map's figures. */
+export const MINERAL_SOCKET = "mineral:report"
 
 /** The field filter's defaults: half a hectare, fifty 10 m cells, and no cropland floor. */
 export const FIELD_FILTER_DEFAULT = { minHa: 0.5, minCropland: 0 } as const
@@ -254,6 +363,7 @@ export const CATEGORIES: readonly { id: NodeCategory; label: string }[] = [
   { id: "mask", label: "Mask" },
   { id: "color", label: "Color" },
   { id: "analysis", label: "Analysis" },
+  { id: "mineral", label: "Mineral" },
 ]
 
 const META = new Map(NODE_KINDS.map((k) => [k.kind, k]))
@@ -329,6 +439,19 @@ export function createNode(kind: NodeKind, id: string): GraphNode {
     case "adoptFields":
       return { id, kind }
     case "saveFields":
+      return { id, kind }
+    case "mineralClasses":
+    case "mineralReferences":
+    case "mineralAgreement":
+      return { id, kind, group: 2 }
+    case "mineralPositions":
+      return { id, kind, band: "fe3" }
+    case "mineralCoverage":
+    case "mineralPasses":
+    case "mineralCover":
+    case "mineralAcid":
+    case "mineralConfidence":
+    case "mineralSave":
       return { id, kind }
   }
 }
@@ -437,13 +560,23 @@ export function connect(
   }
 }
 
+const CARRIES: Record<SocketType, string> = {
+  classes: "a class map",
+  image: "an image",
+  fields: "a set of field polygons",
+  mineral: "a mineral map's figures",
+}
+
 /** Why an output of `type` cannot go into `input`, in words. */
 export function refusal(input: InputDef, type: SocketType): string {
   if (input.accepts.includes("fields")) {
-    return `${input.label} takes the fields a delineation drew, and this output is a raster.`
+    return `${input.label} takes the fields a delineation drew, and this output is ${CARRIES[type]}.`
   }
-  if (type === "fields") {
-    return `${input.label} takes a raster, and this output is a set of field polygons.`
+  if (input.accepts.includes("mineral")) {
+    return `${input.label} takes a mineral map's figures, from a mineral run's Run node, and this output is ${CARRIES[type]}.`
+  }
+  if (type === "fields" || type === "mineral") {
+    return `${input.label} takes a raster, and this output is ${CARRIES[type]}.`
   }
   return `${input.label} needs a class map, and this output is an image: a class cannot be read back out of colour.`
 }
@@ -575,7 +708,79 @@ export function withFieldNodes(
   return { ...g, links: [...g.links, ...links] }
 }
 
+/** What a mineral run has figures for, which decides the cards placed for it. */
+export interface MineralParts {
+  cover: boolean
+  bands: readonly MineralBand[]
+  acid: boolean
+  /** The groups compared with EMIT L2B. */
+  agreement: readonly MineralGroupId[]
+}
+
+/**
+ * A mineral map's cards on the graph, fed from one Run node's Mineral report:
+ * coverage, the classes and references of both groups, the passes, the
+ * confidence, and each of fractional cover, band position, acid-sulfate
+ * minerals and agreement with L2B that the run has figures for; and the node
+ * that saves its GeoTIFF.
+ *
+ * THE LAST MINERAL RUN'S NODES ARE REUSED, as a delineation's are: a Run node
+ * that already feeds a Mineral report is pointed at the new run rather than a
+ * second set being added beside it, since the same area is mapped again with
+ * another period more often than two maps are read side by side. A graph with
+ * none gets the set in rows under whatever is already there.
+ */
+export function withMineralNodes(
+  graph: CompositorGraph,
+  runId: string,
+  parts: MineralParts
+): CompositorGraph {
+  const existing = graph.nodes.find(
+    (n): n is Extract<GraphNode, { kind: "run" }> =>
+      n.kind === "run" && graph.links.some((l) => l.from === n.id && l.fromSocket === MINERAL_SOCKET)
+  )
+  if (existing) {
+    return existing.runId === runId ? graph : updateNode(graph, { ...existing, runId })
+  }
+  const bottom = Math.max(0, ...Object.values(graph.places).map((p) => p.y + 320))
+  const cards: GraphNode[][] = [
+    [
+      { id: "", kind: "mineralCoverage" },
+      { id: "", kind: "mineralClasses", group: 2 },
+      { id: "", kind: "mineralClasses", group: 1 },
+    ],
+    [
+      { id: "", kind: "mineralPasses" },
+      { id: "", kind: "mineralReferences", group: 2 },
+      { id: "", kind: "mineralReferences", group: 1 },
+    ],
+    [
+      { id: "", kind: "mineralConfidence" },
+      ...parts.agreement.map((group): GraphNode => ({ id: "", kind: "mineralAgreement", group })),
+      ...(parts.cover ? [{ id: "", kind: "mineralCover" } as GraphNode] : []),
+    ],
+    [
+      ...parts.bands.map((band): GraphNode => ({ id: "", kind: "mineralPositions", band })),
+      ...(parts.acid ? [{ id: "", kind: "mineralAcid" } as GraphNode] : []),
+      { id: "", kind: "mineralSave" },
+    ],
+  ]
+  let g = graph
+  const run = nextNodeId(g, "run")
+  g = addNode(g, { id: run, kind: "run", runId }, { x: 0, y: bottom })
+  const links: GraphLink[] = []
+  cards.forEach((row, r) => {
+    row.forEach((card, c) => {
+      const id = nextNodeId(g, card.kind)
+      g = addNode(g, { ...card, id }, { x: 300 + c * 380, y: bottom + r * 330 })
+      links.push({ from: run, fromSocket: MINERAL_SOCKET, to: id, toSocket: "report" })
+    })
+  })
+  return { ...g, links: [...g.links, ...links] }
+}
+
 const WINDOWS: readonly number[] = [3, 5, 7]
+const group = (v: unknown): MineralGroupId => (v === 1 ? 1 : 2)
 
 const str = (v: unknown): string | null => (typeof v === "string" && v ? v : null)
 
@@ -645,6 +850,19 @@ function parseNode(raw: unknown): GraphNode | null {
       return { id, kind: "adoptFields" }
     case "saveFields":
       return { id, kind: "saveFields" }
+    case "mineralClasses":
+    case "mineralReferences":
+    case "mineralAgreement":
+      return { id, kind: o.kind, group: group(o.group) }
+    case "mineralPositions":
+      return { id, kind: "mineralPositions", band: o.band === "aloh" ? "aloh" : "fe3" }
+    case "mineralCoverage":
+    case "mineralPasses":
+    case "mineralCover":
+    case "mineralAcid":
+    case "mineralConfidence":
+    case "mineralSave":
+      return { id, kind: o.kind }
     default:
       return null
   }

@@ -36,13 +36,19 @@ import {
   MINERAL_NO_ANSWER_COLOR,
   mineralCellAreaHa,
   mineralClassColor,
+  mineralDerivedLayer,
   mineralGroupOfLayer,
   mineralGroupTitle,
   mineralNoAnswerHa,
+  mineralPassesUsed,
+  mineralRampGradient,
 } from "@/lib/mineral"
 import type {
   CompositionOverlay,
   MineralAnalysis,
+  MineralLayer,
+  MineralRamp,
+  MineralSpread,
   PredictResult,
   WaterAnalysis,
 } from "@/lib/types"
@@ -402,10 +408,13 @@ export function legendFor(
         { label: "Identified", value: `${g.detected_area_ha.toFixed(1)} ha` },
         { label: "Observed", value: `${m.observed_area_ha.toFixed(1)} ha` },
         { label: "AOI", value: `${m.aoi_area_ha.toFixed(1)} ha` },
-        { label: "Passes", value: String(m.scenes.length) },
+        { label: "Passes", value: String(mineralPassesUsed(m)) },
       ],
     }
   }
+
+  const derived = mineralDerivedLayer(src.mineral, layerId)
+  if (derived && src.mineral) return mineralDerivedLegend(src.mineral, derived)
 
   if (layerId === "ndvi") {
     const r = src.result
@@ -442,4 +451,122 @@ export function legendFor(
   // True colour and anything unrecognised: a photograph explains itself, and a
   // legend invented for an unknown layer would be this table overreaching.
   return null
+}
+
+const rampValue = (r: MineralRamp, v: number): string =>
+  r.unit === "nm"
+    ? `${v.toFixed(0)} nm`
+    : r.unit === "fraction"
+      ? `${(v * 100).toFixed(0)}%`
+      : v.toFixed(2)
+
+const spreadRow = (label: string, s: MineralSpread | null | undefined, fmt: (v: number) => string) =>
+  s ? { label, value: `median ${fmt(s.p50)}, 10-90% ${fmt(s.p10)} to ${fmt(s.p90)} (n=${s.cells})` } : null
+
+/**
+ * The legend of one of the mineral map's derived rasters.
+ *
+ * Every colour and ramp stop is the payload's own, the ones the sidecar
+ * painted the PNG with. A class layer lists its areas where the run reported
+ * the counts behind them; a ramp carries the figures the run measured over
+ * the cells it colours, beside the scale.
+ */
+function mineralDerivedLegend(m: MineralAnalysis, l: MineralLayer): LayerLegend {
+  const cellHa = mineralCellAreaHa(m)
+  const area = (cells: number | undefined) =>
+    cells !== undefined && cellHa !== null ? cells * cellHa : undefined
+
+  if (l.kind === "classes" && l.legend?.length) {
+    const areas: (number | undefined)[] = l.legend.map(() => undefined)
+    const rows: LegendRow[] = []
+    if (l.id === "pass") {
+      m.scenes.forEach((s, i) => (areas[i] = area(s.cells)))
+    } else if (l.id === "exposure" && m.selection) {
+      areas[0] = m.selection.exposed_area_ha
+      areas[1] = Math.max(0, m.observed_area_ha - m.selection.exposed_area_ha)
+      areas[2] = area(m.masked_cells)
+    } else if (l.id === "acid_sulfate") {
+      l.legend.forEach((e, i) => {
+        areas[i] = m.acid_sulfate?.find((r) => r.label === e.label)?.area_ha
+      })
+    } else if (l.id.startsWith("agreement")) {
+      const a = m.agreement?.find((x) => `agreement${x.group}` === l.id)
+      if (a) {
+        ;[a.agree, a.differ, a.port_only, a.l2b_only, a.neither].forEach(
+          (n, i) => (areas[i] = area(n))
+        )
+        if (a.agree_fraction_of_both !== null) {
+          rows.push({
+            label: "Same class, of cells both identified",
+            value: `${(a.agree_fraction_of_both * 100).toFixed(1)}%`,
+          })
+        }
+      }
+    }
+    return {
+      kind: "classes",
+      subject: l.title,
+      entries: l.legend.map((e, i) => ({ name: e.label, color: e.color, areaHa: areas[i] })),
+      rows: rows.length ? rows : undefined,
+    }
+  }
+
+  if (l.kind === "ramp" && l.ramp) {
+    const r = l.ramp
+    const fmt = (v: number) => rampValue(r, v)
+    const rows: LegendRow[] = []
+    const position = m.positions?.find((p) => p.key === l.id)
+    if (position) {
+      for (const c of position.classes) {
+        const row = spreadRow(c.label, c, fmt)
+        if (row) rows.push(row)
+      }
+      for (const ref of position.references) {
+        rows.push({
+          label: `${ref.class} references`,
+          value: `median ${ref.median_nm.toFixed(0)} nm, ${ref.min_nm.toFixed(0)} to ${ref.max_nm.toFixed(0)} (n=${ref.references})`,
+        })
+      }
+    }
+    const conf = m.confidence?.find(
+      (c) => l.id === `margin${c.group}` || l.id === `stability${c.group}`
+    )
+    if (conf && l.id.startsWith("margin")) {
+      const row = spreadRow("Fit margin", conf.margin, fmt)
+      if (row) rows.push(row)
+    }
+    if (conf && l.id.startsWith("stability")) {
+      const row = spreadRow(`Share of ${conf.draws} draws`, conf.stability, fmt)
+      if (row) rows.push(row)
+      rows.push({ label: "Class held in every draw", value: `${conf.stable_cells} cells` })
+    }
+    return {
+      kind: "stats",
+      subject: l.title,
+      rows,
+      ramp: {
+        gradient: mineralRampGradient(r.colors),
+        low: `${fmt(r.min)} ${r.low}`.trim(),
+        high: `${fmt(r.max)} ${r.high}`.trim(),
+      },
+      note: l.about,
+    }
+  }
+
+  if (l.kind === "rgb") {
+    const c = m.cover
+    const rows: LegendRow[] = c
+      ? [
+          { label: "Red: bare soil, mean", value: `${(c.mean_bare * 100).toFixed(0)}%` },
+          { label: "Green: green vegetation, mean", value: `${(c.mean_pv * 100).toFixed(0)}%` },
+          { label: "Blue: dry vegetation, mean", value: `${(c.mean_npv * 100).toFixed(0)}%` },
+          { label: "Cells with a fraction", value: `${c.cells} (${c.area_ha.toFixed(1)} ha)` },
+        ]
+      : []
+    return rows.length
+      ? { kind: "stats", subject: l.title, rows, note: l.about }
+      : { kind: "note", subject: l.title, note: l.about }
+  }
+
+  return { kind: "note", subject: l.title, note: l.about }
 }

@@ -11,7 +11,7 @@
  * payload's `legend`, which the sidecar drew the PNGs with, and are read from
  * there.
  */
-import type { MineralAnalysis, MineralGroup } from "@/lib/types"
+import type { MineralAnalysis, MineralGroup, MineralLayer } from "@/lib/types"
 
 /**
  * The prefix every mineral layer id carries. The map has one layer per group,
@@ -23,6 +23,72 @@ export const MINERAL_LAYER_PREFIX = "mineral:"
 export function mineralLayerId(group: number): string {
   return `${MINERAL_LAYER_PREFIX}${group}`
 }
+
+/**
+ * The layer id of one derived raster (a MineralLayer: the pass used, the
+ * exposure, a band position, a fit margin, an agreement with L2B).
+ *
+ * Under the same prefix as the group maps, so one switch table governs every
+ * plane the mineral map draws; mineralGroupOfLayer still answers null for
+ * these, whose names are not numbers.
+ */
+export function mineralDerivedLayerId(id: string): string {
+  return `${MINERAL_LAYER_PREFIX}${id}`
+}
+
+/** Whether a layer id is any of the mineral map's planes. */
+export function isMineralLayer(layerId: string): boolean {
+  return layerId.startsWith(MINERAL_LAYER_PREFIX)
+}
+
+/** The derived raster a layer id names, or null. */
+export function mineralDerivedLayer(
+  m: MineralAnalysis | null | undefined,
+  layerId: string
+): MineralLayer | null {
+  if (!m || !isMineralLayer(layerId) || mineralGroupOfLayer(layerId) !== null) return null
+  const id = layerId.slice(MINERAL_LAYER_PREFIX.length)
+  return m.layers?.find((l) => l.id === id) ?? null
+}
+
+/**
+ * The passes that answered for some cell.
+ *
+ * A run made since the passes were compared per cell lists every pass it
+ * compared in `scenes`, including those no cell was taken from; one made
+ * before listed only the passes it used.
+ */
+export function mineralPassesUsed(m: MineralAnalysis): number {
+  return m.selection ? m.selection.contributing_passes : m.scenes.length
+}
+
+/**
+ * A continuous layer's ramp as a CSS gradient, from the stops the sidecar
+ * painted it with (MineralRamp.colors, evenly spaced from min to max).
+ */
+export function mineralRampGradient(colors: readonly string[]): string {
+  if (colors.length === 0) return "transparent"
+  if (colors.length === 1) return colors[0]
+  const stops = colors.map((c, i) => `${c} ${((i / (colors.length - 1)) * 100).toFixed(1)}%`)
+  return `linear-gradient(to right, ${stops.join(", ")})`
+}
+
+/** What the next mineral run is asked to do beyond the area and the period. */
+export interface MineralRunOptions {
+  /** Passes compared per cell, 1 to 10. */
+  passes: number
+  /** Uncertainty draws, 0 to 50; 0 skips them. */
+  draws: number
+}
+
+/**
+ * Six passes: EMIT observes a place on few, irregular passes (4 to 16 over
+ * 2022-2026 at four Brazilian sites), so six usually compares every pass of a
+ * year, and each is one read of the area. No draws: each costs a full
+ * classification, and the uncertainty is a second cube as large as the
+ * reflectance.
+ */
+export const DEFAULT_MINERAL_RUN_OPTIONS: MineralRunOptions = { passes: 6, draws: 0 }
 
 /** The group a layer id names, or null when it is not a mineral layer. */
 export function mineralGroupOfLayer(layerId: string): number | null {
