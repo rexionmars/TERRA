@@ -19,20 +19,6 @@
  * composition's recipe gates its bands or its index -- an edge from it to what
  * it gates says which choice put that card on screen.
  */
-import {
-  CalendarBlank,
-  CircleHalf,
-  Drop,
-  Images,
-  MapTrifold,
-  Network,
-  Package,
-  Palette,
-  Pentagon,
-  Repeat,
-  Stack,
-  type Icon,
-} from "@phosphor-icons/react"
 import type { BoardToolId } from "@/lib/mapTools"
 
 export type RunNodeId =
@@ -52,8 +38,6 @@ export type RunNodeId =
 export interface RunNodeSpec {
   id: RunNodeId
   label: string
-  /** The same glyph the band used for the group, so the vocabulary survives. */
-  icon: Icon
   /** Distance from the left of the default layout, in whole node widths. */
   col: number
   /**
@@ -79,44 +63,28 @@ export const NODE_W = 208
 /**
  * Space between columns.
  *
- * WIDE ENOUGH TO READ A WIRE ON, which is a larger number than the one that
- * makes a curve read as a curve. It was 88 while a wire said only that two
- * cards were joined. A wire now carries the value it supplies, written along
- * it, and the flattest run of a wire is the part nearest the card it leaves --
- * at 88 that part was about 48 pixels long and the shortest reading on any
- * graph, "hourly", did not fit in it.
- *
- * The cost is a board about a quarter wider on a three-column graph. The
- * field is panned and zoomed and fits itself to the graph, so width is a
- * cheaper thing to spend here than legibility.
+ * Solara's, now that a wire carries nothing written on it. It was 200 while
+ * the value a wire supplied was set along the wire, and the flattest run of a
+ * wire had to be long enough to hold the shortest reading on any graph. The
+ * value is written on the output row of the node it leaves, so the gap has
+ * only to let a curve read as a curve.
  */
-export const COL_GAP = 200
+export const COL_GAP = 120
 
 /** Space between stacked nodes in a column. */
-export const ROW_GAP = 28
-
-/**
- * Where the first port sits, measured down from the node's own top edge.
- *
- * On the header row rather than at the node's vertical centre, so a card met
- * by a single wire is met on the band it already reserves for one, whatever it
- * feeds and whatever height it draws at. A card met by several fans downwards
- * from here; NodeCanvas owns that spread, since it is a fact about how crowded
- * a card is rather than about where the card belongs.
- */
-export const PORT_Y = 17
+export const ROW_GAP = 16
 
 const SPEC: Record<RunNodeId, Omit<RunNodeSpec, "col">> = {
-  area: { id: "area", label: "Area", icon: Pentagon, h: 74 },
-  period: { id: "period", label: "Period", icon: CalendarBlank, h: 168 },
-  model: { id: "model", label: "Model", icon: Network, h: 74 },
-  mode: { id: "mode", label: "Mode", icon: Repeat, h: 74 },
-  scene: { id: "scene", label: "Scene", icon: Images, h: 92 },
-  composite: { id: "composite", label: "Composite", icon: Stack, h: 78 },
-  bands: { id: "bands", label: "Bands", icon: Palette, h: 74 },
-  spectralIndex: { id: "spectralIndex", label: "Index", icon: Palette, h: 74 },
-  stretch: { id: "stretch", label: "Stretch", icon: CircleHalf, h: 116 },
-  waterIndex: { id: "waterIndex", label: "Index", icon: Drop, h: 78 },
+  area: { id: "area", label: "Area", h: 74 },
+  period: { id: "period", label: "Period", h: 168 },
+  model: { id: "model", label: "Model", h: 74 },
+  mode: { id: "mode", label: "Mode", h: 74 },
+  scene: { id: "scene", label: "Scene", h: 92 },
+  composite: { id: "composite", label: "Composite", h: 78 },
+  bands: { id: "bands", label: "Bands", h: 74 },
+  spectralIndex: { id: "spectralIndex", label: "Index", h: 74 },
+  stretch: { id: "stretch", label: "Stretch", h: 116 },
+  waterIndex: { id: "waterIndex", label: "Index", h: 78 },
   /*
     THE PUBLISHED BOUNDARIES, AS GROUND A RUN CAN BE MADE OVER.
 
@@ -136,10 +104,9 @@ const SPEC: Record<RunNodeId, Omit<RunNodeSpec, "col">> = {
     Offered on every graph rather than one: every product this application has
     is asked over ground.
   */
-  catalogue: { id: "catalogue", label: "Catalogue", icon: MapTrifold, h: 200 },
-  // The run node draws its own header from the tool, so it carries no icon of
-  // its own here; TOOL_ICON in BoardRunGraph names it.
-  run: { id: "run", label: "Run", icon: Package, h: 96 },
+  catalogue: { id: "catalogue", label: "Catalogue", h: 200 },
+  // The run node's header is the tool's own sentence, written by BoardRunGraph.
+  run: { id: "run", label: "Run", h: 96 },
 }
 
 /**

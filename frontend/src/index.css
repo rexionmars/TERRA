@@ -507,6 +507,33 @@
   --b-aside-ink: #D3E2DE;
 
   /*
+    THE NODE HEADERS, as Blender's and Solara's node editors draw them: a dark
+    tone of each category, with light type on it. The bands above keep the
+    category at full strength for what is small and has to be found -- a
+    socket, a wire, a lit control -- and the header, which is large, is where
+    the full strength had turned the board into four coloured slabs. The four
+    parts take Solara's own heads; value, the catalogue and the aside card are
+    darkened from their bands, and the run node takes Solara's red.
+
+    A card that holds nothing takes --b-card-node, the dark theme's card head:
+    the light theme's is a pale grey, and light type on it would not read.
+
+    Measured with --b-node-ink on each, in lib/contrast.ts: card 8.49, source
+    6.20, when 5.24, method 7.40, value 7.05, catalogue 7.18, run 7.50, aside
+    8.62. The same in both themes: a header is a node's chrome, not the
+    room's.
+  */
+  --b-node-ink: #E6E6E6;
+  --b-card-node: #3A3F47;
+  --b-source-node: #3C5A3A;
+  --b-when-node: #6A5D2A;
+  --b-method-node: #4A3F78;
+  --b-value-node: #6B3F35;
+  --b-catalogue-node: #5D4059;
+  --b-action-node: #6E3636;
+  --b-aside-node: #34403F;
+
+  /*
     THE STUDIO'S OWN THREE, and the reason they exist.
 
     The 3D scenes used to read --p-ink and --p-line, the same tokens the panels
@@ -680,6 +707,17 @@
   --b-aside-head: #476664;
   --b-aside-edge: #476664;
   --b-aside-ink: #D3E2DE;
+
+  /* The node headers, unchanged: see the dark block. */
+  --b-node-ink: #E6E6E6;
+  --b-card-node: #3A3F47;
+  --b-source-node: #3C5A3A;
+  --b-when-node: #6A5D2A;
+  --b-method-node: #4A3F78;
+  --b-value-node: #6B3F35;
+  --b-catalogue-node: #5D4059;
+  --b-action-node: #6E3636;
+  --b-aside-node: #34403F;
 
   /*
     The light theme's studio is unchanged: the chassis tokens, at the alpha the
@@ -1349,64 +1387,34 @@
 }
 
 /*
-  The wires of a run graph while the run is reading them.
+  The wires of a run graph while the run is reading them: dashed in the colour
+  of the node they leave, flowing towards the node that reads them, as
+  Solara's do.
 
   The dash travels one full period per cycle, so the pattern lands where it
   started and the loop has no seam. Nothing else on that surface moves, which
   is what lets motion mean something on its own -- and it is why the animation
-  is bound to a run being in flight rather than left on a resting graph. A
-  static request transports nothing, and a wire that crawled while nothing ran
-  would say otherwise.
+  is bound to a run being in flight rather than left on a resting graph.
 
   UNDER REDUCED MOTION IT GOES SOLID, not still. A stopped dash is not a
   quieter version of a moving one: on this surface a still dash already means
   an input has not been supplied, so freezing this would draw a run in flight
   as a request that cannot be made. The dash pattern is set as a presentation
-  attribute on the path and cleared here, which CSS is allowed to do.
+  attribute on the path and cleared here, which CSS is allowed to do; the word
+  "reading" on the input row still says the state.
 */
-/*
-  WORK UNDER WAY, AT TWO SCALES.
-
-  A soft bar crossing a ribbon, and the card the ribbons arrive at breathing.
-  Both are LIGHT rather than colour: the board spends colour on which card a
-  value comes from, and a second thing said in hue would be a second reading of
-  the same channel. Light is the one property nothing else on this surface
-  uses.
-
-  The wire's bar was a travelling dash before this -- the same broken line the
-  board draws for a wire with nothing to carry, told apart only by moving. The
-  card's glow was a fixed halo, which is the one way a mark cannot say
-  "something is happening": a ring that never changes reads as a property of
-  the card.
-
-  Travel is given per wire, in the ribbon's own width plus the bar on either
-  side, because a short wire and a long one have to take the same time. See
-  SWEEP_W in NodeCanvas.tsx.
-*/
-.wire-sweep {
-  animation: wire-sweep 1900ms linear infinite;
-  /*
-    Its own layer. The element carries a backdrop-filter and moves every frame;
-    without this the compositor re-reads the backdrop from the page on each
-    step, which is the one thing on this board expensive enough to drop frames
-    while several wires are being read at once.
-  */
-  will-change: transform;
+.wire-flow {
+  animation: wire-flow 600ms linear infinite;
 }
-@keyframes wire-sweep {
+@keyframes wire-flow {
   to {
-    transform: translateX(var(--sweep-travel));
+    stroke-dashoffset: -12;
   }
 }
-
-/*
-  Reduced motion keeps the STATEMENT and drops the movement. The wire's light
-  is withdrawn: a bar parked at one end of a ribbon says nothing and hides part
-  of the reading written on it.
-*/
 @media (prefers-reduced-motion: reduce) {
-  .wire-sweep {
-    display: none;
+  .wire-flow {
+    animation: none;
+    stroke-dasharray: none;
   }
 }
 

@@ -1,149 +1,113 @@
 /**
- * That every wire meeting a card is met somewhere of its own, inside it.
+ * That every wire leaves from an output row and lands on an input row of its
+ * own, at a place that can be computed without measuring anything.
  *
- * THE DEFECT THIS FOLLOWS was one port per card. Both ends of every wire were
- * placed at PORT_Y, so the four wires arriving at the run node arrived at the
- * same point: the fan pinched shut exactly where it had the most to say, and
- * which wire ended where could not be read off the picture at all.
- *
- * THE SECOND DEFECT WAS THE REPAIR'S OWN, and it took two goes. Spacing the
- * fan by the card's height narrowed a short card's ribbons and threw a tall
- * one's apart; spacing it by a constant and growing the CARD to fit turned the
- * run node -- a button and a method link -- into three hundred pixels of empty
- * body on the graph that takes eight inputs. The fan is bounded by the card it
- * meets, the width follows from the crowding at that end, and the two ends of
- * one wire are counted apart. That last part is what is worth the test: it is
- * why a wire can be wide enough to be read where it leaves and still fit where
- * eight of them arrive.
+ * THE DEFECT THE SOCKETS FOLLOW was one port per card: every wire arriving at
+ * the run node arrived at the same point, and which wire ended where could not
+ * be read. The ribbons that repaired it spread the fan down the card; the rows
+ * that replaced the ribbons give each wire a row with its name on it, as
+ * Solara's and Blender's node editors do. What is asserted here is that the
+ * rows are the edges, in the caller's order, and that a socket's height
+ * follows from the rows above it.
  */
 import { describe, expect, it } from "vitest"
 
-import { RIBBON_W, assignSlots, slotKey } from "./NodeCanvas"
-import type { CanvasEdge, CanvasNode } from "./NodeCanvas"
-import { PORT_Y, defaultPlaces, runGraph } from "./runGraph"
+import {
+  BODY_PAD,
+  HEAD_H,
+  ROW_H,
+  inputY,
+  nodeRows,
+  outputY,
+  type CanvasEdge,
+  type CanvasNode,
+} from "./NodeCanvas"
+import { defaultPlaces, runGraph } from "./runGraph"
 
-const card = (id: string, x: number, y: number, h: number): CanvasNode => ({
+const node = (id: string, extra: Partial<CanvasNode> = {}): CanvasNode => ({
   id,
-  place: { x, y },
-  h,
+  place: { x: 0, y: 0 },
+  h: 74,
   header: null,
   children: null,
+  ...extra,
 })
 
-const fanInto = (target: string, sources: readonly string[]): CanvasEdge[] =>
-  sources.map((from) => ({ from, to: target }))
-
-describe("assignSlots", () => {
-  it("meets a card with one wire on its header row, at full width", () => {
-    const nodes = [card("a", 0, 0, 74), card("b", 300, 40, 96)]
-    const edges: CanvasEdge[] = [{ from: "a", to: "b" }]
-    const slots = assignSlots(nodes, edges)
-
-    expect(slots.get(slotKey("a", "b", "from"))).toEqual({
-      y: PORT_Y,
-      w: RIBBON_W,
-    })
-    expect(slots.get(slotKey("a", "b", "to"))).toEqual({
-      y: 40 + PORT_Y,
-      w: RIBBON_W,
-    })
-  })
-
-  it("keeps every landing of a fan inside the card it lands on", () => {
-    // The card is no longer grown to fit the fan, so this is the property that
-    // has to hold instead: eight wires into a short card share that card.
-    const sources = ["a", "b", "c", "d", "e", "f", "g", "h"]
-    const target = card("run", 300, 0, 110)
-    const nodes = [
-      ...sources.map((id, i) => card(id, 0, i * 90, 74)),
-      target,
-    ]
-    const edges = fanInto("run", sources)
-    const slots = assignSlots(nodes, edges)
-
-    const ys = edges.map((e) => slots.get(slotKey(e.from, e.to, "to"))!.y)
-    expect(new Set(ys).size).toBe(ys.length)
-    for (const y of ys) {
-      expect(y).toBeGreaterThanOrEqual(target.place.y + PORT_Y)
-      expect(y).toBeLessThan(target.place.y + target.h)
-    }
-  })
-
-  it("gives one wire two widths where its ends are crowded differently", () => {
-    // The whole of what the taper is for: wide enough to be read where it
-    // leaves a card that feeds only the run, narrow enough to fit where eight
-    // arrive at one node.
-    const sources = ["a", "b", "c", "d", "e", "f", "g", "h"]
-    const nodes = [
-      ...sources.map((id, i) => card(id, 0, i * 90, 74)),
-      card("run", 300, 0, 110),
-    ]
-    const slots = assignSlots(nodes, fanInto("run", sources))
-
-    const leaving = slots.get(slotKey("a", "run", "from"))!
-    const arriving = slots.get(slotKey("a", "run", "to"))!
-    expect(leaving.w).toBe(RIBBON_W)
-    expect(arriving.w).toBeLessThan(RIBBON_W)
-    expect(arriving.w).toBeGreaterThanOrEqual(5)
-  })
-
-  it("gives every wire landing on one card the same width", () => {
-    const sources = ["a", "b", "c", "d"]
-    const nodes = [
-      ...sources.map((id, i) => card(id, 0, i * 90, 74)),
-      card("run", 300, 0, 110),
-    ]
-    const edges = fanInto("run", sources)
-    const slots = assignSlots(nodes, edges)
-
-    const widths = edges.map((e) => slots.get(slotKey(e.from, e.to, "to"))!.w)
-    expect(new Set(widths).size).toBe(1)
-  })
-
-  it("orders a fan by where its wires came from, not by how the graph lists them", () => {
-    const nodes = [
-      card("low", 0, 400, 74),
-      card("high", 0, 0, 74),
-      card("run", 300, 0, 110),
-    ]
-    // Listed low first, which is the order a reversed graph would hand over.
+describe("nodeRows", () => {
+  it("gives a source an output row and the target an input row per wire, in order", () => {
+    const nodes = [node("area"), node("period"), node("run")]
     const edges: CanvasEdge[] = [
-      { from: "low", to: "run" },
-      { from: "high", to: "run" },
+      { from: "area", to: "run", name: "Area", note: "not set", state: "missing" },
+      { from: "period", to: "run", name: "Period", label: "366 d", note: "pending", state: "pending" },
     ]
-    const slots = assignSlots(nodes, edges)
+    const rows = nodeRows(nodes, edges)
 
-    expect(slots.get(slotKey("high", "run", "to"))!.y).toBeLessThan(
-      slots.get(slotKey("low", "run", "to"))!.y
-    )
+    expect(rows.get("period")!.output?.label).toBe("366 d")
+    expect(rows.get("area")!.output?.label).toBe("")
+    expect(rows.get("run")!.output).toBeUndefined()
+    expect(rows.get("run")!.inputs.map((r) => [r.label, r.note, r.hollow])).toEqual([
+      ["Area", "not set", true],
+      ["Period", "pending", false],
+    ])
   })
 
-  it("counts the two sides of a card apart", () => {
-    // `mode` takes a gate from `model` and feeds the run: one wire a side, and
-    // neither should be moved down the card or narrowed by the other.
-    const graph = runGraph("classify", null)!
-    const measured: Record<string, number> = {
-      area: 96,
-      period: 168,
-      model: 74,
-      mode: 74,
-      run: 110,
-    }
-    const places = defaultPlaces(graph, measured)
-    const nodes = graph.nodes.map((n) =>
-      card(n.id, places[n.id].x, places[n.id].y, measured[n.id] ?? n.h)
-    )
-    const edges: CanvasEdge[] = graph.edges.map(([from, to]) => ({ from, to }))
-    const slots = assignSlots(nodes, edges)
+  it("writes the value any of a node's wires carries, when the first carries none", () => {
+    // A gate first, then the wire into the run: the model's value is the run's.
+    const nodes = [node("model"), node("mode"), node("run")]
+    const edges: CanvasEdge[] = [
+      { from: "model", to: "mode", name: "Model" },
+      { from: "model", to: "run", name: "Model", label: "Random Forest" },
+    ]
+    expect(nodeRows(nodes, edges).get("model")!.output?.label).toBe("Random Forest")
+  })
 
-    const mode = nodes.find((n) => n.id === "mode")!
-    expect(slots.get(slotKey("model", "mode", "to"))).toEqual({
-      y: mode.place.y + PORT_Y,
-      w: RIBBON_W,
-    })
-    expect(slots.get(slotKey("mode", "run", "from"))).toEqual({
-      y: mode.place.y + PORT_Y,
-      w: RIBBON_W,
-    })
+  it("draws no rows on a node no wire touches, and an output on one the reader can pull from", () => {
+    const rows = nodeRows([node("lonely"), node("catalogue", { connectable: true })], [])
+    expect(rows.get("lonely")).toEqual({ inputs: [] })
+    expect(rows.get("catalogue")!.output).toBeDefined()
+  })
+
+  it("colours a wire's sockets by the node it leaves, unless the wire says otherwise", () => {
+    const nodes = [
+      node("area", { subject: { band: "var(--b-source-head)", ink: "x", head: "y" } }),
+      node("run"),
+    ]
+    const plain = nodeRows(nodes, [{ from: "area", to: "run" }])
+    expect(plain.get("run")!.inputs[0].colour).toBe("var(--b-source-head)")
+    const painted = nodeRows(nodes, [{ from: "area", to: "run", paint: "red" }])
+    expect(painted.get("run")!.inputs[0].colour).toBe("red")
+  })
+})
+
+describe("socket heights", () => {
+  const at = { x: 0, y: 100 }
+
+  it("puts the output on the first row, under the header", () => {
+    expect(outputY(at, false)).toBe(100 + HEAD_H + BODY_PAD + ROW_H / 2)
+  })
+
+  it("puts each input on its own row, under the output row when there is one", () => {
+    expect(inputY(at, 0, false, false)).toBe(100 + HEAD_H + BODY_PAD + ROW_H / 2)
+    expect(inputY(at, 1, true, false)).toBe(100 + HEAD_H + BODY_PAD + ROW_H * 2 + ROW_H / 2)
+  })
+
+  it("brings every socket of a folded node to the middle of its header", () => {
+    expect(outputY(at, true)).toBe(100 + HEAD_H / 2)
+    expect(inputY(at, 3, true, true)).toBe(100 + HEAD_H / 2)
+  })
+})
+
+describe("the classification graph", () => {
+  it("gives the run one input row per part, and the mode node a row on each side", () => {
+    const graph = runGraph("classify", null)!
+    const places = defaultPlaces(graph, {})
+    const nodes = graph.nodes.map((n) => node(n.id, { place: places[n.id], h: n.h }))
+    const edges: CanvasEdge[] = graph.edges.map(([from, to]) => ({ from, to, name: from }))
+    const rows = nodeRows(nodes, edges)
+
+    const intoRun = graph.edges.filter(([, to]) => to === "run").map(([from]) => from)
+    expect(rows.get("run")!.inputs.map((r) => r.from)).toEqual(intoRun)
+    expect(rows.get("mode")!.output).toBeDefined()
+    expect(rows.get("mode")!.inputs.map((r) => r.from)).toEqual(["model"])
   })
 })

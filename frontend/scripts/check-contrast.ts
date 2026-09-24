@@ -84,6 +84,15 @@ const CSS_BOARD_HEX: Record<string, string> = {
   asideHead: "--b-aside-head",
   asideEdge: "--b-aside-edge",
   asideInk: "--b-aside-ink",
+  nodeInk: "--b-node-ink",
+  cardNode: "--b-card-node",
+  sourceNode: "--b-source-node",
+  whenNode: "--b-when-node",
+  methodNode: "--b-method-node",
+  valueNode: "--b-value-node",
+  catalogueNode: "--b-catalogue-node",
+  actionNode: "--b-action-node",
+  asideNode: "--b-aside-node",
 }
 
 /**
