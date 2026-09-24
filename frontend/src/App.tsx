@@ -90,6 +90,7 @@ import { toArea, toAreas, type Area } from "@/lib/areas"
 import { ThemeSync } from "@/components/ThemeSync"
 import { TitleBar } from "@/components/TitleBar"
 import { OperatorHost } from "@/components/OperatorHost"
+import { ProjectFileHost } from "@/components/ProjectFileHost"
 import { SplashScreen } from "@/components/SplashScreen"
 import { WhatsNewGate } from "@/components/WhatsNewGate"
 import { StudioScreen } from "@/pages/StudioScreen"
@@ -2852,6 +2853,11 @@ function AppBody(props: {
       />
       {/* The keymap and the operator search, on every screen. */}
       <OperatorHost />
+      {/* Project files: opening, saving, and what the Finder hands over. */}
+      <ProjectFileHost
+        activeProjectId={activeProjectId}
+        onActivateProject={activateProject}
+      />
 
       <div className="flex min-h-0 flex-1">
         {/*

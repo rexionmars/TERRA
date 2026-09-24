@@ -12,7 +12,7 @@
  * it open do what they say, and it closes behind them.
  */
 import { useEffect, useRef, useState } from "react"
-import { FolderOpen, Stack, type Icon } from "@phosphor-icons/react"
+import { File, FolderOpen, Stack, type Icon } from "@phosphor-icons/react"
 
 import { GetAppVersion } from "../../../wailsjs/go/main/App"
 import { BRAND_TAGLINE, RELEASE_NAME } from "@/lib/brand"
@@ -23,6 +23,7 @@ import {
   shortcut,
   type OperatorId,
 } from "@/lib/operators"
+import { projectFileName } from "@/lib/projectFiles"
 import { FEATURED_STILL, SPLASH_STILLS } from "@/lib/splashBackground"
 import type { Studio } from "@/lib/studios"
 import { cn } from "@/lib/utils"
@@ -102,6 +103,8 @@ export function StartScreen({
   onBrowse,
   showAtLaunch,
   onShowAtLaunchChange,
+  recentFiles,
+  onOpenFile,
 }: {
   onClose: () => void
   /** The active project's studios, most recently saved first. */
@@ -112,6 +115,9 @@ export function StartScreen({
   onBrowse: () => void
   showAtLaunch: boolean
   onShowAtLaunchChange: (show: boolean) => void
+  /** Project files opened or saved, newest first. */
+  recentFiles: readonly string[]
+  onOpenFile: (path: string) => void
 }) {
   const [version, setVersion] = useState<string | null>(null)
   const card = useRef<HTMLDivElement>(null)
@@ -239,6 +245,7 @@ export function StartScreen({
           <section className="min-w-0">
             <p className="mb-1 px-1.5 text-body text-muted-foreground">Start</p>
             {opRow("STUDIO_NEW")}
+            {opRow("PROJECT_OPEN")}
             <Row
               icon={FolderOpen}
               label="Browse saved analyses"
@@ -268,6 +275,28 @@ export function StartScreen({
             {studios.length > 0 && opRow("STUDIO_MANAGE", "More\u2026")}
           </section>
         </div>
+
+        {/*
+          The files, under the studios: a studio is this project's, a file can
+          be any project's, and reopening one is the other thing a reader
+          arrives here to do.
+        */}
+        {recentFiles.length > 0 && (
+          <section className="min-w-0 px-6 pb-2">
+            <p className="mb-1 px-1.5 text-body text-muted-foreground">Recent project files</p>
+            <div className="grid grid-cols-2 gap-x-6">
+              {recentFiles.slice(0, RECENT_SHOWN - 1).map((path) => (
+                <Row
+                  key={path}
+                  icon={File}
+                  label={projectFileName(path)}
+                  title={path}
+                  onSelect={act(() => onOpenFile(path))}
+                />
+              ))}
+            </div>
+          </section>
+        )}
 
         <div className="mx-6 border-t border-hairline" />
 

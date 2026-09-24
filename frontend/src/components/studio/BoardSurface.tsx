@@ -203,7 +203,13 @@ import {
   StudioMenuRule,
   StudioPopover,
 } from "@/components/studio/StudioPopover"
-import { setEditorUnderPointer, useOperators } from "@/lib/operators"
+import {
+  pollOperator,
+  runOperator,
+  setEditorUnderPointer,
+  useOperators,
+} from "@/lib/operators"
+import { openProjectFile, projectFileName } from "@/lib/projectFiles"
 import {
   StudioHeaderMenu,
   StudioHeaderPopoverButton,
@@ -1288,6 +1294,12 @@ export function BoardSurface({
       // left to warn about.
       clearBoardDirty()
       notifySuccess(`Studio "${board.name}" saved.`)
+      /*
+        And the project's file, when it has one: the file is the project's
+        document, and a save that left it behind the studio it holds would
+        make Cmd-S mean two different things depending on which was open.
+      */
+      if (pollOperator("PROJECT_SAVE") === true) runOperator("PROJECT_SAVE")
     } catch (e) {
       notifyError("Could not save this studio", e)
     } finally {
@@ -4321,6 +4333,9 @@ export function BoardSurface({
   const closeStart = useCallback(() => setStartOpen(false), [])
   const startAtLaunch =
     parsePreferenceExtras(prefs?.extras_json).start_screen !== false
+  // Newest first, as ProjectFileHost records them; see lib/projectFiles.ts.
+  const recentProjectFiles =
+    parsePreferenceExtras(prefs?.extras_json).recent_project_files ?? []
   useEffect(() => {
     if (prefs && claimLaunchStart() && startAtLaunch) setStartOpen(true)
     // Once, on the first preferences: the claim makes any later run a no-op.
@@ -4413,6 +4428,15 @@ export function BoardSurface({
       run: () => {
         if (savedName) {
           void doSave(savedName)
+          return
+        }
+        /*
+          Nothing on the board to name, and a project file to write: the save
+          is the file's. Asking for a studio name first would stop a reader who
+          only wanted the runs they made written to the document.
+        */
+        if (!planeCount && pollOperator("PROJECT_SAVE") === true) {
+          runOperator("PROJECT_SAVE")
           return
         }
         setNamingFor("save")
@@ -4852,6 +4876,25 @@ export function BoardSurface({
             label={savedName ? `Save over "${savedName}"` : "Save studio"}
             onDone={() => setAppMenu(false)}
           />
+          <StudioMenuRule />
+          <StudioMenuGroup label="Project file">
+            <OperatorMenuItem id="PROJECT_OPEN" onDone={() => setAppMenu(false)} />
+            <OperatorMenuItem id="PROJECT_SAVE" onDone={() => setAppMenu(false)} />
+            <OperatorMenuItem id="PROJECT_SAVE_AS" onDone={() => setAppMenu(false)} />
+            <OperatorMenuItem id="PROJECT_REVEAL" onDone={() => setAppMenu(false)} />
+            {recentProjectFiles.slice(0, 5).map((path) => (
+              <StudioMenuItem
+                key={path}
+                indented
+                label={projectFileName(path)}
+                title={path}
+                onSelect={() => {
+                  setAppMenu(false)
+                  openProjectFile(path)
+                }}
+              />
+            ))}
+          </StudioMenuGroup>
           <StudioMenuRule />
           <OperatorMenuItem id="UNDO" onDone={() => setAppMenu(false)} />
           <OperatorMenuItem id="REDO" onDone={() => setAppMenu(false)} />
@@ -5447,6 +5490,8 @@ export function BoardSurface({
           onBrowse={() => setWorkspaceId("data")}
           showAtLaunch={startAtLaunch}
           onShowAtLaunchChange={setStartAtLaunch}
+          recentFiles={recentProjectFiles}
+          onOpenFile={openProjectFile}
         />
       )}
     </motion.div>
