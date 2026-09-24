@@ -2747,20 +2747,6 @@ export function BoardSurface({
     state and the modals; this file draws the items and says where they go.
   */
   const app = useAppSurfaces()
-  /*
-    WHICH GROUP'S MENU IS OPEN, by id rather than a boolean, because the bar
-    carries one entrance per group and only one of them may be down at a time.
-    A boolean per group would let two open together, which is the one thing a
-    menu bar must not do.
-  */
-  const [workspaceMenu, setWorkspaceMenu] = useState<string | null>(null)
-  /*
-    The preset the bar names, resolved rather than looked up at the trigger:
-    `studioWorkspace` already falls back to the first one for an id that no
-    longer exists, which is the case a saved layout naming a removed preset
-    produces.
-  */
-  const currentWorkspace = studioWorkspace(workspaceId)
   const [filterMenu, setFilterMenu] = useState(false)
   /*
     Which compare slot has its menu open, as `${paneId}:${slot}` rather than a
@@ -4796,111 +4782,73 @@ export function BoardSurface({
         />
 
         {/*
-          ONE ENTRANCE PER GROUP, WHICH IS A MENU BAR AND NOT A TAB STRIP.
+          EVERY WORKSPACE ON THE BAR, AS A TAB, WHICH REVERSES THE MENU BAR.
 
-          The strip listed all seven presets side by side and so claimed they
-          were seven equal destinations. They were not: several were readings
-          of one subject and others were different work entirely, and a reader
-          looking for one of the latter had to already know its name.
+          The bar was one menu per group, argued for when there were seven
+          presets and a strip of seven filled the 1000px minimum window. There
+          are five now, and the menus hid them: the application could not be
+          learnt without opening each group to see what it held, and moving
+          between two workspaces took two presses and a read. Solara, built on
+          this studio, went the same way for the same reason -- nine
+          arrangements behind four drop-downs -- and lists them as tabs.
 
-          The groups are what belongs on the bar, and each one owns a menu of
-          its own -- File, Edit, Render, Window, in the shape every desktop
-          application has used for forty years, where the top row is the
-          SUBJECTS and the depth is the choices inside one. Grouping seven
-          items under a single entrance said the same thing with the names of
-          the groups hidden one press away, which is the wrong half to hide:
-          the groups are the map.
-
-          IT ALSO STOPS THE BAR RUNNING OUT OF ROOM. Seven tabs and the
-          board's data-block already fill the 1000px minimum window, and a
-          strip cannot take more. Group names can take them without growing at
-          all.
-
-          WHICH PRESET IS CURRENT IS STILL ON THE BAR. The group holding it
-          carries the ground of the area below -- the same relation the tabs
-          had -- and says the preset's own name beside its own, so a reader
-          sees "Land cover / Compare" without opening anything. The others say
-          only what they are.
+          The groups stay, as a rule between their members and in each tab's
+          tooltip. The current tab keeps the ground of the area below it, so
+          the entrance and the work it opens still read as one surface. The
+          strip scrolls rather than wraps: a bar that grows a second row moves
+          every area under it. Ctrl-PgDn and Ctrl-PgUp walk the same order.
         */}
-        {STUDIO_GROUPS.map((g) => {
-          const members = STUDIO_WORKSPACES.filter((w) => w.group === g.id)
-          if (!members.length) return null
-          const current = members.some((w) => w.id === workspaceId)
-          return (
-            <StudioPopover
-              key={g.id}
-              open={workspaceMenu === g.id}
-              onOpenChange={(open) => setWorkspaceMenu(open ? g.id : null)}
-              surface={surfaceRef.current}
-              widthRem={14}
-              trigger={(p) => (
-                <button
-                  ref={p.ref as React.Ref<HTMLButtonElement>}
-                  type="button"
-                  onClick={p.onClick}
-                  aria-expanded={p["aria-expanded"]}
-                  aria-haspopup="menu"
-                  title={
-                    current
-                      ? currentWorkspace.hint
-                      : `${g.label}: ${members.map((w) => w.label).join(", ")}`
-                  }
-                  className={cn(
-                    "relative -mb-px flex h-full items-center gap-1.5 px-2.5 text-meta transition-colors",
-                    current
-                      ? "text-foreground"
-                      : "text-muted-foreground hover:text-foreground"
-                  )}
-                  style={
-                    current
-                      ? {
-                          /*
-                            `panel`, the ground of the AREA BELOW and not the
-                            strip's own: the entrance and the work it opens
-                            are one surface interrupted by a border. It is
-                            what the tabs did while they were tabs, kept
-                            because it is still what says the bar and the
-                            board are the same place.
-                          */
-                          background: "var(--s-panel)",
-                          borderTopLeftRadius: 3,
-                          borderTopRightRadius: 3,
-                        }
-                      : undefined
-                  }
-                >
-                  {current && (
-                    <currentWorkspace.icon
-                      className="size-3 shrink-0"
-                      strokeWidth={1.75}
-                    />
-                  )}
-                  {g.label}
-                  {current && (
-                    <span className="truncate text-muted-foreground">
-                      {currentWorkspace.label}
-                    </span>
-                  )}
-                  <CaretDown className="size-2.5 shrink-0 text-muted-foreground" />
-                </button>
-              )}
-            >
-              {members.map((w) => (
-                <StudioMenuItem
-                  key={w.id}
-                  icon={w.icon}
-                  label={w.label}
-                  checked={w.id === workspaceId}
-                  title={w.hint}
-                  onSelect={() => {
-                    setWorkspaceId(w.id)
-                    setWorkspaceMenu(null)
-                  }}
-                />
-              ))}
-            </StudioPopover>
-          )
-        })}
+        <nav
+          aria-label="Workspaces"
+          className="flex min-w-0 items-stretch overflow-x-auto"
+          style={{ scrollbarWidth: "none" }}
+        >
+          {STUDIO_GROUPS.map((g, gi) => {
+            const members = STUDIO_WORKSPACES.filter((w) => w.group === g.id)
+            if (!members.length) return null
+            return (
+              <span key={g.id} className="flex shrink-0 items-stretch">
+                {gi > 0 && (
+                  <span
+                    className="mx-1 my-2 w-px shrink-0"
+                    style={{ background: "rgb(var(--p-line) / 0.3)" }}
+                    aria-hidden
+                  />
+                )}
+                {members.map((w) => {
+                  const on = w.id === workspaceId
+                  return (
+                    <button
+                      key={w.id}
+                      type="button"
+                      aria-current={on ? "page" : undefined}
+                      onClick={() => setWorkspaceId(w.id)}
+                      title={`${g.label} \u00b7 ${w.hint}`}
+                      className={cn(
+                        "relative -mb-px flex shrink-0 items-center gap-1.5 whitespace-nowrap px-2.5 text-meta transition-colors",
+                        on
+                          ? "text-foreground"
+                          : "text-muted-foreground hover:text-foreground"
+                      )}
+                      style={
+                        on
+                          ? {
+                              background: "var(--s-panel)",
+                              borderTopLeftRadius: 3,
+                              borderTopRightRadius: 3,
+                            }
+                          : undefined
+                      }
+                    >
+                      <w.icon className="size-3 shrink-0" strokeWidth={1.75} />
+                      {w.label}
+                    </button>
+                  )
+                })}
+              </span>
+            )
+          })}
+        </nav>
 
         <span className="flex-1" />
 
