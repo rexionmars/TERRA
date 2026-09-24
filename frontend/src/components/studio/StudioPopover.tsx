@@ -30,6 +30,44 @@ import {
 } from "@/lib/operators"
 import { cn } from "@/lib/utils"
 
+const MENU_ITEM = "[role='menuitem']:not(:disabled)"
+
+/**
+ * Walk a panel's rows with the arrow keys, as a menu is walked.
+ *
+ * Only from a row: a panel can hold a number field or a search box, and the
+ * arrows are that control's own while it has the focus.
+ */
+function onMenuKeys(e: React.KeyboardEvent<HTMLDivElement>) {
+  if (!["ArrowDown", "ArrowUp", "Home", "End"].includes(e.key)) return
+  if (e.defaultPrevented) return
+  const from = document.activeElement as HTMLElement | null
+  if (from && from !== e.currentTarget && from.getAttribute("role") !== "menuitem") return
+  const items = Array.from(e.currentTarget.querySelectorAll<HTMLElement>(MENU_ITEM))
+  if (!items.length) return
+  e.preventDefault()
+  const i = from ? items.indexOf(from) : -1
+  const next =
+    e.key === "Home"
+      ? 0
+      : e.key === "End"
+        ? items.length - 1
+        : e.key === "ArrowDown"
+          ? (i + 1) % items.length
+          : (i - 1 + items.length) % items.length
+  items[next].focus()
+}
+
+/**
+ * Put the focus on a panel's first row once it is placed, so the arrows walk
+ * it at once -- unless something inside already took it, as a search field
+ * with autoFocus does.
+ */
+function focusFirstRow(panel: HTMLElement | null) {
+  if (!panel || panel.contains(document.activeElement)) return
+  panel.querySelector<HTMLElement>(MENU_ITEM)?.focus({ preventScroll: true })
+}
+
 export function StudioPopover({
   open,
   onOpenChange,
@@ -130,6 +168,7 @@ export function StudioPopover({
       e.stopPropagation()
       e.preventDefault()
       onOpenChange(false)
+      anchorRef.current?.focus()
     }
     window.addEventListener("pointerdown", away, true)
     window.addEventListener("keydown", esc, true)
@@ -138,6 +177,10 @@ export function StudioPopover({
       window.removeEventListener("keydown", esc, true)
     }
   }, [open, onOpenChange])
+
+  useEffect(() => {
+    if (open && pos && role === "menu") focusFirstRow(panelRef.current)
+  }, [open, pos, role])
 
   return (
     <>
@@ -155,6 +198,7 @@ export function StudioPopover({
           <div
             ref={panelRef}
             role={role}
+            onKeyDown={onMenuKeys}
             className={cn(
               "rounded-sm border py-1 shadow-[0_8px_24px_rgba(0,0,0,0.55)]",
               detached ? "fixed z-[1200]" : "absolute z-[60]"
@@ -216,7 +260,8 @@ export function StudioMenuItem({
         indented ? "pl-7 pr-2" : "px-2",
         disabled
           ? "cursor-not-allowed text-muted-foreground/40"
-          : "text-foreground hover:bg-accent-dim"
+          : // The row the arrows reached, drawn as the row the pointer is on.
+            "text-foreground outline-none hover:bg-accent-dim focus-visible:bg-accent-dim"
       )}
     >
       {/* A fixed slot whether or not there is a glyph, so the labels of a
@@ -367,12 +412,17 @@ export function StudioContextMenu({
     }
   }, [at, onClose])
 
+  useEffect(() => {
+    if (at && pos) focusFirstRow(panelRef.current)
+  }, [at, pos])
+
   if (!at || !surface) return null
 
   return createPortal(
     <div
       ref={panelRef}
       role="menu"
+      onKeyDown={onMenuKeys}
       className="absolute z-[70] w-[14rem] rounded-sm border py-1 shadow-[0_8px_24px_rgba(0,0,0,0.55)]"
       style={{
         left: pos?.x ?? -9999,
