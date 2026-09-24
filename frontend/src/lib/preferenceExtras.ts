@@ -41,6 +41,13 @@ export interface PreferenceExtras {
    */
   start_screen?: boolean
   /**
+   * The .terra file each project was last saved to or opened from, by project
+   * id. What Save project file writes without asking; see lib/projectFiles.ts.
+   */
+  project_files?: Record<string, string>
+  /** Project files opened or saved, newest first. */
+  recent_project_files?: string[]
+  /**
    * Whether the studio's panels are separated by a gap.
    *
    * A chrome preference and not a layout one: `studio_layout` below records

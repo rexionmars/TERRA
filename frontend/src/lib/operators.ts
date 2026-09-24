@@ -32,7 +32,10 @@ import {
   Eraser,
   Eye,
   EyeSlash,
+  FileArrowDown,
   FloppyDisk,
+  FolderOpen,
+  FolderSimpleUser,
   Gear,
   House,
   HardDrive,
@@ -86,7 +89,8 @@ const DEFS = {
   // ---- Studio: the application menu ----------------------------------------
   STUDIO_SAVE: {
     label: "Save studio",
-    description: "Save this arrangement under its name, or ask for one",
+    description:
+      "Save this arrangement under its name, or ask for one, and the project file when the project has one",
     menu: "Studio",
     icon: FloppyDisk,
     keys: ["Mod+S"],
@@ -120,6 +124,36 @@ const DEFS = {
     menu: "Studio",
     icon: ArrowUUpRight,
     keys: ["Shift+Mod+Z", "Mod+Y"],
+  },
+  PROJECT_OPEN: {
+    label: "Open project file\u2026",
+    description: "Bring a .terra project file into this installation and open it",
+    menu: "Studio \u203a Project file",
+    icon: FolderOpen,
+    keys: ["Mod+O"],
+    inFields: true,
+  },
+  PROJECT_SAVE: {
+    label: "Save project file",
+    description: "Write the open project to its .terra file",
+    menu: "Studio \u203a Project file",
+    icon: FileArrowDown,
+    keys: ["Alt+Mod+S"],
+    inFields: true,
+  },
+  PROJECT_SAVE_AS: {
+    label: "Save project file as\u2026",
+    description: "Write the open project to a new .terra file",
+    menu: "Studio \u203a Project file",
+    icon: FileArrowDown,
+    keys: ["Shift+Alt+Mod+S"],
+    inFields: true,
+  },
+  PROJECT_REVEAL: {
+    label: "Reveal project file",
+    description: "Show the open project's .terra file in the file manager",
+    menu: "Studio \u203a Project file",
+    icon: FolderSimpleUser,
   },
   STUDIO_MANAGE: {
     label: "Manage studios\u2026",
