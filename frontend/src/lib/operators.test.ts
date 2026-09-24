@@ -12,8 +12,10 @@ import { STUDIO_EDITORS } from "./studioEditors"
 import {
   OPERATORS,
   OPERATOR_IDS,
+  findOperator,
   formatKeys,
   keyMatches,
+  operatorCompletions,
   operatorForKey,
   searchOperators,
   type KeyEventLike,
@@ -114,6 +116,21 @@ describe("formatKeys", () => {
     expect(formatKeys("Shift+Mod+S", false)).toBe("Shift+Ctrl+S")
     expect(formatKeys("Ctrl+PageDown", true)).toBe("⌃PgDn")
     expect(formatKeys("Mod+Comma", false)).toBe("Ctrl+,")
+  })
+})
+
+describe("the Console's names", () => {
+  it("finds an operator by its id in any case, and nothing else", () => {
+    expect(findOperator(" select_all ")).toBe("SELECT_ALL")
+    expect(findOperator("toString")).toBeNull()
+    expect(findOperator("")).toBeNull()
+  })
+
+  it("completes a prefix, and nothing once a space is typed", () => {
+    expect(operatorCompletions("studio_s")).toEqual(["STUDIO_SAVE"])
+    expect(operatorCompletions("SELECT_")).toEqual(["SELECT_ALL", "SELECT_NONE"])
+    expect(operatorCompletions("SELECT ALL")).toEqual([])
+    expect(operatorCompletions("")).toEqual([])
   })
 })
 
