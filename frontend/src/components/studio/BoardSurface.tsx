@@ -79,6 +79,7 @@ import { RunPicker } from "@/components/studio/RunPicker"
 import {
   CURRENT_AREA,
   boardIsDirty,
+  boardHistory,
   clearBoardDirty,
   liveAreaId,
   keptObject,
@@ -87,6 +88,7 @@ import {
   renameBoardArea,
   snapshotBoard,
   writeBoardMemory,
+  type BoardEdits,
 } from "@/components/studio/boardMemory"
 import { useAuth } from "@/lib/auth"
 import { displayRunLabel } from "@/lib/aoiLabel"
@@ -4345,6 +4347,63 @@ export function BoardSurface({
     startBasis.current = { savedId, planeCount }
   }, [savedId, planeCount])
 
+  /*
+    UNDO: every change to the board's edits and to the live run's planes is a
+    snapshot in boardHistory -- see BoardEdits for why those and not others.
+
+    Read from a ref inside the effect, so the snapshot is this render's state
+    and the dependency list says only WHEN to take it. A new run replacing the
+    live planes is a rebase rather than a step: it is not an edit, and undo
+    taking a run back off the map would be undoing an analysis.
+  */
+  const liveKey = layers.map((l) => `${l.id}:${l.visible}:${l.opacity}`).join("|")
+  const liveIds = layers.map((l) => l.id).join("|")
+  const editsRef = useRef<BoardEdits | null>(null)
+  editsRef.current = {
+    names,
+    removed,
+    added,
+    dismissedAreas,
+    flat,
+    order,
+    extraState,
+    live: Object.fromEntries(
+      layers.map((l) => [l.id, { visible: l.visible, opacity: l.opacity }])
+    ),
+  }
+  const liveIdsSeen = useRef(liveIds)
+  useEffect(() => {
+    const edits = editsRef.current
+    if (!edits) return
+    if (liveIdsSeen.current !== liveIds) {
+      liveIdsSeen.current = liveIds
+      boardHistory.rebase(edits)
+      return
+    }
+    boardHistory.record(edits, performance.now())
+  }, [names, removed, added, dismissedAreas, flat, order, extraState, liveKey, liveIds])
+
+  /*
+    Put a snapshot back. The live planes go through onLayerChange, whose
+    setters batch with these in the same event, so the render after an undo
+    is the snapshot whole and the history sees nothing new to record.
+  */
+  const restoreEdits = (s: BoardEdits) => {
+    setNames(s.names)
+    setRemoved(s.removed)
+    setAdded(s.added)
+    setDismissedAreas(s.dismissedAreas)
+    setFlat(s.flat)
+    setOrder(s.order)
+    setExtraState(s.extraState)
+    for (const l of layers) {
+      const want = s.live[l.id]
+      if (want && (want.visible !== l.visible || want.opacity !== l.opacity)) {
+        onLayerChange(l.id, { visible: want.visible, opacity: want.opacity })
+      }
+    }
+  }
+
   const needPlanes = () => (planeCount ? true : "The board has no planes")
   const needSelection = () =>
     selectedPlanes.length ? true : "Select a plane first"
@@ -4371,6 +4430,20 @@ export function BoardSurface({
     STUDIO_NEW: {
       run: newBoard,
       poll: () => (onNewStudio ? true : "A new studio needs a project"),
+    },
+    UNDO: {
+      run: () => {
+        const s = boardHistory.undo()
+        if (s) restoreEdits(s)
+      },
+      poll: () => (boardHistory.canUndo ? true : "Nothing to undo"),
+    },
+    REDO: {
+      run: () => {
+        const s = boardHistory.redo()
+        if (s) restoreEdits(s)
+      },
+      poll: () => (boardHistory.canRedo ? true : "Nothing to redo"),
     },
     STUDIO_MANAGE: {
       run: () => setManaging(true),
@@ -4779,6 +4852,9 @@ export function BoardSurface({
             label={savedName ? `Save over "${savedName}"` : "Save studio"}
             onDone={() => setAppMenu(false)}
           />
+          <StudioMenuRule />
+          <OperatorMenuItem id="UNDO" onDone={() => setAppMenu(false)} />
+          <OperatorMenuItem id="REDO" onDone={() => setAppMenu(false)} />
           <StudioMenuRule />
           <OperatorMenuItem
             id="WORKSPACE_RESET"

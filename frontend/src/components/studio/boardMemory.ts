@@ -18,6 +18,8 @@
  * throwing it away.
  */
 
+import { UndoHistory } from "@/lib/undoHistory"
+
 const kept = new Map<string, unknown>()
 
 /**
@@ -129,9 +131,62 @@ export function onBoardDirtyChange(listener: (dirty: boolean) => void): () => vo
   return () => dirtyListeners.delete(listener)
 }
 
+/**
+ * What undo takes back: the board's own edits, and the live run's planes.
+ *
+ * The first seven are exactly the states that mark the board unsaved, which
+ * makes the rule one sentence -- undo covers what a save would record -- and
+ * keeps the placements the scene writes on its own out of it, since those
+ * are not edits. The live run's visibility and opacity are added although a
+ * save does not keep them: they live in the screen's state rather than here,
+ * and leaving them out would make H followed by Cmd-Z take back some earlier,
+ * unrelated edit instead.
+ */
+export interface BoardEdits {
+  names: Readonly<Record<string, string>>
+  removed: ReadonlySet<string>
+  added: Readonly<Record<string, readonly string[]>>
+  dismissedAreas: readonly string[]
+  flat: ReadonlySet<string>
+  order: Readonly<Record<string, string[]>>
+  extraState: Readonly<Record<string, { opacity: number; visible: boolean }>>
+  live: Readonly<Record<string, { visible: boolean; opacity: number }>>
+}
+
+const sameLive = (a: BoardEdits["live"], b: BoardEdits["live"]) => {
+  const ka = Object.keys(a)
+  if (ka.length !== Object.keys(b).length) return false
+  return ka.every(
+    (k) => b[k] && a[k].visible === b[k].visible && a[k].opacity === b[k].opacity
+  )
+}
+
+/*
+  By reference for the board's own states, which every writer replaces rather
+  than mutates, so an unchanged one is the same object; by value for the live
+  planes, which are rebuilt from props on every render.
+*/
+const sameEdits = (a: BoardEdits, b: BoardEdits) =>
+  a.names === b.names &&
+  a.removed === b.removed &&
+  a.added === b.added &&
+  a.dismissedAreas === b.dismissedAreas &&
+  a.flat === b.flat &&
+  a.order === b.order &&
+  a.extraState === b.extraState &&
+  sameLive(a.live, b.live)
+
+/**
+ * The board's undo history. Here, with the rest of what the board remembers,
+ * so a trip to Settings and back keeps it; emptied with it, since undoing
+ * into the board that was open before this one would be undoing an open.
+ */
+export const boardHistory = new UndoHistory<BoardEdits>(sameEdits)
+
 /** Forget everything. For a board that should open empty. */
 export function clearBoardMemory(): void {
   kept.clear()
+  boardHistory.reset()
   setDirty(false)
 }
 
