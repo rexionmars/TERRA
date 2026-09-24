@@ -100,6 +100,7 @@ import {
 } from "@/lib/compositorEval"
 import type { AssetRun, ClassRaster } from "@/lib/runAssets"
 import { isZeroExtent, type RasterLayer } from "@/lib/mapLayers"
+import { arrange } from "@/lib/compositorLayout"
 import { notifyInfo } from "@/lib/notify"
 
 /** How wide each kind is drawn: settings at the run graph's width, readings wider. */
@@ -856,6 +857,26 @@ export function CompositorEditor({
     setHeights((prev) => (Math.abs((prev[id] ?? 0) - h) < 1 ? prev : { ...prev, [id]: h }))
 
   const api = useRef<CanvasApi | null>(null)
+
+  /*
+    Arrange: every node placed by its links (lib/compositorLayout.ts), at the
+    heights the cards were measured at, then the view framed on the result
+    once the canvas has the new places -- hence the flag, read after the render
+    that carries them.
+  */
+  const frameNext = useRef(false)
+  const arrangeNodes = () => {
+    if (!graph.nodes.length) return
+    const places = arrange(graph, (n) => ({ w: WIDTH[n.kind], h: heights[n.id] ?? GUESS_H[n.kind] }))
+    frameNext.current = true
+    edit({ ...graph, places: { ...graph.places, ...places } })
+  }
+  useEffect(() => {
+    if (!frameNext.current) return
+    frameNext.current = false
+    api.current?.fit()
+  }, [graph.places])
+
   const over = useRef(false)
   const pointer = useRef({ x: 0, y: 0 })
   const [menu, setMenu] = useState<"view" | "add" | "node" | null>(null)
@@ -1555,6 +1576,14 @@ export function CompositorEditor({
               setMenu(null)
             }}
           />
+          <StudioMenuItem
+            label="Arrange"
+            disabled={!graph.nodes.length}
+            onSelect={() => {
+              arrangeNodes()
+              setMenu(null)
+            }}
+          />
         </StudioPopover>
         <StudioPopover
           open={menu === "add"}
@@ -1644,6 +1673,7 @@ export function CompositorEditor({
               setSelected(null)
             }}
             apiRef={api}
+            onArrange={arrangeNodes}
           />
         ) : (
           <div className="flex h-full items-center justify-center p-4" style={{ background: "var(--s-field)" }}>

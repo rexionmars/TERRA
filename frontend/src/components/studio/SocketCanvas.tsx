@@ -17,7 +17,7 @@
  * here, so every socket sits at a height known without measuring a row.
  */
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react"
-import { ArrowsOut, CaretDown, CaretRight } from "@phosphor-icons/react"
+import { ArrowsOut, CaretDown, CaretRight, TreeStructure } from "@phosphor-icons/react"
 import { cn } from "@/lib/utils"
 import { BODY_PAD, HEAD_H, ROW_H, wirePath } from "./NodeCanvas"
 
@@ -142,6 +142,7 @@ export function SocketCanvas({
   selectedLink,
   onSelectLink,
   apiRef,
+  onArrange,
   className,
 }: {
   nodes: readonly SocketNode[]
@@ -164,6 +165,12 @@ export function SocketCanvas({
   /** A link was pressed. */
   onSelectLink?: (to: string, toSocket: string) => void
   apiRef?: React.RefObject<CanvasApi | null>
+  /**
+   * Lays the nodes out by their links, where the caller can; a second button
+   * beside the one that frames them. The caller moves the nodes and frames
+   * the result, since where nodes stand is its data, not this canvas's.
+   */
+  onArrange?: () => void
   className?: string
 }) {
   const hostRef = useRef<HTMLDivElement | null>(null)
@@ -655,6 +662,21 @@ export function SocketCanvas({
         })}
       </div>
 
+      {onArrange && (
+        <button
+          type="button"
+          onClick={onArrange}
+          title="Arrange the nodes by their links"
+          aria-label="Arrange the nodes by their links"
+          className={cn(
+            "absolute bottom-2 right-10 flex size-7 items-center justify-center rounded-sm",
+            "bg-selected text-muted-foreground transition-colors hover:bg-hover hover:text-foreground",
+            "focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+          )}
+        >
+          <TreeStructure className="size-3.5" />
+        </button>
+      )}
       <button
         type="button"
         onClick={() => {
