@@ -18,6 +18,7 @@
  * throwing it away.
  */
 
+import type { CompositorGraph } from "@/lib/compositorGraph"
 import { UndoHistory } from "@/lib/undoHistory"
 
 const kept = new Map<string, unknown>()
@@ -301,7 +302,19 @@ export interface BoardSnapshot {
    */
   components: string[]
   nodeLinks: string[]
+  /**
+   * The compositor's graph, or null where the reader has not changed the
+   * default one.
+   *
+   * Not rewritten on the way in or out. Its Run nodes name a RUN, which is
+   * what a board is stored as and reopens as, not the area a run is drawn in;
+   * a Run node whose run is no longer on the board says so on the node.
+   */
+  compositor: CompositorGraph | null
 }
+
+/** The key the compositor's graph lives under. */
+export const COMPOSITOR = "compositor"
 
 /** The key the run editor's card placements live under. */
 export const RUN_NODE_PLACES = "runNodePlaces"
@@ -423,6 +436,7 @@ export function snapshotBoard(
     ),
     components: readBoardMemory<string[]>("components", []),
     nodeLinks: readBoardMemory<string[]>("nodeLinks", []),
+    compositor: readBoardMemory<CompositorGraph | null>(COMPOSITOR, null),
   }
 }
 
@@ -447,6 +461,7 @@ export function restoreBoard(snap: BoardSnapshot): void {
   writeBoardMemory(RUN_NODE_PLACES, snap.nodePlaces)
   writeBoardMemory("components", snap.components)
   writeBoardMemory("nodeLinks", snap.nodeLinks)
+  writeBoardMemory(COMPOSITOR, snap.compositor)
   Object.assign(
     keptObject<Record<string, { x: number; z: number }>>("places", () => ({})),
     snap.places
