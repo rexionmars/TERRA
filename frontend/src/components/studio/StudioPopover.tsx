@@ -21,6 +21,13 @@
  */
 import { useEffect, useLayoutEffect, useRef, useState } from "react"
 import { createPortal } from "react-dom"
+import {
+  OPERATORS,
+  pollOperator,
+  runOperator,
+  shortcut,
+  type OperatorId,
+} from "@/lib/operators"
 import { cn } from "@/lib/utils"
 
 export function StudioPopover({
@@ -228,6 +235,46 @@ export function StudioMenuItem({
         </span>
       )}
     </button>
+  )
+}
+
+/**
+ * A row that runs an operator: its shortcut as the note, and disabled with the
+ * operator's own reason when it cannot run.
+ *
+ * `label` and `icon` override the registry's where a row names its target --
+ * `Save over "name"` rather than "Save studio" -- and the operator is
+ * still what runs, so the keys and the row cannot diverge.
+ */
+export function OperatorMenuItem({
+  id,
+  label,
+  icon,
+  checked,
+  onDone,
+}: {
+  id: OperatorId
+  label?: string
+  icon?: React.ComponentType<{ className?: string; strokeWidth?: number }>
+  checked?: boolean
+  /** Closes the menu. Called before the operator runs, so a dialog it opens is not under the menu. */
+  onDone: () => void
+}) {
+  const op = OPERATORS[id]
+  const poll = pollOperator(id)
+  return (
+    <StudioMenuItem
+      icon={icon ?? op.icon}
+      label={label ?? op.label}
+      note={shortcut(id)}
+      checked={checked}
+      disabled={poll !== true}
+      title={poll === true ? op.description : poll}
+      onSelect={() => {
+        onDone()
+        runOperator(id)
+      }}
+    />
   )
 }
 
