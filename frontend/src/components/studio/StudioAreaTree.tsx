@@ -265,6 +265,8 @@ function Seam({
       tabIndex={0}
       onPointerDown={onPointerDown}
       onKeyDown={onKeyDown}
+      // Back to the middle, which no drag lands on exactly.
+      onDoubleClick={() => onMove(0.5)}
       className={cn(
         "group absolute z-[30] focus-visible:outline-none",
         horizontal ? "cursor-col-resize" : "cursor-row-resize"
