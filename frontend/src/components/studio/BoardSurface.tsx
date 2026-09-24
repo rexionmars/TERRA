@@ -84,6 +84,7 @@ import {
   liveAreaId,
   keptObject,
   markBoardDirty,
+  COMPOSITOR,
   readBoardMemory,
   renameBoardArea,
   snapshotBoard,
@@ -138,6 +139,8 @@ function EditorEmpty({ children }: { children: React.ReactNode }) {
 import { StudioBrowser } from "@/components/studio/StudioBrowser"
 import { ReportsEditor } from "@/components/studio/ReportsEditor"
 import { ConsoleEditor } from "@/components/studio/ConsoleEditor"
+import { CompositorEditor } from "@/components/studio/CompositorEditor"
+import type { CompositorGraph } from "@/lib/compositorGraph"
 import { StartScreen, claimLaunchStart } from "@/components/studio/StartScreen"
 import { ResearchPackModal } from "@/components/ResearchPackModal"
 import { MineralReadingColumn } from "@/components/mineral/MineralReading"
@@ -2778,6 +2781,13 @@ export function BoardSurface({
     hid stayed in the list taking a row.
   */
   const [hideInvisible, setHideInvisible] = useKept("hideInvisible", false)
+  /*
+    The compositor's graph, held here rather than in its editor for two
+    reasons: a save records it, which is what `useKept`'s third argument says,
+    and two areas showing the editor must show one graph rather than two
+    copies drifting apart. Null until the reader changes the default.
+  */
+  const [compositor, setCompositor] = useKept<CompositorGraph | null>(COMPOSITOR, null, true)
   const [brushRadius, setBrushRadius] = useState<BrushRadiusPx>(2)
   const [probeUv, setProbeUv] = useState<{
     groupId: string
@@ -4208,6 +4218,14 @@ export function BoardSurface({
     // The log is the application's, not the board's; this area only shows it.
     reports: <ReportsEditor surface={surfaceRef.current} />,
     console: <ConsoleEditor />,
+    compositor: (
+      <CompositorEditor
+        runs={assetRuns}
+        graph={compositor}
+        onChange={setCompositor}
+        surface={surfaceRef.current}
+      />
+    ),
     mineralReading: mineralResult ? (
       <MineralReadingColumn
         mineral={mineralResult}

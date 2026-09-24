@@ -122,6 +122,19 @@ export function AreaHeaderOptions({
   return host ? createPortal(children, host) : null
 }
 
+/**
+ * The same, at the header's other end: an editor's own pulldowns, right of
+ * the type button, where Blender puts View, Select, Add and Node. For an
+ * editor whose menus act on state only it holds, as AreaHeaderOptions is for
+ * its options.
+ */
+const AreaHeaderMenusHost = createContext<HTMLElement | null>(null)
+
+export function AreaHeaderMenus({ children }: { children: React.ReactNode }) {
+  const host = useContext(AreaHeaderMenusHost)
+  return host ? createPortal(children, host) : null
+}
+
 export function StudioArea({
   editor,
   rect,
@@ -188,6 +201,7 @@ export function StudioArea({
   */
   const gutter = useSyncExternalStore(subscribeStudioGutter, studioGutterOn)
   const [optionsHost, setOptionsHost] = useState<HTMLElement | null>(null)
+  const [menusHost, setMenusHost] = useState<HTMLElement | null>(null)
 
   /*
     THE HEADER NAMES THE PANE, NOT THE EDITOR THAT HOLDS IT.
@@ -406,6 +420,7 @@ export function StudioArea({
         </StudioPopover>
 
         {slots?.menus}
+        <div ref={setMenusHost} className="contents" />
         <span className="flex-1" />
         {slots?.centre}
         {slots?.centre && slots?.options ? <span className="flex-1" /> : null}
@@ -530,7 +545,9 @@ export function StudioArea({
               a header it is not filling.
             */
             <AreaHeaderOptionsHost.Provider value={optionsHost}>
-              {children}
+              <AreaHeaderMenusHost.Provider value={menusHost}>
+                {children}
+              </AreaHeaderMenusHost.Provider>
             </AreaHeaderOptionsHost.Provider>
           ) : (
             <div className="flex h-full flex-col items-center justify-center gap-1 px-2 text-center">

@@ -26,6 +26,8 @@ import {
   ExportOverlayFile,
 } from "../../wailsjs/go/main/App"
 import { notifyExportFail, notifyExportOk } from "@/lib/notify"
+import type { ClassLegendEntry } from "@/lib/classMask"
+import { MAPBIOMAS_CLASS_LEGEND } from "@/lib/classPalette"
 import type {
   Bounds,
   CompositionOverlay,
@@ -36,6 +38,9 @@ import type {
 } from "@/lib/types"
 import { isZeroExtent, predictionSource } from "@/lib/mapLayers"
 import {
+  MINERAL_MASKED_COLOR,
+  MINERAL_NO_ANSWER_COLOR,
+  mineralCellAreaHa,
   mineralGroupTitle,
   mineralLayerDefaultVisible,
   mineralLayerId,
@@ -74,6 +79,117 @@ export interface AssetRun {
    */
   deletable?: boolean
   assets: RunAsset[]
+}
+
+/**
+ * What a class raster's colours mean, and how much ground one of its pixels is.
+ *
+ * What lib/classMask.ts needs to invert the PNG back to classes, and what the
+ * post-processing editor needs to turn a count of pixels into an area. Built
+ * here, beside the asset, because this is the one place that already knows
+ * which of a run's maps a raster is.
+ */
+export interface ClassRaster {
+  /** One entry per colour the raster is painted in, in ordinal order. */
+  legend: ClassLegendEntry[]
+  /**
+   * Ordinals painted on the raster that are not a class: cells no answer was
+   * possible for, such as the mineral map's cloud-masked cells. They are
+   * decoded so the legend explains every pixel, and then set aside.
+   */
+  excluded: number[]
+  /** One pixel's ground area in hectares; null where the run reported none. */
+  pixelAreaHa: number | null
+  /**
+   * Whether that area is every pixel's or their mean. The mineral map's cells
+   * are a degree grid, so a cell's area follows its latitude and the payload
+   * gives only the total.
+   */
+  areaIsMean: boolean
+}
+
+/** Hectares per pixel from rows that report both, or null where none do. */
+function areaPerPixel(rows: ReadonlyArray<{ pixels: number; area_ha: number }> | null | undefined) {
+  let px = 0
+  let ha = 0
+  for (const r of rows ?? []) {
+    px += r.pixels
+    ha += r.area_ha
+  }
+  return px > 0 && ha > 0 ? ha / px : null
+}
+
+/**
+ * The legend of the map the `prediction` asset draws.
+ *
+ * Which map that is -- the run's classification, a MapBiomas map, or the
+ * reference -- is predictionSource's answer, the same one the layer and its
+ * legend read, so the classes here are the ones on the plane.
+ */
+function predictionClasses(r: PredictResult): ClassRaster | undefined {
+  const source = predictionSource(r)?.source
+  if (source === "classification") {
+    const stats = r.class_stats
+    if (!stats?.length) return undefined
+    return {
+      legend: stats.map((c) => ({ id: c.class_id, name: c.name, color: c.color })),
+      excluded: [],
+      pixelAreaHa: areaPerPixel(stats),
+      areaIsMean: false,
+    }
+  }
+  if (source === "lulc") {
+    const rows = r.lulc?.composition
+    if (!rows?.length) return undefined
+    return {
+      legend: rows.map((c) => ({ id: c.class_id, name: c.name, color: c.color })),
+      excluded: [],
+      pixelAreaHa: areaPerPixel(rows),
+      areaIsMean: false,
+    }
+  }
+  if (source === "reference") {
+    const m = r.pixel_size_m
+    return {
+      legend: [...MAPBIOMAS_CLASS_LEGEND],
+      excluded: [],
+      pixelAreaHa: m && m > 0 ? (m * m) / 10_000 : null,
+      areaIsMean: false,
+    }
+  }
+  return undefined
+}
+
+/** `rgba(r, g, b, a)` as `#rrggbb`, for the two mineral greys the payload does not carry. */
+function cssHex(css: string): string {
+  const m = /rgba?\(\s*(\d+)\s*,\s*(\d+)\s*,\s*(\d+)/.exec(css)
+  if (!m) return ""
+  return `#${[m[1], m[2], m[3]].map((v) => Number(v).toString(16).padStart(2, "0")).join("")}`
+}
+
+/**
+ * The legend of one mineral group's class raster.
+ *
+ * The payload's classes, then the two greys the sidecar paints under them
+ * (sidecar/terra/mineral/mapping.py, class_rgba). "No answer" is an outcome of
+ * the expert system over an observed cell and stays a class; "Masked" is a
+ * cell that was never observed, and is excluded.
+ */
+function mineralClasses(m: MineralAnalysis): ClassRaster {
+  const legend: ClassLegendEntry[] = m.legend.map((l, i) => ({
+    id: i,
+    name: l.label,
+    color: l.color,
+  }))
+  const noAnswer = legend.length
+  legend.push({ id: noAnswer, name: "No answer", color: cssHex(MINERAL_NO_ANSWER_COLOR) })
+  legend.push({ id: noAnswer + 1, name: "Masked", color: cssHex(MINERAL_MASKED_COLOR) })
+  return {
+    legend,
+    excluded: [noAnswer + 1],
+    pixelAreaHa: mineralCellAreaHa(m),
+    areaIsMean: true,
+  }
 }
 
 /** How a GeoTIFF leaves the application. */
@@ -115,6 +231,8 @@ export interface RunAsset {
   extent: Bounds | null
   /** Class raster: its thumbnail must not be smoothed either. */
   pixelated: boolean
+  /** Present on a class raster, which the post-processing editor can filter. */
+  classes?: ClassRaster
   /**
    * Whether something is drawing it at this moment.
    *
@@ -244,6 +362,7 @@ export function runAssets(i: RunAssetInput): RunAsset[] {
       previewUri: r.overlay_uri,
       extent: placeable(r.extent),
       pixelated: true,
+      classes: predictionClasses(r),
       onBoard: false,
       selectId: null,
       removeId: null,
@@ -374,6 +493,7 @@ export function runAssets(i: RunAssetInput): RunAsset[] {
       extent: placeable(m.extent),
       // One reference's class per cell: a blend of two colours names no mineral.
       pixelated: true,
+      classes: mineralClasses(m),
       // Without switches the caller is listing a run the map is not drawing,
       // so no group of it reads as on the board.
       onBoard: i.mineralLayers

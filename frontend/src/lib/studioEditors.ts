@@ -25,6 +25,7 @@ import {
   FlowArrow,
   GitDiff,
   Globe,
+  Graph,
   Ruler,
   SlidersHorizontal,
   Scroll,
@@ -52,6 +53,7 @@ export type EditorId =
   | "browser"
   | "reports"
   | "console"
+  | "compositor"
 
 /**
  * What kind of work a thing is FOR, named once for the whole studio.
@@ -379,6 +381,26 @@ export const STUDIO_EDITORS: readonly StudioEditorMeta[] = [
       disagree with; two are two filters over the same log.
     */
     hint: "Every notification and command run, kept after the toast leaves",
+  },
+  {
+    id: "compositor",
+    group: "board",
+    label: "Compositor",
+    icon: Graph,
+    /*
+      A node field, as the run graph is, whose readings are tables: a Class
+      areas node is 300 px and a Change node 330, beside settings nodes of
+      about 210. Below this the graph is framed by zooming out to where those
+      tables stop being readable; it can still be panned.
+    */
+    minRem: 28,
+    minRowRem: 14,
+    /*
+      Not unique. The graph is the board's and is held above the editor, so a
+      second area shows the same graph at another pan, as two of Blender's node
+      editors show one tree.
+    */
+    hint: "The board's rasters as nodes: filtered, masked, mixed, read and viewed",
   },
   {
     id: "console",

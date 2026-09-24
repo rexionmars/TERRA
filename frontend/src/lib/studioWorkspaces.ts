@@ -23,7 +23,7 @@
  * 1000x700, so no preset is born with an area under its editor's own floor.
  */
 import type { Icon } from "@phosphor-icons/react"
-import { Cube, Diamond, GitDiff, Table, Waves } from "@phosphor-icons/react"
+import { Cube, Diamond, GitDiff, Graph, Table, Waves } from "@phosphor-icons/react"
 
 import type { AreaNode } from "@/lib/boardAreas"
 import { type EditorId, type StudioGroup } from "@/lib/studioEditors"
@@ -142,6 +142,32 @@ export const STUDIO_WORKSPACES: readonly StudioWorkspace[] = [
           leaf("a-run", "runParams"),
           leaf("a-reports", "reports")
         )
+      ),
+  },
+  {
+    id: "compositing",
+    group: "board",
+    icon: Graph,
+    label: "Compositing",
+    hint: "The board's rasters worked as nodes, from filter to reading",
+    /*
+      Blender's Compositing workspace gives the node editor most of the screen,
+      and so does this one: the compositor takes the lower two thirds at full
+      width, where its readings and Viewer cards have room, and the viewport
+      and outliner stay above it to say which rasters are on the board.
+      Checked against the editors' floors by studioWorkspaces.test.ts.
+    */
+    build: () =>
+      col(
+        "w-compositing-split",
+        0.36,
+        row(
+          "w-compositing-top",
+          0.72,
+          leaf("a-viewport", "viewport"),
+          leaf("a-outliner", "outliner")
+        ),
+        leaf("a-compositor", "compositor")
       ),
   },
   {

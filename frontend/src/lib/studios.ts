@@ -22,6 +22,7 @@ import {
 } from "../../wailsjs/go/main/App"
 import type { store } from "../../wailsjs/go/models"
 import type { BoardSnapshot } from "@/components/studio/boardMemory"
+import { parseGraph } from "@/lib/compositorGraph"
 
 export type Studio = store.Studio
 
@@ -167,5 +168,7 @@ export function parseSnapshot(text: string | undefined): BoardSnapshot | null {
     // Absent on every board saved before the run editor had cards to add.
     components: Array.isArray(raw.components) ? raw.components : [],
     nodeLinks: Array.isArray(raw.nodeLinks) ? raw.nodeLinks : [],
+    // Absent on every board saved before the compositor existed.
+    compositor: parseGraph(raw.compositor),
   }
 }
