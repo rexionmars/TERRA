@@ -24,7 +24,7 @@
  * shown without being stored, so opening the editor is not an edit.
  */
 import { useEffect, useMemo, useRef, useState } from "react"
-import { CaretRight, DownloadSimple, Polygon, X } from "@phosphor-icons/react"
+import { CaretLeft, CaretRight, DownloadSimple, Polygon, X } from "@phosphor-icons/react"
 import { NumberField } from "@/components/ui/NumberField"
 import { parseFields, type FieldsTarget } from "@/lib/fields"
 import type { FieldsAnalysis, MineralAnalysis } from "@/lib/types"
@@ -90,7 +90,9 @@ import {
   isRaster,
   paintValue,
   socketKey,
+  sumClassAreas,
   type ChangeReading,
+  type Evaluation,
   type ClassValue,
   type FieldsValue,
   type ImageValue,
@@ -101,6 +103,7 @@ import {
 import type { AssetRun, ClassRaster } from "@/lib/runAssets"
 import { isZeroExtent, type RasterLayer } from "@/lib/mapLayers"
 import { arrange } from "@/lib/compositorLayout"
+import { perField, resolveEach, runKindProduct, setOf, type FieldMember, type FieldSet } from "@/lib/fieldSets"
 import { notifyInfo } from "@/lib/notify"
 
 /** How wide each kind is drawn: settings at the run graph's width, readings wider. */
@@ -328,6 +331,74 @@ function AreasReading({ value }: { value: ClassValue }) {
   )
 }
 
+/*
+  A Class areas node under a field set: the field in focus, or every field's
+  classes summed -- the figure a field set is for, since the areas of one field
+  are already the node's reading when it is fed a single run.
+*/
+function AreasCard({
+  value,
+  fields,
+}: {
+  value: ClassValue | null
+  fields: { values: ClassValue[]; count: number; waiting: number } | null
+}) {
+  const [all, setAll] = useState(true)
+  if (!fields) return value ? <AreasReading value={value} /> : null
+  return (
+    <div className="flex flex-col gap-1.5">
+      <div className="flex items-center gap-1">
+        <Choice label={`All ${fields.count} fields`} chosen={all} onPick={() => setAll(true)} />
+        <Choice label="This field" chosen={!all} onPick={() => setAll(false)} />
+      </div>
+      {all ? (
+        <SummedReading values={fields.values} count={fields.count} waiting={fields.waiting} />
+      ) : value ? (
+        <AreasReading value={value} />
+      ) : (
+        <Note>The field in focus has no class map here.</Note>
+      )}
+    </div>
+  )
+}
+
+/** Every field's classes summed; see sumClassAreas for how classes meet. */
+function SummedReading({ values, count, waiting }: { values: ClassValue[]; count: number; waiting: number }) {
+  const { rows, total, unit } = useMemo(() => sumClassAreas(values), [values])
+  const top = rows[0]?.amount ?? 1
+  const amount = (x: number) => (unit === "ha" ? hectares(x) : INT.format(x))
+  return (
+    <div className="flex flex-col gap-1.5">
+      <div className="grid grid-cols-[minmax(0,1fr)_3.5rem_auto_auto] items-center gap-x-2 gap-y-1 text-meta">
+        <span className="text-micro text-muted-foreground">Class</span>
+        <span />
+        <span className="text-right text-micro text-muted-foreground">{unit === "ha" ? "Area (ha)" : "Pixels"}</span>
+        <span className="text-right text-micro text-muted-foreground">Share</span>
+        {rows.map(({ entry, amount: a }) => (
+          <div key={`${entry.name}:${entry.color}`} className="contents">
+            <span className="flex min-w-0 items-center gap-1.5">
+              <Swatch color={entry.color} />
+              <span className="truncate text-foreground" title={entry.name}>
+                {entry.name}
+              </span>
+            </span>
+            <span className="h-1.5 rounded-full" style={{ background: "rgb(var(--p-line) / 0.25)" }}>
+              <span className="block h-full rounded-full" style={{ width: `${(a / top) * 100}%`, background: "var(--b-lit)" }} />
+            </span>
+            <span className="telemetry text-right text-foreground">{amount(a)}</span>
+            <span className="telemetry text-right text-muted-foreground">{share(a, total)}</span>
+          </div>
+        ))}
+      </div>
+      <Figure
+        label="Fields read"
+        value={`${values.length} of ${count}${unit === "ha" ? ` · ${hectares(total)} ha` : ""}`}
+      />
+      {waiting > 0 && <Note>{waiting} still decoding; the sum grows as they arrive.</Note>}
+    </div>
+  )
+}
+
 /** What differs between the two class maps on a Change node. */
 function ChangeReadingView({ reading, info }: { reading: ChangeReading; info: ClassRaster }) {
   if (!reading.comparable) return <Note>{reading.note}</Note>
@@ -484,6 +555,11 @@ function dataUriOf(image: ImageValue): string {
   return uri
 }
 
+const NO_SETS: readonly FieldSet[] = []
+
+/** A field set as a choice of the Run node's list: area and product, joined. */
+const setChoice = (areaId: string, runKind: string) => `each:${areaId}|${runKind}`
+
 export function CompositorEditor({
   runs,
   graph: stored,
@@ -494,7 +570,19 @@ export function CompositorEditor({
   fieldsTargetOf,
   onAdoptFields,
   mineralOf,
+  fieldSets = NO_SETS,
+  onNeedRuns,
 }: {
+  /**
+   * Every field set the catalogue offers (lib/fieldSets.ts): a Run node can
+   * stand for every field of an area instead of one run.
+   */
+  fieldSets?: readonly FieldSet[]
+  /**
+   * Runs a field set reads that the board does not hold yet. The board loads
+   * them; their rasters are decoded here, as any run's are.
+   */
+  onNeedRuns?: (runIds: string[]) => void
   /**
    * A run's mineral map, where it is one. Its figures are the Run node's
    * Mineral report output, which the Mineral nodes read.
@@ -561,12 +649,51 @@ export function CompositorEditor({
   ]
 
   const firstClass = runs.flatMap((r) => r.assets.filter((a) => a.classes).map((a) => ({ run: r, asset: a })))[0]
+  /*
+    The field sets by what decides their runs. Rebuilt by the board on every
+    render, so the graph is keyed on this rather than on the list.
+  */
+  const setsKey = fieldSets
+    .map((f) => `${f.areaId}:${f.runKind}:${f.members.map((m) => `${m.fieldId}=${m.runId}`).join(",")}`)
+    .join("|")
+  const setsRef = useRef(fieldSets)
+  setsRef.current = fieldSets
+  /*
+    Field-set nodes pointed at the run of their field in focus, before
+    anything reads them: a set node is then a Run node like any other to
+    every rule below.
+  */
   const graph = useMemo<CompositorGraph>(
     () =>
-      stored ?? (firstClass ? defaultGraph(firstClass.run.runId, firstClass.asset.id) : EMPTY_GRAPH),
-    [stored, firstClass?.run.runId, firstClass?.asset.id]
+      resolveEach(
+        stored ?? (firstClass ? defaultGraph(firstClass.run.runId, firstClass.asset.id) : EMPTY_GRAPH),
+        setsRef.current
+      ),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [stored, firstClass?.run.runId, firstClass?.asset.id, setsKey]
+  )
+  /** The graph once per field, where a Run node stands for a field set. */
+  const fieldGraphs = useMemo(
+    () => perField(graph, setsRef.current),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [graph, setsKey]
   )
   const edit = (next: CompositorGraph) => onChange(next)
+
+  // The runs a field set reads and the board does not hold, asked for once each.
+  const asked = useRef(new Set<string>())
+  const missing = graph.nodes
+    .flatMap((n) => setOf(fieldSets, n)?.members ?? [])
+    .map((m) => m.runId)
+    .filter((id) => !runs.some((r) => r.runId === id) && !asked.current.has(id))
+  const missingKey = missing.join(",")
+  useEffect(() => {
+    if (!missing.length || !onNeedRuns) return
+    for (const id of missing) asked.current.add(id)
+    onNeedRuns(missing)
+    // `missing` is rebuilt every render; its key is what changes.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [missingKey])
 
   /* ---- The rasters Run nodes offer, decoded once each ------------------ */
 
@@ -577,13 +704,16 @@ export function CompositorEditor({
 
   // Only the outputs something reads: a run carries a true-colour scene and a
   // composition or two, and decoding those unasked would be most of the work.
-  const needed = graph.links.flatMap((l) => {
-    const node = nodeOf(graph, l.from)
-    if (node?.kind !== "run" || !node.runId) return []
-    const asset = runOf(node.runId)?.assets.find((a) => a.id === l.fromSocket)
-    return asset ? [{ runId: node.runId, asset }] : []
-  })
-  const neededKey = needed.map((n) => `${n.runId}:${n.asset.id}:${n.asset.previewUri.length}`).join("|")
+  // A field set's, for every field.
+  const needed = [graph, ...(fieldGraphs ?? []).map((f) => f.graph)].flatMap((g) =>
+    g.links.flatMap((l) => {
+      const node = nodeOf(g, l.from)
+      if (node?.kind !== "run" || !node.runId) return []
+      const asset = runOf(node.runId)?.assets.find((a) => a.id === l.fromSocket)
+      return asset ? [{ runId: node.runId, asset }] : []
+    })
+  )
+  const neededKey = [...new Set(needed.map((n) => `${n.runId}:${n.asset.id}:${n.asset.previewUri.length}`))].join("|")
 
   useEffect(() => {
     for (const { runId, asset } of needed) {
@@ -641,9 +771,14 @@ export function CompositorEditor({
   /* ---- Evaluation --------------------------------------------------------- */
 
   const cache = useRef(new Map<string, RasterValue>())
-  const evaluation = useMemo(() => {
-    const e = evaluate(graph, {
-      source: (runId, assetId) => {
+  /*
+    The graph as shown, and once per field where a Run node stands for a field
+    set. One cache for all of them, keyed as ever by source and steps: the
+    field in focus is computed once whichever evaluation asks first.
+  */
+  const { evaluation, fieldEvaluations } = useMemo(() => {
+    const ctx = {
+      source: (runId: string, assetId: string): Result => {
         const run = runOf(runId)
         if (!run) return { status: "none", note: "That run is not on this board." }
         if (assetId === FIELDS_SOCKET) {
@@ -677,12 +812,17 @@ export function CompositorEditor({
         return decoded[`${runId}\u0000${assetId}`]?.result ?? { status: "busy" }
       },
       cache: cache.current,
-    })
-    for (const k of [...cache.current.keys()]) if (!e.used.has(k)) cache.current.delete(k)
-    return e
+    }
+    const e = evaluate(graph, ctx)
+    const each: { member: FieldMember; graph: CompositorGraph; evaluation: Evaluation }[] | null =
+      fieldGraphs?.map((f) => ({ ...f, evaluation: evaluate(f.graph, ctx) })) ?? null
+    const used = new Set(e.used)
+    for (const f of each ?? []) for (const k of f.evaluation.used) used.add(k)
+    for (const k of [...cache.current.keys()]) if (!used.has(k)) cache.current.delete(k)
+    return { evaluation: e, fieldEvaluations: each }
     // Places are left out on purpose: moving a node computes nothing.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [graph.nodes, graph.links, decoded, runsKey])
+  }, [graph.nodes, graph.links, decoded, runsKey, fieldGraphs])
 
   const outputOf = (node: string, socket: string) => evaluation.outputs.get(socketKey(node, socket))
   const inputOf = (node: string, socket: string) => evaluation.inputs.get(socketKey(node, socket))
@@ -697,7 +837,7 @@ export function CompositorEditor({
     r?.status === "ready" && r.value.type === "fields" ? r.value : null
 
   /** The runs whose rasters reach a node, through any chain of links. */
-  const runsFeeding = (id: string): string[] => {
+  const runsFeeding = (id: string, g: CompositorGraph = graph): string[] => {
     const out: string[] = []
     const seen = new Set<string>()
     const stack = [id]
@@ -705,9 +845,9 @@ export function CompositorEditor({
       const at = stack.pop()!
       if (seen.has(at)) continue
       seen.add(at)
-      const node = nodeOf(graph, at)
+      const node = nodeOf(g, at)
       if (node?.kind === "run" && node.runId && !out.includes(node.runId)) out.push(node.runId)
-      for (const l of graph.links) if (l.to === at) stack.push(l.from)
+      for (const l of g.links) if (l.to === at) stack.push(l.from)
     }
     return out
   }
@@ -720,33 +860,48 @@ export function CompositorEditor({
     -- so the globe's spread separates them, as it separates the planes of one
     area sent from the viewport.
   */
-  const sent = graph.nodes.flatMap((node) => {
-    if (node.kind !== "globe") return []
-    const ground = runOf(runsFeeding(node.id)[0] ?? null)?.areaId ?? `compositor:${node.id}`
-    return inputsOf(graph, node).flatMap((input) => {
-      const link = linkInto(graph, node.id, input.id)
-      const v = readyValue(inputOf(node.id, input.id))
-      if (!link || !v?.extent || isZeroExtent(v.extent)) return []
-      return [
-        {
-          node,
-          socket: input.id,
-          label: input.label,
-          from: link.from,
-          fromSocket: link.fromSocket,
-          value: v,
-          extent: v.extent,
-          runIds: runsFeeding(link.from),
-          areaId: ground,
-        },
-      ]
+  /*
+    UNDER A FIELD SET, ONE LAYER PER FIELD: each field's answer, stacked on
+    that field's own ground, which is what makes one graph stand for all of
+    them on the globe. The field in focus is only what the cards show.
+  */
+  const sources: { member: FieldMember | null; graph: CompositorGraph; evaluation: Evaluation }[] =
+    fieldEvaluations ?? [{ member: null, graph, evaluation }]
+  const sent = sources.flatMap(({ member, graph: g, evaluation: ev }) =>
+    g.nodes.flatMap((node) => {
+      if (node.kind !== "globe") return []
+      const ground = runOf(runsFeeding(node.id, g)[0] ?? null)?.areaId ?? `compositor:${node.id}`
+      return inputsOf(g, node).flatMap((input) => {
+        const link = linkInto(g, node.id, input.id)
+        const r = ev.inputs.get(socketKey(node.id, input.id))
+        const v = readyValue(r)
+        if (!link || !v?.extent || isZeroExtent(v.extent)) return []
+        return [
+          {
+            node,
+            member,
+            graph: g,
+            socket: input.id,
+            label: input.label,
+            from: link.from,
+            fromSocket: link.fromSocket,
+            value: v,
+            extent: v.extent,
+            runIds: runsFeeding(link.from, g),
+            areaId: ground,
+          },
+        ]
+      })
     })
-  })
+  )
   // A Globe whose raster is still decoding keeps what it last sent, rather
   // than blinking off the globe until the decode lands.
-  const decoding = graph.nodes.some(
-    (n) =>
-      n.kind === "globe" && inputsOf(graph, n).some((i) => inputOf(n.id, i.id)?.status === "busy")
+  const decoding = sources.some(({ graph: g, evaluation: ev }) =>
+    g.nodes.some(
+      (n) =>
+        n.kind === "globe" &&
+        inputsOf(g, n).some((i) => ev.inputs.get(socketKey(n.id, i.id))?.status === "busy")
+    )
   )
   const sentKey = sent
     .map((s) => `${s.node.id}:${s.socket}:${s.label}:${s.value.key}:${s.node.opacity}:${s.areaId}:${s.runIds.join(",")}`)
@@ -775,15 +930,19 @@ export function CompositorEditor({
   }
 
   /** The run raster a link carries unchanged, looking through Viewers; null past any other node. */
-  const sourceOf = (from: string, fromSocket: string): CompositorGlobeOverlay["source"] => {
+  const sourceOf = (
+    from: string,
+    fromSocket: string,
+    g: CompositorGraph = graph
+  ): CompositorGlobeOverlay["source"] => {
     const seen = new Set<string>()
     let at = { from, fromSocket }
     for (;;) {
-      const n = nodeOf(graph, at.from)
+      const n = nodeOf(g, at.from)
       if (!n || seen.has(n.id)) return null
       seen.add(n.id)
       if (n.kind === "viewer") {
-        const up = linkInto(graph, n.id, "image")
+        const up = linkInto(g, n.id, "image")
         if (!up) return null
         at = { from: up.from, fromSocket: up.fromSocket }
         continue
@@ -798,15 +957,15 @@ export function CompositorEditor({
     if (decoding || !onGlobe) return
     onGlobe(
       sent.map((s) => ({
-        key: `compositor:${s.node.id}:${s.socket}`,
+        key: `compositor:${s.node.id}:${s.socket}${s.member ? `:${s.member.fieldId}` : ""}`,
         nodeId: s.node.id,
         socket: s.socket,
-        source: sourceOf(s.from, s.fromSocket),
+        source: sourceOf(s.from, s.fromSocket, s.graph),
         areaId: s.areaId,
         runIds: s.runIds,
         layer: {
-          id: `compositor-${s.node.id}-${s.socket}`,
-          title: `${describe(s.from, s.fromSocket)} \u00b7 ${s.label}`,
+          id: `compositor-${s.node.id}-${s.socket}${s.member ? `-${s.member.fieldId}` : ""}`,
+          title: `${describe(s.from, s.fromSocket)} \u00b7 ${s.label}${s.member ? ` \u00b7 ${s.member.fieldName}` : ""}`,
           uri: dataUriOf(painted(s.value)),
           extent: s.extent,
           opacity: s.node.opacity,
@@ -885,7 +1044,8 @@ export function CompositorEditor({
   /* ---- Editing ------------------------------------------------------------ */
 
   const refuse = (kind: NodeKind): string | null =>
-    kind === "run" && !runs.length ? "No run on the board to read from." : null
+    // A field set is something to read from with no run on the board yet.
+    kind === "run" && !runs.length && !fieldSets.length ? "No run on the board to read from." : null
 
   /** `at`, stepped down past any node already standing there. */
   const place = (at: Place): Place => {
@@ -903,7 +1063,18 @@ export function CompositorEditor({
   const add = (kind: NodeKind, at?: Place) => {
     const id = nextNodeId(graph, kind)
     let node = createNode(kind, id)
-    if (node.kind === "run") node = { ...node, runId: firstClass?.run.runId ?? runs[0]?.runId ?? null }
+    if (node.kind === "run") {
+      const runId = firstClass?.run.runId ?? runs[0]?.runId ?? null
+      // With no run on the board, the first field set is the one thing to read.
+      const set = runId ? undefined : fieldSets[0]
+      node = set
+        ? {
+            ...node,
+            runId: set.members[0]?.runId ?? null,
+            each: { areaId: set.areaId, runKind: set.runKind, fieldId: set.members[0]?.fieldId ?? null },
+          }
+        : { ...node, runId }
+    }
     const sel = selected ? nodeOf(graph, selected) : undefined
     const selPlace = sel ? graph.places[sel.id] : undefined
     const where =
@@ -1012,8 +1183,11 @@ export function CompositorEditor({
 
   const title = (node: GraphNode): string => {
     switch (node.kind) {
-      case "run":
+      case "run": {
+        const set = setOf(fieldSets, node)
+        if (set) return `Every field · ${set.areaName}`
         return runOf(node.runId)?.title ?? "Run"
+      }
       case "majority":
         return `Majority ${node.size}×${node.size}`
       case "sieve":
@@ -1088,22 +1262,104 @@ export function CompositorEditor({
     switch (node.kind) {
       case "run": {
         const run = runOf(node.runId)
+        const set = setOf(fieldSets, node)
+        const at = set ? set.members.findIndex((m) => m.runId === node.runId) : -1
+        const focus = (i: number) => {
+          const m = set?.members[i]
+          if (m && node.each) edit(updateNode(graph, { ...node, runId: m.runId, each: { ...node.each, fieldId: m.fieldId } }))
+        }
+        const choose = (value: string) => {
+          if (value.startsWith("each:")) {
+            const [areaId, runKind] = value.slice(5).split("|")
+            const first = fieldSets.find((f) => f.areaId === areaId && f.runKind === runKind)?.members[0]
+            edit(
+              updateNode(graph, {
+                id: node.id,
+                kind: "run",
+                runId: first?.runId ?? null,
+                each: { areaId, runKind, fieldId: first?.fieldId ?? null },
+              })
+            )
+            return
+          }
+          edit(updateNode(graph, { id: node.id, kind: "run", runId: value || null }))
+        }
         return (
           <>
             <select
-              value={run ? run.runId : ""}
-              onChange={(e) => edit(updateNode(graph, { ...node, runId: e.target.value || null }))}
+              value={node.each ? setChoice(node.each.areaId, node.each.runKind) : run ? run.runId : ""}
+              onChange={(e) => choose(e.target.value)}
               className="field-input h-[1.375rem] w-full px-1 text-meta"
-              title="The run whose rasters this node offers"
+              title="The run whose rasters this node offers, or every field of an area"
             >
-              {!run && <option value="">{node.runId ? "Not on this board" : "Choose a run"}</option>}
-              {runs.map((r) => (
-                <option key={r.runId} value={r.runId}>
-                  {[r.title, r.period].filter(Boolean).join(" · ")}
-                </option>
-              ))}
+              {!node.each && !run && <option value="">{node.runId ? "Not on this board" : "Choose a run"}</option>}
+              {node.each && !set && (
+                <option value={setChoice(node.each.areaId, node.each.runKind)}>No field has this run any more</option>
+              )}
+              {/*
+                The fields of an area first: a set is the one choice here that
+                answers for more than one run, and after a queue of jobs the
+                board holds a run per field below it.
+              */}
+              {fieldSets.length > 0 && (
+                <optgroup label="Every field of an area">
+                  {fieldSets.map((f) => (
+                    <option key={setChoice(f.areaId, f.runKind)} value={setChoice(f.areaId, f.runKind)}>
+                      {`${f.areaName} · ${runKindProduct(f.runKind)} · ${f.members.length} fields`}
+                    </option>
+                  ))}
+                </optgroup>
+              )}
+              <optgroup label="One run">
+                {runs.map((r) => (
+                  <option key={r.runId} value={r.runId}>
+                    {[r.title, r.period].filter(Boolean).join(" · ")}
+                  </option>
+                ))}
+              </optgroup>
             </select>
-            {run?.model && <Note>{run.model}</Note>}
+            {set && (
+              <div className="flex items-center gap-1">
+                <button
+                  type="button"
+                  onClick={() => focus(at - 1)}
+                  disabled={at <= 0}
+                  title="The previous field"
+                  className="shrink-0 rounded-sm p-0.5 text-muted-foreground hover:bg-hover hover:text-foreground disabled:opacity-40"
+                >
+                  <CaretLeft className="size-3" />
+                </button>
+                <select
+                  value={set.members[at]?.fieldId ?? ""}
+                  onChange={(e) => focus(set.members.findIndex((m) => m.fieldId === e.target.value))}
+                  className="field-input h-[1.375rem] min-w-0 flex-1 px-1 text-meta"
+                  title="The field the cards show. The Globe draws every field."
+                >
+                  {set.members.map((m) => (
+                    <option key={m.fieldId} value={m.fieldId}>
+                      {m.fieldName}
+                    </option>
+                  ))}
+                </select>
+                <button
+                  type="button"
+                  onClick={() => focus(at + 1)}
+                  disabled={at < 0 || at >= set.members.length - 1}
+                  title="The next field"
+                  className="shrink-0 rounded-sm p-0.5 text-muted-foreground hover:bg-hover hover:text-foreground disabled:opacity-40"
+                >
+                  <CaretRight className="size-3" />
+                </button>
+              </div>
+            )}
+            {set ? (
+              <Note>
+                Field {at + 1} of {set.members.length}, each its latest {runKindProduct(set.runKind).toLowerCase()} run
+                {run?.model ? ` · ${run.model}` : ""}
+              </Note>
+            ) : (
+              run?.model && <Note>{run.model}</Note>
+            )}
           </>
         )
       }
@@ -1281,6 +1537,20 @@ export function CompositorEditor({
       case "areas": {
         const r = inputOf(node.id, "classes")
         const v = readyValue(r)
+        // Under a field set, every field's class map as well as the one in focus.
+        const fields = fieldEvaluations
+          ? (() => {
+              const results = fieldEvaluations.map((f) => f.evaluation.inputs.get(socketKey(node.id, "classes")))
+              const values = results
+                .map((x) => readyValue(x))
+                .filter((x): x is ClassValue => x?.type === "classes")
+              const waiting = results.filter((x) => x?.status === "busy").length
+              return { values, count: fieldEvaluations.length, waiting }
+            })()
+          : null
+        if (fields && (fields.values.length || fields.waiting)) {
+          return <AreasCard value={v?.type === "classes" ? v : null} fields={fields} />
+        }
         return v?.type === "classes" ? <AreasReading value={v} /> : <StatusNote result={r} />
       }
 
@@ -1678,7 +1948,7 @@ export function CompositorEditor({
         ) : (
           <div className="flex h-full items-center justify-center p-4" style={{ background: "var(--s-field)" }}>
             <p className="max-w-[26rem] text-center text-meta leading-relaxed text-muted-foreground">
-              {runs.length
+              {runs.length || fieldSets.length
                 ? "The graph is empty. Add a Run node from the Add menu, or press Shift+A over this area."
                 : "No run on the board. A run added to the board offers its rasters here, one output each."}
             </p>

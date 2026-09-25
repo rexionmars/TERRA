@@ -470,6 +470,40 @@ export function classAreas(v: ClassValue): { rows: AreaRow[]; total: number } {
   return { rows, total: rows.reduce((s, r) => s + r.px, 0) }
 }
 
+/** One class summed over several class maps: its area, or its pixels where a map has no cell area. */
+export interface SummedRow {
+  entry: ClassLegendEntry
+  amount: number
+}
+
+/**
+ * The classes of several class maps summed, largest first: hectares where every
+ * map knows its cell area, pixels otherwise -- a sum of hectares and pixels
+ * names no unit.
+ *
+ * Classes meet by name and colour, not by legend position: each run writes its
+ * own legend, and two runs of one model can order it differently.
+ */
+export function sumClassAreas(values: readonly ClassValue[]): {
+  rows: SummedRow[]
+  total: number
+  unit: "ha" | "px"
+} {
+  const unit = values.every((v) => v.info.pixelAreaHa != null) ? "ha" : "px"
+  const rows = new Map<string, SummedRow>()
+  for (const v of values) {
+    const scale = unit === "ha" ? (v.info.pixelAreaHa ?? 0) : 1
+    for (const { entry, px } of classAreas(v).rows) {
+      const k = `${entry.name}\u0000${entry.color.toLowerCase()}`
+      const row = rows.get(k)
+      if (row) row.amount += px * scale
+      else rows.set(k, { entry, amount: px * scale })
+    }
+  }
+  const out = [...rows.values()].sort((a, b) => b.amount - a.amount)
+  return { rows: out, total: out.reduce((s, r) => s + r.amount, 0), unit }
+}
+
 export type ChangeReading =
   | {
       comparable: true
