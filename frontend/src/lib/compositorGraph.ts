@@ -64,7 +64,19 @@ export type MineralGroupId = 1 | 2
 export type MineralBand = "fe3" | "aloh"
 
 export type GraphNode =
-  | { id: string; kind: "run"; runId: string | null }
+  | {
+      id: string
+      kind: "run"
+      /** The run it offers; for a field set, the run of the field in focus. */
+      runId: string | null
+      /**
+       * EVERY FIELD OF AN AREA rather than one run: the latest run of
+       * `runKind` on each of its fields (lib/fieldSets.ts). The node shows the
+       * field in focus, and the graph is evaluated once per field wherever an
+       * answer for all of them is wanted. Absent on a plain Run node.
+       */
+      each?: { areaId: string; runKind: string; fieldId: string | null }
+    }
   | { id: string; kind: "majority"; size: WindowSize }
   | { id: string; kind: "sieve"; minPixels: number; connectivity: Connectivity }
   | {
@@ -791,8 +803,14 @@ function parseNode(raw: unknown): GraphNode | null {
   if (!id) return null
   const size = (WINDOWS.includes(o.size as number) ? o.size : 3) as WindowSize
   switch (o.kind) {
-    case "run":
-      return { id, kind: "run", runId: str(o.runId) }
+    case "run": {
+      const e = o.each as Record<string, unknown> | undefined
+      const areaId = e && typeof e === "object" ? str(e.areaId) : null
+      const runKind = e && typeof e === "object" ? str(e.runKind) : null
+      return areaId && runKind
+        ? { id, kind: "run", runId: str(o.runId), each: { areaId, runKind, fieldId: str(e!.fieldId) } }
+        : { id, kind: "run", runId: str(o.runId) }
+    }
     case "majority":
       return { id, kind: "majority", size }
     case "sieve": {

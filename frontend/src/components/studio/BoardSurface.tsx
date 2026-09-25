@@ -140,6 +140,7 @@ import { StudioBrowser } from "@/components/studio/StudioBrowser"
 import { ReportsEditor } from "@/components/studio/ReportsEditor"
 import { JobsEditor, type JobQueueParams } from "@/components/studio/JobsEditor"
 import { latestRuns, takeFinished, useJobs, type JobKind } from "@/lib/jobs"
+import { fieldSets } from "@/lib/fieldSets"
 import { BOARD_TOOLS } from "@/lib/mapTools"
 import { ConsoleEditor } from "@/components/studio/ConsoleEditor"
 import {
@@ -2310,28 +2311,40 @@ export function BoardSurface({
     Asked for by id and resolved against the run list, which a job's run
     reaches only once App has re-read it; an id the list does not hold yet
     waits for it.
+
+    A field set in the compositor asks for its runs through the same path but
+    only to hold them (`place` false): its fields reach the globe through its
+    Globe node, and a plane per field in the scene as well would be every
+    field drawn twice.
   */
-  const [runsToShow, setRunsToShow] = useState<readonly string[]>([])
-  const showRuns = useCallback((ids: readonly string[]) => {
-    if (ids.length) setRunsToShow((prev) => [...new Set([...prev, ...ids])])
+  const [runsToShow, setRunsToShow] = useState<readonly { id: string; place: boolean }[]>([])
+  const queueRuns = useCallback((ids: readonly string[], place: boolean) => {
+    if (!ids.length) return
+    setRunsToShow((prev) => {
+      const next = prev.filter((x) => !ids.includes(x.id) || (x.place && !place))
+      for (const id of ids) if (!next.some((x) => x.id === id)) next.push({ id, place })
+      return next
+    })
   }, [])
+  const showRuns = useCallback((ids: readonly string[]) => queueRuns(ids, true), [queueRuns])
+  const holdRuns = useCallback((ids: readonly string[]) => queueRuns(ids, false), [queueRuns])
   const assetRunsRef = useRef(assetRuns)
   assetRunsRef.current = assetRuns
   const addToSceneRef = useRef(addToScene)
   addToSceneRef.current = addToScene
   useEffect(() => {
-    const ready = runsToShow.filter((id) => runs.some((r) => r.id === id))
+    const ready = runsToShow.filter((x) => runs.some((r) => r.id === x.id))
     if (!ready.length) return
-    setRunsToShow((prev) => prev.filter((id) => !ready.includes(id)))
+    setRunsToShow((prev) => prev.filter((x) => !ready.some((y) => y.id === x.id)))
     void (async () => {
       const placed: { areaId: string; layerId: string }[] = []
       const loaded: { run: InferenceRun; result: PredictResult }[] = []
       setLoadingRun(true)
       try {
-        for (const id of ready) {
+        for (const { id, place } of ready) {
           const onBoard = assetRunsRef.current.find((r) => r.runId === id)
           if (onBoard) {
-            const layerId = answerOf(onBoard.assets)
+            const layerId = place ? answerOf(onBoard.assets) : null
             if (layerId) placed.push({ areaId: onBoard.areaId, layerId })
             continue
           }
@@ -2339,7 +2352,7 @@ export function BoardSurface({
           try {
             const result = (await LoadAnalysis(id)) as unknown as PredictResult
             loaded.push({ run, result })
-            const layerId = answerOf(loadedRunAssets(result))
+            const layerId = place ? answerOf(loadedRunAssets(result)) : null
             // A loaded run's own id names its area; see assetRuns.
             if (layerId) placed.push({ areaId: run.id, layerId })
           } catch (e) {
@@ -2367,6 +2380,12 @@ export function BoardSurface({
     // setExtraRuns is useKept's setter and keeps its identity.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [runsToShow, runs])
+
+  /*
+    The fields of each area as the compositor's Run node can read them: the
+    latest run of each product on every field (lib/fieldSets.ts).
+  */
+  const compositorFieldSets = useMemo(() => fieldSets(catalogAreas, runs), [catalogAreas, runs])
 
   // Each job that finishes puts its run on the board, once; see takeFinished.
   const jobs = useJobs()
@@ -4677,6 +4696,8 @@ export function BoardSurface({
         fieldsTargetOf={fieldsTargetOf}
         onAdoptFields={onAdoptFields}
         mineralOf={mineralOfRun}
+        fieldSets={compositorFieldSets}
+        onNeedRuns={holdRuns}
       />
     ),
     mineralReading: mineralResult ? (
