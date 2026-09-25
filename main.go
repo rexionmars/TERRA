@@ -107,8 +107,11 @@ func main() {
 		},
 		OnStartup:  app.startup,
 		OnDomReady: app.domReady,
-		// Asks before a close would discard an unsaved board; see app_studios.go.
+		// Asks before a close would discard an unsaved board or cancel queued
+		// analyses; see app_studios.go.
 		OnBeforeClose: app.beforeClose,
+		// Ends a running job's process with the window; see app_jobs.go.
+		OnShutdown: app.shutdown,
 		Bind: []interface{}{
 			app,
 		},

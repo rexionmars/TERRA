@@ -34,8 +34,16 @@ export function BuildManagedEnvironment(arg1) {
   return window['go']['main']['App']['BuildManagedEnvironment'](arg1);
 }
 
+export function CancelAllJobs() {
+  return window['go']['main']['App']['CancelAllJobs']();
+}
+
 export function CancelEnvironmentBuild() {
   return window['go']['main']['App']['CancelEnvironmentBuild']();
+}
+
+export function CancelJob(arg1) {
+  return window['go']['main']['App']['CancelJob'](arg1);
 }
 
 export function ChooseBackupArchive() {
@@ -44,6 +52,10 @@ export function ChooseBackupArchive() {
 
 export function ClearAvatar() {
   return window['go']['main']['App']['ClearAvatar']();
+}
+
+export function ClearJobs() {
+  return window['go']['main']['App']['ClearJobs']();
 }
 
 export function CreateArea(arg1, arg2, arg3) {
@@ -154,6 +166,10 @@ export function ListDataCube(arg1) {
   return window['go']['main']['App']['ListDataCube'](arg1);
 }
 
+export function ListJobs() {
+  return window['go']['main']['App']['ListJobs']();
+}
+
 export function ListOptionalPackages() {
   return window['go']['main']['App']['ListOptionalPackages']();
 }
@@ -210,6 +226,10 @@ export function PurgeOrphanedRunAssets() {
   return window['go']['main']['App']['PurgeOrphanedRunAssets']();
 }
 
+export function QueueJobs(arg1) {
+  return window['go']['main']['App']['QueueJobs'](arg1);
+}
+
 export function Register(arg1, arg2, arg3) {
   return window['go']['main']['App']['Register'](arg1, arg2, arg3);
 }
@@ -224,6 +244,10 @@ export function RenderComposite(arg1) {
 
 export function RestoreBackup(arg1) {
   return window['go']['main']['App']['RestoreBackup'](arg1);
+}
+
+export function RetryJob(arg1) {
+  return window['go']['main']['App']['RetryJob'](arg1);
 }
 
 export function RevealMainWindow() {

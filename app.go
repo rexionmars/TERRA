@@ -12,6 +12,7 @@ import (
 
 	"geosense-infer/internal/analysis"
 	"geosense-infer/internal/geocode"
+	"geosense-infer/internal/jobs"
 	"geosense-infer/internal/pyenv"
 	"geosense-infer/internal/store"
 
@@ -52,6 +53,10 @@ type App struct {
 	// yet; see app_projectfile.go.
 	openedMu sync.Mutex
 	opened   []string
+
+	// Analyses queued over areas not in hand; see app_jobs.go. Written once
+	// at startup, under mu.
+	jobs *jobs.Queue
 }
 
 // NewApp creates a new App.
@@ -169,6 +174,7 @@ func (a *App) startup(ctx context.Context) {
 	a.ctx = ctx
 	wruntime.WindowCenter(ctx)
 	a.bootLog("splash ready")
+	a.startJobs(ctx)
 
 	appDir, err := os.Getwd()
 	if err != nil {

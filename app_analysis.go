@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"errors"
 
 	"geosense-infer/internal/analysis"
@@ -12,11 +13,17 @@ import (
 
 // Predict runs the inference sidecar for the given request.
 func (a *App) Predict(req analysis.PredictRequest) (*analysis.PredictResult, error) {
+	return a.predict(a.ctx, req)
+}
+
+// predict is Predict under a context of the caller's: a queued job's, which it
+// cancels and routes the progress of (app_jobs.go).
+func (a *App) predict(ctx context.Context, req analysis.PredictRequest) (*analysis.PredictResult, error) {
 	runner := a.currentRunner()
 	if runner == nil {
 		return nil, errors.New("runner not initialized")
 	}
-	res, err := runner.Predict(a.ctx, req)
+	res, err := runner.Predict(ctx, req)
 	if err != nil {
 		return nil, err
 	}
@@ -59,11 +66,16 @@ func (a *App) RenderComposite(req analysis.CompositeRequest) (*analysis.Composit
 // AnalyzeWater maps surface water over a period from spectral water indices.
 // Descriptive: a thresholded index, with no model and no trained legend.
 func (a *App) AnalyzeWater(req analysis.WaterRequest) (*analysis.WaterAnalysis, error) {
+	return a.analyzeWater(a.ctx, req)
+}
+
+// analyzeWater is AnalyzeWater under a context of the caller's; see predict.
+func (a *App) analyzeWater(ctx context.Context, req analysis.WaterRequest) (*analysis.WaterAnalysis, error) {
 	runner := a.currentRunner()
 	if runner == nil {
 		return nil, errors.New("runner not initialized")
 	}
-	res, err := runner.AnalyzeWater(a.ctx, req)
+	res, err := runner.AnalyzeWater(ctx, req)
 	if err != nil {
 		return nil, err
 	}

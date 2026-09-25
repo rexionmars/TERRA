@@ -21,11 +21,17 @@ import (
 
 // AnalyzeMinerals maps surface mineralogy over an area from EMIT reflectance.
 func (a *App) AnalyzeMinerals(req analysis.MineralRequest) (*analysis.MineralAnalysis, error) {
+	return a.analyzeMinerals(a.ctx, req)
+}
+
+// analyzeMinerals is AnalyzeMinerals under a context of the caller's; see
+// predict in app_analysis.go.
+func (a *App) analyzeMinerals(ctx context.Context, req analysis.MineralRequest) (*analysis.MineralAnalysis, error) {
 	runner := a.currentRunner()
 	if runner == nil {
 		return nil, errors.New("runner not initialized")
 	}
-	res, err := runner.AnalyzeMinerals(a.ctx, req, earthdataToken(a.appConfig()))
+	res, err := runner.AnalyzeMinerals(ctx, req, earthdataToken(a.appConfig()))
 	if err != nil {
 		return nil, err
 	}

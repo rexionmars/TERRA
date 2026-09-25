@@ -75,17 +75,22 @@ func (a *App) SetBoardDirty(dirty bool) {
 	a.boardDirty.Store(dirty)
 }
 
-// beforeClose asks before a close would discard an unsaved board, and reports
-// whether to prevent it. Wails routes both the window's close button and Quit
-// through here, so Cmd-Q is asked about as well.
+// beforeClose asks before a close would discard an unsaved board or cancel
+// queued analyses, and reports whether to prevent it. Wails routes both the
+// window's close button and Quit through here, so Cmd-Q is asked about as well.
 func (a *App) beforeClose(ctx context.Context) (prevent bool) {
-	if !a.boardDirty.Load() {
+	pending := 0
+	if q := a.jobQueue(); q != nil {
+		pending = q.Pending()
+	}
+	title, message := closeQuestion(a.boardDirty.Load(), pending)
+	if message == "" {
 		return false
 	}
 	answer, err := wruntime.MessageDialog(ctx, wruntime.MessageDialogOptions{
 		Type:          wruntime.QuestionDialog,
-		Title:         "Unsaved studio",
-		Message:       "The board has changes no saved studio holds. Quit without saving them?",
+		Title:         title,
+		Message:       message,
 		Buttons:       []string{"Quit", "Cancel"},
 		DefaultButton: "Cancel",
 		CancelButton:  "Cancel",
@@ -99,4 +104,31 @@ func (a *App) beforeClose(ctx context.Context) (prevent bool) {
 	// macOS returns the label of the button pressed. Windows and Linux ignore
 	// the labels and show Yes and No; Yes answers the question as asked.
 	return answer != "Quit" && answer != "Yes"
+}
+
+/*
+closeQuestion is what quitting would lose, as the dialog asks it, or an empty
+message when it would lose nothing.
+
+The queue is in memory and its jobs are not resumed: a job cancelled by quitting
+has to be queued again, which is worth one question. Its finished jobs are not
+counted, since their runs are recorded.
+*/
+func closeQuestion(boardDirty bool, pendingJobs int) (title, message string) {
+	jobs := ""
+	switch {
+	case pendingJobs == 1:
+		jobs = "One queued analysis has not finished and would be cancelled."
+	case pendingJobs > 1:
+		jobs = fmt.Sprintf("%d queued analyses have not finished and would be cancelled.", pendingJobs)
+	}
+	switch {
+	case boardDirty && jobs != "":
+		return "Unsaved studio", "The board has changes no saved studio holds. " + jobs + " Quit anyway?"
+	case boardDirty:
+		return "Unsaved studio", "The board has changes no saved studio holds. Quit without saving them?"
+	case jobs != "":
+		return "Analyses in progress", jobs + " Quit anyway?"
+	}
+	return "", ""
 }
