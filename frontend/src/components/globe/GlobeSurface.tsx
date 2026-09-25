@@ -227,6 +227,47 @@ const FIELD_LINE_COLOR = "#FFD92F"
 const FIELD_DRAFT_SOURCE = "terra-field-drafts"
 const FIELD_DRAFT_LINE = "terra-field-drafts-line"
 const IS_FIELD: ExpressionSpecification = ["boolean", ["get", "isField"], false]
+const IS_SELECTED: ExpressionSpecification = ["boolean", ["get", "selected"], false]
+
+/*
+  THE SELECTION, and why a shift-press does not zoom.
+
+  A shift-drag on a MapLibre map is its box zoom, and the handler suppresses the
+  click that ends it, so a shift-press never reaches the area's click listener.
+  The box is kept and given a different end: the areas under it are selected
+  rather than zoomed to (MapOptions.boxZoom.boxZoomEnd, MapLibre 6). A press
+  with no drag ends the box as "boxzoomcancel", which is where a shift-press is
+  read; one that moved a few pixels arrives as a box that small and is read the
+  same way, since nobody draws a box of three pixels to select through it.
+*/
+const PRESS_PX = 4
+
+/** The area a press at `point` lands on, preferring a field; see the click listener. */
+function areaAt(map: MapLibreMap, point: [number, number]): string | null {
+  const hits = map.queryRenderedFeatures(point, { layers: [AREA_FILL] })
+  const f = hits.find((h) => h.properties?.isField === true) ?? hits[0]
+  const id = f?.properties?.areaId
+  return typeof id === "string" ? id : null
+}
+
+/**
+ * The areas a box covers: its fields where it covers any, since a box is drawn
+ * over fields to take them, and the area around them is under every such box.
+ */
+function areasIn(map: MapLibreMap, a: [number, number], b: [number, number]): string[] {
+  const hits = map.queryRenderedFeatures(
+    [
+      [Math.min(a[0], b[0]), Math.min(a[1], b[1])],
+      [Math.max(a[0], b[0]), Math.max(a[1], b[1])],
+    ],
+    { layers: [AREA_FILL] }
+  )
+  const fields = hits.filter((h) => h.properties?.isField === true)
+  const ids = (fields.length ? fields : hits)
+    .map((h) => h.properties?.areaId)
+    .filter((id): id is string => typeof id === "string")
+  return [...new Set(ids)]
+}
 
 /** The custom layer's id, so it is added once and found again. */
 const RAISED_LAYER = "raised-rasters"
@@ -272,7 +313,7 @@ function toFeatureCollection(areas: readonly GlobeArea[]) {
       // Carried in properties rather than as the feature id: a feature id has
       // to be a number or a string that MapLibre may reuse for state, and this
       // is only ever read back on a press.
-      properties: { areaId: a.id, name: a.name, isField: !!a.field },
+      properties: { areaId: a.id, name: a.name, isField: !!a.field, selected: !!a.selected },
       geometry: {
         type: "MultiPolygon" as const,
         coordinates: a.parts.map((ring) => [ring]),
@@ -299,6 +340,8 @@ function nativeMax(b: Basemap): number {
 export function GlobeSurface({
   areas,
   onPickArea,
+  onBoxArea,
+  onClearSelection,
   polygon = null,
   onPolygonDrawn,
   initialView = null,
@@ -315,8 +358,18 @@ export function GlobeSurface({
    * FeatureCollection in WGS84, or null. Drawn dashed and not pressable.
    */
   fieldDrafts?: GeoJSON.FeatureCollection | null
-  /** An area was pressed. Its id, as given in `areas`. */
-  onPickArea: (id: string) => void
+  /**
+   * An area was pressed. Its id, as given in `areas`, and whether shift was
+   * held, which extends a selection rather than choosing the area.
+   */
+  onPickArea: (id: string, extend: boolean) => void
+  /**
+   * A shift-drag box was drawn: the areas under it, fields first. Absent, the
+   * box zooms as MapLibre's does.
+   */
+  onBoxArea?: (ids: string[]) => void
+  /** Escape was pressed over the globe while something is selected. */
+  onClearSelection?: () => void
   /**
    * The area in hand, which the drawing store is kept equal to.
    *
@@ -623,6 +676,10 @@ export function GlobeSurface({
 
   const pickAreaRef = useRef(onPickArea)
   pickAreaRef.current = onPickArea
+  const boxAreaRef = useRef(onBoxArea)
+  boxAreaRef.current = onBoxArea
+  const clearSelectionRef = useRef(onClearSelection)
+  clearSelectionRef.current = onClearSelection
   /** The most recent error event, which the watchdog reports if it matters. */
   const lastError = useRef<string | null>(null)
 
@@ -660,6 +717,25 @@ export function GlobeSurface({
           under the ground, so 85 is where it stops being a view of anything.
         */
         maxPitch: 85,
+        // See the note on PRESS_PX.
+        boxZoom: {
+          boxZoomEnd: (m, p0, p1) => {
+            const a: [number, number] = [p0.x, p0.y]
+            const b: [number, number] = [p1.x, p1.y]
+            if (Math.abs(a[0] - b[0]) < PRESS_PX && Math.abs(a[1] - b[1]) < PRESS_PX) {
+              const id = areaAt(m, b)
+              if (id) pickAreaRef.current(id, true)
+              return
+            }
+            const select = boxAreaRef.current
+            if (!select) {
+              m.fitScreenCoordinates(p0, p1, m.getBearing(), { linear: true })
+              return
+            }
+            const ids = areasIn(m, a, b)
+            if (ids.length) select(ids)
+          },
+        },
         style: {
           version: 8,
           // The projection, in force on the first frame. See the file's note.
@@ -826,15 +902,27 @@ export function GlobeSurface({
               id: AREA_FILL,
               type: "fill",
               source: AREA_SOURCE,
-              paint: { "fill-opacity": 0 },
+              // Transparent except where selected: the layer is what a press
+              // lands on, and an unselected area is read by its outline.
+              paint: {
+                "fill-color": "#ffffff",
+                "fill-opacity": ["case", IS_SELECTED, 0.16, 0],
+              },
             },
             {
               id: AREA_LINE,
               type: "line",
               source: AREA_SOURCE,
               paint: {
-                "line-color": ["case", IS_FIELD, FIELD_LINE_COLOR, "#ED8744"],
-                "line-width": ["case", IS_FIELD, 1, 1.5],
+                "line-color": [
+                  "case",
+                  IS_SELECTED,
+                  "#ffffff",
+                  IS_FIELD,
+                  FIELD_LINE_COLOR,
+                  "#ED8744",
+                ],
+                "line-width": ["case", IS_SELECTED, 1.5, IS_FIELD, 1, 1.5],
               },
             },
             /*
@@ -885,9 +973,11 @@ export function GlobeSurface({
     const paint = () => {
       if (!map.isStyleLoaded()) return
       const accent = token("--p-accent", "#ED8744")
-      // AREA_FILL is not repainted: it paints nothing. See its layer above.
+      // AREA_FILL is not repainted: its one colour is the selection's white.
       map.setPaintProperty(AREA_LINE, "line-color", [
         "case",
+        IS_SELECTED,
+        "#ffffff",
         IS_FIELD,
         FIELD_LINE_COLOR,
         accent,
@@ -956,7 +1046,17 @@ export function GlobeSurface({
         const hits = (e.features ?? []) as { properties?: Record<string, unknown> }[]
         const f = hits.find((h) => h.properties?.isField === true) ?? hits[0]
         const id = f?.properties?.areaId
-        if (typeof id === "string") pickAreaRef.current(id)
+        if (typeof id === "string") pickAreaRef.current(id, false)
+      })
+    )
+    // A shift-press with no drag; see the note on PRESS_PX.
+    subs.push(
+      map.on("boxzoomcancel", (e: { originalEvent?: Event }) => {
+        const ev = e.originalEvent
+        if (!(ev instanceof MouseEvent)) return
+        const rect = map.getCanvasContainer().getBoundingClientRect()
+        const id = areaAt(map, [ev.clientX - rect.left, ev.clientY - rect.top])
+        if (id) pickAreaRef.current(id, true)
       })
     )
     subs.push(
@@ -1022,7 +1122,19 @@ export function GlobeSurface({
 
     const stopPaletteWatch = onPaletteChange(paint)
 
+    /*
+      Escape over the globe clears the selection. On the host, which holds
+      the canvas MapLibre focuses on a press, so the key is read only while
+      the globe is where the reader is working.
+    */
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key !== "Escape" || !clearSelectionRef.current) return
+      clearSelectionRef.current()
+    }
+    host.addEventListener("keydown", onKey)
+
     return () => {
+      host.removeEventListener("keydown", onKey)
       window.clearTimeout(watchdog)
       stopPaletteWatch()
       // Before the map goes. React runs effect cleanups in the order their

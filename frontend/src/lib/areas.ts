@@ -110,3 +110,45 @@ export function rootOf(areas: readonly Area[], id: string | null | undefined): A
   if (!a) return null
   return a.parent_id ? (areas.find((x) => x.id === a.parent_id) ?? null) : a
 }
+
+/**
+ * A selection of areas extended by a shift-press, a box or a "select its
+ * fields": the areas a job is queued over (lib/jobs.ts).
+ *
+ * `toggle` removes the ids when every one of them is already selected and adds
+ * them otherwise, so pressing a selected field again takes it out, and "select
+ * its fields" on an area whose fields are all selected clears them. `add` only
+ * adds, which is what a box drawn over fields means.
+ *
+ * SEEDED WITH THE AREA IN USE when nothing is selected yet and it is the same
+ * kind as what was pressed: pressing field 3 and then shift-pressing field 5
+ * means both, as it does in every list and scene editor. Shift-pressing a field
+ * while its area is the one in use does not mean "the area and this field", so
+ * an area does not seed a selection of fields, nor a field one of areas.
+ *
+ * Ids no longer in `areas` are dropped, so a selection outlives neither a
+ * deleted area nor a change of project.
+ */
+export function extendSelection(
+  selection: readonly string[],
+  ids: readonly string[],
+  areas: readonly Area[],
+  activeId: string | null | undefined,
+  mode: "toggle" | "add"
+): string[] {
+  const byId = new Map(areas.map((a) => [a.id, a]))
+  const live = selection.filter((id) => byId.has(id))
+  const pressed = [...new Set(ids)].filter((id) => byId.has(id))
+  if (!pressed.length) return live
+  let base = live
+  const active = activeId ? byId.get(activeId) : undefined
+  if (!live.length && active && !pressed.includes(active.id)) {
+    if (isField(active) === isField(byId.get(pressed[0])!)) base = [active.id]
+  }
+  const have = new Set(base)
+  if (mode === "toggle" && pressed.every((id) => have.has(id))) {
+    const drop = new Set(pressed)
+    return base.filter((id) => !drop.has(id))
+  }
+  return [...base, ...pressed.filter((id) => !have.has(id))]
+}

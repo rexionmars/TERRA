@@ -31,6 +31,12 @@ export interface GlobeArea {
    * colour, and preferred when a press lands on both it and its area.
    */
   field?: boolean
+  /**
+   * In the selection the next jobs are queued over (lib/areas.ts,
+   * extendSelection). Drawn filled and white-edged, the colour the area in use
+   * is drawn in, because both mean "this is what the next run is over".
+   */
+  selected?: boolean
 }
 
 /**

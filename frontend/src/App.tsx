@@ -42,6 +42,7 @@ import {
   AdoptFields,
   GetEarthdataStatus,
   SetBoardDirty,
+  QueueJobs,
 } from "../wailsjs/go/main/App"
 import { EventsOn, EventsOff } from "../wailsjs/runtime/runtime"
 import type {
@@ -90,7 +91,8 @@ import {
   type AoiContourSchemeId,
 } from "@/lib/aoiStyle"
 import { AuthProvider, useAuth } from "@/lib/auth"
-import { toArea, toAreas, type Area } from "@/lib/areas"
+import { extendSelection, toArea, toAreas, type Area } from "@/lib/areas"
+import { countJobs, useJobs, type JobKind, type JobSpec } from "@/lib/jobs"
 
 import { ThemeSync } from "@/components/ThemeSync"
 import { TitleBar } from "@/components/TitleBar"
@@ -1635,6 +1637,157 @@ function AppBody(props: {
     return () => EventsOff("predict:progress")
   }, [])
 
+  /*
+    THE REQUESTS, built from the band's parameters over a given ground.
+
+    One builder per product, used by the band's own run over the area in hand
+    and by a queued job over each selected area. A job and a band run then
+    differ in the ground they cover and in nothing else, which holds only while
+    one function builds both: two copies of a request would drift the way two
+    copies of anything in this codebase have.
+  */
+  interface Ground {
+    polygon: GeoJSONGeometry
+    /** Which catalogued area the run is OF; see the note on area_id below. */
+    areaId?: string
+    label: string
+  }
+  const bandGround = (): Ground | null =>
+    props.customPolygon
+      ? {
+          polygon: props.customPolygon,
+          areaId: props.activeAreaId,
+          label: props.analysisLabel?.trim() || "Custom AOI",
+        }
+      : null
+
+  const predictRequest = (g: Ground): PredictRequest => ({
+    polygon_geojson: g.polygon,
+    start: props.start,
+    end: props.end,
+    max_cloud: props.maxCloud,
+    monthly_best: props.monthlyBest,
+    tiles: [],
+    mode: props.mode,
+    model_kind: props.modelKind,
+    prithvi_mode: props.prithviMode,
+    project_id: activeProjectId || undefined,
+    label: g.label,
+    run_label: nameThisRun(g.label),
+    // Which catalogued area this run is OF. Without it a drawing and the runs
+    // over it are separate subjects on the board, and the same ground is drawn
+    // once per drawing plus once per run.
+    area_id: g.areaId,
+  })
+
+  const waterRequest = (g: Ground): WaterRequest => ({
+    polygon_geojson: g.polygon,
+    start: props.start,
+    end: props.end,
+    max_cloud: props.maxCloud,
+    monthly_best: props.monthlyBest,
+    index: waterIndex,
+    label: g.label,
+    run_label: nameThisRun(g.label),
+    area_id: g.areaId,
+    project_id: activeProjectId || undefined,
+  })
+
+  const mineralRequest = (g: Ground): MineralRequest => ({
+    polygon_geojson: g.polygon,
+    start: props.start,
+    end: props.end,
+    // Zero: the sidecar's ceiling of 100%, not the period card's value.
+    // That value is chosen for Sentinel-2 scenes; an EMIT pass is scored
+    // for cloud over its whole ~75 km scene, and over the humid tropics
+    // every pass exceeds a typical card value while the area itself may be
+    // clear. Passes are read least cloudy first and cloud is excluded per
+    // cell by the EMIT mask.
+    max_cloud: 0,
+    max_scenes: mineralOptions.passes,
+    uncertainty_draws: mineralOptions.draws,
+    label: g.label,
+    run_label: nameThisRun(g.label),
+    area_id: g.areaId,
+    project_id: activeProjectId || undefined,
+  })
+
+  /*
+    THE AREAS A JOB IS QUEUED OVER: shift-pressed on the globe or in the
+    outliner, boxed with a shift-drag, or an area's fields all at once.
+
+    Apart from the area in use, which stays the one the band runs over and the
+    board shows: a selection is where the next jobs go, and making each
+    shift-pressed field the area in use would move the board to it and drop
+    whatever it was showing, once per press. A plain press activates an area
+    and clears the selection, as a plain press does in a list.
+  */
+  const [selectedAreaIds, setSelectedAreaIds] = useState<string[]>([])
+  const liveSelection = useMemo(
+    () => selectedAreaIds.filter((id) => props.areas.some((a) => a.id === id)),
+    [selectedAreaIds, props.areas]
+  )
+  const selectAreas = useCallback(
+    (ids: string[], mode: "toggle" | "add") =>
+      setSelectedAreaIds((prev) =>
+        extendSelection(prev, ids, props.areas, props.activeAreaId, mode)
+      ),
+    [props.areas, props.activeAreaId]
+  )
+  const clearSelection = useCallback(() => setSelectedAreaIds([]), [])
+
+  /*
+    The band's product over every selected area, one job each, run one after
+    another by the Go side. The band's own run stays free: a job reports on
+    its own channel (runner.go WithProgress), so the two do not share a bar.
+
+    The mineral map's token is asked for here as the band asks for it, once
+    for the whole list rather than once per job refused.
+  */
+  const handleQueueJobs = async (kind: JobKind) => {
+    const targets = liveSelection
+      .map((id) => props.areas.find((a) => a.id === id))
+      .filter((a): a is Area => !!a)
+    if (!targets.length) {
+      notifyError("Select the areas to run over: shift-press them on the globe or in the outliner.")
+      return
+    }
+    if (!props.start || !props.end) {
+      notifyError("Set the acquisition period.")
+      return
+    }
+    if (kind === "mineral") {
+      try {
+        const status = await GetEarthdataStatus()
+        if (!status.configured) {
+          notifyError(
+            "No Earthdata token is set. Add one in Settings > System (Earthdata token) to read EMIT reflectance."
+          )
+          return
+        }
+      } catch (e) {
+        notifyError("Could not read the Earthdata token status", e)
+        return
+      }
+    }
+    const specs: JobSpec[] = targets.map((a) => {
+      const g: Ground = { polygon: a.geometry, areaId: a.id, label: a.name }
+      return kind === "classify"
+        ? { kind, area_name: a.name, classify: predictRequest(g) }
+        : kind === "water"
+          ? { kind, area_name: a.name, water: waterRequest(g) }
+          : { kind, area_name: a.name, mineral: mineralRequest(g) }
+    })
+    try {
+      const queued = await QueueJobs(specs as never)
+      notifySuccess(
+        `${queued.length} ${queued.length === 1 ? "run" : "runs"} queued. Follow them in the Jobs editor; each is saved under its area as it finishes.`
+      )
+    } catch (e) {
+      notifyError("Could not queue the runs", e)
+    }
+  }
+
   const handleRunWater = async () => {
     if (!props.start || !props.end) {
       notifyError("Set the acquisition period.")
@@ -1650,22 +1803,7 @@ function AppBody(props: {
     props.setProgress(0)
     props.setProgressMsg("starting")
     try {
-      const aoiLabel = props.analysisLabel?.trim() || "Custom AOI"
-      const req: WaterRequest = {
-        polygon_geojson: props.customPolygon,
-        start: props.start,
-        end: props.end,
-        max_cloud: props.maxCloud,
-        monthly_best: props.monthlyBest,
-        index: waterIndex,
-        label: aoiLabel,
-        run_label: nameThisRun(aoiLabel),
-        // Which catalogued area this run is OF. Without it a drawing and
-        // the runs over it are separate subjects on the board, and the
-        // same ground is drawn once per drawing plus once per run.
-        area_id: props.activeAreaId,
-        project_id: activeProjectId || undefined,
-      }
+      const req = waterRequest(bandGround()!)
       const res = (await AnalyzeWater(req as never)) as unknown as WaterAnalysis
       waterAoiRef.current = aoiSignature
       setCurrentRunId(res.run_id || null)
@@ -1733,25 +1871,7 @@ function AppBody(props: {
     setMineralRun({ active: true, progress: 0, message: "starting" })
     const runAoi = aoiSignature
     try {
-      const aoiLabel = props.analysisLabel?.trim() || "Custom AOI"
-      const req: MineralRequest = {
-        polygon_geojson: props.customPolygon,
-        start: props.start,
-        end: props.end,
-        // Zero: the sidecar's ceiling of 100%, not the period card's value.
-        // That value is chosen for Sentinel-2 scenes; an EMIT pass is scored
-        // for cloud over its whole ~75 km scene, and over the humid tropics
-        // every pass exceeds a typical card value while the area itself may be
-        // clear. Passes are read least cloudy first and cloud is excluded per
-        // cell by the EMIT mask.
-        max_cloud: 0,
-        max_scenes: mineralOptions.passes,
-        uncertainty_draws: mineralOptions.draws,
-        label: aoiLabel,
-        run_label: nameThisRun(aoiLabel),
-        area_id: props.activeAreaId,
-        project_id: activeProjectId || undefined,
-      }
+      const req = mineralRequest(bandGround()!)
       const res = (await AnalyzeMinerals(req as never)) as unknown as MineralAnalysis
       // Recorded before the result, so the invalidation effect above compares
       // against the AOI this run was made on rather than dropping the map it
@@ -1944,24 +2064,7 @@ function AppBody(props: {
     // fails now costs the reader nothing, where it used to cost them the map.
     props.retainRun(props.result)
     props.setResult(null)
-    const aoiLabel = props.analysisLabel?.trim() || "Custom AOI"
-    const req: PredictRequest = {
-      polygon_geojson: props.customPolygon,
-      start: props.start,
-      end: props.end,
-      max_cloud: props.maxCloud,
-      monthly_best: props.monthlyBest,
-      tiles: [],
-      mode: props.mode,
-      model_kind: props.modelKind,
-      prithvi_mode: props.prithviMode,
-      project_id: activeProjectId || undefined,
-      label: aoiLabel,
-      run_label: nameThisRun(aoiLabel),
-      // See the note on the other requests: the board needs which area
-      // this run is of, not only where it was made.
-      area_id: props.activeAreaId,
-    }
+    const req = predictRequest(bandGround()!)
     try {
       const res = (await Predict(req as never)) as unknown as PredictResult
       props.setResult(res)
@@ -2501,6 +2604,20 @@ function AppBody(props: {
   }, [activeProjectId, refreshAreas])
 
   /*
+    A finished job has recorded a run under its area, and the lists that count
+    runs -- the hub's, the areas' run counts -- were read before it. Re-read on
+    each one that finishes, as the band's own run does after it returns.
+  */
+  const jobsDone = countJobs(useJobs()).done
+  useEffect(() => {
+    if (!jobsDone) return
+    void refreshRuns()
+    void refreshAreas(activeProjectId)
+    // Only a job finishing is the reason to re-read.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [jobsDone])
+
+  /*
     One drawn ground, written to the open project.
 
     THE REFUSAL IS THE POINT. An area used to be created wherever a shape
@@ -2788,6 +2905,7 @@ function AppBody(props: {
       props.setActiveAreaId(entry.id)
       props.setCustomPolygon(entry.geometry)
       props.setAnalysisLabel(entry.name)
+      setSelectedAreaIds([])
       setComposition(null)
       setShowCompositionOverlay(true)
       /*
@@ -3106,6 +3224,10 @@ function AppBody(props: {
                   fieldsProgress={fieldsRun.progress}
                   fieldsProgressMsg={fieldsRun.message}
                   onAdoptFields={handleAdoptFields}
+                  selectedAreaIds={liveSelection}
+                  onSelectAreas={selectAreas}
+                  onClearSelection={clearSelection}
+                  onQueueJobs={(kind) => void handleQueueJobs(kind)}
                   reveal={reveal}
                   onRevealed={() => setReveal(null)}
                   initialView={initialMapView}

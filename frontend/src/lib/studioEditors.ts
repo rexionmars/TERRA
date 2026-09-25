@@ -25,6 +25,7 @@ import {
   FlowArrow,
   GitDiff,
   Globe,
+  ListChecks,
   Graph,
   Ruler,
   SlidersHorizontal,
@@ -54,6 +55,7 @@ export type EditorId =
   | "reports"
   | "console"
   | "compositor"
+  | "jobs"
 
 /**
  * What kind of work a thing is FOR, named once for the whole studio.
@@ -408,6 +410,24 @@ export const STUDIO_EDITORS: readonly StudioEditorMeta[] = [
     minRem: 18,
     minRowRem: 4,
     hint: "Run any operator by name, with completion and history",
+  },
+  {
+    id: "jobs",
+    group: "board",
+    label: "Jobs",
+    icon: ListChecks,
+    /*
+      One line per job: a glyph, the area's name, a time and one action. The
+      Reports log's floor, which holds the same kind of line; a running job
+      adds a hairline and its last message under its own.
+    */
+    minRem: 18,
+    minRowRem: 5,
+    /*
+      Not unique. The queue is the application's, held outside React
+      (lib/jobs.ts), so two areas are two views of one list.
+    */
+    hint: "The band's product queued over selected areas: running, waiting and done",
   },
 ]
 

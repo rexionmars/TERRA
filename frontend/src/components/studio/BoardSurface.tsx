@@ -100,7 +100,7 @@ import {
   polygonFromRow,
   sameGround,
 } from "@/lib/geometry"
-import { notifyError, notifySuccess } from "@/lib/notify"
+import { notifyError, notifyInfo, notifySuccess } from "@/lib/notify"
 import { tableToCSV, type DataTable } from "@/lib/analysisTables"
 import {
   compareAccuracyDeltaTable,
@@ -138,6 +138,9 @@ function EditorEmpty({ children }: { children: React.ReactNode }) {
 }
 import { StudioBrowser } from "@/components/studio/StudioBrowser"
 import { ReportsEditor } from "@/components/studio/ReportsEditor"
+import { JobsEditor, type JobQueueParams } from "@/components/studio/JobsEditor"
+import { latestRuns, takeFinished, useJobs, type JobKind } from "@/lib/jobs"
+import { BOARD_TOOLS } from "@/lib/mapTools"
 import { ConsoleEditor } from "@/components/studio/ConsoleEditor"
 import {
   CompositorEditor,
@@ -436,6 +439,43 @@ function isSoloed(
   )
 }
 
+/*
+  A run's rasters as a run brought onto the board has them: its own, and none
+  of the map's state.
+*/
+function loadedRunAssets(result: PredictResult): RunAsset[] {
+  return runAssets({
+    result,
+    composition: null,
+    compositionGallery: [],
+    /*
+      The run's OWN water, which travels in its payload when that product
+      was made over the same AOI (PredictResult.water). It was being
+      dropped here while the map screen's identical call kept it, so a
+      second area on the board listed a classification and nothing else --
+      the raster existed in hand and the tree did not mention it.
+    */
+    water: result.water,
+    mineral: result.mineral,
+    fields: result.fields,
+    // A loaded run brings its own rasters and none of the map's state:
+    // nothing here is drawn on the map, so nothing here has a switch there.
+    showCompositionOverlay: false,
+    showWaterOverlay: false,
+    composeOpacity: 1,
+    waterOpacity: 1,
+  })
+}
+
+/**
+ * The raster that is a run's answer: its first that can be a plane. runAssets
+ * lists each product's answer first -- the class map, the water occurrence,
+ * the first mineral group -- ahead of the rasters it was read from.
+ */
+function answerOf(assets: readonly RunAsset[]): string | null {
+  return assets.find((a) => a.sceneId)?.sceneId ?? null
+}
+
 export function BoardSurface({
   layers,
   retainedRuns = [],
@@ -480,6 +520,10 @@ export function BoardSurface({
   onClearMineral,
   fieldsResult = null,
   onAdoptFields,
+  selectedAreaIds = [],
+  onSelectAreas,
+  onClearSelection,
+  jobQueue,
   reveal = null,
   onRevealed,
 }: {
@@ -640,6 +684,16 @@ export function BoardSurface({
    */
   fieldsResult?: import("@/lib/types").FieldsAnalysis | null
   onAdoptFields?: (runId: string, minHa: number, minCropland: number, replace: boolean) => Promise<boolean>
+  /**
+   * The areas the next jobs are queued over, and how the globe and the
+   * outliner change them: a shift-press toggles one, a shift-drag on the globe
+   * adds the fields inside the box (App.tsx, selectAreas).
+   */
+  selectedAreaIds?: string[]
+  onSelectAreas?: (ids: string[], mode: "toggle" | "add") => void
+  onClearSelection?: () => void
+  /** The band's parameters a queue from the Jobs editor runs with; see JobsEditor. */
+  jobQueue?: Omit<JobQueueParams, "selected">
   /**
    * An editor a just-finished run needs on screen, or null.
    *
@@ -1611,8 +1665,12 @@ export function BoardSurface({
           composition: null,
           compositionGallery: [],
           water: r.result.water,
-          // A mineral run's class maps travel in its payload the same way.
+          // A mineral run's class maps travel in its payload the same way,
+          // and so do a delineation's rasters: without them a delineation the
+          // map had moved on from listed no raster, and its compositor node
+          // named its class map as missing.
           mineral: r.result.mineral,
+          fields: r.result.fields,
           showCompositionOverlay: false,
           showWaterOverlay: false,
           composeOpacity: 1,
@@ -1631,26 +1689,7 @@ export function BoardSurface({
         result.date_range?.length === 2
           ? `${result.date_range[0]} → ${result.date_range[1]}`
           : `${run.period_start} → ${run.period_end}`,
-      assets: runAssets({
-        result,
-        composition: null,
-        compositionGallery: [],
-        /*
-          The run's OWN water, which travels in its payload when that product
-          was made over the same AOI (PredictResult.water). It was being
-          dropped here while the map screen's identical call kept it, so a
-          second area on the board listed a classification and nothing else --
-          the raster existed in hand and the tree did not mention it.
-        */
-        water: result.water,
-        mineral: result.mineral,
-        // A loaded run brings its own rasters and none of the map's state:
-        // nothing here is drawn on the map, so nothing here has a switch there.
-        showCompositionOverlay: false,
-        showWaterOverlay: false,
-        composeOpacity: 1,
-        waterOpacity: 1,
-      }),
+      assets: loadedRunAssets(result),
     })),
   ]
 
@@ -2255,6 +2294,103 @@ export function BoardSurface({
       ...prev,
       [areaId]: (prev[areaId] ?? []).filter((x) => x !== id),
     }))
+  }
+
+  /*
+    RUNS PUT ON THE BOARD BY ID, each with its answer on the globe: a finished
+    job's, or the latest run of each selected area (JobsEditor).
+
+    A job records a run under its area and nothing more, so ten finished jobs
+    left the board and the globe as they were: the runs existed and nothing on
+    screen said so. Each run shown here joins the board as a run from the
+    picker does, and its first raster -- the product's answer: the class map,
+    the water occurrence, the first mineral group -- is put in the scene and
+    sent to the globe, where it lands over the field it was made for.
+
+    Asked for by id and resolved against the run list, which a job's run
+    reaches only once App has re-read it; an id the list does not hold yet
+    waits for it.
+  */
+  const [runsToShow, setRunsToShow] = useState<readonly string[]>([])
+  const showRuns = useCallback((ids: readonly string[]) => {
+    if (ids.length) setRunsToShow((prev) => [...new Set([...prev, ...ids])])
+  }, [])
+  const assetRunsRef = useRef(assetRuns)
+  assetRunsRef.current = assetRuns
+  const addToSceneRef = useRef(addToScene)
+  addToSceneRef.current = addToScene
+  useEffect(() => {
+    const ready = runsToShow.filter((id) => runs.some((r) => r.id === id))
+    if (!ready.length) return
+    setRunsToShow((prev) => prev.filter((id) => !ready.includes(id)))
+    void (async () => {
+      const placed: { areaId: string; layerId: string }[] = []
+      const loaded: { run: InferenceRun; result: PredictResult }[] = []
+      setLoadingRun(true)
+      try {
+        for (const id of ready) {
+          const onBoard = assetRunsRef.current.find((r) => r.runId === id)
+          if (onBoard) {
+            const layerId = answerOf(onBoard.assets)
+            if (layerId) placed.push({ areaId: onBoard.areaId, layerId })
+            continue
+          }
+          const run = runs.find((r) => r.id === id)!
+          try {
+            const result = (await LoadAnalysis(id)) as unknown as PredictResult
+            loaded.push({ run, result })
+            const layerId = answerOf(loadedRunAssets(result))
+            // A loaded run's own id names its area; see assetRuns.
+            if (layerId) placed.push({ areaId: run.id, layerId })
+          } catch (e) {
+            notifyError(`Could not load ${displayRunLabel(run.label ?? "")}`, e)
+          }
+        }
+      } finally {
+        setLoadingRun(false)
+      }
+      if (loaded.length) {
+        setExtraRuns((prev) => [
+          ...prev,
+          ...loaded.filter((x) => !prev.some((p) => p.run.id === x.run.id)),
+        ])
+      }
+      for (const p of placed) addToSceneRef.current(p.areaId, p.layerId)
+      if (placed.length) {
+        setSentToGlobe((prev) => {
+          const next = new Set(prev)
+          for (const p of placed) next.add(sceneKey(p.areaId, p.layerId))
+          return next
+        })
+      }
+    })()
+    // setExtraRuns is useKept's setter and keeps its identity.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [runsToShow, runs])
+
+  // Each job that finishes puts its run on the board, once; see takeFinished.
+  const jobs = useJobs()
+  useEffect(() => {
+    const fresh = takeFinished(jobs)
+    if (fresh.length) showRuns(fresh.map((j) => j.run_id))
+  }, [jobs, showRuns])
+
+  /*
+    The latest run of a product over each selected area, for "Show" in the
+    Jobs editor: the queue forgets its jobs when the application closes, the
+    runs they recorded do not.
+  */
+  const showLatest = (kind: JobKind) => {
+    const { ids, missing } = latestRuns(runs, selectedAreaIds, kind)
+    const product = BOARD_TOOLS.find((t) => t.id === kind)?.label.toLowerCase() ?? kind
+    if (!ids.length) {
+      notifyError(`None of the ${selectedAreaIds.length} selected areas has a ${product} run.`)
+      return
+    }
+    showRuns(ids)
+    if (missing) {
+      notifyInfo(`${ids.length} shown; ${missing} of the selected areas ${missing === 1 ? "has" : "have"} no ${product} run.`)
+    }
   }
 
   /**
@@ -4127,14 +4263,16 @@ export function BoardSurface({
     A field follows its area on and off the board: fields are ground inside
     an area, and an area taken off leaves nothing for them to be inside.
   */
-  const globeAreas = useMemo<GlobeArea[]>(
-    () =>
-      catalogAreas
-        .filter((a) => !offBoard.has(a.id) && !(a.parent_id && offBoard.has(a.parent_id)))
-        .map((a) => toGlobeArea(`aoi:${a.id}`, a.name, a.geometry, !!a.parent_id))
-        .filter((a): a is GlobeArea => a !== null),
-    [catalogAreas, offBoard]
-  )
+  const globeAreas = useMemo<GlobeArea[]>(() => {
+    const selected = new Set(selectedAreaIds)
+    return catalogAreas
+      .filter((a) => !offBoard.has(a.id) && !(a.parent_id && offBoard.has(a.parent_id)))
+      .map((a) => {
+        const g = toGlobeArea(`aoi:${a.id}`, a.name, a.geometry, !!a.parent_id)
+        return g && selected.has(a.id) ? { ...g, selected: true } : g
+      })
+      .filter((a): a is GlobeArea => a !== null)
+  }, [catalogAreas, offBoard, selectedAreaIds])
 
   /*
     The delineation's polygons while they are only proposed. Once any field
@@ -4285,7 +4423,17 @@ export function BoardSurface({
           spreadM={mapSpreadM}
           onSpreadChange={setMapSpreadM}
           areas={globeAreas}
-          onPickArea={(id) => onActivateArea?.(id.slice(id.indexOf(":") + 1))}
+          onPickArea={(id, extend) => {
+            const areaId = id.slice(id.indexOf(":") + 1)
+            if (extend && onSelectAreas) onSelectAreas([areaId], "toggle")
+            else onActivateArea?.(areaId)
+          }}
+          onBoxArea={
+            onSelectAreas
+              ? (ids) => onSelectAreas(ids.map((id) => id.slice(id.indexOf(":") + 1)), "add")
+              : undefined
+          }
+          onClearSelection={selectedAreaIds.length ? onClearSelection : undefined}
           polygon={customPolygon}
           onPolygonDrawn={onPolygonDrawn}
           overlays={globeOverlays}
@@ -4354,6 +4502,9 @@ export function BoardSurface({
               />
             }
             sceneIds={sceneIds}
+            selectedAreaIds={selectedAreaIds}
+            onSelectAreas={onSelectAreas}
+            onClearSelection={onClearSelection}
             onAddToScene={addToScene}
             onRemoveFromScene={removeFromScene}
             globe={{
@@ -4501,6 +4652,20 @@ export function BoardSurface({
     // The log is the application's, not the board's; this area only shows it.
     reports: <ReportsEditor surface={surfaceRef.current} />,
     console: <ConsoleEditor />,
+    /*
+      The queue is the application's, as the log is; this area shows it and
+      opens a finished job's run the way the browser opens one, over its area.
+    */
+    jobs: (
+      <JobsEditor
+        queue={
+          jobQueue
+            ? { ...jobQueue, selected: selectedAreaIds.length, onShow: showLatest }
+            : undefined
+        }
+        onShow={showRuns}
+      />
+    ),
     compositor: (
       <CompositorEditor
         runs={assetRuns}
