@@ -5,6 +5,7 @@ import {analysis} from '../models';
 import {geocode} from '../models';
 import {main} from '../models';
 import {pyenv} from '../models';
+import {jobs} from '../models';
 
 export function AdoptFields(arg1:string,arg2:number,arg3:number,arg4:boolean):Promise<Array<store.Area>>;
 
@@ -22,11 +23,17 @@ export function AnalyzeWater(arg1:analysis.WaterRequest):Promise<analysis.WaterA
 
 export function BuildManagedEnvironment(arg1:string):Promise<void>;
 
+export function CancelAllJobs():Promise<void>;
+
 export function CancelEnvironmentBuild():Promise<void>;
+
+export function CancelJob(arg1:string):Promise<void>;
 
 export function ChooseBackupArchive():Promise<store.RestorePreview>;
 
 export function ClearAvatar():Promise<store.User>;
+
+export function ClearJobs():Promise<void>;
 
 export function CreateArea(arg1:string,arg2:string,arg3:string):Promise<store.Area>;
 
@@ -82,6 +89,8 @@ export function ListAreas(arg1:string):Promise<Array<store.Area>>;
 
 export function ListDataCube(arg1:analysis.DataCubeRequest):Promise<analysis.DataCubeResult>;
 
+export function ListJobs():Promise<Array<jobs.Job>>;
+
 export function ListOptionalPackages():Promise<Array<pyenv.OptionalPackage>>;
 
 export function ListProjectOverlays(arg1:string):Promise<Array<store.ProjectOverlay>>;
@@ -110,6 +119,8 @@ export function Predict(arg1:analysis.PredictRequest):Promise<analysis.PredictRe
 
 export function PurgeOrphanedRunAssets():Promise<store.PurgeResult>;
 
+export function QueueJobs(arg1:Array<main.JobSpec>):Promise<Array<jobs.Job>>;
+
 export function Register(arg1:string,arg2:string,arg3:string):Promise<store.User>;
 
 export function RenameStudio(arg1:string,arg2:string):Promise<void>;
@@ -117,6 +128,8 @@ export function RenameStudio(arg1:string,arg2:string):Promise<void>;
 export function RenderComposite(arg1:analysis.CompositeRequest):Promise<analysis.CompositeResult>;
 
 export function RestoreBackup(arg1:string):Promise<store.RestoreResult>;
+
+export function RetryJob(arg1:string):Promise<void>;
 
 export function RevealMainWindow():Promise<void>;
 

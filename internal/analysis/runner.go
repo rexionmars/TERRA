@@ -37,6 +37,34 @@ var emitProgress = func(ctx context.Context, event string, data ...any) {
 	wruntime.EventsEmit(ctx, event, data...)
 }
 
+type progressSinkKey struct{}
+
+/*
+WithProgress sends the progress of every sidecar call made under ctx to report
+instead of the shared "predict:progress" event.
+
+A queued job needs this and a run from the band does not. The shared event
+carries no subject: the interface decides which display a line belongs to from
+which run it has in flight, which holds while there is one. A job runs beside
+whatever the band starts, and its lines on that event would move the band's
+bar. Carried on the context rather than as a parameter because the context
+already reaches the one place a line is read, through every product's method,
+and a parameter would have to be threaded through each of them.
+*/
+func WithProgress(ctx context.Context, report func(ProgressEvent)) context.Context {
+	return context.WithValue(ctx, progressSinkKey{}, report)
+}
+
+// reportProgress hands one progress line to whoever ctx names, or to the shared
+// event when it names no one.
+func reportProgress(ctx context.Context, ev ProgressEvent) {
+	if report, ok := ctx.Value(progressSinkKey{}).(func(ProgressEvent)); ok && report != nil {
+		report(ev)
+		return
+	}
+	emitProgress(ctx, "predict:progress", ev)
+}
+
 // Runner locates the repo, the Python interpreter, the model and the sidecar
 // script, and runs inference requests.
 type Runner struct {
@@ -1059,7 +1087,7 @@ func (r *Runner) runSidecarJSONEnv(ctx context.Context, reqBytes []byte, extraEn
 			if err := json.Unmarshal([]byte(line), &ev); err != nil {
 				// Kept, so a crash without a structured error can still say why.
 				tail.add(line)
-				emitProgress(ctx, "predict:progress", ProgressEvent{Progress: -1, Msg: line})
+				reportProgress(ctx, ProgressEvent{Progress: -1, Msg: line})
 				continue
 			}
 			if ev.Error != "" {
@@ -1070,7 +1098,7 @@ func (r *Runner) runSidecarJSONEnv(ctx context.Context, reqBytes []byte, extraEn
 			if ev.Progress != nil {
 				p = *ev.Progress
 			}
-			emitProgress(ctx, "predict:progress", ProgressEvent{Progress: p, Msg: ev.Msg})
+			reportProgress(ctx, ProgressEvent{Progress: p, Msg: ev.Msg})
 		}
 		// Scan stops on error as well as at EOF. A traceback line over the
 		// 1 MB cap is the one that happens, and it used to end the loop
