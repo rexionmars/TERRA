@@ -43,6 +43,7 @@ import {
   Pentagon,
   Polygon,
   Plus,
+  SelectionPlus,
   Stack,
   Trash,
   type Icon,
@@ -239,6 +240,9 @@ function AreasPane({
   onUseArea,
   onRenameArea,
   onDeleteArea,
+  picked = [],
+  onSelectAreas,
+  onClearSelection,
 }: {
   areas: AreaInfo[]
   activeRow: string | null
@@ -246,7 +250,12 @@ function AreasPane({
   onUseArea?: (id: string) => void
   onRenameArea?: (id: string, name: string) => void
   onDeleteArea?: (id: string, title: string) => void
+  /** Catalog ids selected for the next jobs; see BoardSidebar's prop. */
+  picked?: readonly string[]
+  onSelectAreas?: (ids: string[], mode: "toggle" | "add") => void
+  onClearSelection?: () => void
 }) {
+  const pickedSet = new Set(picked)
   const [editing, setEditing] = useState<string | null>(null)
   const [draft, setDraft] = useState("")
   /*
@@ -280,7 +289,9 @@ function AreasPane({
             depth === 0 ? "pl-2" : "pl-7",
             activeRow === stackRow(a.id)
               ? "bg-selected"
-              : "hover:bg-hover"
+              : a.catalogId && pickedSet.has(a.catalogId)
+                ? "bg-accent-dim inset-ring-1 inset-ring-accent"
+                : "hover:bg-hover"
           )}
         >
           {depth === 0 && (
@@ -337,14 +348,27 @@ function AreasPane({
           ) : (
             <button
               type="button"
-              onClick={() => onActivate(stackRow(a.id))}
+              onClick={(e) => {
+                // Shift selects for a job, as it does on the globe.
+                if (e.shiftKey && a.catalogId && onSelectAreas) {
+                  onSelectAreas([a.catalogId], "toggle")
+                  return
+                }
+                onActivate(stackRow(a.id))
+              }}
               onDoubleClick={() => {
                 if (!a.catalogId || !onRenameArea) return
                 setEditing(a.id)
                 setDraft(a.title)
               }}
               className="flex min-w-0 flex-1 flex-col text-left"
-              title={a.catalogId ? "Double-click to rename" : undefined}
+              title={
+                a.catalogId
+                  ? onSelectAreas
+                    ? "Double-click to rename; shift-press to select for a job"
+                    : "Double-click to rename"
+                  : undefined
+              }
             >
               <span className="truncate text-meta text-foreground">
                 {a.title}
@@ -357,6 +381,30 @@ function AreasPane({
               </span>
             </button>
           )}
+          {/*
+            ALL OF AN AREA'S FIELDS AT ONCE, which is what a delineation of
+            several hundred is followed by: the same question asked of each.
+            Pressed again with every one selected, it takes them out.
+          */}
+          {kids.length > 0 && onSelectAreas && (() => {
+            const ids = kids.map((k) => k.catalogId).filter((id): id is string => !!id)
+            const all = ids.length > 0 && ids.every((id) => pickedSet.has(id))
+            return (
+              <button
+                type="button"
+                onClick={() => onSelectAreas(ids, "toggle")}
+                disabled={!ids.length}
+                title={all ? `Deselect its ${ids.length} fields` : `Select its ${ids.length} fields for a job`}
+                aria-pressed={all}
+                className={cn(
+                  "shrink-0 rounded-sm p-1 transition-colors hover:bg-hover",
+                  all ? "text-accent" : "text-muted-foreground hover:text-foreground"
+                )}
+              >
+                <SelectionPlus className="size-3" />
+              </button>
+            )
+          })()}
           {onUseArea && !a.current && a.vertices !== null && (
             <button
               type="button"
@@ -407,6 +455,22 @@ function AreasPane({
       {areas.length === 0 && (
         <li className="px-2 py-3 text-meta text-muted-foreground">
           No geometry yet. Draw one from the Area group on the band below.
+        </li>
+      )}
+      {picked.length > 0 && (
+        <li className="flex items-center gap-2 px-2 pb-1 text-meta text-muted-foreground">
+          <span className="telemetry min-w-0 flex-1 truncate">
+            {picked.length} selected for a job
+          </span>
+          {onClearSelection && (
+            <button
+              type="button"
+              onClick={onClearSelection}
+              className="shrink-0 rounded-sm px-1.5 py-0.5 transition-colors hover:bg-hover hover:text-foreground"
+            >
+              Clear
+            </button>
+          )}
         </li>
       )}
       {roots.map((a) => {
@@ -568,6 +632,9 @@ export function BoardSidebar({
   onRemoveComposition,
   hideInvisible = false,
   compositorRows = [],
+  selectedAreaIds = [],
+  onSelectAreas,
+  onClearSelection,
 }: {
   /**
    * The areas on the board, each with its own stack, bottom first.
@@ -756,6 +823,16 @@ export function BoardSidebar({
     onToggle: () => void
     onRemove: () => void
   }[]
+  /**
+   * The catalog areas selected for the next jobs (App.tsx, selectAreas).
+   *
+   * Not `selection`, which is the order of the scene rows a shift-press builds
+   * in the scene tab. The Areas tab lists ground, not planes, and shift there
+   * selects ground for a job, as it does on the globe.
+   */
+  selectedAreaIds?: readonly string[]
+  onSelectAreas?: (ids: string[], mode: "toggle" | "add") => void
+  onClearSelection?: () => void
 }) {
   /*
     Every row the scene tree has, open or not, for every area on the board.
@@ -1228,6 +1305,9 @@ export function BoardSidebar({
           onUseArea={onUseArea}
           onRenameArea={onRenameArea}
           onDeleteArea={onDeleteArea}
+          picked={selectedAreaIds}
+          onSelectAreas={onSelectAreas}
+          onClearSelection={onClearSelection}
         />
       ) : mode === "scene" ? (
         /*

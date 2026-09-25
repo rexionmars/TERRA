@@ -301,6 +301,11 @@ export const STUDIO_WORKSPACES: readonly StudioWorkspace[] = [
       with a delineation -- filtering its fields, making them areas, saving
       them -- is nodes in the compositor beside it rather than a panel of
       figures: the delineation's own nodes are placed there when it finishes.
+
+      The jobs under the compositor, because what follows a delineation is the
+      same question asked of every field: the fields are shift-selected on the
+      globe, the band's product is queued over them, and this is where the
+      queue is followed.
     */
     build: () =>
       row(
@@ -313,7 +318,12 @@ export const STUDIO_WORKSPACES: readonly StudioWorkspace[] = [
           leaf("a-globe", "globe"),
           leaf("a-outliner", "outliner")
         ),
-        leaf("a-compositor", "compositor")
+        col(
+          "w-fields-right",
+          0.7,
+          leaf("a-compositor", "compositor"),
+          leaf("a-jobs", "jobs")
+        )
       ),
   },
 ]

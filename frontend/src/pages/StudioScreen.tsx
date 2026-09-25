@@ -29,6 +29,7 @@ import type { AoiContourSchemeId } from "@/lib/aoiStyle";
 import { isMapTool, type BoardToolId } from "@/lib/mapTools";
 import { isMineralLayer, type MineralRunOptions } from "@/lib/mineral";
 import { fieldWindows, isFieldLayer, MIN_PERIOD_DAYS } from "@/lib/fields";
+import { isJobKind, type JobKind } from "@/lib/jobs";
 import { cn } from "@/lib/utils";
 import { CaretDown, Database } from "@phosphor-icons/react";
 import { BoardRunGraph, TOOL_ICON } from "@/components/studio/BoardRunGraph";
@@ -56,7 +57,7 @@ import {
   partitionVars,
 } from "@/lib/boardPartition";
 import { rasterLayers } from "@/lib/mapLayers";
-import { runAssets } from "@/lib/runAssets";
+import { modelLabel, runAssets } from "@/lib/runAssets";
 import { useRunLog } from "@/lib/runLog";
 import { polygonOuterRing } from "@/lib/geometry";
 import type { BasemapKind } from "@/lib/basemaps";
@@ -271,6 +272,15 @@ export interface StudioScreenProps {
   fieldsProgress?: number;
   fieldsProgressMsg?: string;
   onAdoptFields?: (runId: string, minHa: number, minCropland: number, replace: boolean) => Promise<boolean>;
+  /**
+   * The areas the next jobs are queued over (App.tsx, selectAreas), and the
+   * queueing itself. While any is selected the band queues its product over
+   * them rather than running it over the area in hand.
+   */
+  selectedAreaIds?: string[];
+  onSelectAreas?: (ids: string[], mode: "toggle" | "add") => void;
+  onClearSelection?: () => void;
+  onQueueJobs?: (kind: JobKind) => void;
   reveal?: EditorId | null;
   onRevealed?: () => void;
   waterIndex: WaterIndex;
@@ -680,6 +690,31 @@ export function StudioScreen(props: StudioScreenProps) {
         : run;
 
   /*
+    THE BAND OVER A SELECTION: the same product and parameters, queued over
+    every selected area instead of run over the one in hand.
+
+    Not busy while the band's own run is: a job runs on its own channel and
+    beside it, so there is nothing to wait for, and the parameters stay
+    editable for the next list. The run in progress keeps its strip at the foot
+    (runLog below reads boardRun, not this). The delineation and the
+    compositions are not queued -- one makes the fields the queue is for, the
+    other is a view of one scene -- so with either chosen the band runs as it
+    does without a selection.
+  */
+  const selection = props.selectedAreaIds ?? [];
+  const queueKind = selection.length && props.onQueueJobs && isJobKind(bandTool) ? bandTool : null;
+  const bandRun = queueKind
+    ? {
+        running: false,
+        progress: 0,
+        progressMsg: "",
+        label: `Queue ${selection.length} ${selection.length === 1 ? "run" : "runs"}`,
+        canRun: !!props.start && !!props.end,
+        onRun: () => props.onQueueJobs?.(queueKind),
+      }
+    : boardRun;
+
+  /*
     What the run in progress has said. Built from the SAME resolved run the band
     reports, so the log cannot come from one product while the button reports
     another.
@@ -1061,13 +1096,15 @@ export function StudioScreen(props: StudioScreenProps) {
         and this graph. Two resolutions of "can this go" would be two
         answers.
       */
-      runLabel={boardRun.label}
-      running={boardRun.running}
-      progress={boardRun.progress}
-      progressMsg={boardRun.progressMsg}
-      canRun={boardRun.canRun}
+      runLabel={bandRun.label}
+      running={bandRun.running}
+      progress={bandRun.progress}
+      progressMsg={bandRun.progressMsg}
+      canRun={bandRun.canRun}
       blockedBy={
-        !props.hasArea
+        queueKind
+          ? "Set the acquisition period: every queued run reads it."
+          : !props.hasArea
           ? "Draw an area on the globe, or bring one in from the Areas tab."
           : (bandTool === "mineral" && props.mineralBusy) ||
               (bandTool === "fields" && props.fieldsBusy)
@@ -1082,7 +1119,7 @@ export function StudioScreen(props: StudioScreenProps) {
                 ? "List the scenes for this period and choose one."
                 : undefined
       }
-      onRun={boardRun.onRun}
+      onRun={bandRun.onRun}
       onAnalyzeLULC={props.onAnalyzeLULC}
       lulcRunning={props.lulcRunning}
       /*
@@ -1290,6 +1327,19 @@ export function StudioScreen(props: StudioScreenProps) {
           onClearMineral={props.onClearMineral}
           fieldsResult={props.fields}
           onAdoptFields={props.onAdoptFields}
+          selectedAreaIds={props.selectedAreaIds}
+          onSelectAreas={props.onSelectAreas}
+          onClearSelection={props.onClearSelection}
+          jobQueue={
+            props.onQueueJobs
+              ? {
+                  start: props.start,
+                  end: props.end,
+                  model: modelLabel(props.modelKind),
+                  onQueue: props.onQueueJobs,
+                }
+              : undefined
+          }
           reveal={props.reveal}
           onRevealed={props.onRevealed}
           /*
