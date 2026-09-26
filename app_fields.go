@@ -1,6 +1,7 @@
 package main
 
 import (
+	"encoding/base64"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -130,9 +131,16 @@ func loadFieldsRun(run *store.InferenceRun, assetsDir string) *analysis.FieldsAn
 		{fieldsWindowAPNG, &fields.WindowAURI},
 		{fieldsWindowBPNG, &fields.WindowBURI},
 	} {
-		if uri, err := store.ReadFileDataURI(filepath.Join(assetsDir, img.file), "image/png"); err == nil {
-			*img.dst = uri
+		data, err := os.ReadFile(filepath.Join(assetsDir, img.file))
+		if err != nil {
+			continue
 		}
+		// Saved before the sidecar cut its rasters to the area; see
+		// app_fields_mask.go. Shown uncut rather than not at all if it fails.
+		if cut, err := maskPNGToArea(data, fields.Extent, run.PolygonGeoJSON); err == nil {
+			data = cut
+		}
+		*img.dst = "data:image/png;base64," + base64.StdEncoding.EncodeToString(data)
 	}
 	fields.ClassesTIF = ""
 	tif := filepath.Join(assetsDir, fieldsClassesTIF)

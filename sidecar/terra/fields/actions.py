@@ -187,14 +187,20 @@ def delineate(req: protocol.Request, work_dir: Path) -> None:
     protocol.emit_progress(95, 'writing outputs')
     fields_path = work_dir / 'fields.geojson'
     fields_path.write_text(json.dumps({'type': 'FeatureCollection', 'features': features}))
+    # CUT TO THE AREA, as the polygons are. The margin was read so the network
+    # saw the fields along the edge whole; it is not part of the product, and
+    # drawn it made the layer the area's bounding box plus buffer_m, not the
+    # area. The grid keeps its extent, so every raster still lines up with it.
+    shown = classes.copy()
+    shown[~inside] = NODATA_CLASS
     classes_png = work_dir / 'field_classes.png'
-    composite.write_rgba_png(_class_rgba(classes), classes_png)
+    composite.write_rgba_png(_class_rgba(shown), classes_png)
     classes_tif = work_dir / 'field_classes.tif'
-    _write_classes_tif(classes, grid, classes_tif)
+    _write_classes_tif(shown, grid, classes_tif)
     window_a_png = work_dir / 'window_a.png'
     window_b_png = work_dir / 'window_b.png'
     for bands, out in ((bands_a, window_a_png), (bands_b, window_b_png)):
-        composite.write_rgba_png(_true_colour_rgba(bands, (bands > 0).all(axis=0)), out)
+        composite.write_rgba_png(_true_colour_rgba(bands, inside & (bands > 0).all(axis=0)), out)
 
     in_area = inside & valid
     n_in = int(in_area.sum())
