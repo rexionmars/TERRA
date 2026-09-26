@@ -64,15 +64,6 @@ function htmlConstants(): Plugin {
       }
       html = html.replace('__BRAND_TAGLINE__', brand[1])
 
-      // The release name, so the pre-bundle splash carries it too rather than
-      // having it appear a beat later when React mounts.
-      const release = fs
-        .readFileSync(brandSource, 'utf8')
-        .match(/export const RELEASE_NAME = "([^"]+)"/)
-      if (!release) {
-        throw new Error('RELEASE_NAME not found in brand.ts')
-      }
-      html = html.replace('__RELEASE_NAME__', release[1])
       // Every path must exist, or the splash paints nothing and the only
       // symptom is a dark window at launch.
       for (const img of images) {

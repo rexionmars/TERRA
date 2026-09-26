@@ -78,8 +78,7 @@
 </head>
 <body>
 <!-- The splash until React mounts. The same markup SplashScreen.tsx renders,
-     without the orbit: that one is SMIL, and a copy here would restart under
-     the React one at the handoff. -->
+     without the version: that comes from the Go side, which React asks. -->
 <div id="splash" class="splash" aria-hidden="true">
   <div class="splash__still"></div>
   <div class="splash__scrim"></div>
@@ -87,9 +86,6 @@
   <div class="splash__bar">
     <span class="splash__state"><span class="splash__dot"></span>Booting</span>
     <span class="splash__spacer"></span>
-    <!-- The release name, fixed for the version. React adds the version number
-         to it once the Go side answers. -->
-    <span>__RELEASE_NAME__</span>
   </div>
   <div class="splash__body">
     <div class="splash__lockup">

@@ -53,7 +53,6 @@ import {
   type Icon,
 } from "@phosphor-icons/react"
 
-import { RELEASE_NAME } from "@/lib/brand"
 import { notifyError, notifyInfo } from "@/lib/notify"
 import { report } from "@/lib/reports"
 
@@ -216,7 +215,7 @@ const DEFS = {
     icon: ImageSquare,
   },
   RELEASE_NOTES: {
-    label: `What\u2019s new in ${RELEASE_NAME}`,
+    label: "What\u2019s new",
     description: "The notes for the release that is running",
     menu: "Studio",
     icon: Sparkle,
