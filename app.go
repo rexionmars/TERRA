@@ -44,6 +44,8 @@ type App struct {
 	bootMu      sync.Mutex
 	bootLogs    []string
 	bootStarted time.Time
+	// What the splash's status reads; see setBootState.
+	bootState string
 
 	// Whether the board holds changes no saved studio does. Reported by the
 	// interface through SetBoardDirty, read by beforeClose; see app_studios.go.
@@ -139,6 +141,34 @@ func (a *App) GetBootLogs() []string {
 	out := make([]string, len(a.bootLogs))
 	copy(out, a.bootLogs)
 	return out
+}
+
+/*
+setBootState records what the splash's status says and tells it.
+
+"booting" until the sidecar probe answers, then "ready" or "failed". The
+status used to read "Booting" for the whole splash while the line under it
+already said the sidecar had answered; the two now come from one place. Held
+here as well as sent, because the splash can mount after the probe has
+answered and asks for it then.
+*/
+func (a *App) setBootState(state string) {
+	a.bootMu.Lock()
+	a.bootState = state
+	a.bootMu.Unlock()
+	if a.ctx != nil {
+		wruntime.EventsEmit(a.ctx, "boot:state", state)
+	}
+}
+
+// GetBootState returns the splash's status: "booting", "ready" or "failed".
+func (a *App) GetBootState() string {
+	a.bootMu.Lock()
+	defer a.bootMu.Unlock()
+	if a.bootState == "" {
+		return "booting"
+	}
+	return a.bootState
 }
 
 // RevealMainWindow expands from the splash size into the main app chrome
@@ -257,6 +287,7 @@ func (a *App) probeSidecar(ctx context.Context) {
 	if runner == nil {
 		a.bootLog("sidecar unavailable")
 		ok = false
+		a.setBootState("failed")
 	} else {
 		probeCtx, cancel := context.WithTimeout(ctx, 8*time.Second)
 		defer cancel()
@@ -264,8 +295,10 @@ func (a *App) probeSidecar(ctx context.Context) {
 		if err != nil {
 			a.bootLog("sidecar probe: " + err.Error())
 			ok = false
+			a.setBootState("failed")
 		} else {
 			a.bootLog(line)
+			a.setBootState("ready")
 		}
 	}
 
@@ -295,7 +328,8 @@ func (a *App) probeSidecar(ctx context.Context) {
 			timer.Stop()
 		}
 	}
-	a.bootLog("ready")
+	// No closing "ready" line: the status says it, and the last line the
+	// splash shows stays the interpreter that answered.
 	// Frontend fades the splash out, then calls RevealMainWindow.
 	wruntime.EventsEmit(ctx, "boot:ready", ok)
 }

@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react"
 import { EventsOn, EventsOff } from "../../wailsjs/runtime/runtime"
-import { GetAppVersion, GetBootLogs } from "../../wailsjs/go/main/App"
+import { GetAppVersion, GetBootLogs, GetBootState } from "../../wailsjs/go/main/App"
 import {
   SPLASH_CURRENT_KEY,
   SPLASH_IMAGES,
@@ -9,6 +9,19 @@ import {
   claimSplashSlideForLaunch,
 } from "@/lib/splashBackground"
 import { BRAND_TAGLINE } from "@/lib/brand"
+
+/** What the status reads; set by the Go side once the sidecar probe answers. */
+type BootState = "booting" | "ready" | "failed"
+
+const STATE_LABEL: Record<BootState, string> = {
+  booting: "Booting",
+  ready: "Ready",
+  failed: "Sidecar failed",
+}
+
+function asBootState(s: string): BootState {
+  return s === "ready" || s === "failed" ? s : "booting"
+}
 
 type SplashScreenProps = {
   /** When true, fade/scale out before the main window opens. */
@@ -29,8 +42,8 @@ type SplashScreenProps = {
 /**
  * Compact boot UI for the small splash window, before the main shell.
  *
- * The website's hero at the size of this window: a full-bleed aerial still
- * with a slow pan, a status bar with the version, the website header's lockup
+ * The website's hero at the size of this window: a full-bleed still with a
+ * slow pan, a status bar with the boot state and the version, the website header's lockup
  * over its outlined wordmark, and the boot log's last line in the foot. The
  * styles are in splash.css, shared with the copy index.html paints first. One
  * still per launch and never a change during one: the window is up for about a
@@ -57,6 +70,7 @@ export function SplashScreen({ exiting = false, live = true }: SplashScreenProps
     a frame later rather than reserving blank space for it.
   */
   const [version, setVersion] = useState<string | null>(null)
+  const [state, setState] = useState<BootState>("booting")
 
   /*
     The featured still, on the first launch after an update.
@@ -124,9 +138,21 @@ export function SplashScreen({ exiting = false, live = true }: SplashScreenProps
     }
 
     EventsOn("boot:log", onLog)
+
+    // Asked as well as listened for: the probe may have answered before this
+    // mounted, and the event that said so has gone.
+    GetBootState()
+      .then((s) => {
+        if (!cancelled) setState((prev) => (prev === "booting" ? asBootState(s) : prev))
+      })
+      .catch(() => {})
+    const onState = (s: string) => setState(asBootState(s))
+    EventsOn("boot:state", onState)
+
     return () => {
       cancelled = true
       EventsOff("boot:log")
+      EventsOff("boot:state")
     }
   }, [live])
 
@@ -165,8 +191,8 @@ export function SplashScreen({ exiting = false, live = true }: SplashScreenProps
       <div className="splash__bar">
         {live && (
           <span className="splash__state">
-            <span className="splash__dot" aria-hidden />
-            Booting
+            <span className={`splash__dot splash__dot--${state}`} aria-hidden />
+            {STATE_LABEL[state]}
           </span>
         )}
         <span className="splash__spacer" />

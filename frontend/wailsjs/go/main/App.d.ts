@@ -69,6 +69,8 @@ export function GetArea(arg1:string):Promise<store.Area>;
 
 export function GetBootLogs():Promise<Array<string>>;
 
+export function GetBootState():Promise<string>;
+
 export function GetEarthdataStatus():Promise<main.EarthdataStatus>;
 
 export function GetPreferences():Promise<store.Preferences>;
