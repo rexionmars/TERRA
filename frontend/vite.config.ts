@@ -34,8 +34,10 @@ function htmlConstants(): Plugin {
       const source = path.resolve(__dirname, 'src/lib/splashBackground.ts')
       const text = fs.readFileSync(source, 'utf8')
 
-      // Read off the manifest's path fields rather than a plain array, since
-      // each still now carries a code name and its provenance beside its path.
+      // Read off the manifest's fields rather than a plain array, since each
+      // still carries a code name and its provenance beside its path. The
+      // pre-bundle splash takes the path and the three fields that set how the
+      // still is drawn: the scrim over it, its box and what the pan zooms about.
       const block = text.match(
         /export const SPLASH_STILLS: SplashStill\[\] = \[([\s\S]*?)\n\]/
       )
@@ -45,12 +47,21 @@ function htmlConstants(): Plugin {
             'cannot be given its image list'
         )
       }
-      const images = [
-        ...block[1].matchAll(/path:\s*"([^"]+)"/g),
-      ].map((m) => m[1])
-      if (images.length === 0) {
+      const field = (entry: string, name: string) =>
+        entry.match(new RegExp(`\\b${name}:\\s*"([^"]+)"`))?.[1]
+      const stills = block[1]
+        .split(/\n  \{/)
+        .map((entry) => ({
+          path: field(entry, 'path'),
+          scrim: field(entry, 'scrim') ?? 'bright',
+          inset: field(entry, 'inset') ?? null,
+          origin: field(entry, 'origin') ?? null,
+        }))
+        .filter((s): s is typeof s & { path: string } => !!s.path)
+      if (stills.length === 0) {
         throw new Error('SPLASH_STILLS declares no paths')
       }
+      const images = stills.map((s) => s.path)
 
       // The subtitle, from the module that owns it. Hard-coded here it was one
       // more copy nobody would remember to change -- and the line it replaced
@@ -72,7 +83,7 @@ function htmlConstants(): Plugin {
           throw new Error(`splash image missing: ${img}`)
         }
       }
-      return html.replace('__SPLASH_IMAGES__', JSON.stringify(images))
+      return html.replace('__SPLASH_STILLS__', JSON.stringify(stills))
     },
   }
 }

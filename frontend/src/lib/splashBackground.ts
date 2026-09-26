@@ -44,6 +44,20 @@ export type SplashStill = {
   photographer: string
   /** The application version that introduced it. */
   since: string
+  /**
+   * The scrim the splash lays over it; see splash.css. "bright" is the one
+   * measured over cloud, "dark" the lighter one for a frame that is already
+   * dark and would be buried under the other.
+   */
+  scrim: "bright" | "dark"
+  /**
+   * The still's box as a CSS inset, when -8% on every side does not suit it:
+   * a frame whose subject is a line near its foot needs the box raised so the
+   * line clears the boot bar.
+   */
+  inset?: string
+  /** What the pan zooms about, as a CSS transform-origin; the centre if absent. */
+  origin?: string
 }
 
 /**
@@ -93,14 +107,23 @@ export const SPLASH_STILLS: SplashStill[] = [
       horizontal step on the 8 px grid is 1.002 times the step inside the
       blocks, so the encoder's grid does not show.
 
-      AGAINST THE SCRIM NOT YET MEASURED. The figures beside the scrim in
-      splash.css are Cumulus's. This frame is darker than Cumulus everywhere
-      but the horizon band, which lies under the scrim's lower gradient; the
-      procedure in splash.css is what confirms it.
+      FRAMED ON ITS HORIZON. Under the default frame the ridge line, 85% down
+      the photograph, sat at y 259 of the 280 px window and the pan carried
+      it to 271, behind the boot bar that starts at 232 -- the glow, which is
+      the subject, was hidden. The box is raised to put the ridge at 230, and
+      the zoom is anchored on it so the pan holds it there (221 on the last
+      frame of variant 1).
+
+      AGAINST THE SCRIM every line of the splash clears WCAG's 4.5 at its
+      brightest pixel on both frames; the figures are beside the dark scrim
+      in splash.css. Under the bright scrim the frame was near black.
     */
     source: "https://www.pexels.com — upload 8533828",
     photographer: "bertellifotografia",
     since: "0.7.0",
+    scrim: "dark",
+    inset: "-25% -12% -1%",
+    origin: "50% 85%",
   },
 ]
 
