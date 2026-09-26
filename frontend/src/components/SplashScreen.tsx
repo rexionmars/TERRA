@@ -1,4 +1,4 @@
-import { useEffect, useLayoutEffect, useRef, useState } from "react"
+import { useEffect, useState } from "react"
 import { EventsOn, EventsOff } from "../../wailsjs/runtime/runtime"
 import { GetAppVersion, GetBootLogs } from "../../wailsjs/go/main/App"
 import {
@@ -8,7 +8,7 @@ import {
   SPLASH_STILLS,
   claimSplashSlideForLaunch,
 } from "@/lib/splashBackground"
-import { BRAND_TAGLINE, RELEASE_NAME } from "@/lib/brand"
+import { BRAND_TAGLINE } from "@/lib/brand"
 
 type SplashScreenProps = {
   /** When true, fade/scale out before the main window opens. */
@@ -30,7 +30,7 @@ type SplashScreenProps = {
  * Compact boot UI for the small splash window, before the main shell.
  *
  * The website's hero at the size of this window: a full-bleed aerial still
- * with a slow pan, a status bar with the release, the website header's lockup
+ * with a slow pan, a status bar with the version, the website header's lockup
  * over its outlined wordmark, and the boot log's last line in the foot. The
  * styles are in splash.css, shared with the copy index.html paints first. One
  * still per launch and never a change during one: the window is up for about a
@@ -152,7 +152,6 @@ export function SplashScreen({ exiting = false, live = true }: SplashScreenProps
       />
       <div className="splash__scrim" aria-hidden />
       <div className="splash__grid" aria-hidden />
-      <SplashOrbit />
 
       <div className="splash__bar">
         {live && (
@@ -163,17 +162,11 @@ export function SplashScreen({ exiting = false, live = true }: SplashScreenProps
         )}
         <span className="splash__spacer" />
         {/*
-          The release, named. Fixed for the version.
-
-          This briefly showed the name of the still on screen, which made it
-          change every launch as the rotation advanced -- a name that moves
-          is a caption, not a name. The photograph rotates; the release does
-          not.
+          The version alone. The release's code name used to follow it here;
+          it was taken off the splash, which now carries nothing over the
+          photograph but the version, the lockup and the wordmark.
         */}
-        <span>
-          {version && `v${version} · `}
-          {RELEASE_NAME}
-        </span>
+        {version && <span>v{version}</span>}
       </div>
 
       <div className="splash__body">
@@ -202,70 +195,3 @@ export function SplashScreen({ exiting = false, live = true }: SplashScreenProps
   )
 }
 
-/**
- * The website hero's orbit, drawn for this window: a track and a satellite on
- * it, over the part of the photograph nothing is read on.
- *
- * SMIL rather than a CSS motion path, because the track is in the SVG's own
- * coordinates and follows the viewBox to the full-window replay; a CSS path is
- * in page pixels and would need recomputing per size. SMIL does not answer to
- * prefers-reduced-motion, so the clock is paused here instead. The negative
- * begin puts the first frame on the visible stretch of the track, which is
- * also where a paused satellite stays.
- *
- * Not in index.html's copy: a second one there would restart under this one at
- * the handoff, so the orbit arrives with the cross-fade instead.
- */
-function SplashOrbit() {
-  const ref = useRef<SVGSVGElement>(null)
-
-  useLayoutEffect(() => {
-    if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
-      ref.current?.pauseAnimations()
-    }
-  }, [])
-
-  return (
-    <svg
-      ref={ref}
-      className="splash__orbit"
-      viewBox="0 0 420 280"
-      preserveAspectRatio="xMidYMid slice"
-      aria-hidden
-    >
-      <g transform="rotate(-14 300 92)">
-        <ellipse
-          className="splash__orbit-track"
-          cx={300}
-          cy={92}
-          rx={160}
-          ry={40}
-          vectorEffect="non-scaling-stroke"
-        />
-        <g>
-          <line
-            className="splash__orbit-nadir"
-            x1={0}
-            y1={0}
-            x2={0}
-            y2={14}
-            vectorEffect="non-scaling-stroke"
-          />
-          <circle
-            className="splash__orbit-ring"
-            r={6.5}
-            vectorEffect="non-scaling-stroke"
-          />
-          <circle className="splash__orbit-sat" r={2.2} />
-          {/* The same ellipse as the track, as a path, from its left end. */}
-          <animateMotion
-            path="M140,92 a160,40 0 1,0 320,0 a160,40 0 1,0 -320,0"
-            dur="36s"
-            begin="-6s"
-            repeatCount="indefinite"
-          />
-        </g>
-      </g>
-    </svg>
-  )
-}

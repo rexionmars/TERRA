@@ -15,7 +15,7 @@ import { useEffect, useRef, useState } from "react"
 import { File, FolderOpen, Stack, type Icon } from "@phosphor-icons/react"
 
 import { GetAppVersion } from "../../../wailsjs/go/main/App"
-import { BRAND_TAGLINE, RELEASE_NAME } from "@/lib/brand"
+import { BRAND_TAGLINE } from "@/lib/brand"
 import {
   OPERATORS,
   pollOperator,
@@ -218,12 +218,14 @@ export function StartScreen({
               {BRAND_TAGLINE}
             </span>
           </div>
-          <span
-            className="telemetry absolute right-4 top-4 text-[10px] uppercase tracking-[0.12em]"
-            style={{ color: "rgb(236 232 223 / 0.92)" }}
-          >
-            {version ? `v${version} \u00b7 ${RELEASE_NAME}` : RELEASE_NAME}
-          </span>
+          {version && (
+            <span
+              className="telemetry absolute right-4 top-4 text-[10px] uppercase tracking-[0.12em]"
+              style={{ color: "rgb(236 232 223 / 0.92)" }}
+            >
+              v{version}
+            </span>
+          )}
           <img
             src="/terra-wordmark.svg"
             alt="TERRA"

@@ -24,7 +24,7 @@ import { useCallback, useEffect, useState } from "react"
 import { createPortal } from "react-dom"
 
 import { GetAppVersion } from "../../wailsjs/go/main/App"
-import { BRAND_TAGLINE, RELEASE_NAME } from "@/lib/brand"
+import { BRAND_TAGLINE } from "@/lib/brand"
 import { notesForVersion } from "@/lib/whatsNew"
 import { useStorageReport } from "@/lib/storageReport"
 import { EnvironmentPanel } from "@/components/EnvironmentPanel"
@@ -65,7 +65,7 @@ export function useAppSurfaces(): AppSurfaces {
     items: {
       splash: { label: "Splash screen", onSelect: () => setShowing("splash") },
       releaseNotes: {
-        label: `What\u2019s new in ${RELEASE_NAME}`,
+        label: "What\u2019s new",
         onSelect: () => setShowing("whatsnew"),
       },
       environment: {
@@ -227,8 +227,6 @@ function About({ onClose }: { onClose: () => void }) {
           className="mb-4 h-12 w-12 object-contain"
         />
         <dl className="grid grid-cols-[auto_1fr] gap-x-4 gap-y-1.5 text-meta">
-          <dt className="text-muted-foreground">Release</dt>
-          <dd className="text-foreground">{RELEASE_NAME}</dd>
           <dt className="text-muted-foreground">Version</dt>
           {/*
             Read from the binary rather than from a constant in this bundle: a

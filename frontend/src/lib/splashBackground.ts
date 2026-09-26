@@ -54,57 +54,53 @@ export type SplashStill = {
 export const SPLASH_STILLS: SplashStill[] = [
   {
     /*
-      The genus, because nothing in the frame carries a proper noun.
+      The line between day and night, which is what this frame is.
 
-      Draugen was named from the sign on the structure it showed, and its own
-      note here argues against a name that reaches a genus. That argument holds
-      where a proper noun is available. This photograph has no sign in it and
-      Pexels records no location for it, so there is nothing to read a place
-      off; what is left is the register the rest of the set already occupies --
-      Meander, Terraces, Vortex, Windfarm and Soybean each name the thing
-      observed rather than where it was observed.
+      From orbit the terminator is the edge the planet's shadow draws across
+      it; from a ridge at dusk it is this band, the lit sky thinning to orange
+      over a horizon already in shadow, with the crescent above. The name keeps
+      the register of the set -- Meander, Terraces, Vortex, Windfarm, Soybean,
+      Cumulus each name the thing observed rather than where -- and Pexels
+      records no location to read a place off in any case.
 
-      It also names the condition the application works against. A Sentinel-2
-      scene is usually part cloud, which is why land cover is read here from a
-      time series and not from one date. The splash shows the obstacle the
-      method exists to get past.
+      It also bounds the method. An optical scene is acquired on the day side
+      of that line, near 10:30 local time for Sentinel-2, and nothing past it
+      is measured at all.
 
       SINCE IS AHEAD OF version.go, by one minor. The code name belongs to the
-      minor line -- docs/RELEASING.md -- and 0.5.0 is tagged as Draugen, so a
+      minor line -- docs/RELEASING.md -- and 0.6.0 is tagged as Cumulus, so a
       new name is the next minor rather than a patch of this one. version.go
-      stays at 0.5.0 until release-please bumps it, and check-version.ts does
+      stays at 0.6.0 until release-please bumps it, and check-version.ts does
       not compare this field for exactly that reason.
     */
-    name: "Cumulus",
-    path: "/terra-splash-images/cumulus.webp",
+    name: "Terminator",
+    path: "/terra-splash-images/terminator.webp",
     subject:
-      "a high view down through a broken cumulus deck onto a valley floor, a " +
-      "town strung along the length of it, cultivated fields on the far slope " +
-      "and forested ridges below, with the clouds' own shadows lying on the " +
-      "ground beside them",
+      "a clear sky at dusk over a dark, low ridge line: a yellow-orange band " +
+      "on the horizon fading through rose to violet and near-black overhead, " +
+      "with a thin crescent moon in the upper right",
     /*
       Pexels, which asks for no attribution. The upload id is the route back to
       the original, which is the only reason it is written down.
 
       RE-ENCODED to what docs/RELEASING.md prescribes and the set already holds:
-      the download is 5472x3648 and 2.6 MB, this is WebP at 1600 px and 190 KB.
-      index.html paints the still before any bundle loads, so its weight is on
-      the critical path of the window opening.
+      the download is 4644x3094 and 2.0 MB, this is WebP at 1600 px and 55 KB.
 
-      BANDING WAS LOOKED AT, and it matters more here than for the stills before
-      it. Over half this frame is cloud at close to full brightness, and a soft
-      cloud edge against blue is the first place WebP shows its blocks. At q82
-      the decoded file holds the edges and the street grid on the valley floor.
+      BANDING WAS LOOKED AT, and this frame is nothing but gradient. At q82 the
+      encoder drops the film grain of the original, which removes the dither a
+      smooth sky relies on; the decoded file was read by eye over the dark
+      violet and the orange band, and measured for block edges -- the mean
+      horizontal step on the 8 px grid is 1.002 times the step inside the
+      blocks, so the encoder's grid does not show.
 
-      AGAINST THE SCRIM every line of the splash clears WCAG's 4.5 at its
-      brightest pixel, on the first frame of the pan and on the last; the
-      lowest is the tagline at 4.70. The figures, and the procedure that
-      produced them, are beside the scrim in splash.css. Under the previous
-      scrim this still read 3.44 under the mark, where Draugen read 2.98.
+      AGAINST THE SCRIM NOT YET MEASURED. The figures beside the scrim in
+      splash.css are Cumulus's. This frame is darker than Cumulus everywhere
+      but the horizon band, which lies under the scrim's lower gradient; the
+      procedure in splash.css is what confirms it.
     */
-    source: "https://www.pexels.com — upload 2764181",
-    photographer: "Midtrack",
-    since: "0.6.0",
+    source: "https://www.pexels.com — upload 8533828",
+    photographer: "bertellifotografia",
+    since: "0.7.0",
   },
 ]
 
@@ -117,7 +113,7 @@ export const SPLASH_STILLS: SplashStill[] = [
  * show; the rest walk the others, so featuring a still neither discards them
  * nor makes the code name decorative.
  */
-export const FEATURED_STILL = "Cumulus"
+export const FEATURED_STILL = "Terminator"
 
 /** Paths alone, for the places that only need to load them. */
 export const SPLASH_IMAGES = SPLASH_STILLS.map((s) => s.path)

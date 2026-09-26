@@ -156,7 +156,7 @@
   at 3.77.
 
   TO MEASURE AGAIN, for a new still: render the splash at 420x280 with its text
-  transparent and its images and orbit hidden, once as it mounts and once with
+  transparent and its images hidden, once as it mounts and once with
   .splash__still at its last keyframe; take the brightest pixel inside each
   line's box and read it against the line's colour. As before, the page that
   does this is deliberately not in the repository -- a tool run once a release,
@@ -194,33 +194,6 @@
   background-size: 8.3333vw 8.3333vw;
   -webkit-mask-image: linear-gradient(90deg, transparent 0%, transparent 34%, #000 64%);
   mask-image: linear-gradient(90deg, transparent 0%, transparent 34%, #000 64%);
-}
-
-.splash__orbit {
-  position: absolute;
-  inset: 0;
-  z-index: -1;
-  width: 100%;
-  height: 100%;
-  pointer-events: none;
-  -webkit-mask-image: linear-gradient(90deg, transparent 0%, transparent 30%, #000 58%);
-  mask-image: linear-gradient(90deg, transparent 0%, transparent 30%, #000 58%);
-}
-.splash__orbit-track {
-  fill: none;
-  stroke: rgb(var(--sp-bone) / 0.5);
-  stroke-dasharray: 2 5;
-}
-.splash__orbit-nadir {
-  stroke: rgb(var(--sp-signal) / 0.45);
-  stroke-dasharray: 1.5 2;
-}
-.splash__orbit-ring {
-  fill: none;
-  stroke: rgb(var(--sp-signal) / 0.4);
-}
-.splash__orbit-sat {
-  fill: rgb(var(--sp-signal));
 }
 
 /*
@@ -371,8 +344,7 @@
   pan is exactly what this setting exists to turn off. The still, the scrim and
   the type all stay; only the movement stops. The pulse blinks at a fixed rate
   whatever the boot is doing, so it is decoration rather than status and has
-  nothing to report by moving. The satellite is SMIL, which CSS cannot stop;
-  SplashScreen.tsx pauses it.
+  nothing to report by moving.
 */
 @media (prefers-reduced-motion: reduce) {
   .splash__still--1,
