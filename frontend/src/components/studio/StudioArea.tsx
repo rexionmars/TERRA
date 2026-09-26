@@ -241,7 +241,14 @@ export function StudioArea({
         the strip most.
       */
       className={cn(
-        "absolute flex flex-col overflow-hidden",
+        /*
+          ISOLATE, SO AN EDITOR'S LAYERS STAY IN ITS AREA. An absolute box with
+          no z-index opens no stacking context, so the map's control column at
+          z-400 was compared against the board's own layers and drew over the
+          start card at z-100. Overflow already clips each editor to its area;
+          this confines its z-indices to the same box.
+        */
+        "absolute isolate flex flex-col overflow-hidden",
         /*
           THE BORDER IS WHAT THE GAP REPLACED, so it comes back when the gap
           goes away. Two of four sides, because neighbours then meet flush and
