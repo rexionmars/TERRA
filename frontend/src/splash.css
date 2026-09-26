@@ -85,6 +85,8 @@
 }
 #splash .splash__still {
   background-image: var(--splash-still);
+  inset: var(--splash-still-inset, -8%);
+  transform-origin: var(--splash-still-origin, 50% 50%);
 }
 
 /*
@@ -98,6 +100,13 @@
   Timed against the splash, which is held for three seconds plus the fade --
   see minSplash in app.go. Four seconds completes most of the move within the
   window and still has somewhere to go if a boot runs long.
+
+  THE FRAME IS THE STILL'S OWN. -8% on every side and a zoom about the centre
+  suit a photograph whose subject is its middle. One whose subject is a line
+  near its foot -- a horizon -- needs the box raised so the line clears the
+  boot bar, and the zoom anchored on the line so the pan does not carry it
+  down behind the bar again. The manifest carries both, as `inset` and
+  `origin`; see SplashStill in lib/splashBackground.ts.
 */
 .splash__still {
   position: absolute;
@@ -183,17 +192,55 @@
     );
 }
 
-/* The hero's survey grid: twelve columns at any width, faded out behind the text. */
-.splash__grid {
-  position: absolute;
-  inset: 0;
-  z-index: -2;
-  background-image:
-    linear-gradient(90deg, rgb(var(--sp-bone) / 0.06) 1px, transparent 1px),
-    linear-gradient(rgb(var(--sp-bone) / 0.06) 1px, transparent 1px);
-  background-size: 8.3333vw 8.3333vw;
-  -webkit-mask-image: linear-gradient(90deg, transparent 0%, transparent 34%, #000 64%);
-  mask-image: linear-gradient(90deg, transparent 0%, transparent 34%, #000 64%);
+/*
+  The scrim for a dark still, chosen by the manifest's `scrim: "dark"`.
+
+  The gradients above were measured over Cumulus, a frame that is mostly cloud
+  near full brightness. Over a still that is already dark they bury it: the
+  dusk sky read as a near-black field with the horizon glow hidden under the
+  boot bar. This keeps the band behind the status bar and the lockup's side,
+  and leaves the middle of the frame nearly as photographed.
+
+  MEASURED over Terminator, framed as its manifest entry frames it, by the
+  procedure above, first frame and last frame of variant 1: status 16.03 and
+  15.76, version 8.24 and 8.03, tagline 6.62 and 5.48, the BOOT label 5.13 and
+  5.18, the boot line 16.36 and 16.37. The tagline's box starts after its own
+  rule and padding: the rule is bone at 26% and not background, and taken in
+  it capped every reading near 4.
+
+  The side gradient is the lightest tried that clears 4.5 under the tagline.
+  At 0.65 falling to 0.45 the last frame read 3.95, because the zoom lifts the
+  rose band of the sky into the lockup's row.
+*/
+.splash[data-scrim="dark"] .splash__scrim,
+:root[data-splash-scrim="dark"] #splash .splash__scrim {
+  background:
+    linear-gradient(
+      180deg,
+      rgb(var(--sp-void) / 0.5) 0%,
+      rgb(var(--sp-void) / 0.2) 11%,
+      rgb(var(--sp-void) / 0.15) 28%,
+      rgb(var(--sp-void) / 0.15) 70%,
+      rgb(var(--sp-void) / 0.6) 100%
+    ),
+    linear-gradient(
+      90deg,
+      rgb(var(--sp-void) / 0.75) 0%,
+      rgb(var(--sp-void) / 0.6) 35%,
+      rgb(var(--sp-void) / 0) 65%
+    );
+}
+/*
+  A hairline over the brightest part of the frame. The wordmark's lower half
+  lies on the horizon glow, where the line alone reads 1.45 against the
+  brightest pixel under it -- a logotype has no floor, but at that figure it
+  is lost. A dark halo either side of the stroke gives it its own ground
+  without darkening the glow around it.
+*/
+.splash[data-scrim="dark"] .splash__word,
+:root[data-splash-scrim="dark"] #splash .splash__word {
+  filter: drop-shadow(0 0 1.5px rgb(var(--sp-void) / 0.9))
+    drop-shadow(0 0 3px rgb(var(--sp-void) / 0.6));
 }
 
 /*
@@ -255,23 +302,6 @@
   min-height: 0;
   padding: 0 var(--sp-gutter) clamp(14px, 2.6vw, 40px);
 }
-/* Registration marks at the top corners, as the website sets them on a band. */
-.splash__body::before,
-.splash__body::after {
-  content: "+";
-  position: absolute;
-  top: 8px;
-  color: rgb(var(--sp-faint));
-  font-size: 11px;
-  line-height: 1;
-}
-.splash__body::before {
-  left: var(--sp-gutter);
-}
-.splash__body::after {
-  right: var(--sp-gutter);
-}
-
 /* The website header's lockup, with the name moved out to the wordmark below it. */
 .splash__lockup {
   display: flex;

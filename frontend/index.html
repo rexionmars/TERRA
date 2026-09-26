@@ -33,7 +33,8 @@
       // time from src/lib/splashBackground.ts, which owns it -- this used to be
       // a second hard-coded copy that nothing kept in step.
       (function () {
-        var images = __SPLASH_IMAGES__;
+        var stills = __SPLASH_STILLS__;
+        var images = stills.map(function (s) { return s.path; });
         var nextKey = "terra.splash.next";
         var currentKey = "terra.splash.current";
         var index = 0;
@@ -44,12 +45,15 @@
           localStorage.setItem(nextKey, String((index + 1) % images.length));
           sessionStorage.setItem(currentKey, String(index));
         } catch (e) {}
-        // Only the image: the scrim over it is src/splash.css's, shared with
-        // the React splash, so the two cannot disagree about it.
-        document.documentElement.style.setProperty(
-          "--splash-still",
-          'url("' + images[index] + '")'
-        );
+        // The image and how it is framed; the scrims themselves are
+        // src/splash.css's, shared with the React splash, and this only says
+        // which one applies.
+        var root = document.documentElement;
+        var still = stills[index];
+        root.style.setProperty("--splash-still", 'url("' + still.path + '")');
+        if (still.inset) root.style.setProperty("--splash-still-inset", still.inset);
+        if (still.origin) root.style.setProperty("--splash-still-origin", still.origin);
+        root.setAttribute("data-splash-scrim", still.scrim);
 
         // Only this launch's still is fetched. The React splash used to render
         // all three as background layers, so the browser pulled every one --
@@ -82,7 +86,6 @@
 <div id="splash" class="splash" aria-hidden="true">
   <div class="splash__still"></div>
   <div class="splash__scrim"></div>
-  <div class="splash__grid"></div>
   <div class="splash__bar">
     <span class="splash__state"><span class="splash__dot"></span>Booting</span>
     <span class="splash__spacer"></span>

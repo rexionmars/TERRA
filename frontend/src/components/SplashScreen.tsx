@@ -131,10 +131,14 @@ export function SplashScreen({ exiting = false, live = true }: SplashScreenProps
   }, [live])
 
   const statusLine = logs[logs.length - 1] ?? "booting…"
-  const activeImage = SPLASH_STILLS[slide]?.path ?? SPLASH_IMAGES[0]
+  const still = SPLASH_STILLS[slide] ?? SPLASH_STILLS[0]
+  const activeImage = still?.path ?? SPLASH_IMAGES[0]
 
   return (
-    <div className={`splash app-draggable ${exiting ? "splash--exit" : ""}`}>
+    <div
+      className={`splash app-draggable ${exiting ? "splash--exit" : ""}`}
+      data-scrim={still?.scrim}
+    >
       {/*
         One layer, for the still this launch claimed.
 
@@ -147,11 +151,16 @@ export function SplashScreen({ exiting = false, live = true }: SplashScreenProps
       <div
         key={activeImage}
         className={`splash__still splash__still--${(slide % 3) + 1}`}
-        style={{ backgroundImage: `url(${activeImage})` }}
+        style={{
+          backgroundImage: `url(${activeImage})`,
+          // The still's own frame, where the default does not suit it; see
+          // SplashStill in lib/splashBackground.ts.
+          inset: still?.inset,
+          transformOrigin: still?.origin,
+        }}
         aria-hidden
       />
       <div className="splash__scrim" aria-hidden />
-      <div className="splash__grid" aria-hidden />
 
       <div className="splash__bar">
         {live && (
