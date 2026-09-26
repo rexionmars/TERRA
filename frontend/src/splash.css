@@ -288,6 +288,18 @@
     box-shadow: 0 0 0 0 rgb(var(--sp-signal) / 0);
   }
 }
+/*
+  Held still once the boot has an answer: the pulse is what says "not yet".
+  A failed probe loses the signal colour too, since the signal is what says
+  things are well.
+*/
+.splash__dot--ready {
+  animation: none;
+}
+.splash__dot--failed {
+  animation: none;
+  background: rgb(var(--sp-dust));
+}
 .splash__spacer {
   flex: 1;
 }

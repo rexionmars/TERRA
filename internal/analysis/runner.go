@@ -219,6 +219,10 @@ func NewRunner(appDir, configuredPython string) (*Runner, error) {
 
 // Probe checks that the Python interpreter runs and the sidecar script exists.
 // Intentionally avoids importing infer.py (heavy deps) so boot stays fast.
+//
+// The line it returns is the splash's last boot line, so it names what a user
+// can act on -- the interpreter's version and where it came from -- and not
+// the script it found, which is internal.
 func (r *Runner) Probe(ctx context.Context) (string, error) {
 	if r == nil {
 		return "", fmt.Errorf("runner not initialized")
@@ -251,7 +255,7 @@ func (r *Runner) Probe(ctx context.Context) (string, error) {
 	if os.Getenv("TERRA_PYTHON") != "" {
 		src = "TERRA_PYTHON"
 	}
-	return fmt.Sprintf("sidecar ready · python %s (%s) · %s", ver, src, filepath.Base(r.sidecar)), nil
+	return fmt.Sprintf("python %s · %s", ver, src), nil
 }
 
 // SidecarPath is the script the runner executes, so callers can locate the

@@ -126,6 +126,10 @@ export function GetBootLogs() {
   return window['go']['main']['App']['GetBootLogs']();
 }
 
+export function GetBootState() {
+  return window['go']['main']['App']['GetBootState']();
+}
+
 export function GetEarthdataStatus() {
   return window['go']['main']['App']['GetEarthdataStatus']();
 }
