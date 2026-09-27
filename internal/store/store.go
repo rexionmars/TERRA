@@ -116,6 +116,20 @@ const (
 	// polygons rather than a raster of classes, and the polygons are what the
 	// fields of an area are adopted from (see AdoptFields).
 	RunKindFields = "fields"
+	// Vegetation health: an area's NDVI and NDRE against earlier seasons of it.
+	// A series and two maps, bound to neither the classification's struct nor
+	// the water map's.
+	RunKindHealth = "health"
+	// Socio-environmental overlap: an area against the public registers of
+	// deforestation, embargoes, indigenous lands, conservation units and CAR.
+	// Tables of features and one map, bound to no other kind's struct.
+	RunKindOverlap = "overlap"
+	// Sentinel-1 radar: an area's VV and VH series over a period, by orbit,
+	// with its canopy losses and two maps of the latest pass.
+	RunKindRadar = "radar"
+	// Management zones: a field divided into three to five zones from several
+	// seasons of NDVI, every partition kept with its polygons.
+	RunKindZones = "zones"
 )
 
 // Project groups AOI, analyses, and overlay assets for an agronomist workflow.

@@ -160,6 +160,68 @@ export function runRowLine(run: {
         .filter(Boolean)
         .join(" · ")
     }
+    case "health": {
+      // The latest departure: what a run list can say of a field in one line.
+      const j = runSummaryObject(run.summary)
+      const z = typeof j.health_latest_ndvi_z === "number" ? j.health_latest_ndvi_z : null
+      const d = typeof j.health_latest_date === "string" ? j.health_latest_date : ""
+      return [
+        "Vegetation health",
+        z != null ? `NDVI ${z >= 0 ? "+" : "\u2212"}${Math.abs(z).toFixed(1)} sd` : "no earlier season to compare",
+        d,
+      ]
+        .filter(Boolean)
+        .join(" · ")
+    }
+    case "overlap": {
+      /*
+        How many registers the area meets, how many could not be read, and the
+        day they were read: a check holds for that day and no other.
+      */
+      const j = runSummaryObject(run.summary)
+      const ha = j.overlap_ha && typeof j.overlap_ha === "object" ? (j.overlap_ha as Record<string, unknown>) : {}
+      const status =
+        j.overlap_status && typeof j.overlap_status === "object" ? (j.overlap_status as Record<string, unknown>) : {}
+      // CAR is left out of the count: a field inside a registration is the expected case.
+      const met = Object.entries(ha).filter(([id, v]) => id !== "car" && typeof v === "number" && v > 0).length
+      const failed = Object.values(status).filter((s) => s === "failed").length
+      const read = typeof j.overlap_read_at === "string" ? j.overlap_read_at.slice(0, 10) : ""
+      return [
+        "Socio-environmental overlap",
+        met ? `meets ${met} ${met === 1 ? "register" : "registers"}` : "meets none",
+        failed ? `${failed} not read` : "",
+        read ? `read ${read}` : "",
+      ]
+        .filter(Boolean)
+        .join(" · ")
+    }
+    case "radar": {
+      // Passes read, and the latest canopy loss: one line of a field's radar.
+      const j = runSummaryObject(run.summary)
+      const n = typeof j.radar_n_passes === "number" ? j.radar_n_passes : null
+      const from = typeof j.radar_last_loss_from === "string" ? j.radar_last_loss_from : ""
+      const to = typeof j.radar_last_loss_to === "string" ? j.radar_last_loss_to : ""
+      return [
+        "Sentinel-1 radar",
+        n != null ? `${n} ${n === 1 ? "pass" : "passes"}` : "",
+        from && to ? `canopy loss ${from} to ${to}` : "no canopy loss",
+      ]
+        .filter(Boolean)
+        .join(" · ")
+    }
+    case "zones": {
+      // The number of zones suggested, and over how many seasons.
+      const j = runSummaryObject(run.summary)
+      const k = typeof j.zones_suggested_k === "number" ? j.zones_suggested_k : null
+      const s = typeof j.zones_seasons_used === "number" ? j.zones_seasons_used : null
+      return [
+        "Management zones",
+        k != null ? `${k} zones suggested` : "",
+        s != null ? `${s} ${s === 1 ? "season" : "seasons"}` : "",
+      ]
+        .filter(Boolean)
+        .join(" · ")
+    }
     case "mineral":
       /*
         The observed area beside the AOI, for the reason the summary carries
@@ -200,6 +262,10 @@ export function runKindLabel(kind?: string): string {
   if (kind === "water") return "water"
   if (kind === "mineral") return "mineral"
   if (kind === "fields") return "fields"
+  if (kind === "health") return "health"
+  if (kind === "overlap") return "overlap"
+  if (kind === "radar") return "radar"
+  if (kind === "zones") return "zones"
   return "class"
 }
 

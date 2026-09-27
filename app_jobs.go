@@ -23,6 +23,10 @@ const (
 	JobClassify = "classify"
 	JobWater    = "water"
 	JobMineral  = "mineral"
+	JobHealth   = "health"
+	JobOverlap  = "overlap"
+	JobRadar    = "radar"
+	JobZones    = "zones"
 )
 
 /*
@@ -42,6 +46,10 @@ type JobSpec struct {
 	Classify *analysis.PredictRequest `json:"classify,omitempty"`
 	Water    *analysis.WaterRequest   `json:"water,omitempty"`
 	Mineral  *analysis.MineralRequest `json:"mineral,omitempty"`
+	Health   *analysis.HealthRequest  `json:"health,omitempty"`
+	Overlap  *analysis.OverlapRequest `json:"overlap,omitempty"`
+	Radar    *analysis.RadarRequest   `json:"radar,omitempty"`
+	Zones    *analysis.ZonesRequest   `json:"zones,omitempty"`
 }
 
 // startJobs creates the queue, announcing its changes to the interface.
@@ -202,6 +210,66 @@ func (a *App) jobWork(spec JobSpec) (string, jobs.Work, error) {
 		}
 		return req.AreaID, func(ctx context.Context, report func(int, string)) (string, error) {
 			res, err := a.analyzeMinerals(analysis.WithProgress(ctx, relay(report)), *req)
+			if err != nil {
+				return "", err
+			}
+			return res.RunID, nil
+		}, nil
+	case JobHealth:
+		req := spec.Health
+		if req == nil {
+			return "", nil, errors.New("a vegetation health job carries no request")
+		}
+		if err := jobGround(req.PolygonGeoJSON, req.AreaID); err != nil {
+			return "", nil, err
+		}
+		return req.AreaID, func(ctx context.Context, report func(int, string)) (string, error) {
+			res, err := a.analyzeHealth(analysis.WithProgress(ctx, relay(report)), *req)
+			if err != nil {
+				return "", err
+			}
+			return res.RunID, nil
+		}, nil
+	case JobOverlap:
+		req := spec.Overlap
+		if req == nil {
+			return "", nil, errors.New("a socio-environmental overlap job carries no request")
+		}
+		if err := jobGround(req.PolygonGeoJSON, req.AreaID); err != nil {
+			return "", nil, err
+		}
+		return req.AreaID, func(ctx context.Context, report func(int, string)) (string, error) {
+			res, err := a.analyzeOverlap(analysis.WithProgress(ctx, relay(report)), *req)
+			if err != nil {
+				return "", err
+			}
+			return res.RunID, nil
+		}, nil
+	case JobRadar:
+		req := spec.Radar
+		if req == nil {
+			return "", nil, errors.New("a radar job carries no request")
+		}
+		if err := jobGround(req.PolygonGeoJSON, req.AreaID); err != nil {
+			return "", nil, err
+		}
+		return req.AreaID, func(ctx context.Context, report func(int, string)) (string, error) {
+			res, err := a.analyzeRadar(analysis.WithProgress(ctx, relay(report)), *req)
+			if err != nil {
+				return "", err
+			}
+			return res.RunID, nil
+		}, nil
+	case JobZones:
+		req := spec.Zones
+		if req == nil {
+			return "", nil, errors.New("a management zones job carries no request")
+		}
+		if err := jobGround(req.PolygonGeoJSON, req.AreaID); err != nil {
+			return "", nil, err
+		}
+		return req.AreaID, func(ctx context.Context, report func(int, string)) (string, error) {
+			res, err := a.analyzeZones(analysis.WithProgress(ctx, relay(report)), *req)
 			if err != nil {
 				return "", err
 			}

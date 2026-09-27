@@ -15,11 +15,19 @@ export function AnalyzeDomainShiftCohort(arg1:analysis.DomainShiftCohortRequest)
 
 export function AnalyzeFields(arg1:analysis.FieldsRequest):Promise<analysis.FieldsAnalysis>;
 
+export function AnalyzeHealth(arg1:analysis.HealthRequest):Promise<analysis.HealthAnalysis>;
+
 export function AnalyzeLULC(arg1:analysis.LULCRequest):Promise<analysis.LULCAnalysis>;
 
 export function AnalyzeMinerals(arg1:analysis.MineralRequest):Promise<analysis.MineralAnalysis>;
 
+export function AnalyzeOverlap(arg1:analysis.OverlapRequest):Promise<analysis.OverlapAnalysis>;
+
+export function AnalyzeRadar(arg1:analysis.RadarRequest):Promise<analysis.RadarAnalysis>;
+
 export function AnalyzeWater(arg1:analysis.WaterRequest):Promise<analysis.WaterAnalysis>;
+
+export function AnalyzeZones(arg1:analysis.ZonesRequest):Promise<analysis.ZonesAnalysis>;
 
 export function BuildManagedEnvironment(arg1:string):Promise<void>;
 

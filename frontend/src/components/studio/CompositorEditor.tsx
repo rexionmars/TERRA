@@ -27,7 +27,7 @@ import { useEffect, useMemo, useRef, useState } from "react"
 import { CaretLeft, CaretRight, DownloadSimple, Polygon, X } from "@phosphor-icons/react"
 import { NumberField } from "@/components/ui/NumberField"
 import { parseFields, type FieldsTarget } from "@/lib/fields"
-import type { FieldsAnalysis, MineralAnalysis } from "@/lib/types"
+import type { FieldsAnalysis, MineralAnalysis, PredictResult } from "@/lib/types"
 import { notifyExportFail, notifyExportOk } from "@/lib/notify"
 import { ExportOverlayFile } from "../../../wailsjs/go/main/App"
 import {
@@ -42,6 +42,11 @@ import {
 import { Choice, Head } from "./nodeCard"
 import { ActionButton, Figure, Note, StatusNote, Swatch } from "./nodeParts"
 import { MineralNodeBody, mineralNodeTitle } from "./mineralNodes"
+import { FieldTableCard, HealthCard, SeasonCard } from "./fieldNodes"
+import { OverlapCard } from "./overlapNodes"
+import { RadarCard } from "./radarNodes"
+import { ZonesCard } from "./zonesNodes"
+import { chosenPartition, zonesGeoJSON } from "@/lib/zones"
 import { AreaHeaderMenus } from "./StudioArea"
 import {
   StudioContextMenu,
@@ -63,8 +68,13 @@ import {
   disconnect,
   EMPTY_GRAPH,
   FIELDS_SOCKET,
+  HEALTH_SOCKET,
   inputsOf,
   MINERAL_SOCKET,
+  OVERLAP_SOCKET,
+  RADAR_SOCKET,
+  SEASON_SOCKET,
+  ZONES_SOCKET,
   kindMeta,
   linkInto,
   moveNode,
@@ -88,6 +98,7 @@ import {
   classChange,
   evaluate,
   isRaster,
+  opaqueRGBA,
   paintValue,
   socketKey,
   sumClassAreas,
@@ -95,11 +106,18 @@ import {
   type Evaluation,
   type ClassValue,
   type FieldsValue,
+  type HealthValue,
   type ImageValue,
   type MineralValue,
+  type OverlapValue,
+  type RadarValue,
   type RasterValue,
+  type ZonesValue,
   type Result,
+  type SeasonValue,
 } from "@/lib/compositorEval"
+import { seasonOf } from "@/lib/season"
+import { fieldRow, fieldTableCsv } from "@/lib/fieldTable"
 import type { AssetRun, ClassRaster } from "@/lib/runAssets"
 import { isZeroExtent, type RasterLayer } from "@/lib/mapLayers"
 import { arrange } from "@/lib/compositorLayout"
@@ -122,6 +140,12 @@ const WIDTH: Record<NodeKind, number> = {
   fieldFilter: 220,
   adoptFields: 230,
   saveFields: 200,
+  seasonDates: 340,
+  health: 330,
+  fieldTable: 380,
+  overlap: 340,
+  radar: 330,
+  zones: 330,
   mineralCoverage: 300,
   mineralClasses: 320,
   mineralReferences: 340,
@@ -149,6 +173,12 @@ const GUESS_H: Record<NodeKind, number> = {
   fieldFilter: 150,
   adoptFields: 120,
   saveFields: 100,
+  seasonDates: 280,
+  health: 280,
+  fieldTable: 300,
+  overlap: 300,
+  radar: 320,
+  zones: 320,
   mineralCoverage: 240,
   mineralClasses: 260,
   mineralReferences: 280,
@@ -197,6 +227,13 @@ const TYPE_COLOUR: Record<SocketType, string> = {
   fields: "rgb(var(--p-kind-fields))",
   // A mineral map's figures, in the mineral map's kind colour.
   mineral: "rgb(var(--p-kind-mineral))",
+  // A classification's season, and a health run's report (index.css).
+  season: "rgb(var(--p-kind-season))",
+  health: "rgb(var(--p-kind-health))",
+  // An overlap run's registers, in its kind colour (index.css).
+  overlap: "rgb(var(--p-kind-overlap))",
+  radar: "rgb(var(--p-kind-radar))",
+  zones: "rgb(var(--p-kind-zones))",
 }
 const PLAIN = "var(--b-card-ink)"
 
@@ -572,7 +609,13 @@ export function CompositorEditor({
   mineralOf,
   fieldSets = NO_SETS,
   onNeedRuns,
+  resultOf,
 }: {
+  /**
+   * A run's whole result, for the outputs that are not rasters: a
+   * classification's Season and a vegetation health run's Health report.
+   */
+  resultOf?: (runId: string) => PredictResult | null
   /**
    * Every field set the catalogue offers (lib/fieldSets.ts): a Run node can
    * stand for every field of an area instead of one run.
@@ -622,6 +665,11 @@ export function CompositorEditor({
         r.title,
         `fields:${fieldsOf?.(r.runId)?.fields_geojson.length ?? 0}`,
         `mineral:${mineralOf?.(r.runId)?.observed_cells ?? 0}:${mineralOf?.(r.runId)?.layers?.length ?? 0}`,
+        `season:${resultOf?.(r.runId)?.vi_series?.length ?? 0}`,
+        `health:${resultOf?.(r.runId)?.health?.anomaly.length ?? -1}`,
+        `overlap:${resultOf?.(r.runId)?.overlap?.read_at ?? ""}`,
+        `radar:${resultOf?.(r.runId)?.radar?.series.length ?? -1}`,
+        `zones:${resultOf?.(r.runId)?.zones?.partitions.length ?? -1}`,
         ...r.assets.map((a) => `${a.id}:${a.title}:${a.previewUri.length}:${a.classes ? 1 : 0}`),
       ].join("\u0000")
     )
@@ -632,6 +680,12 @@ export function CompositorEditor({
   const runOf = (runId: string | null) => runsRef.current.find((r) => r.runId === runId)
   const fieldsOfRun = (runId: string | null) => (runId && fieldsOf ? fieldsOf(runId) : null)
   const mineralOfRun = (runId: string | null) => (runId && mineralOf ? mineralOf(runId) : null)
+  const resultOfRun = (runId: string | null) => (runId && resultOf ? resultOf(runId) : null)
+  /** Whether a run carries a season to read: a classification's series and its peak. */
+  const hasSeason = (runId: string | null) => {
+    const r = resultOfRun(runId)
+    return !!r && !r.health && (r.vi_series?.length ?? 0) > 0 && r.phenology?.pos_doy != null
+  }
   const runOutputs = (runId: string | null) => [
     ...(runOf(runId)?.assets ?? []).map((a) => ({
       id: a.id,
@@ -645,6 +699,26 @@ export function CompositorEditor({
     // A mineral map's figures, beside its rasters.
     ...(runOf(runId) && mineralOfRun(runId)
       ? [{ id: MINERAL_SOCKET, label: "Mineral report", type: "mineral" as SocketType }]
+      : []),
+    // A classification's series as dates, beside its rasters.
+    ...(runOf(runId) && hasSeason(runId)
+      ? [{ id: SEASON_SOCKET, label: "Season", type: "season" as SocketType }]
+      : []),
+    // A health run's figures against earlier seasons.
+    ...(runOf(runId) && resultOfRun(runId)?.health
+      ? [{ id: HEALTH_SOCKET, label: "Health report", type: "health" as SocketType }]
+      : []),
+    // An overlap run's registers, as read under the area.
+    ...(runOf(runId) && resultOfRun(runId)?.overlap
+      ? [{ id: OVERLAP_SOCKET, label: "Overlap report", type: "overlap" as SocketType }]
+      : []),
+    // A radar run's series by orbit and its canopy losses.
+    ...(runOf(runId) && resultOfRun(runId)?.radar
+      ? [{ id: RADAR_SOCKET, label: "Radar report", type: "radar" as SocketType }]
+      : []),
+    // A zones run's partitions.
+    ...(runOf(runId) && resultOfRun(runId)?.zones
+      ? [{ id: ZONES_SOCKET, label: "Zones report", type: "zones" as SocketType }]
       : []),
   ]
 
@@ -759,7 +833,11 @@ export function CompositorEditor({
       } else {
         decodeRGBA(uri)
           .then((img) =>
-            settle({ status: "ready", value: { type: "image", key: valueKey, ...img, extent: asset.extent } })
+            settle({
+              status: "ready",
+              // Opaque, so the Viewer shows what the Globe node draws (opaqueRGBA).
+              value: { type: "image", key: valueKey, ...img, rgba: opaqueRGBA(img.rgba), extent: asset.extent },
+            })
           )
           .catch(() => settle({ status: "failed", note: "The raster could not be decoded." }))
       }
@@ -796,6 +874,52 @@ export function CompositorEditor({
               minHa: 0,
               minCropland: 0,
             },
+          }
+        }
+        if (assetId === SEASON_SOCKET) {
+          const r = resultOfRun(runId)
+          if (!r || !hasSeason(runId)) return { status: "none", note: "That run carries no season series." }
+          return {
+            status: "ready",
+            value: {
+              type: "season",
+              key: `season:${runId}:${r.vi_series?.length ?? 0}`,
+              runId,
+              season: seasonOf(r),
+              meanConfidence: r.mean_confidence > 0 ? r.mean_confidence : null,
+            },
+          }
+        }
+        if (assetId === HEALTH_SOCKET) {
+          const h = resultOfRun(runId)?.health
+          if (!h) return { status: "none", note: "That run is not a vegetation health run." }
+          return {
+            status: "ready",
+            value: { type: "health", key: `health:${runId}:${h.anomaly.length}:${h.map_date}`, runId, report: h },
+          }
+        }
+        if (assetId === ZONES_SOCKET) {
+          const mz = resultOfRun(runId)?.zones
+          if (!mz) return { status: "none", note: "That run is not a management zones run." }
+          return {
+            status: "ready",
+            value: { type: "zones", key: `zones:${runId}:${mz.partitions.length}:${mz.suggested_k}`, runId, report: mz },
+          }
+        }
+        if (assetId === RADAR_SOCKET) {
+          const s1 = resultOfRun(runId)?.radar
+          if (!s1) return { status: "none", note: "That run is not a Sentinel-1 radar run." }
+          return {
+            status: "ready",
+            value: { type: "radar", key: `radar:${runId}:${s1.series.length}:${s1.map_date}`, runId, report: s1 },
+          }
+        }
+        if (assetId === OVERLAP_SOCKET) {
+          const o = resultOfRun(runId)?.overlap
+          if (!o) return { status: "none", note: "That run is not a socio-environmental overlap run." }
+          return {
+            status: "ready",
+            value: { type: "overlap", key: `overlap:${runId}:${o.read_at}`, runId, report: o },
           }
         }
         if (assetId === MINERAL_SOCKET) {
@@ -835,6 +959,61 @@ export function CompositorEditor({
   /** Ready fields, or null. */
   const readyFields = (r: Result | undefined): FieldsValue | null =>
     r?.status === "ready" && r.value.type === "fields" ? r.value : null
+  const readySeason = (r: Result | undefined): SeasonValue | null =>
+    r?.status === "ready" && r.value.type === "season" ? r.value : null
+  const readyHealth = (r: Result | undefined): HealthValue | null =>
+    r?.status === "ready" && r.value.type === "health" ? r.value : null
+  const readyOverlap = (r: Result | undefined): OverlapValue | null =>
+    r?.status === "ready" && r.value.type === "overlap" ? r.value : null
+  const readyRadar = (r: Result | undefined): RadarValue | null =>
+    r?.status === "ready" && r.value.type === "radar" ? r.value : null
+  const readyZones = (r: Result | undefined): ZonesValue | null =>
+    r?.status === "ready" && r.value.type === "zones" ? r.value : null
+  const readyClasses = (r: Result | undefined): ClassValue | null =>
+    r?.status === "ready" && r.value.type === "classes" ? r.value : null
+
+  /*
+    What reaches one input of a node in every field's evaluation, under a
+    field set; null without one. The cards that answer for all fields read it.
+  */
+  const perFieldInput = (nodeId: string, socket: string) =>
+    fieldEvaluations?.map((f) => ({
+      member: f.member,
+      result: f.evaluation.inputs.get(socketKey(nodeId, socket)),
+    })) ?? null
+
+  /** One row per field of the Field table, or the one run's where there is no set. */
+  const tableRows = (nodeId: string) => {
+    const each = fieldEvaluations
+    const row = (name: string, inputs: (socket: string) => Result | undefined) =>
+      fieldRow(
+        name,
+        readyClasses(inputs("classes")),
+        readySeason(inputs("season")),
+        readyHealth(inputs("health"))?.report ?? null,
+        readyOverlap(inputs("overlap"))?.report ?? null,
+        readyRadar(inputs("radar"))?.report ?? null,
+        readyZones(inputs("zones"))?.report ?? null
+      )
+    if (each) {
+      return each.map((f) => row(f.member.fieldName, (socket) => f.evaluation.inputs.get(socketKey(nodeId, socket))))
+    }
+    const runIds = runsFeeding(nodeId)
+    const name = runOf(runIds[0] ?? null)?.title ?? "Run"
+    return [row(name, (socket) => inputOf(nodeId, socket))]
+  }
+
+  const saveTable = async (nodeId: string) => {
+    const text = fieldTableCsv(tableRows(nodeId))
+    let bin = ""
+    for (const b of new TextEncoder().encode(text)) bin += String.fromCharCode(b)
+    try {
+      const dest = await ExportOverlayFile(`data:text/csv;base64,${btoa(bin)}`, "terra_fields_table.csv")
+      if (dest) notifyExportOk(dest)
+    } catch (e) {
+      notifyExportFail(e)
+    }
+  }
 
   /** The runs whose rasters reach a node, through any chain of links. */
   const runsFeeding = (id: string, g: CompositorGraph = graph): string[] => {
@@ -1258,6 +1437,28 @@ export function CompositorEditor({
     }
   }
 
+  /** The chosen partition of every field (or the one run) as one GeoJSON file. */
+  const saveZones = async (nodeId: string, k: number | null, all: boolean) => {
+    const each = perFieldInput(nodeId, "zones")
+    const rows =
+      all && each
+        ? each.map((f) => ({ name: f.member.fieldName, partition: chosenPartition(readyZones(f.result)?.report ?? null, k) }))
+        : [
+            {
+              name: runOf(readyZones(inputOf(nodeId, "zones"))?.runId ?? null)?.title ?? "field",
+              partition: chosenPartition(readyZones(inputOf(nodeId, "zones"))?.report ?? null, k),
+            },
+          ]
+    let bin = ""
+    for (const b of new TextEncoder().encode(zonesGeoJSON(rows))) bin += String.fromCharCode(b)
+    try {
+      const dest = await ExportOverlayFile(`data:application/geo+json;base64,${btoa(bin)}`, "terra_zones.geojson")
+      if (dest) notifyExportOk(dest)
+    } catch (e) {
+      notifyExportFail(e)
+    }
+  }
+
   const body = (node: GraphNode): React.ReactNode => {
     switch (node.kind) {
       case "run": {
@@ -1655,6 +1856,110 @@ export function CompositorEditor({
             icon={<DownloadSimple className="size-3.5" />}
             disabled={!v.fields.length}
             onClick={() => void saveFields(v)}
+          />
+        )
+      }
+
+      case "seasonDates": {
+        const r = inputOf(node.id, "season")
+        const each = perFieldInput(node.id, "season")
+        if (!readySeason(r) && !each?.some((f) => readySeason(f.result))) return <StatusNote result={r} />
+        return (
+          <SeasonCard
+            focused={readySeason(r)}
+            fields={each?.map((f) => ({ name: f.member.fieldName, season: readySeason(f.result)?.season ?? null })) ?? null}
+          />
+        )
+      }
+
+      case "health": {
+        const r = inputOf(node.id, "health")
+        const each = perFieldInput(node.id, "health")
+        const crops = perFieldInput(node.id, "crop")
+        if (!readyHealth(r) && !each?.some((f) => readyHealth(f.result))) return <StatusNote result={r} />
+        return (
+          <HealthCard
+            reference={node.reference}
+            onReference={(reference) => edit(updateNode(graph, { ...node, reference }))}
+            focused={readyHealth(r)}
+            fields={
+              each?.map((f, i) => {
+                const crop = readyClasses(crops?.[i]?.result)
+                return {
+                  id: f.member.fieldId,
+                  name: f.member.fieldName,
+                  health: readyHealth(f.result),
+                  crop: crop ? (classAreas(crop).rows[0]?.entry.name ?? null) : null,
+                }
+              }) ?? null
+            }
+          />
+        )
+      }
+
+      case "fieldTable": {
+        const linked = (socket: string) => !!linkInto(graph, node.id, socket)
+        if (
+          !linked("classes") &&
+          !linked("season") &&
+          !linked("health") &&
+          !linked("overlap") &&
+          !linked("radar") &&
+          !linked("zones")
+        ) {
+          return (
+            <Note>
+              Link a class map, a Season, or a Health, Overlap, Radar or Zones report: each fills its columns, one row per
+              field.
+            </Note>
+          )
+        }
+        const missing = [
+          !linked("classes") && "a class map",
+          !linked("season") && "a Season",
+          !linked("health") && "a Health report",
+          !linked("overlap") && "an Overlap report",
+          !linked("radar") && "a Radar report",
+          !linked("zones") && "a Zones report",
+        ].filter((x): x is string => !!x)
+        return <FieldTableCard rows={tableRows(node.id)} missing={missing} onExport={() => void saveTable(node.id)} />
+      }
+
+      case "overlap": {
+        const r = inputOf(node.id, "overlap")
+        const each = perFieldInput(node.id, "overlap")
+        if (!readyOverlap(r) && !each?.some((f) => readyOverlap(f.result))) return <StatusNote result={r} />
+        return (
+          <OverlapCard
+            focused={readyOverlap(r)}
+            fields={each?.map((f) => ({ name: f.member.fieldName, overlap: readyOverlap(f.result) })) ?? null}
+          />
+        )
+      }
+
+      case "zones": {
+        const r = inputOf(node.id, "zones")
+        const each = perFieldInput(node.id, "zones")
+        if (!readyZones(r) && !each?.some((f) => readyZones(f.result))) return <StatusNote result={r} />
+        return (
+          <ZonesCard
+            k={node.k}
+            onK={(k) => edit(updateNode(graph, { ...node, k }))}
+            focused={readyZones(r)}
+            fields={each?.map((f) => ({ name: f.member.fieldName, zones: readyZones(f.result) })) ?? null}
+            onExport={(all) => void saveZones(node.id, node.k, all)}
+          />
+        )
+      }
+
+      case "radar": {
+        const r = inputOf(node.id, "radar")
+        const each = perFieldInput(node.id, "radar")
+        if (!readyRadar(r) && !each?.some((f) => readyRadar(f.result))) return <StatusNote result={r} />
+        return (
+          <RadarCard
+            focused={readyRadar(r)}
+            fields={each?.map((f) => ({ name: f.member.fieldName, radar: readyRadar(f.result) })) ?? null}
           />
         )
       }

@@ -210,6 +210,14 @@ func kindLabel(kind string) string {
 		return "Mineral map"
 	case RunKindFields:
 		return "Field boundaries"
+	case RunKindHealth:
+		return "Vegetation health"
+	case RunKindOverlap:
+		return "Socio-environmental overlap"
+	case RunKindRadar:
+		return "Sentinel-1 radar"
+	case RunKindZones:
+		return "Management zones"
 	default:
 		return kind
 	}

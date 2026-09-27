@@ -71,6 +71,10 @@ import type {
   MineralRequest,
   FieldsAnalysis,
   FieldsRequest,
+  HealthRequest,
+  OverlapRequest,
+  RadarRequest,
+  ZonesRequest,
 } from "@/lib/types"
 import { fieldWindows, MIN_PERIOD_DAYS } from "@/lib/fields"
 import {
@@ -1712,6 +1716,52 @@ function AppBody(props: {
     project_id: activeProjectId || undefined,
   })
 
+  const healthRequest = (g: Ground): HealthRequest => ({
+    polygon_geojson: g.polygon,
+    start: props.start,
+    end: props.end,
+    max_cloud: props.maxCloud,
+    // Zero: the sidecar's default of three earlier seasons.
+    baseline_years: 0,
+    label: g.label,
+    run_label: nameThisRun(g.label),
+    area_id: g.areaId,
+    project_id: activeProjectId || undefined,
+  })
+
+  // No period: each register is read as it stands on the day the job runs.
+  const overlapRequest = (g: Ground): OverlapRequest => ({
+    polygon_geojson: g.polygon,
+    label: g.label,
+    run_label: nameThisRun(g.label),
+    area_id: g.areaId,
+    project_id: activeProjectId || undefined,
+  })
+
+  // The period's every Sentinel-1 pass; cloud does not stop the radar.
+  const radarRequest = (g: Ground): RadarRequest => ({
+    polygon_geojson: g.polygon,
+    start: props.start,
+    end: props.end,
+    label: g.label,
+    run_label: nameThisRun(g.label),
+    area_id: g.areaId,
+    project_id: activeProjectId || undefined,
+  })
+
+  // The period is the latest season; the three before it are read as well.
+  const zonesRequest = (g: Ground): ZonesRequest => ({
+    polygon_geojson: g.polygon,
+    start: props.start,
+    end: props.end,
+    max_cloud: props.maxCloud,
+    earlier_seasons: 0,
+    label: g.label,
+    run_label: nameThisRun(g.label),
+    area_id: g.areaId,
+    project_id: activeProjectId || undefined,
+  })
+
   /*
     THE AREAS A JOB IS QUEUED OVER: shift-pressed on the globe or in the
     outliner, boxed with a shift-drag, or an area's fields all at once.
@@ -1745,14 +1795,21 @@ function AppBody(props: {
     for the whole list rather than once per job refused.
   */
   const handleQueueJobs = async (kind: JobKind) => {
-    const targets = liveSelection
+    /*
+      The selection, or the area in hand where nothing is selected: vegetation
+      health runs from the band as a job even over one area, and a job needs a
+      saved area to be filed under.
+    */
+    const ids = liveSelection.length ? liveSelection : props.activeAreaId ? [props.activeAreaId] : []
+    const targets = ids
       .map((id) => props.areas.find((a) => a.id === id))
       .filter((a): a is Area => !!a)
     if (!targets.length) {
       notifyError("Select the areas to run over: shift-press them on the globe or in the outliner.")
       return
     }
-    if (!props.start || !props.end) {
+    // The overlap reads registers, not imagery, and so has no period.
+    if (kind !== "overlap" && (!props.start || !props.end)) {
       notifyError("Set the acquisition period.")
       return
     }
@@ -1776,12 +1833,20 @@ function AppBody(props: {
         ? { kind, area_name: a.name, classify: predictRequest(g) }
         : kind === "water"
           ? { kind, area_name: a.name, water: waterRequest(g) }
-          : { kind, area_name: a.name, mineral: mineralRequest(g) }
+          : kind === "health"
+            ? { kind, area_name: a.name, health: healthRequest(g) }
+            : kind === "overlap"
+              ? { kind, area_name: a.name, overlap: overlapRequest(g) }
+              : kind === "radar"
+                ? { kind, area_name: a.name, radar: radarRequest(g) }
+                : kind === "zones"
+                  ? { kind, area_name: a.name, zones: zonesRequest(g) }
+                  : { kind, area_name: a.name, mineral: mineralRequest(g) }
     })
     try {
       const queued = await QueueJobs(specs as never)
       notifySuccess(
-        `${queued.length} ${queued.length === 1 ? "run" : "runs"} queued. Follow them in the Jobs editor; each is saved under its area as it finishes.`
+        `${queued.length} ${queued.length === 1 ? "run" : "runs"} queued. Follow them in the Run graph's run card; each is saved under its area as it finishes.`
       )
     } catch (e) {
       notifyError("Could not queue the runs", e)
@@ -3008,31 +3073,28 @@ function AppBody(props: {
 
   const deleteArea = useCallback(
     async (id: string) => {
-      const target = props.areas.find((a) => a.id === id)
-      if (!target) return
       /*
-        ASKED FOR, BECAUSE IT TAKES THE RUNS TOO.
+        ASKED FOR BY THE CALLER, NOT HERE. An area owns its runs, and
+        DeleteArea removes their rows and their rasters, so the deletion is
+        confirmed first -- in the studio's ConfirmDelete, which names the runs
+        that go with it.
 
-        Deleting an entry from the old catalogue left the runs alone -- nothing
-        linked them, so nothing could follow. An area owns its runs now, and
-        DeleteArea removes their rows and their rasters. That is the behaviour
-        wanted; it is not a behaviour to discover afterwards.
+        This asked a second time with window.confirm, which in the WKWebView
+        returns false without showing anything (ConfirmDelete.tsx says why). The
+        studio's dialog had already been accepted and announced the area
+        deleted; this then returned before DeleteArea, and the area stayed on
+        the map and in the list.
+
+        A failure is thrown rather than reported here, so the caller that
+        announces the deletion announces it only when it happened.
       */
-      const owned = target.run_count
-      const warning = owned
-        ? `Delete "${target.name}" and the ${owned} run${owned === 1 ? "" : "s"} measured on it? This cannot be undone.`
-        : `Delete "${target.name}"?`
-      if (!window.confirm(warning)) return
-      try {
-        await DeleteArea(id)
-        await refreshAreas(activeProjectId)
-        if (props.activeAreaId === id) {
-          props.setCustomPolygon(null)
-          props.setActiveAreaId(undefined)
-          props.setAnalysisLabel(undefined)
-        }
-      } catch (e) {
-        notifyError("Could not delete the area", e)
+      if (!props.areas.some((a) => a.id === id)) return
+      await DeleteArea(id)
+      await refreshAreas(activeProjectId)
+      if (props.activeAreaId === id) {
+        props.setCustomPolygon(null)
+        props.setActiveAreaId(undefined)
+        props.setAnalysisLabel(undefined)
       }
     },
     [

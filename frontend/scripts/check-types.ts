@@ -55,6 +55,10 @@ const GO_DIR = join(here, "..", "..", "internal", "analysis")
 const GO_FILES = [
   "types.go",
   "types_mineral.go",
+  "types_health.go",
+  "types_overlap.go",
+  "types_radar.go",
+  "types_zones.go",
 ]
 const TS = join(here, "..", "src", "lib", "types.ts")
 

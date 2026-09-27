@@ -7,13 +7,21 @@
  * starts, ends and records the run of; what this module keeps is the list as
  * last announced, so every editor that draws it draws the same one. Held
  * outside React, as the report log is, because it is the application's and not
- * any one studio area's: two Jobs editors are two views of one queue.
+ * any one studio area's: every Run graph drawing it draws one queue.
  */
 import { useSyncExternalStore } from "react"
 
 import { ListJobs } from "../../wailsjs/go/main/App"
 import { EventsOn } from "../../wailsjs/runtime/runtime"
-import type { MineralRequest, PredictRequest, WaterRequest } from "@/lib/types"
+import type {
+  HealthRequest,
+  MineralRequest,
+  OverlapRequest,
+  PredictRequest,
+  RadarRequest,
+  WaterRequest,
+  ZonesRequest,
+} from "@/lib/types"
 
 export type JobState = "queued" | "running" | "done" | "failed" | "cancelled"
 
@@ -21,7 +29,7 @@ export type JobState = "queued" | "running" | "done" | "failed" | "cancelled"
  * The products a job can run. The field delineation is not one: it runs over
  * an area to make its fields, and the queue exists for the fields once made.
  */
-export const JOB_KINDS = ["classify", "water", "mineral"] as const
+export const JOB_KINDS = ["classify", "water", "mineral", "health", "overlap", "radar", "zones"] as const
 export type JobKind = (typeof JOB_KINDS)[number]
 
 export function isJobKind(id: string | null | undefined): id is JobKind {
@@ -36,11 +44,15 @@ export const JOB_RUN_KIND: Record<JobKind, string> = {
   classify: "classification",
   water: "water",
   mineral: "mineral",
+  health: "health",
+  overlap: "overlap",
+  radar: "radar",
+  zones: "zones",
 }
 
 /**
  * The latest run of a product over each area, for the areas that have one, and
- * how many have none. What "Show" in the Jobs editor puts on the board: the
+ * how many have none. What "Show" on the Run graph's area card puts on the board: the
  * queue forgets its jobs when the application closes, the runs they recorded
  * do not, and this finds them again by area.
  */
@@ -103,6 +115,10 @@ export interface JobSpec {
   classify?: PredictRequest
   water?: WaterRequest
   mineral?: MineralRequest
+  health?: HealthRequest
+  overlap?: OverlapRequest
+  radar?: RadarRequest
+  zones?: ZonesRequest
 }
 
 /** A job's list entry replaced by a newer copy of itself; others untouched. */
@@ -160,7 +176,7 @@ const STATE_RANK: Record<JobState, number> = {
 }
 
 /**
- * The list as the Jobs editor reads it: running first, then waiting in queue
+ * The list as the Run graph's run card reads it: running first, then waiting in queue
  * order, then finished with the latest first. The queue's own order puts the
  * running job between the finished and the waiting ones, a screen down after a
  * few hundred fields; what a reader opens the list to see is the one running.

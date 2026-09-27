@@ -19,6 +19,7 @@ import {
   classChange,
   evaluate,
   isRaster,
+  opaqueRGBA,
   over,
   resampleMap,
   socketKey,
@@ -213,5 +214,18 @@ describe("readings", () => {
 
   it("refuses two maps of different grids", () => {
     expect(classChange(classes(["ab"]), classes(["a"])).comparable).toBe(false)
+  })
+})
+
+describe("opaqueRGBA", () => {
+  it("makes every pixel with data opaque and leaves the empty ones empty", () => {
+    const rgba = new Uint8ClampedArray([20, 164, 186, 55, 0, 0, 0, 0, 51, 184, 178, 125])
+    expect([...opaqueRGBA(rgba)]).toEqual([20, 164, 186, 255, 0, 0, 0, 0, 51, 184, 178, 255])
+    expect(rgba[3]).toBe(55)
+  })
+
+  it("returns an image with no translucent pixel unchanged", () => {
+    const rgba = new Uint8ClampedArray([1, 2, 3, 255, 0, 0, 0, 0])
+    expect(opaqueRGBA(rgba)).toBe(rgba)
   })
 })

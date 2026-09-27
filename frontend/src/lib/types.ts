@@ -393,6 +393,20 @@ export interface PredictResult {
    */
   fields?: FieldsAnalysis | null
   /**
+   * A field's vegetation health against its earlier seasons, reopened from the
+   * store.
+   */
+  health?: HealthAnalysis | null
+  /**
+   * An area against the public socio-environmental registers, reopened from
+   * the store.
+   */
+  overlap?: OverlapAnalysis | null
+  /** A Sentinel-1 series over the area, reopened from the store. */
+  radar?: RadarAnalysis | null
+  /** A field's management zones, every partition, reopened from the store. */
+  zones?: ZonesAnalysis | null
+  /**
    * Compact spectral / NDVI fingerprint cached at classify time for
    * domain-shift diagnostics. Absent on older runs and non-classify products.
    */
@@ -849,6 +863,289 @@ export interface WaterRequest {
   project_id?: string
   /** The area this run is of, so the board can link the two. */
   area_id?: string
+}
+
+/*
+  Vegetation health: a field's NDVI and NDRE this season against the same days
+  of the year in earlier seasons. Mirrors internal/analysis/types_health.go,
+  which carries the method note. A departure from earlier seasons is not a
+  diagnosis: a different crop, a later sowing or a rotation read the same as
+  stress.
+*/
+
+/** One area over a period, against `baseline_years` earlier seasons of it. */
+export interface HealthRequest {
+  polygon_geojson: GeoJSONGeometry | null
+  start: string
+  end: string
+  max_cloud: number
+  /** Earlier seasons read as the reference; 0 takes the sidecar default. */
+  baseline_years: number
+  label?: string
+  run_label?: string
+  area_id?: string
+  project_id?: string
+}
+
+/** One clear acquisition over the area: the index means over its clear cells. */
+export interface HealthPoint {
+  date: string
+  ndvi: number
+  ndre: number
+  /** Share of the area's cells clear on this date, 0-1. */
+  clear_fraction: number
+}
+
+/** One acquisition of an earlier season. Written out rather than extending HealthPoint, so check-types compares it. */
+export interface HealthBaselinePoint {
+  date: string
+  ndvi: number
+  ndre: number
+  clear_fraction: number
+  year: number
+}
+
+/** One date of this season against the earlier seasons around the same day of the year. */
+export interface HealthAnomalyPoint {
+  date: string
+  ndvi: number
+  ndre: number
+  /** Earlier-season acquisitions within the window around this day of the year. */
+  baseline_n: number
+  ndvi_mean: number | null
+  ndvi_sd: number | null
+  /** (ndvi - ndvi_mean) / sd, the sd floored; null with fewer than two reference dates. */
+  ndvi_z: number | null
+  ndre_mean: number | null
+  ndre_sd: number | null
+  ndre_z: number | null
+}
+
+export interface HealthAnalysis {
+  extent: Bounds
+  /** Days either side of a date's day of the year that count as the same time of year. */
+  window_days: number
+  /** The earlier seasons that returned at least one clear acquisition. */
+  baseline_years: number[]
+  current: HealthPoint[]
+  baseline: HealthBaselinePoint[]
+  anomaly: HealthAnomalyPoint[]
+  /** The latest date of this season that has a reference, or null where none has. */
+  latest: HealthAnomalyPoint | null
+  /** The date the anomaly map shows, and the NDVI difference its colours span. */
+  map_date: string
+  map_range: number
+  /** NDVI minus the median of the earlier seasons' NDVI at the same time of year, per cell. */
+  anomaly_uri: string
+  /** The NDVI of that date, per cell. */
+  ndvi_uri: string
+  run_id?: string
+}
+
+/*
+  Socio-environmental overlap: how much of an area falls on each public
+  register -- PRODES and DETER, CAR, IBAMA and ICMBio embargoes, indigenous
+  lands, conservation units -- as the registers stood when read. Mirrors
+  internal/analysis/types_overlap.go, which carries the method note. An overlap
+  is not a finding of irregularity, and a check is valid for its read_at.
+*/
+
+/** One area; the registers are read as they stand, so there is no period. */
+export interface OverlapRequest {
+  polygon_geojson: GeoJSONGeometry | null
+  label?: string
+  run_label?: string
+  area_id?: string
+  project_id?: string
+}
+
+/** One feature of a register that shares ground with the area. */
+export interface OverlapFeature {
+  /** Its identifier in the register: a CAR code, an embargo term, a CNUC code. */
+  ref: string
+  name: string
+  date: string
+  year: number
+  category: string
+  status: string
+  detail: string
+  /** The feature's own area as its register states it; absent where it states none. */
+  feature_ha?: number | null
+  overlap_ha: number
+}
+
+export type OverlapStatus = "read" | "not_covered" | "failed"
+
+/** One register as read over the area. */
+export interface OverlapLayer {
+  id: string
+  title: string
+  publisher: string
+  layers: string[]
+  /** The register's colour on the map, #rrggbb. */
+  colour: string
+  status: OverlapStatus
+  note: string
+  /** The union of its features inside the area: overlapping features count once. */
+  overlap_ha: number
+  n_features: number
+  features: OverlapFeature[]
+}
+
+/** PRODES clearing inside the area in one period between the two cutoffs. */
+export interface OverlapPeriod {
+  id: string
+  label: string
+  ha: number
+}
+
+export interface OverlapAnalysis {
+  area_ha: number
+  /** When the registers were read, UTC. */
+  read_at: string
+  extent: Bounds
+  biomes: string[]
+  states: string[]
+  forest_code_cutoff: string
+  eudr_cutoff: string
+  layers: OverlapLayer[]
+  periods: OverlapPeriod[]
+  /** The area and where it meets each register; CAR drawn as the part no registration covers. */
+  map_uri: string
+  run_id?: string
+}
+
+/*
+  Sentinel-1 radar: an area's VV and VH backscatter over a period, by relative
+  orbit, which cloud does not interrupt. Mirrors internal/analysis/types_radar.go,
+  which carries the method note. A canopy loss is a harvest most often, but a
+  lodged, hail-struck or desiccated canopy reads the same way.
+*/
+
+export interface RadarRequest {
+  polygon_geojson: GeoJSONGeometry | null
+  start: string
+  end: string
+  label?: string
+  run_label?: string
+  area_id?: string
+  project_id?: string
+}
+
+/** One pass over the area: one date and one relative orbit. */
+export interface RadarPoint {
+  date: string
+  relative_orbit: number
+  orbit_state: string
+  platform: string
+  vv_db: number
+  vh_db: number
+  /** VH/VV, in dB. */
+  cr_db: number
+  /** Share of the area's valid cells read as open water, 0-1. */
+  water_fraction: number
+  valid_fraction: number
+}
+
+export interface RadarOrbit {
+  relative_orbit: number
+  orbit_state: string
+  n: number
+}
+
+/** One canopy loss, between date_from and date_to; date is the middle. */
+export interface RadarLoss {
+  date: string
+  date_from: string
+  date_to: string
+  orbits_agree: boolean
+  n_orbits: number
+  drop_db: number
+  cr_drop_db: number
+}
+
+export interface RadarAnalysis {
+  extent: Bounds
+  orbits: RadarOrbit[]
+  series: RadarPoint[]
+  losses: RadarLoss[]
+  map_date: string
+  map_orbit: number
+  water_vh_db: number
+  water_vv_db: number
+  loss_vh_db: number
+  loss_cr_db: number
+  /** Red VV, green VH, blue VV/VH of the latest pass, Lee-filtered. */
+  composite_uri: string
+  /** The latest pass's open water. */
+  water_uri: string
+  run_id?: string
+}
+
+/*
+  Management zones: a field divided into three to five parts that grew alike
+  over several seasons, after Management Zone Analyst (Fridgen et al., 2004).
+  Mirrors internal/analysis/types_zones.go, which carries the method note. The
+  zones are where the canopy differed, not why.
+*/
+
+export interface ZonesRequest {
+  polygon_geojson: GeoJSONGeometry | null
+  start: string
+  end: string
+  max_cloud: number
+  /** Seasons before the period read as well; 0 takes the sidecar default of three. */
+  earlier_seasons: number
+  label?: string
+  run_label?: string
+  area_id?: string
+  project_id?: string
+}
+
+export interface ZonesSeason {
+  start: string
+  end: string
+  n_scenes: number
+  n_clear: number
+  /** Share of the field with enough clear acquisitions for a value, 0-1. */
+  cover: number
+  used: boolean
+}
+
+/** One zone of a partition, numbered from the lowest NDVI. */
+export interface Zone {
+  zone: number
+  area_ha: number
+  share: number
+  ndvi_mean: number | null
+  season_ndvi: (number | null)[]
+  colour: string
+}
+
+export interface ZonesPartition {
+  k: number
+  /** Fuzziness performance index: 0 crisp, 1 no structure. */
+  fpi: number
+  /** Normalised classification entropy: lower is clearer. */
+  nce: number
+  iterations: number
+  zones: Zone[]
+  /** The zones' polygons, a GeoJSON FeatureCollection in WGS84, as text. */
+  zones_geojson: string
+  map_uri: string
+}
+
+export interface ZonesAnalysis {
+  extent: Bounds
+  seasons: ZonesSeason[]
+  n_cells: number
+  field_cells: number
+  fuzziness: number
+  percentile: number
+  min_zone_ha: number
+  suggested_k: number
+  partitions: ZonesPartition[]
+  run_id?: string
 }
 
 /*

@@ -45,7 +45,7 @@ export interface MapTool {
  * added to the band alone, after the panels were gone, so they are added here
  * and not there.
  */
-export type BoardToolId = MapToolId | "mineral" | "fields"
+export type BoardToolId = MapToolId | "mineral" | "fields" | "health" | "overlap" | "radar" | "zones"
 
 /**
  * Every product the band can start, and the subject each one answers about.
@@ -84,6 +84,29 @@ export const BOARD_TOOLS: readonly BoardTool[] = [
     ground in its turn -- the fields become areas the other products run over.
   */
   { id: "fields", label: "Field boundaries", group: "crop" },
+  /*
+    Land cover as well: whether the ground a field is looks as it did in
+    earlier seasons at this time of year. It runs as a job, over the area in
+    hand or over every selected field.
+  */
+  { id: "health", label: "Vegetation health", group: "crop" },
+  /*
+    Land cover as well, read from the registers rather than the imagery: where
+    the ground was cleared, embargoed, registered or set aside. A job, like
+    health, over the area in hand or every selected field.
+  */
+  { id: "overlap", label: "Socio-environmental overlap", group: "crop" },
+  /*
+    Land cover as well, read by an active sensor: the canopy's backscatter
+    through the season, and the harvests it shows, where cloud hides the
+    ground from Sentinel-2. A job, like health.
+  */
+  { id: "radar", label: "Sentinel-1 radar", group: "crop" },
+  /*
+    Land cover as well: where a field grew alike over several seasons, for
+    variable-rate application. A job, over a field or every selected field.
+  */
+  { id: "zones", label: "Management zones", group: "crop" },
   { id: "water", label: "Surface water", group: "water" },
 ]
 

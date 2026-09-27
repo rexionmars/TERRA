@@ -339,6 +339,138 @@ function fieldsBrief(i: MethodInputs): MethodBrief {
   }
 }
 
+function healthBrief(i: MethodInputs): MethodBrief {
+  return {
+    subtitle: "NDVI and NDRE against the same days of earlier seasons",
+    source: "sidecar/terra/health",
+    sections: [
+      {
+        title: "Acquisition",
+        lines: [
+          "Sentinel-2 L2A, B04 B08 at 10 m and B05 B8A at 20 m, from the Planetary Computer",
+          `every acquisition from ${i.start || "the start"} to ${i.end || "the end"} under ${i.maxCloud}% scene cloud, and the same days of the three seasons before`,
+          "per acquisition, the cells its scene classification calls clear; one under 30% of the area clear is not counted",
+          "reflectance with the 04.00 offset removed; NDVI (B08, B04) and NDRE (B8A, B05) averaged over the clear cells",
+        ],
+      },
+      {
+        title: "Comparison",
+        lines: [
+          "each date against the earlier seasons' dates within 16 days of the same day of the year",
+          "departure (x - mean) / sd, the sd floored at 0.02; none with fewer than two earlier dates",
+          "a map of the latest date at least 60% clear: its NDVI minus the median of the earlier seasons around that day, per cell",
+          "in the compositor, the fields of a set can also be compared with each other on a date they share",
+        ],
+        note: "NDRE beside NDVI because NDVI saturates over a closed canopy, where the red edge still moves with chlorophyll (Gitelson and Merzlyak, 1994).",
+      },
+      {
+        title: "Reading",
+        lines: [
+          "one and two standard deviations are the cuts between typical, below and well below",
+        ],
+        note: "A departure is not a diagnosis: a later sowing, another crop or a fallow field departs as a stressed one does. Earlier seasons of another crop in rotation widen or shift the reference.",
+      },
+    ],
+  }
+}
+
+function overlapBrief(): MethodBrief {
+  return {
+    subtitle: "The area against the public registers of clearing, embargo, protection and property",
+    source: "sidecar/terra/overlap",
+    sections: [
+      {
+        title: "Registers",
+        lines: [
+          "PRODES yearly deforestation per biome, and DETER alerts over the Amazon and Cerrado (INPE, TerraBrasilis WFS)",
+          "CAR property registrations of every state the area meets (SFB, SICAR WFS)",
+          "IBAMA and ICMBio embargoes (IBAMA ArcGIS FeatureServer); the name and CPF/CNPJ they publish are not read",
+          "indigenous lands (FUNAI WFS) and conservation units of every sphere (CNUC March 2026, MMA WFS)",
+        ],
+        note: "Each register is read as it stands when the job runs, and the run records that moment. A register that cannot be read is reported with its reason; the others are still read.",
+      },
+      {
+        title: "Overlap",
+        lines: [
+          "features whose outline meets the area's box, cut to the area",
+          "areas in a Lambert azimuthal equal-area plane centred on the area, GRS80",
+          "a register's hectares are the union of its features inside the area, so overlapping features count once",
+          "PRODES years against 22 Jul 2008 (Forest Code, art. 3, IV) and 31 Dec 2020 (Regulation (EU) 2023/1115); PRODES 2021 spans the second and is listed on its own",
+        ],
+      },
+      {
+        title: "Reading",
+        lines: [
+          "the map draws each register's part of the area, and for CAR the part no registration covers",
+        ],
+        note: "An overlap is not a finding of irregularity: a clearing can be authorised, an embargo lifted after publication, and a sustainable-use unit admits farming. APP and legal-reserve polygons are not published by WFS and are not read.",
+      },
+    ],
+  }
+}
+
+function radarBrief(i: MethodInputs): MethodBrief {
+  return {
+    subtitle: "C-band backscatter through the period, by orbit, which cloud does not stop",
+    source: "sidecar/terra/radar",
+    sections: [
+      {
+        title: "Acquisition",
+        lines: [
+          "Sentinel-1 IW GRD with radiometric terrain correction (sentinel-1-rtc), gamma0 VV and VH at 10 m, from the Planetary Computer",
+          `every pass from ${i.start || "the start"} to ${i.end || "the end"}; one pass is one date and one relative orbit`,
+          "a pass covering under 90% of the area is not counted",
+        ],
+      },
+      {
+        title: "Series",
+        lines: [
+          "VV and VH: the mean gamma0 over the area in linear power, then in dB",
+          "cross ratio VH/VV in dB, which rises as a canopy develops (Veloso et al., 2017)",
+          "orbits kept apart: the incidence angle sets the level of the backscatter",
+          "open water: VH below -23 dB and VV below -13 dB after a 7 x 7 Lee filter (Lee, 1980)",
+        ],
+        note: "VH carries the water test because wind roughens water and raises VV more than VH. Paved ground, radar shadow and very smooth bare soil can read as water.",
+      },
+      {
+        title: "Canopy losses",
+        lines: [
+          "a VH drop of at least 3 dB between two passes of one orbit, with the cross ratio falling by at least 1 dB from above the orbit's median",
+          "losses of several orbits whose windows overlap are one event, placed where they overlap",
+        ],
+        note: "A harvest most often; a lodged, hail-struck or desiccated canopy reads the same way. The thresholds were not calibrated against harvest records.",
+      },
+    ],
+  }
+}
+
+function zonesBrief(i: MethodInputs): MethodBrief {
+  return {
+    subtitle: "Where a field grew alike over several seasons, after Management Zone Analyst",
+    source: "sidecar/terra/zones",
+    sections: [
+      {
+        title: "Seasons",
+        lines: [
+          `the period (${i.start || "start"} to ${i.end || "end"}) and the same days of the three years before, under ${i.maxCloud}% scene cloud`,
+          "per season and 10 m cell, the 90th percentile of NDVI over clear acquisitions; a cell needs 3 of them",
+          "a season is used where half the field has a value; each used season is standardised over the field",
+        ],
+      },
+      {
+        title: "Zones",
+        lines: [
+          "fuzzy c-means (Bezdek, 1981), fuzziness exponent 1.30, diagonal distance over the standardised seasons",
+          "three, four and five zones; the number suggested ranks best on FPI (Odeh et al., 1992) and NCE together, as MZA reads them",
+          "each cell takes its largest membership; patches under 0.3 ha merge into their surroundings; zone 1 is the lowest NDVI",
+          "polygons exported as GeoJSON in WGS84",
+        ],
+        note: "The zones are where the canopy differed, not why: soil, drainage, compaction or a past management line draw the same boundary. Whether a zone gets more input or less is an agronomic call the product does not make.",
+      },
+    ],
+  }
+}
+
 /**
  * The brief for what the band is currently set to run.
  *
@@ -358,5 +490,13 @@ export function methodBrief(i: MethodInputs): MethodBrief {
       return mineralBrief(i)
     case "fields":
       return fieldsBrief(i)
+    case "health":
+      return healthBrief(i)
+    case "overlap":
+      return overlapBrief()
+    case "radar":
+      return radarBrief(i)
+    case "zones":
+      return zonesBrief(i)
   }
 }

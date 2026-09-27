@@ -14,7 +14,8 @@ import "testing"
 func TestRunKindsRoundTrip(t *testing.T) {
 	s := openTestStore(t)
 	for _, kind := range []string{
-		RunKindClassification, RunKindWater, RunKindMineral, RunKindFields,
+		RunKindClassification, RunKindWater, RunKindMineral, RunKindFields, RunKindHealth,
+		RunKindOverlap, RunKindRadar, RunKindZones,
 	} {
 		saved, err := s.SaveRun(InferenceRun{
 			UserID: LocalUserID, Kind: kind, ModelKind: "test",
@@ -54,8 +55,9 @@ func TestRunKindsRoundTrip(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(runs) != 5 {
-		t.Fatalf("listed %d runs, want 5", len(runs))
+	// One per kind, and the one written with no kind.
+	if len(runs) != 9 {
+		t.Fatalf("listed %d runs, want 9", len(runs))
 	}
 	seen := map[string]bool{}
 	for _, r := range runs {
@@ -69,5 +71,17 @@ func TestRunKindsRoundTrip(t *testing.T) {
 	}
 	if !seen[RunKindFields] {
 		t.Fatal("a field-boundary run did not survive ListRuns")
+	}
+	if !seen[RunKindHealth] {
+		t.Fatal("a vegetation health run did not survive ListRuns")
+	}
+	if !seen[RunKindOverlap] {
+		t.Fatal("a socio-environmental overlap run did not survive ListRuns")
+	}
+	if !seen[RunKindRadar] {
+		t.Fatal("a radar run did not survive ListRuns")
+	}
+	if !seen[RunKindZones] {
+		t.Fatal("a management zones run did not survive ListRuns")
 	}
 }

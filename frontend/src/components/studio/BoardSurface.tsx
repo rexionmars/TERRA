@@ -138,7 +138,7 @@ function EditorEmpty({ children }: { children: React.ReactNode }) {
 }
 import { StudioBrowser } from "@/components/studio/StudioBrowser"
 import { ReportsEditor } from "@/components/studio/ReportsEditor"
-import { JobsEditor, type JobQueueParams } from "@/components/studio/JobsEditor"
+import { RunsOnBoardContext, type RunsOnBoard } from "@/components/studio/RunQueue"
 import { latestRuns, takeFinished, useJobs, type JobKind } from "@/lib/jobs"
 import { fieldSets } from "@/lib/fieldSets"
 import { BOARD_TOOLS } from "@/lib/mapTools"
@@ -440,6 +440,12 @@ function isSoloed(
   )
 }
 
+/** What deleting an area takes with it, as the start of the dialog's sentence. */
+function areaRunsNote(runs: number): string {
+  if (!runs) return ""
+  return `The ${runs === 1 ? "run" : `${runs} runs`} measured on it ${runs === 1 ? "is" : "are"} deleted with it, rasters included. `
+}
+
 /*
   A run's rasters as a run brought onto the board has them: its own, and none
   of the map's state.
@@ -459,6 +465,10 @@ function loadedRunAssets(result: PredictResult): RunAsset[] {
     water: result.water,
     mineral: result.mineral,
     fields: result.fields,
+    health: result.health,
+    overlap: result.overlap,
+    radar: result.radar,
+    zones: result.zones,
     // A loaded run brings its own rasters and none of the map's state:
     // nothing here is drawn on the map, so nothing here has a switch there.
     showCompositionOverlay: false,
@@ -524,7 +534,6 @@ export function BoardSurface({
   selectedAreaIds = [],
   onSelectAreas,
   onClearSelection,
-  jobQueue,
   reveal = null,
   onRevealed,
 }: {
@@ -586,7 +595,8 @@ export function BoardSurface({
   activeAreaId?: string
   onActivateArea?: (id: string) => void
   onRenameArea?: (id: string, name: string) => void
-  onDeleteArea?: (id: string) => void
+  /** Deletes the area and its runs; rejects when the deletion did not happen. */
+  onDeleteArea?: (id: string) => Promise<void> | void
   /** The detail band's height in rem, and where a drag on its edge reports. */
   detailHeightRem?: number
   onDetailResize?: (rem: number) => void
@@ -693,8 +703,6 @@ export function BoardSurface({
   selectedAreaIds?: string[]
   onSelectAreas?: (ids: string[], mode: "toggle" | "add") => void
   onClearSelection?: () => void
-  /** The band's parameters a queue from the Jobs editor runs with; see JobsEditor. */
-  jobQueue?: Omit<JobQueueParams, "selected">
   /**
    * An editor a just-finished run needs on screen, or null.
    *
@@ -1672,6 +1680,10 @@ export function BoardSurface({
           // named its class map as missing.
           mineral: r.result.mineral,
           fields: r.result.fields,
+          health: r.result.health,
+          overlap: r.result.overlap,
+          radar: r.result.radar,
+          zones: r.result.zones,
           showCompositionOverlay: false,
           showWaterOverlay: false,
           composeOpacity: 1,
@@ -2299,7 +2311,7 @@ export function BoardSurface({
 
   /*
     RUNS PUT ON THE BOARD BY ID, each with its answer on the globe: a finished
-    job's, or the latest run of each selected area (JobsEditor).
+    job's, or the latest run of each selected area (the Run graph, RunQueue).
 
     A job records a run under its area and nothing more, so ten finished jobs
     left the board and the globe as they were: the runs existed and nothing on
@@ -2395,9 +2407,9 @@ export function BoardSurface({
   }, [jobs, showRuns])
 
   /*
-    The latest run of a product over each selected area, for "Show" in the
-    Jobs editor: the queue forgets its jobs when the application closes, the
-    runs they recorded do not.
+    The latest run of a product over each selected area, for "Show" on the Run
+    graph's area card: the queue forgets its jobs when the application closes,
+    the runs they recorded do not.
   */
   const showLatest = (kind: JobKind) => {
     const { ids, missing } = latestRuns(runs, selectedAreaIds, kind)
@@ -2411,6 +2423,7 @@ export function BoardSurface({
       notifyInfo(`${ids.length} shown; ${missing} of the selected areas ${missing === 1 ? "has" : "have"} no ${product} run.`)
     }
   }
+  const runsOnBoard: RunsOnBoard = { show: showRuns, showLatest }
 
   /**
    * Drops a loaded run from the data tree.
@@ -2478,7 +2491,8 @@ export function BoardSurface({
         dropRun(id)
         await refreshRuns()
       } else {
-        onDeleteArea?.(id)
+        // Awaited: the notice below reports a deletion, not a request for one.
+        await onDeleteArea?.(id)
       }
       notifySuccess(`“${title}” deleted`)
       setPendingDelete(null)
@@ -4348,6 +4362,17 @@ export function BoardSurface({
     Mineral report: the live result, a run the map has moved on from, or one
     brought in with the picker.
   */
+  /*
+    A run's whole result, wherever the board holds it: the compositor reads the
+    outputs that are not rasters from it -- a classification's season, a health
+    run's report.
+  */
+  const resultOfRun = (id: string): PredictResult | null =>
+    (id === runId ? (legendSources?.result ?? null) : null) ??
+    retainedRuns.find((r) => r.id === id)?.result ??
+    extraRuns.find((x) => x.run.id === id)?.result ??
+    null
+
   const mineralOfRun = (runId: string) =>
     (mineralResult?.run_id === runId ? mineralResult : null) ??
     retainedRuns.find((r) => r.id === runId)?.result.mineral ??
@@ -4598,7 +4623,13 @@ export function BoardSurface({
               })}
           />
     ),
-    runParams: runBar ?? null,
+    /*
+      The Run graph is the map screen's, drawn here; what it does with the runs
+      its queue finishes -- put them on the board -- is the board's.
+    */
+    runParams: runBar ? (
+      <RunsOnBoardContext.Provider value={runsOnBoard}>{runBar}</RunsOnBoardContext.Provider>
+    ) : null,
     domainShift: (
       <DomainShiftEditor
         mode={shiftModeOf(areaId)}
@@ -4671,20 +4702,6 @@ export function BoardSurface({
     // The log is the application's, not the board's; this area only shows it.
     reports: <ReportsEditor surface={surfaceRef.current} />,
     console: <ConsoleEditor />,
-    /*
-      The queue is the application's, as the log is; this area shows it and
-      opens a finished job's run the way the browser opens one, over its area.
-    */
-    jobs: (
-      <JobsEditor
-        queue={
-          jobQueue
-            ? { ...jobQueue, selected: selectedAreaIds.length, onShow: showLatest }
-            : undefined
-        }
-        onShow={showRuns}
-      />
-    ),
     compositor: (
       <CompositorEditor
         runs={assetRuns}
@@ -4698,6 +4715,7 @@ export function BoardSurface({
         mineralOf={mineralOfRun}
         fieldSets={compositorFieldSets}
         onNeedRuns={holdRuns}
+        resultOf={resultOfRun}
       />
     ),
     mineralReading: mineralResult ? (
@@ -5221,7 +5239,9 @@ export function BoardSurface({
           subtitle={
             pendingDelete.kind === "run"
               ? "This cannot be undone. The run leaves the analysis list, its project and the exports, and its rasters come out of the studio."
-              : "This cannot be undone. The geometry is not stored anywhere else, and a shape redrawn by hand is a different shape — runs made over it cannot be compared with runs made over this one."
+              : `This cannot be undone. ${areaRunsNote(
+                  catalogAreas.find((a) => a.id === pendingDelete.id)?.run_count ?? 0
+                )}The geometry is not stored anywhere else, and a shape redrawn by hand is a different shape — runs made over it cannot be compared with runs made over this one.`
           }
           confirmLabel={
             pendingDelete.kind === "run" ? "Delete run" : "Delete area"

@@ -36,6 +36,10 @@ ACTIONS: dict[str, str] = {
     'render_composite': 'terra.scenes.actions:render_composite',
     'mineral_map': 'terra.mineral.actions:mineral_map',
     'field_boundaries': 'terra.fields.actions:delineate',
+    'vegetation_health': 'terra.health.actions:health',
+    'socioenvironmental_overlap': 'terra.overlap.actions:overlap',
+    'radar_series': 'terra.radar.actions:radar',
+    'management_zones': 'terra.zones.actions:zones',
 }
 
 DEFAULT_ACTION = 'predict'

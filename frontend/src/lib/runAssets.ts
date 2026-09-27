@@ -32,7 +32,11 @@ import type {
   Bounds,
   CompositionOverlay,
   FieldsAnalysis,
+  HealthAnalysis,
   MineralAnalysis,
+  OverlapAnalysis,
+  RadarAnalysis,
+  ZonesAnalysis,
   MineralLayer,
   ModelKind,
   PredictResult,
@@ -319,6 +323,14 @@ export interface RunAssetInput {
   mineralLayers?: Readonly<Record<string, { visible?: boolean; opacity?: number }>>
   /** A field delineation's rasters, and their switches (see VisibleLayerInput.fieldLayers). */
   fields?: FieldsAnalysis | null
+  /** A vegetation health run's two maps: the departure from earlier seasons, and the NDVI. */
+  health?: HealthAnalysis | null
+  /** An overlap run's map: where the area meets each register. */
+  overlap?: OverlapAnalysis | null
+  /** A radar run's two maps of its latest pass. */
+  radar?: RadarAnalysis | null
+  /** A zones run's maps, one per partition, the suggested first. */
+  zones?: ZonesAnalysis | null
   fieldLayers?: Readonly<Record<string, { visible?: boolean; opacity?: number }>>
 }
 
@@ -595,6 +607,134 @@ export function runAssets(i: RunAssetInput): RunAsset[] {
           ? { via: "file", src: f.classes_tif, filename: "terra_field_classes.tif" }
           : null,
     })
+  }
+
+  /*
+    Vegetation health: the departure map first, since it is the product's
+    answer and the one a finished job puts on the globe; the NDVI it was taken
+    from beside it.
+  */
+  const h = i.health
+  if (h && !isZeroExtent(h.extent)) {
+    const years = h.baseline_years.length
+      ? `${h.baseline_years[0]}-${h.baseline_years[h.baseline_years.length - 1]}`
+      : "no earlier season"
+    for (const [id, title, uri, params] of [
+      [
+        "health-anomaly",
+        `NDVI against earlier seasons, ${sceneDate(h.map_date)}`,
+        h.anomaly_uri,
+        `NDVI minus the median of ${years} within ${h.window_days} days of the day of the year · colours span \u00b1${h.map_range}`,
+      ],
+      ["health-ndvi", `NDVI, ${sceneDate(h.map_date)}`, h.ndvi_uri, "Sentinel-2 L2A, the clear cells of the date the map shows"],
+    ] as const) {
+      if (!uri) continue
+      out.push({
+        id,
+        sceneId: id,
+        title,
+        params,
+        previewUri: uri,
+        extent: placeable(h.extent),
+        pixelated: true,
+        onBoard: false,
+        selectId: null,
+        removeId: null,
+        exportPng: { src: uri, filename: `terra_${id.replace(/-/g, "_")}.png` },
+        exportTif: null,
+      })
+    }
+  }
+
+  /*
+    Socio-environmental overlap: one map, the area in grey and each register's
+    part of it in the register's colour; for CAR, the part no registration
+    covers. The legend is the overlap card's, which names each colour.
+  */
+  const o = i.overlap
+  if (o && o.map_uri && !isZeroExtent(o.extent)) {
+    const met = o.layers
+      .filter((l) => l.status === "read" && l.overlap_ha > 0 && l.id !== "car")
+      .map((l) => l.title)
+    out.push({
+      id: "overlap-map",
+      sceneId: "overlap-map",
+      title: `Public registers, read ${o.read_at.slice(0, 10)}`,
+      params: met.length ? `meets ${met.join(", ")}` : "meets no register but CAR",
+      previewUri: o.map_uri,
+      extent: placeable(o.extent),
+      pixelated: true,
+      onBoard: false,
+      selectId: null,
+      removeId: null,
+      exportPng: { src: o.map_uri, filename: "terra_overlap_map.png" },
+      exportTif: null,
+    })
+  }
+
+  /*
+    Sentinel-1 radar: the false colour of the latest pass first, since it shows
+    the ground as the sensor saw it; the water read from it beside it.
+  */
+  const s1 = i.radar
+  if (s1 && !isZeroExtent(s1.extent)) {
+    for (const [id, title, uri, params] of [
+      [
+        "radar-composite",
+        `Sentinel-1 VV, VH, VV/VH, ${sceneDate(s1.map_date)}`,
+        s1.composite_uri,
+        `orbit ${s1.map_orbit} · red VV -20 to 0 dB, green VH -28 to -8 dB, blue VV/VH 2 to 14 dB, Lee-filtered`,
+      ],
+      [
+        "radar-water",
+        `Open water, Sentinel-1, ${sceneDate(s1.map_date)}`,
+        s1.water_uri,
+        `VH below ${s1.water_vh_db} dB and VV below ${s1.water_vv_db} dB after a Lee filter`,
+      ],
+    ] as const) {
+      if (!uri) continue
+      out.push({
+        id,
+        sceneId: id,
+        title,
+        params,
+        previewUri: uri,
+        extent: placeable(s1.extent),
+        pixelated: true,
+        onBoard: false,
+        selectId: null,
+        removeId: null,
+        exportPng: { src: uri, filename: `terra_${id.replace(/-/g, "_")}.png` },
+        exportTif: null,
+      })
+    }
+  }
+
+  /*
+    Management zones: one map per partition, the suggested number first since
+    it is what a finished job puts on the board.
+  */
+  const mz = i.zones
+  if (mz && !isZeroExtent(mz.extent)) {
+    const parts = [...mz.partitions].sort((a, b) => Number(b.k === mz.suggested_k) - Number(a.k === mz.suggested_k) || a.k - b.k)
+    for (const p of parts) {
+      if (!p.map_uri) continue
+      const id = `zones-${p.k}`
+      out.push({
+        id,
+        sceneId: id,
+        title: `Management zones, ${p.k}${p.k === mz.suggested_k ? " (suggested)" : ""}`,
+        params: `FPI ${p.fpi.toFixed(3)} · NCE ${p.nce.toFixed(3)} · zone 1 the lowest NDVI · ${mz.seasons.filter((s) => s.used).length} seasons`,
+        previewUri: p.map_uri,
+        extent: placeable(mz.extent),
+        pixelated: true,
+        onBoard: false,
+        selectId: null,
+        removeId: null,
+        exportPng: { src: p.map_uri, filename: `terra_zones_${p.k}.png` },
+        exportTif: null,
+      })
+    }
   }
 
   for (const item of compositionList(i)) {

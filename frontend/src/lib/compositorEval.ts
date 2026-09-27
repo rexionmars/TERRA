@@ -21,6 +21,11 @@
  * A FOURTH, NOT A RASTER EITHER: a mineral map's figures, as its run reported
  * them. Nothing computes on them here; each Mineral node reads its part.
  *
+ * A FIFTH, A SIXTH AND A SEVENTH, the same way: a classification's season (its
+ * series as dates), a vegetation health run's report and an overlap run's
+ * registers. The nodes that read them compute their own figures from them, as
+ * the Mineral nodes do.
+ *
  * RASTERS OF DIFFERENT GRIDS MEET BY WHERE THEY ARE. A mask or an overlay is
  * resampled onto the grid of the raster it is applied to, pixel centre to
  * pixel centre through the two lon/lat extents, nearest neighbour. That is
@@ -53,7 +58,15 @@ import {
 } from "@/lib/compositorGraph"
 import type { ClassRaster } from "@/lib/runAssets"
 import type { Field } from "@/lib/fields"
-import type { Bounds, MineralAnalysis } from "@/lib/types"
+import type { Season } from "@/lib/season"
+import type {
+  Bounds,
+  HealthAnalysis,
+  MineralAnalysis,
+  OverlapAnalysis,
+  RadarAnalysis,
+  ZonesAnalysis,
+} from "@/lib/types"
 
 export interface ClassValue {
   type: "classes"
@@ -96,7 +109,60 @@ export interface MineralValue {
   analysis: MineralAnalysis
 }
 
-export type Value = RasterValue | FieldsValue | MineralValue
+/**
+ * A classification run's season: its NDVI series placed as dates, and the mean
+ * confidence of its classifier (lib/season.ts). Read by the Season dates and
+ * Field table nodes.
+ */
+export interface SeasonValue {
+  type: "season"
+  key: string
+  runId: string
+  season: Season | null
+  meanConfidence: number | null
+}
+
+/** A vegetation health run's report, read by the Vegetation health and Field table nodes. */
+export interface HealthValue {
+  type: "health"
+  key: string
+  runId: string
+  report: HealthAnalysis
+}
+
+/** An overlap run's registers, read by the Socio-environmental overlap and Field table nodes. */
+export interface OverlapValue {
+  type: "overlap"
+  key: string
+  runId: string
+  report: OverlapAnalysis
+}
+
+/** A radar run's series, read by the Radar series and Field table nodes. */
+export interface RadarValue {
+  type: "radar"
+  key: string
+  runId: string
+  report: RadarAnalysis
+}
+
+/** A zones run's partitions, read by the Management zones and Field table nodes. */
+export interface ZonesValue {
+  type: "zones"
+  key: string
+  runId: string
+  report: ZonesAnalysis
+}
+
+export type Value =
+  | RasterValue
+  | FieldsValue
+  | MineralValue
+  | SeasonValue
+  | HealthValue
+  | OverlapValue
+  | RadarValue
+  | ZonesValue
 
 /** Whether a value is a raster, the only kind the filters, masks and mixes take. */
 export const isRaster = (v: Value): v is RasterValue => v.type === "classes" || v.type === "image"
@@ -140,6 +206,32 @@ export function paintValue(v: RasterValue): ImageValue {
     rgba: paintClassGrid(v.grid, colors),
     extent: v.extent,
   }
+}
+
+/**
+ * A run's image with every pixel that holds data made opaque; the same array
+ * where none is translucent.
+ *
+ * Some rasters were written to be laid straight onto the imagery and carry a
+ * translucency of their own: the classification's confidence is drawn at
+ * alpha = 0.78 x confidence, over a ramp that already encodes it. In the graph
+ * that made the Viewer and the globe disagree -- one shows the pixels over the
+ * card's dark ground, the other over the satellite scene -- so what the Viewer
+ * showed was not what the globe drew. Here the only transparency is the Globe
+ * node's Opacity. Pixels with no data (alpha 0) stay transparent.
+ */
+export function opaqueRGBA(rgba: Uint8ClampedArray): Uint8ClampedArray {
+  let partial = false
+  for (let i = 3; i < rgba.length; i += 4) {
+    if (rgba[i] > 0 && rgba[i] < 255) {
+      partial = true
+      break
+    }
+  }
+  if (!partial) return rgba
+  const out = rgba.slice()
+  for (let i = 3; i < out.length; i += 4) if (out[i] > 0) out[i] = 255
+  return out
 }
 
 const sameExtent = (a: Bounds, b: Bounds) =>

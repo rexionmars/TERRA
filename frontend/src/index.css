@@ -225,6 +225,30 @@
     to water, 125 to the mineral map and 92 to destructive at h18.
   */
   --p-kind-fields: 161 163 95;
+  /*
+    Vegetation health, at the same L 0.699 and C 0.09, at h 150: 40 degrees to
+    the field boundaries and 45 to water. The season a classification reports,
+    at h 60: 50 to the field boundaries and 42 to destructive at h18. The
+    season has no run kind of its own; it colours the compositor socket that
+    carries a classification's series.
+  */
+  --p-kind-health: 116 174 128;
+  --p-kind-season: 199 144 99;
+  /*
+    Socio-environmental overlap, at the same L 0.699 and C 0.09, at h 270: 75
+    degrees to the mineral map and 75 to water, the nearest two.
+  */
+  --p-kind-overlap: 136 156 215;
+  /*
+    Sentinel-1 radar, at L 0.699 and C 0.09, at h 230: 40 degrees to the
+    overlap and 35 to water, the nearest two.
+  */
+  --p-kind-radar: 94 169 203;
+  /*
+    Management zones, at L 0.699 and C 0.09, at h 80: 30 degrees to the field
+    boundaries (h 110), whose fields it divides, and 20 to the season (h 60).
+  */
+  --p-kind-zones: 188 152 91;
 
   /*
     THE FOLDER, AS STUDIO ICONS DRAWS IT.
@@ -636,6 +660,11 @@
   --p-kind-water: 19 130 130;
   --p-kind-mineral: 151 92 126;
   --p-kind-fields: 117 118 52;
+  --p-kind-health: 73 128 86;
+  --p-kind-season: 151 101 57;
+  --p-kind-overlap: 93 111 166;
+  --p-kind-radar: 46 123 156;
+  --p-kind-zones: 141 107 45;
 
   /* The folder a step deeper than the dark block's, so the tan still holds a
      shape against paper; the seam and the glyph follow it down. */

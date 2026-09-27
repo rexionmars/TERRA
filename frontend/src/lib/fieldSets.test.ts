@@ -74,6 +74,16 @@ describe("a Run node over a field set", () => {
     expect(runIds).toEqual([["c2", "w2"], ["c10", null]])
   })
 
+  it("covers every field any set of the area has, whichever set comes first", () => {
+    // The water set (field 2 only) first, the classification set (fields 2 and 10) second.
+    const g = graphWith({ areaId: "aoi", runKind: "water", fieldId: "f2" }, "w2")
+    g.nodes.push({ id: "class", kind: "run", runId: "c2", each: { areaId: "aoi", runKind: "classification", fieldId: "f2" } })
+    const copies = perField(g, sets)!
+    expect(copies.map((c) => c.member.fieldName)).toEqual(["field 2", "field 10"])
+    const runIds = copies.map((c) => c.graph.nodes.flatMap((n) => (n.kind === "run" ? [n.runId] : [])))
+    expect(runIds).toEqual([["w2", "c2"], [null, "c10"]])
+  })
+
   it("is no set at all without a set node", () => {
     const g = graphWith({ areaId: "aoi", runKind: "classification", fieldId: null }, "c2")
     g.nodes[0] = { id: "run", kind: "run", runId: "c2" }

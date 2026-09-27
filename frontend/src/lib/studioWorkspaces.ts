@@ -302,10 +302,10 @@ export const STUDIO_WORKSPACES: readonly StudioWorkspace[] = [
       them -- is nodes in the compositor beside it rather than a panel of
       figures: the delineation's own nodes are placed there when it finishes.
 
-      The jobs under the compositor, because what follows a delineation is the
-      same question asked of every field: the fields are shift-selected on the
-      globe, the band's product is queued over them, and this is where the
-      queue is followed.
+      The Run editor under the compositor, because what follows a delineation
+      is the same question asked of every field: the fields are shift-selected
+      on the globe, and the Run graph queues its product over them and follows
+      the queue in its own run card.
     */
     build: () =>
       row(
@@ -320,9 +320,10 @@ export const STUDIO_WORKSPACES: readonly StudioWorkspace[] = [
         ),
         col(
           "w-fields-right",
-          0.7,
+          // Both floors are 14 rem down; the compositor keeps the larger share.
+          0.55,
           leaf("a-compositor", "compositor"),
-          leaf("a-jobs", "jobs")
+          leaf("a-run", "runParams")
         )
       ),
   },

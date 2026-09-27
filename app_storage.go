@@ -281,6 +281,11 @@ func (a *App) ExportOverlayFile(src string, defaultFilename string) (string, err
 		filters = []wruntime.FileFilter{
 			{DisplayName: "GeoJSON", Pattern: "*.geojson;*.json"},
 		}
+	case ".csv":
+		// The compositor's Field table, one row per field.
+		filters = []wruntime.FileFilter{
+			{DisplayName: "CSV", Pattern: "*.csv"},
+		}
 	}
 
 	dest, err := wruntime.SaveFileDialog(a.ctx, wruntime.SaveDialogOptions{

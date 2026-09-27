@@ -18,6 +18,10 @@ export function AnalyzeFields(arg1) {
   return window['go']['main']['App']['AnalyzeFields'](arg1);
 }
 
+export function AnalyzeHealth(arg1) {
+  return window['go']['main']['App']['AnalyzeHealth'](arg1);
+}
+
 export function AnalyzeLULC(arg1) {
   return window['go']['main']['App']['AnalyzeLULC'](arg1);
 }
@@ -26,8 +30,20 @@ export function AnalyzeMinerals(arg1) {
   return window['go']['main']['App']['AnalyzeMinerals'](arg1);
 }
 
+export function AnalyzeOverlap(arg1) {
+  return window['go']['main']['App']['AnalyzeOverlap'](arg1);
+}
+
+export function AnalyzeRadar(arg1) {
+  return window['go']['main']['App']['AnalyzeRadar'](arg1);
+}
+
 export function AnalyzeWater(arg1) {
   return window['go']['main']['App']['AnalyzeWater'](arg1);
+}
+
+export function AnalyzeZones(arg1) {
+  return window['go']['main']['App']['AnalyzeZones'](arg1);
 }
 
 export function BuildManagedEnvironment(arg1) {
