@@ -27,7 +27,11 @@ import {
   Diamond,
   Drop,
   GridFour,
+  Plant,
   Polygon,
+  Stack,
+  Broadcast,
+  SquareSplitHorizontal,
   Image as ImageIcon,
   Play,
   Trash,
@@ -72,6 +76,8 @@ import {
   writeBoardMemory,
 } from "./boardMemory"
 import { MethodPanel } from "./MethodPanel"
+import { RunQueue, useRunsOnBoard } from "./RunQueue"
+import { isJobKind } from "@/lib/jobs"
 import {
   NodeCanvas,
   type CanvasEdge,
@@ -110,6 +116,14 @@ export const TOOL_ICON: Record<BoardToolId, Icon> = {
   mineral: Diamond,
   // A polygon: the product's output is outlines, one per field.
   fields: Polygon,
+  // A plant: the subject is the canopy, against its own earlier seasons.
+  health: Plant,
+  // A stack: the registers laid over the area, one on another.
+  overlap: Stack,
+  // A broadcast: an active sensor, which sends the signal it measures.
+  radar: Broadcast,
+  // A square divided: a field cut into parts.
+  zones: SquareSplitHorizontal,
 }
 
 /**
@@ -523,6 +537,11 @@ export interface BoardRunGraphProps {
   hasArea: boolean
   /** Display name of the active custom AOI (drawn / drawn 2 / renamed). */
   areaLabel?: string
+  /**
+   * The areas shift-selected on the globe or in the outliner, which the run
+   * is queued over instead of the area in use; absent or empty with none.
+   */
+  selection?: { names: string[]; onClear: () => void }
   onImportPolygon: () => void
   onClearArea: () => void
 
@@ -686,7 +705,15 @@ function cardValues(p: BoardRunGraphProps): Record<RunNodeId, RunValue> {
   const none: RunValue = { kind: "none" }
 
   return {
-    area: { kind: "ground", label: p.hasArea ? p.areaLabel || "drawn" : null },
+    // A selection is what the run reads when there is one; see the area card.
+    area: {
+      kind: "ground",
+      label: p.selection?.names.length
+        ? `${p.selection.names.length} selected`
+        : p.hasArea
+          ? p.areaLabel || "drawn"
+          : null,
+    },
     // Supplies nothing to a run: what it produces is an area, and the area
     // card's own wire is what carries that. See SPEC.catalogue.
     catalogue: none,
@@ -766,6 +793,9 @@ function useKeptPlaces() {
 export function BoardRunGraph(props: BoardRunGraphProps) {
   const busy = props.running
   const [places, move] = useKeptPlaces()
+  const board = useRunsOnBoard()
+  const selected = props.selection?.names ?? []
+  const jobKind = isJobKind(props.tool) ? props.tool : null
 
   /*
     What the cards were measured at, which supersedes the heights in SPEC.
@@ -878,6 +908,42 @@ export function BoardRunGraph(props: BoardRunGraphProps) {
           {props.hasArea ? props.areaLabel || "drawn" : "none"}
         </span>
         {/*
+          THE SELECTION, WHERE THERE IS ONE, IS WHAT THE RUN READS. The area in
+          use stays named above it, because it is still what the board shows;
+          the run is queued over the areas listed here, one job each, and
+          followed in the run card.
+        */}
+        {selected.length > 0 && (
+          <div className="flex flex-col gap-0.5 border-t border-border pt-1">
+            <div className="flex items-center gap-1">
+              <span className="telemetry min-w-0 flex-1 truncate text-meta text-foreground">
+                {selected.length} selected
+              </span>
+              {board && jobKind && (
+                <button
+                  type="button"
+                  onClick={() => board.showLatest(jobKind)}
+                  title="Put the latest run of this product over each selected area on the board"
+                  className="rounded-sm px-1 py-0.5 text-[9px] text-muted-foreground transition-colors hover:bg-hover hover:text-foreground"
+                >
+                  Show
+                </button>
+              )}
+              <button
+                type="button"
+                onClick={props.selection?.onClear}
+                title="Clear the selection; the run goes back to the area in use"
+                className="rounded-sm px-1 py-0.5 text-[9px] text-muted-foreground transition-colors hover:bg-hover hover:text-foreground"
+              >
+                Clear
+              </button>
+            </div>
+            <span className="line-clamp-3 text-[9px] text-muted-foreground" title={selected.join(", ")}>
+              {selected.join(", ")}
+            </span>
+          </div>
+        )}
+        {/*
           TWO VERBS, NOT THREE. The third was a pencil that opened a dialog
           holding a second map to draw on, which existed because the only place
           to draw was the work map and reaching it meant closing the board the
@@ -915,27 +981,37 @@ export function BoardRunGraph(props: BoardRunGraphProps) {
           className="size-3 self-center text-muted-foreground"
         />
         <DateField value={props.end} disabled={busy} onChange={props.onEndChange} />
-        <NumberField
-          label="Cloud"
-          value={props.maxCloud}
-          min={0}
-          max={100}
-          step={5}
-          format={(v) => `${Math.round(v)}%`}
-          parse={(t) => {
-            const v = parseFloat(t.replace("%", "").trim())
-            return Number.isFinite(v) ? v : null
-          }}
-          disabled={busy}
-          onChange={(v) => props.onMaxCloudChange(Math.round(v))}
-        />
+        {/*
+          Withheld under the radar, which cloud does not stop: the field
+          would be a control that moves nothing in the request.
+        */}
+        {props.tool !== "radar" && (
+          <NumberField
+            label="Cloud"
+            value={props.maxCloud}
+            min={0}
+            max={100}
+            step={5}
+            format={(v) => `${Math.round(v)}%`}
+            parse={(t) => {
+              const v = parseFloat(t.replace("%", "").trim())
+              return Number.isFinite(v) ? v : null
+            }}
+            disabled={busy}
+            onChange={(v) => props.onMaxCloudChange(Math.round(v))}
+          />
+        )}
         {/*
           Withheld under the mineral map, which takes each cell's answer from
           one pass and has no monthly pick to make, and under the field
           boundaries, which take the clearest scene of each window: in both the
           toggle would be a control that moves nothing in the request.
         */}
-        {props.tool !== "mineral" && props.tool !== "fields" && (
+        {props.tool !== "mineral" &&
+          props.tool !== "fields" &&
+          props.tool !== "health" &&
+          props.tool !== "radar" &&
+          props.tool !== "zones" && (
           <>
             {/*
               A boxed toggle rather than a native checkbox, which was the one
@@ -1371,6 +1447,9 @@ export function BoardRunGraph(props: BoardRunGraphProps) {
             </button>
           )}
         </div>
+
+        {/* The runs this card has queued, followed where they were sent from. */}
+        {jobKind && <RunQueue kind={jobKind} />}
       </>
     ),
   }

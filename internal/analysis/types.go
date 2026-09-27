@@ -559,6 +559,16 @@ type PredictResult struct {
 	Mineral *MineralAnalysis `json:"mineral,omitempty"`
 	// Field boundaries delineated over the area, reopened from the store.
 	Fields *FieldsAnalysis `json:"fields,omitempty"`
+	// A field's vegetation health against its earlier seasons, reopened from
+	// the store.
+	Health *HealthAnalysis `json:"health,omitempty"`
+	// An area against the public socio-environmental registers, reopened from
+	// the store.
+	Overlap *OverlapAnalysis `json:"overlap,omitempty"`
+	// A Sentinel-1 series over the area, reopened from the store.
+	Radar *RadarAnalysis `json:"radar,omitempty"`
+	// A field's management zones, every partition, reopened from the store.
+	Zones *ZonesAnalysis `json:"zones,omitempty"`
 	// Compact spectral / NDVI fingerprint cached at classify time for
 	// domain-shift diagnostics against another run. Absent on older runs and
 	// on water-only results.

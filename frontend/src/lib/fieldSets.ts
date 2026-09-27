@@ -37,6 +37,10 @@ type RunRow = { id: string; created_at: string; area_id?: string; kind?: string 
 export function runKindProduct(runKind: string): string {
   if (runKind === "water") return "Surface water"
   if (runKind === "mineral") return "Mineral map"
+  if (runKind === "health") return "Vegetation health"
+  if (runKind === "overlap") return "Socio-environmental overlap"
+  if (runKind === "radar") return "Sentinel-1 radar"
+  if (runKind === "zones") return "Management zones"
   return "Classification"
 }
 
@@ -121,10 +125,14 @@ export function resolveEach(graph: CompositorGraph, sets: readonly FieldSet[]): 
 /**
  * The graph once per field, or null where it holds no field-set node.
  *
- * The fields are the first field-set node's. Every field-set node over the same
- * area reads the same field in each copy -- a classification set and a water
- * set of one area meet field by field -- and one of another area keeps its
- * field in focus, since its fields are not these.
+ * The fields are those of the first field-set node's area that ANY set node of
+ * that area has a run on. Every set node over that area reads the same field in
+ * each copy -- a classification set and a health set of one area meet field by
+ * field -- and reads nothing on a field its product has no run on, so a field
+ * classified and not yet assessed keeps its row with the health column empty.
+ * Taking the first node's fields alone dropped every field the other product
+ * had and it did not. A set node of another area keeps its field in focus,
+ * since its fields are not these.
  */
 export function perField(
   graph: CompositorGraph,
@@ -133,7 +141,13 @@ export function perField(
   const first = graph.nodes.find(isEach)
   const lead = first ? setOf(sets, first) : undefined
   if (!first || !lead) return null
-  return lead.members.map((member) => ({
+  const fields = new Map<string, FieldMember>()
+  for (const n of graph.nodes) {
+    if (!isEach(n) || n.each.areaId !== lead.areaId) continue
+    for (const m of setOf(sets, n)?.members ?? []) if (!fields.has(m.fieldId)) fields.set(m.fieldId, m)
+  }
+  const members = [...fields.values()].sort((a, b) => byName.compare(a.fieldName, b.fieldName))
+  return members.map((member) => ({
     member,
     graph: pointed(graph, (n) => {
       if (n.each.areaId !== lead.areaId) return n.runId

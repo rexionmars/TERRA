@@ -1044,6 +1044,175 @@ export namespace analysis {
 	
 	
 	
+	export class HealthAnomalyPoint {
+	    date: string;
+	    ndvi: number;
+	    ndre: number;
+	    baseline_n: number;
+	    ndvi_mean?: number;
+	    ndvi_sd?: number;
+	    ndvi_z?: number;
+	    ndre_mean?: number;
+	    ndre_sd?: number;
+	    ndre_z?: number;
+	
+	    static createFrom(source: any = {}) {
+	        return new HealthAnomalyPoint(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.date = source["date"];
+	        this.ndvi = source["ndvi"];
+	        this.ndre = source["ndre"];
+	        this.baseline_n = source["baseline_n"];
+	        this.ndvi_mean = source["ndvi_mean"];
+	        this.ndvi_sd = source["ndvi_sd"];
+	        this.ndvi_z = source["ndvi_z"];
+	        this.ndre_mean = source["ndre_mean"];
+	        this.ndre_sd = source["ndre_sd"];
+	        this.ndre_z = source["ndre_z"];
+	    }
+	}
+	export class HealthBaselinePoint {
+	    date: string;
+	    ndvi: number;
+	    ndre: number;
+	    clear_fraction: number;
+	    year: number;
+	
+	    static createFrom(source: any = {}) {
+	        return new HealthBaselinePoint(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.date = source["date"];
+	        this.ndvi = source["ndvi"];
+	        this.ndre = source["ndre"];
+	        this.clear_fraction = source["clear_fraction"];
+	        this.year = source["year"];
+	    }
+	}
+	export class HealthPoint {
+	    date: string;
+	    ndvi: number;
+	    ndre: number;
+	    clear_fraction: number;
+	
+	    static createFrom(source: any = {}) {
+	        return new HealthPoint(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.date = source["date"];
+	        this.ndvi = source["ndvi"];
+	        this.ndre = source["ndre"];
+	        this.clear_fraction = source["clear_fraction"];
+	    }
+	}
+	export class HealthAnalysis {
+	    extent: Bounds;
+	    window_days: number;
+	    baseline_years: number[];
+	    current: HealthPoint[];
+	    baseline: HealthBaselinePoint[];
+	    anomaly: HealthAnomalyPoint[];
+	    latest?: HealthAnomalyPoint;
+	    map_date: string;
+	    map_range: number;
+	    anomaly_uri: string;
+	    ndvi_uri: string;
+	    run_id?: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new HealthAnalysis(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.extent = this.convertValues(source["extent"], Bounds);
+	        this.window_days = source["window_days"];
+	        this.baseline_years = source["baseline_years"];
+	        this.current = this.convertValues(source["current"], HealthPoint);
+	        this.baseline = this.convertValues(source["baseline"], HealthBaselinePoint);
+	        this.anomaly = this.convertValues(source["anomaly"], HealthAnomalyPoint);
+	        this.latest = this.convertValues(source["latest"], HealthAnomalyPoint);
+	        this.map_date = source["map_date"];
+	        this.map_range = source["map_range"];
+	        this.anomaly_uri = source["anomaly_uri"];
+	        this.ndvi_uri = source["ndvi_uri"];
+	        this.run_id = source["run_id"];
+	    }
+	
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
+	}
+	
+	
+	
+	export class HealthRequest {
+	    polygon_geojson?: GeoJSONGeometry;
+	    start: string;
+	    end: string;
+	    max_cloud: number;
+	    baseline_years: number;
+	    label?: string;
+	    run_label?: string;
+	    area_id?: string;
+	    project_id?: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new HealthRequest(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.polygon_geojson = this.convertValues(source["polygon_geojson"], GeoJSONGeometry);
+	        this.start = source["start"];
+	        this.end = source["end"];
+	        this.max_cloud = source["max_cloud"];
+	        this.baseline_years = source["baseline_years"];
+	        this.label = source["label"];
+	        this.run_label = source["run_label"];
+	        this.area_id = source["area_id"];
+	        this.project_id = source["project_id"];
+	    }
+	
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
+	}
 	export class LULCAgreementBlock {
 	    row: number;
 	    col: number;
@@ -2214,6 +2383,189 @@ export namespace analysis {
 	
 	
 	
+	export class OverlapPeriod {
+	    id: string;
+	    label: string;
+	    ha: number;
+	
+	    static createFrom(source: any = {}) {
+	        return new OverlapPeriod(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.id = source["id"];
+	        this.label = source["label"];
+	        this.ha = source["ha"];
+	    }
+	}
+	export class OverlapFeature {
+	    ref: string;
+	    name: string;
+	    date: string;
+	    year: number;
+	    category: string;
+	    status: string;
+	    detail: string;
+	    feature_ha?: number;
+	    overlap_ha: number;
+	
+	    static createFrom(source: any = {}) {
+	        return new OverlapFeature(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.ref = source["ref"];
+	        this.name = source["name"];
+	        this.date = source["date"];
+	        this.year = source["year"];
+	        this.category = source["category"];
+	        this.status = source["status"];
+	        this.detail = source["detail"];
+	        this.feature_ha = source["feature_ha"];
+	        this.overlap_ha = source["overlap_ha"];
+	    }
+	}
+	export class OverlapLayer {
+	    id: string;
+	    title: string;
+	    publisher: string;
+	    layers: string[];
+	    colour: string;
+	    status: string;
+	    note: string;
+	    overlap_ha: number;
+	    n_features: number;
+	    features: OverlapFeature[];
+	
+	    static createFrom(source: any = {}) {
+	        return new OverlapLayer(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.id = source["id"];
+	        this.title = source["title"];
+	        this.publisher = source["publisher"];
+	        this.layers = source["layers"];
+	        this.colour = source["colour"];
+	        this.status = source["status"];
+	        this.note = source["note"];
+	        this.overlap_ha = source["overlap_ha"];
+	        this.n_features = source["n_features"];
+	        this.features = this.convertValues(source["features"], OverlapFeature);
+	    }
+	
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
+	}
+	export class OverlapAnalysis {
+	    area_ha: number;
+	    read_at: string;
+	    extent: Bounds;
+	    biomes: string[];
+	    states: string[];
+	    forest_code_cutoff: string;
+	    eudr_cutoff: string;
+	    layers: OverlapLayer[];
+	    periods: OverlapPeriod[];
+	    map_uri: string;
+	    run_id?: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new OverlapAnalysis(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.area_ha = source["area_ha"];
+	        this.read_at = source["read_at"];
+	        this.extent = this.convertValues(source["extent"], Bounds);
+	        this.biomes = source["biomes"];
+	        this.states = source["states"];
+	        this.forest_code_cutoff = source["forest_code_cutoff"];
+	        this.eudr_cutoff = source["eudr_cutoff"];
+	        this.layers = this.convertValues(source["layers"], OverlapLayer);
+	        this.periods = this.convertValues(source["periods"], OverlapPeriod);
+	        this.map_uri = source["map_uri"];
+	        this.run_id = source["run_id"];
+	    }
+	
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
+	}
+	
+	
+	
+	export class OverlapRequest {
+	    polygon_geojson?: GeoJSONGeometry;
+	    label?: string;
+	    run_label?: string;
+	    area_id?: string;
+	    project_id?: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new OverlapRequest(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.polygon_geojson = this.convertValues(source["polygon_geojson"], GeoJSONGeometry);
+	        this.label = source["label"];
+	        this.run_label = source["run_label"];
+	        this.area_id = source["area_id"];
+	        this.project_id = source["project_id"];
+	    }
+	
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
+	}
 	export class PhenologyMetrics {
 	    sos_doy?: number;
 	    pos_doy?: number;
@@ -2292,6 +2644,262 @@ export namespace analysis {
 	        this.label = source["label"];
 	        this.run_label = source["run_label"];
 	        this.area_id = source["area_id"];
+	    }
+	
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
+	}
+	export class Zone {
+	    zone: number;
+	    area_ha: number;
+	    share: number;
+	    ndvi_mean?: number;
+	    season_ndvi: number[];
+	    colour: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new Zone(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.zone = source["zone"];
+	        this.area_ha = source["area_ha"];
+	        this.share = source["share"];
+	        this.ndvi_mean = source["ndvi_mean"];
+	        this.season_ndvi = source["season_ndvi"];
+	        this.colour = source["colour"];
+	    }
+	}
+	export class ZonesPartition {
+	    k: number;
+	    fpi: number;
+	    nce: number;
+	    iterations: number;
+	    zones: Zone[];
+	    zones_geojson: string;
+	    map_uri: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new ZonesPartition(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.k = source["k"];
+	        this.fpi = source["fpi"];
+	        this.nce = source["nce"];
+	        this.iterations = source["iterations"];
+	        this.zones = this.convertValues(source["zones"], Zone);
+	        this.zones_geojson = source["zones_geojson"];
+	        this.map_uri = source["map_uri"];
+	    }
+	
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
+	}
+	export class ZonesSeason {
+	    start: string;
+	    end: string;
+	    n_scenes: number;
+	    n_clear: number;
+	    cover: number;
+	    used: boolean;
+	
+	    static createFrom(source: any = {}) {
+	        return new ZonesSeason(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.start = source["start"];
+	        this.end = source["end"];
+	        this.n_scenes = source["n_scenes"];
+	        this.n_clear = source["n_clear"];
+	        this.cover = source["cover"];
+	        this.used = source["used"];
+	    }
+	}
+	export class ZonesAnalysis {
+	    extent: Bounds;
+	    seasons: ZonesSeason[];
+	    n_cells: number;
+	    field_cells: number;
+	    fuzziness: number;
+	    percentile: number;
+	    min_zone_ha: number;
+	    suggested_k: number;
+	    partitions: ZonesPartition[];
+	    run_id?: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new ZonesAnalysis(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.extent = this.convertValues(source["extent"], Bounds);
+	        this.seasons = this.convertValues(source["seasons"], ZonesSeason);
+	        this.n_cells = source["n_cells"];
+	        this.field_cells = source["field_cells"];
+	        this.fuzziness = source["fuzziness"];
+	        this.percentile = source["percentile"];
+	        this.min_zone_ha = source["min_zone_ha"];
+	        this.suggested_k = source["suggested_k"];
+	        this.partitions = this.convertValues(source["partitions"], ZonesPartition);
+	        this.run_id = source["run_id"];
+	    }
+	
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
+	}
+	export class RadarLoss {
+	    date: string;
+	    date_from: string;
+	    date_to: string;
+	    orbits_agree: boolean;
+	    n_orbits: number;
+	    drop_db: number;
+	    cr_drop_db: number;
+	
+	    static createFrom(source: any = {}) {
+	        return new RadarLoss(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.date = source["date"];
+	        this.date_from = source["date_from"];
+	        this.date_to = source["date_to"];
+	        this.orbits_agree = source["orbits_agree"];
+	        this.n_orbits = source["n_orbits"];
+	        this.drop_db = source["drop_db"];
+	        this.cr_drop_db = source["cr_drop_db"];
+	    }
+	}
+	export class RadarPoint {
+	    date: string;
+	    relative_orbit: number;
+	    orbit_state: string;
+	    platform: string;
+	    vv_db: number;
+	    vh_db: number;
+	    cr_db: number;
+	    water_fraction: number;
+	    valid_fraction: number;
+	
+	    static createFrom(source: any = {}) {
+	        return new RadarPoint(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.date = source["date"];
+	        this.relative_orbit = source["relative_orbit"];
+	        this.orbit_state = source["orbit_state"];
+	        this.platform = source["platform"];
+	        this.vv_db = source["vv_db"];
+	        this.vh_db = source["vh_db"];
+	        this.cr_db = source["cr_db"];
+	        this.water_fraction = source["water_fraction"];
+	        this.valid_fraction = source["valid_fraction"];
+	    }
+	}
+	export class RadarOrbit {
+	    relative_orbit: number;
+	    orbit_state: string;
+	    n: number;
+	
+	    static createFrom(source: any = {}) {
+	        return new RadarOrbit(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.relative_orbit = source["relative_orbit"];
+	        this.orbit_state = source["orbit_state"];
+	        this.n = source["n"];
+	    }
+	}
+	export class RadarAnalysis {
+	    extent: Bounds;
+	    orbits: RadarOrbit[];
+	    series: RadarPoint[];
+	    losses: RadarLoss[];
+	    map_date: string;
+	    map_orbit: number;
+	    water_vh_db: number;
+	    water_vv_db: number;
+	    loss_vh_db: number;
+	    loss_cr_db: number;
+	    composite_uri: string;
+	    water_uri: string;
+	    run_id?: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new RadarAnalysis(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.extent = this.convertValues(source["extent"], Bounds);
+	        this.orbits = this.convertValues(source["orbits"], RadarOrbit);
+	        this.series = this.convertValues(source["series"], RadarPoint);
+	        this.losses = this.convertValues(source["losses"], RadarLoss);
+	        this.map_date = source["map_date"];
+	        this.map_orbit = source["map_orbit"];
+	        this.water_vh_db = source["water_vh_db"];
+	        this.water_vv_db = source["water_vv_db"];
+	        this.loss_vh_db = source["loss_vh_db"];
+	        this.loss_cr_db = source["loss_cr_db"];
+	        this.composite_uri = source["composite_uri"];
+	        this.water_uri = source["water_uri"];
+	        this.run_id = source["run_id"];
 	    }
 	
 		convertValues(a: any, classs: any, asMap: boolean = false): any {
@@ -2483,6 +3091,10 @@ export namespace analysis {
 	    water?: WaterAnalysis;
 	    mineral?: MineralAnalysis;
 	    fields?: FieldsAnalysis;
+	    health?: HealthAnalysis;
+	    overlap?: OverlapAnalysis;
+	    radar?: RadarAnalysis;
+	    zones?: ZonesAnalysis;
 	    domain_fingerprint?: DomainFingerprint;
 	
 	    static createFrom(source: any = {}) {
@@ -2517,7 +3129,57 @@ export namespace analysis {
 	        this.water = this.convertValues(source["water"], WaterAnalysis);
 	        this.mineral = this.convertValues(source["mineral"], MineralAnalysis);
 	        this.fields = this.convertValues(source["fields"], FieldsAnalysis);
+	        this.health = this.convertValues(source["health"], HealthAnalysis);
+	        this.overlap = this.convertValues(source["overlap"], OverlapAnalysis);
+	        this.radar = this.convertValues(source["radar"], RadarAnalysis);
+	        this.zones = this.convertValues(source["zones"], ZonesAnalysis);
 	        this.domain_fingerprint = this.convertValues(source["domain_fingerprint"], DomainFingerprint);
+	    }
+	
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
+	}
+	
+	
+	
+	
+	export class RadarRequest {
+	    polygon_geojson?: GeoJSONGeometry;
+	    start: string;
+	    end: string;
+	    label?: string;
+	    run_label?: string;
+	    area_id?: string;
+	    project_id?: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new RadarRequest(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.polygon_geojson = this.convertValues(source["polygon_geojson"], GeoJSONGeometry);
+	        this.start = source["start"];
+	        this.end = source["end"];
+	        this.label = source["label"];
+	        this.run_label = source["run_label"];
+	        this.area_id = source["area_id"];
+	        this.project_id = source["project_id"];
 	    }
 	
 		convertValues(a: any, classs: any, asMap: boolean = false): any {
@@ -2586,6 +3248,55 @@ export namespace analysis {
 	        this.run_label = source["run_label"];
 	        this.project_id = source["project_id"];
 	        this.area_id = source["area_id"];
+	    }
+	
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
+	}
+	
+	
+	
+	export class ZonesRequest {
+	    polygon_geojson?: GeoJSONGeometry;
+	    start: string;
+	    end: string;
+	    max_cloud: number;
+	    earlier_seasons: number;
+	    label?: string;
+	    run_label?: string;
+	    area_id?: string;
+	    project_id?: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new ZonesRequest(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.polygon_geojson = this.convertValues(source["polygon_geojson"], GeoJSONGeometry);
+	        this.start = source["start"];
+	        this.end = source["end"];
+	        this.max_cloud = source["max_cloud"];
+	        this.earlier_seasons = source["earlier_seasons"];
+	        this.label = source["label"];
+	        this.run_label = source["run_label"];
+	        this.area_id = source["area_id"];
+	        this.project_id = source["project_id"];
 	    }
 	
 		convertValues(a: any, classs: any, asMap: boolean = false): any {
@@ -2759,6 +3470,10 @@ export namespace main {
 	    classify?: analysis.PredictRequest;
 	    water?: analysis.WaterRequest;
 	    mineral?: analysis.MineralRequest;
+	    health?: analysis.HealthRequest;
+	    overlap?: analysis.OverlapRequest;
+	    radar?: analysis.RadarRequest;
+	    zones?: analysis.ZonesRequest;
 	
 	    static createFrom(source: any = {}) {
 	        return new JobSpec(source);
@@ -2771,6 +3486,10 @@ export namespace main {
 	        this.classify = this.convertValues(source["classify"], analysis.PredictRequest);
 	        this.water = this.convertValues(source["water"], analysis.WaterRequest);
 	        this.mineral = this.convertValues(source["mineral"], analysis.MineralRequest);
+	        this.health = this.convertValues(source["health"], analysis.HealthRequest);
+	        this.overlap = this.convertValues(source["overlap"], analysis.OverlapRequest);
+	        this.radar = this.convertValues(source["radar"], analysis.RadarRequest);
+	        this.zones = this.convertValues(source["zones"], analysis.ZonesRequest);
 	    }
 	
 		convertValues(a: any, classs: any, asMap: boolean = false): any {

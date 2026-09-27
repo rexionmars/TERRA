@@ -57,7 +57,7 @@ import {
   partitionVars,
 } from "@/lib/boardPartition";
 import { rasterLayers } from "@/lib/mapLayers";
-import { modelLabel, runAssets } from "@/lib/runAssets";
+import { runAssets } from "@/lib/runAssets";
 import { useRunLog } from "@/lib/runLog";
 import { polygonOuterRing } from "@/lib/geometry";
 import type { BasemapKind } from "@/lib/basemaps";
@@ -687,7 +687,56 @@ export function StudioScreen(props: StudioScreenProps) {
               !props.fieldsBusy,
             onRun: () => props.onRunFields?.(),
           }
-        : run;
+        : bandTool === "health" && props.onQueueJobs
+          ? {
+              /*
+                Always a job: every acquisition of the period and of three
+                earlier seasons is read, which is minutes over one field, and
+                the run card's queue is where a run that long is followed. Its run
+                comes onto the board when it finishes.
+              */
+              running: false,
+              progress: 0,
+              progressMsg: "",
+              label: "Queue health run",
+              canRun: props.hasArea && !!props.activeAreaId && !!props.start && !!props.end,
+              onRun: () => props.onQueueJobs?.("health"),
+            }
+          : bandTool === "overlap" && props.onQueueJobs
+            ? {
+                /*
+                  A job for the reason health is, though shorter: seven
+                  registers on four servers, any of which can be slow, and a
+                  run filed under a saved area. No period.
+                */
+                running: false,
+                progress: 0,
+                progressMsg: "",
+                label: "Queue overlap check",
+                canRun: props.hasArea && !!props.activeAreaId,
+                onRun: () => props.onQueueJobs?.("overlap"),
+              }
+            : bandTool === "radar" && props.onQueueJobs
+              ? {
+                  // A job for the reason health is: every pass of the period.
+                  running: false,
+                  progress: 0,
+                  progressMsg: "",
+                  label: "Queue radar run",
+                  canRun: props.hasArea && !!props.activeAreaId && !!props.start && !!props.end,
+                  onRun: () => props.onQueueJobs?.("radar"),
+                }
+              : bandTool === "zones" && props.onQueueJobs
+                ? {
+                    // A job for the reason health is: four seasons of acquisitions.
+                    running: false,
+                    progress: 0,
+                    progressMsg: "",
+                    label: "Queue zones run",
+                    canRun: props.hasArea && !!props.activeAreaId && !!props.start && !!props.end,
+                    onRun: () => props.onQueueJobs?.("zones"),
+                  }
+                : run;
 
   /*
     THE BAND OVER A SELECTION: the same product and parameters, queued over
@@ -709,7 +758,8 @@ export function StudioScreen(props: StudioScreenProps) {
         progress: 0,
         progressMsg: "",
         label: `Queue ${selection.length} ${selection.length === 1 ? "run" : "runs"}`,
-        canRun: !!props.start && !!props.end,
+        // The overlap reads registers as they stand, not a period's imagery.
+        canRun: queueKind === "overlap" || (!!props.start && !!props.end),
         onRun: () => props.onQueueJobs?.(queueKind),
       }
     : boardRun;
@@ -766,7 +816,9 @@ export function StudioScreen(props: StudioScreenProps) {
               ? !!props.onRunMinerals
               : t.id === "fields"
                 ? !!props.onRunFields
-                : true,
+                : t.id === "health" || t.id === "overlap" || t.id === "radar" || t.id === "zones"
+                  ? !!props.onQueueJobs
+                  : true,
           );
           /*
             ONE ENTRANCE PER SUBJECT, WHICH IS THE SHAPE THE OTHER TWO BARS
@@ -1077,6 +1129,16 @@ export function StudioScreen(props: StudioScreenProps) {
       }
       hasArea={props.hasArea}
       areaLabel={props.areaLabel}
+      // Only where the band queues over it: the delineation and the
+      // compositions run over the area in use whatever is selected.
+      selection={
+        queueKind && props.onClearSelection
+          ? {
+              names: selection.map((id) => props.areas?.find((a) => a.id === id)?.name ?? "area"),
+              onClear: props.onClearSelection,
+            }
+          : undefined
+      }
       onImportPolygon={props.onImportPolygon}
       onClearArea={props.onClearArea}
       start={props.start}
@@ -1109,6 +1171,20 @@ export function StudioScreen(props: StudioScreenProps) {
           : (bandTool === "mineral" && props.mineralBusy) ||
               (bandTool === "fields" && props.fieldsBusy)
             ? "The sidecar runs one analysis at a time."
+            : bandTool === "health" && !props.activeAreaId
+              ? "Save the area first: vegetation health runs as a job, filed under a saved area."
+            : bandTool === "overlap" && !props.activeAreaId
+              ? "Save the area first: the overlap check runs as a job, filed under a saved area."
+            : bandTool === "radar" && !props.activeAreaId
+              ? "Save the area first: the radar series runs as a job, filed under a saved area."
+            : bandTool === "radar" && (!props.start || !props.end)
+              ? "Set the period: every Sentinel-1 pass inside it is read."
+            : bandTool === "zones" && !props.activeAreaId
+              ? "Save the area first: management zones run as a job, filed under a saved area."
+            : bandTool === "zones" && (!props.start || !props.end)
+              ? "Set the period: the latest season, which the three before it are the same days of."
+            : bandTool === "health" && (!props.start || !props.end)
+              ? "Set the period: its acquisitions, and the same days of three earlier seasons, are read."
             : bandTool === "fields" && activeIsField
               ? "Choose the area this field belongs to: fields are delineated over an area, not over one field."
             : bandTool === "fields" && !fieldPeriodOk
@@ -1330,16 +1406,6 @@ export function StudioScreen(props: StudioScreenProps) {
           selectedAreaIds={props.selectedAreaIds}
           onSelectAreas={props.onSelectAreas}
           onClearSelection={props.onClearSelection}
-          jobQueue={
-            props.onQueueJobs
-              ? {
-                  start: props.start,
-                  end: props.end,
-                  model: modelLabel(props.modelKind),
-                  onQueue: props.onQueueJobs,
-                }
-              : undefined
-          }
           reveal={props.reveal}
           onRevealed={props.onRevealed}
           /*

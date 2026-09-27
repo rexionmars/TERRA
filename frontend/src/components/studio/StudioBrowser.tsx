@@ -69,7 +69,11 @@ import {
   Check,
   Diamond,
   Folder,
+  Plant,
   Polygon,
+  Stack,
+  Broadcast,
+  SquareSplitHorizontal,
   FolderOpen,
   FolderPlus,
   Folders,
@@ -184,6 +188,14 @@ const KINDS = [
   { id: "mineral", label: "Mineral map", token: "--p-kind-mineral", icon: Diamond },
   // A polygon: what the product returns is outlines, one per field.
   { id: "fields", label: "Field boundaries", token: "--p-kind-fields", icon: Polygon },
+  // A plant: the canopy against its own earlier seasons.
+  { id: "health", label: "Vegetation health", token: "--p-kind-health", icon: Plant },
+  // A stack: the public registers laid over the area.
+  { id: "overlap", label: "Socio-environmental overlap", token: "--p-kind-overlap", icon: Stack },
+  // A broadcast: an active sensor, which sends the signal it measures.
+  { id: "radar", label: "Sentinel-1 radar", token: "--p-kind-radar", icon: Broadcast },
+  // A square divided: a field cut into parts.
+  { id: "zones", label: "Management zones", token: "--p-kind-zones", icon: SquareSplitHorizontal },
 ] as const
 
 /** The token as a colour, at an alpha. One place, so the syntax is right once. */

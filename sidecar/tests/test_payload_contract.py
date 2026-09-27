@@ -54,6 +54,34 @@ CONTRACTS = [
         REPO / "internal" / "analysis" / "types_fields.go",
         "fieldsSidecarResult",
     ),
+    (
+        REPO / "sidecar" / "terra" / "health" / "actions.py",
+        "health",
+        "map_range",
+        REPO / "internal" / "analysis" / "types_health.go",
+        "healthSidecarResult",
+    ),
+    (
+        REPO / "sidecar" / "terra" / "overlap" / "actions.py",
+        "overlap",
+        "eudr_cutoff",
+        REPO / "internal" / "analysis" / "types_overlap.go",
+        "overlapSidecarResult",
+    ),
+    (
+        REPO / "sidecar" / "terra" / "radar" / "actions.py",
+        "radar",
+        "map_orbit",
+        REPO / "internal" / "analysis" / "types_radar.go",
+        "radarSidecarResult",
+    ),
+    (
+        REPO / "sidecar" / "terra" / "zones" / "actions.py",
+        "zones",
+        "suggested_k",
+        REPO / "internal" / "analysis" / "types_zones.go",
+        "zonesSidecarResult",
+    ),
 ]
 
 

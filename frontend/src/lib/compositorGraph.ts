@@ -41,7 +41,16 @@ export type Place = { x: number; y: number }
  * the bands sat, how firm the answers were. It goes only into the Mineral
  * nodes, each of which reads one part of it into its card.
  */
-export type SocketType = "classes" | "image" | "fields" | "mineral"
+export type SocketType =
+  | "classes"
+  | "image"
+  | "fields"
+  | "mineral"
+  | "season"
+  | "health"
+  | "overlap"
+  | "radar"
+  | "zones"
 
 export interface InputDef {
   id: string
@@ -103,6 +112,25 @@ export type GraphNode =
       minCropland: number
     }
   | { id: string; kind: "adoptFields" }
+  | { id: string; kind: "seasonDates" }
+  | {
+      id: string
+      kind: "health"
+      /**
+       * What a field is compared with: its own earlier seasons (the sidecar's
+       * anomaly), or the other fields of its set on the same date.
+       */
+      reference: HealthReference
+    }
+  | { id: string; kind: "fieldTable" }
+  | { id: string; kind: "overlap" }
+  | { id: string; kind: "radar" }
+  | {
+      id: string
+      kind: "zones"
+      /** The number of zones read and exported; null takes the run's suggestion. */
+      k: number | null
+    }
   | { id: string; kind: "saveFields" }
   | { id: string; kind: "mineralCoverage" }
   | { id: string; kind: "mineralClasses"; group: MineralGroupId }
@@ -116,6 +144,8 @@ export type GraphNode =
   | { id: string; kind: "mineralSave" }
 
 export type NodeKind = GraphNode["kind"]
+
+export type HealthReference = "history" | "neighbours"
 
 export interface GraphLink {
   from: string
@@ -136,6 +166,11 @@ const CLASSES = ["classes"] as const
 const ANY = ["classes", "image"] as const
 const FIELDS = ["fields"] as const
 const REPORT = [{ id: "report", label: "Mineral report", accepts: ["mineral"] as const }] as const
+const SEASON = ["season"] as const
+const HEALTH = ["health"] as const
+const OVERLAP = ["overlap"] as const
+const RADAR = ["radar"] as const
+const ZONES = ["zones"] as const
 
 export interface KindMeta {
   kind: NodeKind
@@ -228,6 +263,84 @@ export const NODE_KINDS: readonly KindMeta[] = [
       { id: "before", label: "Before", accepts: CLASSES },
       { id: "after", label: "After", accepts: CLASSES },
     ],
+    outputs: [],
+  },
+  /*
+    A field's season and health, and the table that gathers every field's
+    figures. Each reads a Run node's report rather than a raster, and under a
+    field set (lib/fieldSets.ts) answers for every field of the area at once.
+  */
+  {
+    kind: "seasonDates",
+    category: "analysis",
+    label: "Season dates",
+    hint: "When the index rose, peaked and fell, and between which observations each can lie",
+    inputs: [{ id: "season", label: "Season", accepts: SEASON }],
+    outputs: [],
+  },
+  {
+    kind: "health",
+    category: "analysis",
+    label: "Vegetation health",
+    hint: "NDVI and NDRE against earlier seasons, or against the other fields on the same date",
+    inputs: [
+      { id: "health", label: "Health", accepts: HEALTH },
+      // Optional: the crop each field is compared within, by its dominant class.
+      { id: "crop", label: "Crop", accepts: CLASSES },
+    ],
+    outputs: [],
+  },
+  {
+    kind: "fieldTable",
+    category: "analysis",
+    label: "Field table",
+    hint: "One row per field: area by class, season dates, confidence and health, exportable to CSV",
+    inputs: [
+      { id: "classes", label: "Classes", accepts: CLASSES },
+      { id: "season", label: "Season", accepts: SEASON },
+      { id: "health", label: "Health", accepts: HEALTH },
+      { id: "overlap", label: "Overlap", accepts: OVERLAP },
+      { id: "radar", label: "Radar", accepts: RADAR },
+      { id: "zones", label: "Zones", accepts: ZONES },
+    ],
+    outputs: [],
+  },
+  /*
+    A field's management zones: the partition chosen, how clearly each number
+    of zones separates, and the export for variable-rate application. Under a
+    field set, one row per field and one file for all of them.
+  */
+  {
+    kind: "zones",
+    category: "analysis",
+    label: "Management zones",
+    hint: "Three to five zones from several seasons of NDVI (fuzzy c-means), exportable as GeoJSON",
+    inputs: [{ id: "zones", label: "Zones", accepts: ZONES }],
+    outputs: [],
+  },
+  /*
+    A field's Sentinel-1 series by orbit and its canopy losses. Under a field
+    set, one row per field.
+  */
+  {
+    kind: "radar",
+    category: "analysis",
+    label: "Radar series",
+    hint: "Sentinel-1 VH and cross ratio by orbit, the canopy losses (harvests) and the open water",
+    inputs: [{ id: "radar", label: "Radar", accepts: RADAR }],
+    outputs: [],
+  },
+  /*
+    The public registers under a field: hectares of PRODES clearing by period,
+    DETER alerts, embargoes, indigenous lands, conservation units and CAR, as
+    read on one day. Under a field set, one row per field.
+  */
+  {
+    kind: "overlap",
+    category: "analysis",
+    label: "Socio-environmental overlap",
+    hint: "Hectares on PRODES, DETER, embargoes, indigenous lands, conservation units and CAR, as read on one day",
+    inputs: [{ id: "overlap", label: "Overlap", accepts: OVERLAP }],
     outputs: [],
   },
   {
@@ -363,6 +476,16 @@ export const FIELDS_SOCKET = "fields:polygons"
 
 /** The Run node's output carrying a mineral map's figures. */
 export const MINERAL_SOCKET = "mineral:report"
+/** A classification run's series and season, beside its rasters. */
+export const SEASON_SOCKET = "season:report"
+/** A vegetation health run's series against earlier seasons. */
+export const HEALTH_SOCKET = "health:report"
+/** An overlap run's registers, as read under the area. */
+export const OVERLAP_SOCKET = "overlap:report"
+/** A radar run's series by orbit and its canopy losses. */
+export const RADAR_SOCKET = "radar:report"
+/** A zones run's partitions. */
+export const ZONES_SOCKET = "zones:report"
 
 /** The field filter's defaults: half a hectare, fifty 10 m cells, and no cropland floor. */
 export const FIELD_FILTER_DEFAULT = { minHa: 0.5, minCropland: 0 } as const
@@ -452,6 +575,18 @@ export function createNode(kind: NodeKind, id: string): GraphNode {
       return { id, kind }
     case "saveFields":
       return { id, kind }
+    case "seasonDates":
+      return { id, kind }
+    case "health":
+      return { id, kind, reference: "history" }
+    case "fieldTable":
+      return { id, kind }
+    case "overlap":
+      return { id, kind }
+    case "radar":
+      return { id, kind }
+    case "zones":
+      return { id, kind, k: null }
     case "mineralClasses":
     case "mineralReferences":
     case "mineralAgreement":
@@ -577,6 +712,11 @@ const CARRIES: Record<SocketType, string> = {
   image: "an image",
   fields: "a set of field polygons",
   mineral: "a mineral map's figures",
+  season: "a run's season series",
+  health: "a health run's figures",
+  overlap: "an overlap run's registers",
+  radar: "a radar run's series",
+  zones: "a zones run's partitions",
 }
 
 /** Why an output of `type` cannot go into `input`, in words. */
@@ -587,7 +727,30 @@ export function refusal(input: InputDef, type: SocketType): string {
   if (input.accepts.includes("mineral")) {
     return `${input.label} takes a mineral map's figures, from a mineral run's Run node, and this output is ${CARRIES[type]}.`
   }
-  if (type === "fields" || type === "mineral") {
+  if (input.accepts.includes("season")) {
+    return `${input.label} takes the Season output of a classification run's Run node, and this output is ${CARRIES[type]}.`
+  }
+  if (input.accepts.includes("health")) {
+    return `${input.label} takes the Health report of a vegetation health run's Run node, and this output is ${CARRIES[type]}.`
+  }
+  if (input.accepts.includes("overlap")) {
+    return `${input.label} takes the Overlap report of a socio-environmental overlap run's Run node, and this output is ${CARRIES[type]}.`
+  }
+  if (input.accepts.includes("zones")) {
+    return `${input.label} takes the Zones report of a management zones run's Run node, and this output is ${CARRIES[type]}.`
+  }
+  if (input.accepts.includes("radar")) {
+    return `${input.label} takes the Radar report of a Sentinel-1 radar run's Run node, and this output is ${CARRIES[type]}.`
+  }
+  if (
+    type === "fields" ||
+    type === "mineral" ||
+    type === "season" ||
+    type === "health" ||
+    type === "overlap" ||
+    type === "radar" ||
+    type === "zones"
+  ) {
     return `${input.label} takes a raster, and this output is ${CARRIES[type]}.`
   }
   return `${input.label} needs a class map, and this output is an image: a class cannot be read back out of colour.`
@@ -868,6 +1031,18 @@ function parseNode(raw: unknown): GraphNode | null {
       return { id, kind: "adoptFields" }
     case "saveFields":
       return { id, kind: "saveFields" }
+    case "seasonDates":
+      return { id, kind: "seasonDates" }
+    case "health":
+      return { id, kind: "health", reference: o.reference === "neighbours" ? "neighbours" : "history" }
+    case "fieldTable":
+      return { id, kind: "fieldTable" }
+    case "overlap":
+      return { id, kind: "overlap" }
+    case "radar":
+      return { id, kind: "radar" }
+    case "zones":
+      return { id, kind: "zones", k: typeof o.k === "number" && [3, 4, 5].includes(o.k) ? o.k : null }
     case "mineralClasses":
     case "mineralReferences":
     case "mineralAgreement":

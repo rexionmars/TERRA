@@ -1,0 +1,298 @@
+% =====================================================================
+% TERRA -- product features by tier
+%
+% Build from this directory:
+%   latexmk -pdf product_features_by_tier.tex
+% latexmk lives in /Library/TeX/texbin, outside the default PATH.
+%
+% The same items as TODO.md at the repository root, ordered by tier. The
+% complexity column is reported for each item and is NOT what orders the
+% tables: section 2 states the criterion that does.
+% =====================================================================
+
+\documentclass[11pt,a4paper]{article}
+
+\usepackage[utf8]{inputenc}
+\usepackage[T1]{fontenc}
+\usepackage[english]{babel}
+\usepackage[margin=2.0cm]{geometry}
+\usepackage{lmodern}
+\usepackage{microtype}
+\usepackage{array}
+\usepackage{booktabs}
+\usepackage{tabularx}
+\usepackage{xltabular}
+\usepackage{enumitem}
+\usepackage{xcolor}
+\usepackage[round]{natbib}
+\usepackage[hidelinks]{hyperref}
+
+\linespread{1.08}
+\setlist{itemsep=2pt, topsep=4pt}
+
+% RAGGED-RIGHT TABLE COLUMNS. The columns are narrow, and a justified column
+% of that width opens gaps between words. \arraybackslash restores the row
+% separator that \raggedright redefines.
+\newcolumntype{L}[1]{>{\raggedright\arraybackslash}p{#1}}
+\newcolumntype{Y}{>{\raggedright\arraybackslash}X}
+
+% One tier table: rank, product, what it delivers, what it builds on, what it
+% waits for, and its complexity. The complexity is the last column on purpose:
+% it is information about each row, not the key the rows are sorted by.
+%
+% xltabular, not tabularx: a tabularx is one unbreakable box, so a table that
+% did not fit under its section's paragraph moved whole to the next page and
+% left the rest of the page empty. This one breaks between rows and repeats
+% its header on the next page.
+\newcommand{\tierhead}{%
+  \toprule
+  \textbf{\#} & \textbf{Product} & \textbf{Delivers} & \textbf{Builds on} &
+  \textbf{Depends on} & \textbf{Complexity} \\
+  \midrule}
+\newenvironment{tiertable}{%
+  \footnotesize
+  \setlength{\LTpre}{8pt}\setlength{\LTpost}{8pt}
+  \xltabular{\linewidth}{@{}L{0.4cm}L{2.4cm}YYL{2.3cm}L{1.9cm}@{}}
+  \tierhead
+  \endfirsthead
+  \tierhead
+  \endhead
+  \bottomrule
+  \endlastfoot
+}{%
+  \endxltabular
+}
+
+\title{TERRA Product Features by Tier}
+\author{Jo\~ao Leonardi\textsuperscript{a}}
+\date{\today}
+
+\makeatletter
+\newcommand{\affilnum}[1]{\textsuperscript{#1}}
+\newcommand{\address}[1]{\gdef\@address{#1}}
+\address{\affilnum{a}Computer Vision Research Center, iCEV Institute of Higher Education, Teresina, Brazil.}
+\renewcommand{\maketitle}{%
+  \begin{center}
+    {\LARGE\bfseries\@title\par}
+    \vspace{0.8em}
+    {\large\@author\par}
+    \vspace{0.3em}
+    {\small\itshape\@address\par}
+    \vspace{0.3em}
+    {\small\@date\par}
+  \end{center}
+  \vspace{0.8em}}
+\makeatother
+
+\begin{document}
+
+\maketitle
+
+\begin{abstract}
+\noindent
+This document lists eleven candidate products for TERRA in three tiers. Tier~1
+holds the three items that complete the current workflow (area, fields, jobs,
+results) or were requested directly. Tier~2 holds the five items that the
+product comparison brought to this project lists and TERRA lacks. Tier~3 holds
+three extensions proposed during that analysis. Each item states what it
+delivers, the code it builds on, what it depends on, and a qualitative
+complexity (low, medium or high). The complexity is reported for every item and
+does not determine the order. Within a tier, items are ordered by dependency.
+\end{abstract}
+
+\section{Current state}
+
+\paragraph{Implemented.} Classification with per-pixel confidence; comparison
+with MapBiomas; NDVI series with phenology (start, peak and end of season,
+computed over a run's area); surface water; mineral map; field delineation;
+the job queue (\texttt{internal/jobs}); and the single compositor graph for
+every field of an area (\texttt{frontend/src/lib/fieldSets.ts}).
+
+\paragraph{Not implemented.} Sentinel-1, Landsat or HLS imagery; error-adjusted
+area estimation; training on user samples; management zones;
+socio-environmental checks; vegetation anomaly. Surface water is the only
+product that computes an anomaly.
+
+\section{Tier criterion}
+
+Tiers are assigned by where a request comes from and what it unblocks, not by
+effort:
+
+\begin{description}[leftmargin=1.6cm, style=nextline]
+  \item[Tier 1] Completes the workflow already built (area $\rightarrow$
+    fields $\rightarrow$ jobs $\rightarrow$ results), or was requested
+    directly. Items in later tiers report through these.
+  \item[Tier 2] Listed in the product comparison brought to this project and
+    absent from TERRA.
+  \item[Tier 3] Proposed during the analysis and listed in neither source.
+\end{description}
+
+\noindent Within a tier, an item precedes the items that depend on it. Where
+no dependency separates two items, the order follows the reach of the result:
+products usable across all fields before products for one use. The complexity
+column is a judgement from reading the code; it states scope and gives no
+schedule.
+
+\section{Tier 1: completing the current workflow}
+
+The per-field table comes first because every later per-field product needs a
+place to report one row per field. The season dates are already computed in
+every field job and need only that table. Vegetation health was requested
+directly and is a new job kind that the queue and the single graph accept.
+
+\begin{tiertable}
+1 & Per-field table &
+One row per field (area by class, season dates, mean confidence),
+exportable to CSV. &
+Per-field runs; the single compositor graph (\texttt{fieldSets.ts}). &
+None. & Low \\
+\addlinespace
+2 & Season dates per field &
+Emergence, peak and senescence for each field, with an uncertainty window. &
+\texttt{phenology.py}: Savitzky--Golay smoothing and a 50\,\% amplitude
+threshold, the rule TIMESAT applies \citep{jonsson2004}. It already runs in
+every field job. &
+Item 1 (display across fields). & Low to medium \\
+\addlinespace
+3 & Vegetation health &
+NDVI/NDRE anomaly of each field against its own history and against
+neighbouring fields of the same crop, as a map and a score per field. &
+Sentinel-2 series and red-edge bands B05--B07; a new job kind
+(\texttt{jobWork}, \texttt{JOB\_KINDS}). &
+Item 1 (score per field); decision D1. & Medium \\
+\end{tiertable}
+
+\section{Tier 2: gaps against the product comparison}
+
+Socio-environmental checks lead the tier because they depend on no model and
+apply to every field. The error-adjusted area follows because its labelling
+screen is the one the training on user samples reuses. Management zones use
+only the field polygons and the series. Sentinel-1 closes the tier: it feeds
+the season dates and vegetation health of Tier~1 under cloud and is not a
+prerequisite for any other item in this tier.
+
+\begin{tiertable}
+1 & Socio-envi\-ron\-mental checks &
+Overlap of each field, in hectares and with dates, with PRODES/DETER
+(deforestation after 2008, Brazilian Forest Code; after 31~Dec~2020, EUDR),
+CAR/SICAR (APP and legal reserve), IBAMA embargoes, indigenous lands and
+conservation units. &
+Field polygons; area geometry. Missing: per-area download of the public
+layers (TerraBrasilis WFS) and the vector intersections. &
+None. & Medium \\
+\addlinespace
+2 & Error-adjusted area &
+Area of each class with a 95\,\% confidence interval, and user's and
+producer's accuracy \citep{olofsson2014}. &
+Classification runs. Missing: stratified random sample, a labelling screen
+over the imagery, the estimator. The method is cited in
+\texttt{mapbiomas.py} and not computed. &
+None. & Medium to high \\
+\addlinespace
+3 & Management zones &
+Three to five zones per field from several seasons of NDVI/EVI (fuzzy
+k-means; \citealp{fridgen2004}), exportable to GeoJSON or shapefile for
+variable-rate application. &
+Field polygons; Sentinel-2 series. &
+Multi-season series per field. & Medium \\
+\addlinespace
+4 & Training on user samples &
+A classifier fitted to the region, with labelled fields (``soybean'',
+``maize'') as training samples. &
+Field polygons; the Random Forest path. Prithvi is used frozen. Missing:
+labelling screen, retraining. &
+Item 2 (labelling screen). & Medium (Random Forest) to high (network) \\
+\addlinespace
+5 & Sentinel-1 (radar) &
+A VV/VH series independent of cloud: season cycle in the summer crop,
+harvest detection from the drop in VH, water mapping under cloud. &
+Planetary Computer RTC collection, served through the same STAC as
+Sentinel-2. Missing: a sidecar slice. &
+None. & High \\
+\end{tiertable}
+
+\section{Tier 3: extensions proposed in the analysis}
+
+Event alerts read the series that vegetation health builds, so they follow it.
+HLS densifies the series that the dates and the health products read. Yield
+closes the list because it depends on data the user supplies.
+
+\begin{tiertable}
+1 & Field event alerts &
+Abrupt drops in the series (hail, frost, lodging, early harvest) found by
+break detection (BFAST; \citealp{verbesselt2010}). &
+Per-field series; can be part of vegetation health. &
+Tier~1 item 3. & Medium \\
+\addlinespace
+2 & HLS (Landsat + Sentinel-2) &
+A revisit of two to three days, which narrows the uncertainty of season
+dates and health in cloudy regions. &
+NASA LP DAAC; the Earthdata token already used by the mineral map. &
+Tier~1 items 2 and 3 (consumers). & Medium \\
+\addlinespace
+3 & Yield &
+Calibrated only with the user's harvest data (yield monitor); without it, a
+relative potential map. &
+Per-field series and season dates. &
+User harvest data. & High \\
+\end{tiertable}
+
+\section{Open decisions}
+
+\begin{description}[leftmargin=1cm, style=nextline]
+  \item[D1] Reference for the vegetation anomaly: the field's own history,
+    neighbouring fields of the same crop, or both. The choice sets the data
+    each health job reads.
+\end{description}
+
+\section{Limitations}
+
+\begin{itemize}
+  \item \textbf{Criterion.} Tiers reflect the state of the code, the direct
+    requests and the product comparison available when this list was
+    written. A new request or a change in scope reorders them.
+  \item \textbf{Complexity.} Qualitative, from reading the code; no effort was
+    measured, and no item was prototyped.
+  \item \textbf{Field accuracy.} Every per-field product inherits the field
+    delineation, whose accuracy over western Paran\'a is unmeasured: no
+    hand-digitised reference fields exist for the region.
+  \item \textbf{Season dates.} NDVI marks emergence and senescence, not sowing
+    and harvest. Sowing precedes emergence by several days and harvest
+    follows senescence; with a five-day revisit and cloud, the uncertainty is
+    days to weeks.
+  \item \textbf{Public layers.} PRODES, DETER, CAR and the embargo lists change
+    on their own schedules. A check is valid for the date its layers were
+    read, and has to state that date.
+  \item \textbf{Yield.} Without the user's harvest data, no absolute yield
+    figure is supported.
+\end{itemize}
+
+\begin{thebibliography}{9}
+\providecommand{\natexlab}[1]{#1}
+
+\bibitem[Fridgen et~al.(2004)]{fridgen2004}
+Fridgen, J.~J., Kitchen, N.~R., Sudduth, K.~A., Drummond, S.~T., Wiebold,
+W.~J. and Fraisse, C.~W. (2004).
+Management Zone Analyst (MZA): software for subfield management zone
+delineation.
+\emph{Agronomy Journal}, 96(1), 100--108.
+
+\bibitem[J\"onsson and Eklundh(2004)]{jonsson2004}
+J\"onsson, P. and Eklundh, L. (2004).
+TIMESAT: a program for analyzing time-series of satellite sensor data.
+\emph{Computers \& Geosciences}, 30(8), 833--845.
+
+\bibitem[Olofsson et~al.(2014)]{olofsson2014}
+Olofsson, P., Foody, G.~M., Herold, M., Stehman, S.~V., Woodcock, C.~E. and
+Wulder, M.~A. (2014).
+Good practices for estimating area and assessing accuracy of land change.
+\emph{Remote Sensing of Environment}, 148, 42--57.
+
+\bibitem[Verbesselt et~al.(2010)]{verbesselt2010}
+Verbesselt, J., Hyndman, R., Newnham, G. and Culvenor, D. (2010).
+Detecting trend and seasonal changes in satellite image time series.
+\emph{Remote Sensing of Environment}, 114(1), 106--115.
+
+\end{thebibliography}
+
+\end{document}

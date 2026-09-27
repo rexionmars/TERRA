@@ -61,6 +61,45 @@ func TestEveryRasterRunRecordsItsOverlay(t *testing.T) {
 			},
 		},
 		{
+			name: "health",
+			persist: func(a *App) string {
+				return a.persistHealthRun(
+					analysis.HealthRequest{Label: "field 3"},
+					&analysis.HealthAnalysis{AnomalyURI: onePixelPNG, NDVIURI: onePixelPNG},
+				)
+			},
+		},
+		{
+			name: "zones",
+			persist: func(a *App) string {
+				return a.persistZonesRun(
+					analysis.ZonesRequest{Label: "field 3"},
+					&analysis.ZonesAnalysis{
+						SuggestedK: 3,
+						Partitions: []analysis.ZonesPartition{{K: 3, MapURI: onePixelPNG}},
+					},
+				)
+			},
+		},
+		{
+			name: "radar",
+			persist: func(a *App) string {
+				return a.persistRadarRun(
+					analysis.RadarRequest{Label: "field 3"},
+					&analysis.RadarAnalysis{CompositeURI: onePixelPNG, WaterURI: onePixelPNG},
+				)
+			},
+		},
+		{
+			name: "overlap",
+			persist: func(a *App) string {
+				return a.persistOverlapRun(
+					analysis.OverlapRequest{Label: "field 3"},
+					&analysis.OverlapAnalysis{MapURI: onePixelPNG},
+				)
+			},
+		},
+		{
 			name: "mineral",
 			persist: func(a *App) string {
 				return a.persistMineralRun(

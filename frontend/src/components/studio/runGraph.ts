@@ -209,7 +209,31 @@ function productGraph(
     from (lib/fields.ts fieldWindows). The checkpoint is fixed by the product,
     for the reason the mineral map has no model card.
   */
-  if (tool === "fields") {
+  /*
+    Vegetation health: an area and a period, which the earlier seasons are the
+    same days of. Every clear acquisition is read, so there is no model and no
+    monthly pick to set.
+  */
+  /*
+    Socio-environmental overlap: an area alone. The registers are read as they
+    stand when the job runs, so there is no period to set.
+  */
+  if (tool === "overlap") {
+    return {
+      nodes: [at("area", 0), at("run", 1)],
+      edges: [["area", "run"]],
+    }
+  }
+
+  /*
+    Sentinel-1 radar: an area and a period, every pass of it read. No model,
+    and no cloud to set, which the period card withholds under this tool.
+  */
+  /*
+    Management zones: an area and a period, the latest season, which the three
+    before it are the same days of. The cloud ceiling is the scene search's.
+  */
+  if (tool === "fields" || tool === "health" || tool === "radar" || tool === "zones") {
     return {
       nodes: [at("area", 0), at("period", 0), at("run", 1)],
       edges: [

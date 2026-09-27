@@ -585,6 +585,30 @@ func (a *App) LoadAnalysis(runID string) (*analysis.PredictResult, error) {
 		return &analysis.PredictResult{Fields: loadFieldsRun(run, assetsDir), RunID: run.ID}, nil
 	}
 
+	// Vegetation health: its figures from the row, its two maps from disk. See
+	// loadHealthRun.
+	if run.Kind == store.RunKindHealth {
+		return &analysis.PredictResult{Health: loadHealthRun(run, assetsDir), RunID: run.ID}, nil
+	}
+
+	// Socio-environmental overlap: its registers from the row, its map from
+	// disk. See loadOverlapRun.
+	if run.Kind == store.RunKindOverlap {
+		return &analysis.PredictResult{Overlap: loadOverlapRun(run, assetsDir), RunID: run.ID}, nil
+	}
+
+	// Sentinel-1 radar: its series from the row, its two maps from disk. See
+	// loadRadarRun.
+	if run.Kind == store.RunKindRadar {
+		return &analysis.PredictResult{Radar: loadRadarRun(run, assetsDir), RunID: run.ID}, nil
+	}
+
+	// Management zones: its partitions from the row, their maps from disk. See
+	// loadZonesRun.
+	if run.Kind == store.RunKindZones {
+		return &analysis.PredictResult{Zones: loadZonesRun(run, assetsDir), RunID: run.ID}, nil
+	}
+
 	var res analysis.PredictResult
 	if run.ResultJSON != "" && run.ResultJSON != "{}" {
 		_ = json.Unmarshal([]byte(run.ResultJSON), &res)
