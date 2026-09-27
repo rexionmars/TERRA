@@ -1,0 +1,481 @@
+% =====================================================================
+% TERRA -- modelo de relatorio de analise
+%
+% Compilar de dentro de docs/report/:
+%   latexmk relatorio.tex
+% O latexmk vive em /Library/TeX/texbin, fora do PATH padrao. O .latexmkrc
+% deste diretorio encontra terra.sty em ../user-manual/tex-files.
+%
+% COMO USAR. Copie este arquivo para o relatorio novo e troque cada
+% \preencher{...} e \preencherbloco{...} pelo dado. Toda lacuna aparece no
+% PDF como caixa creme entre colchetes e e listada no log. Para emitir,
+% troque a opcao `rascunho' por `final': com ela uma lacuna restante
+% interrompe a compilacao, e o PDF liberado nao chega a existir incompleto.
+%
+% DE ONDE VEM CADA NUMERO. As lacunas de resultado nomeiam o campo da
+% execucao que as alimenta (overall_pct, peak_water_fraction_pct, ...), como
+% ele esta em internal/analysis/types.go e frontend/src/lib/types.ts. Um
+% numero do relatorio e copiado da execucao, nunca recalculado a mao, e o
+% identificador da execucao vai na secao de reprodutibilidade.
+%
+% SECAO DE PRODUTO NAO EXECUTADO SAI INTEIRA. Um relatorio de cobertura do
+% solo nao leva uma secao de agua vazia "para manter a estrutura".
+%
+% A ORDEM DAS SECOES e a sequencia do leitor de escrita.md (secao 4): isto
+% e para mim (abertura, sintese), o que isto faz (pergunta e escopo), eu
+% acredito no numero (metodo, resultados, limitacoes), como reproduzo
+% (reprodutibilidade, apendices).
+% =====================================================================
+
+\documentclass[11pt,a4paper]{article}
+
+\usepackage[utf8]{inputenc}
+\usepackage[T1]{fontenc}
+\usepackage[brazilian]{babel}
+% Opcoes: english | final | rascunho. Ver o cabecalho de terra-report.sty.
+\usepackage[rascunho]{terra-report}
+
+\graphicspath{{figuras/}}
+
+% --- identificacao (ISO 7200) ----------------------------------------
+% Numeracao sugerida: TERRA-RA-<ano>-<sequencial de tres digitos>. A revisao
+% comeca em A e avanca a cada reemissao; o historico no fim registra o que
+% mudou em cada uma.
+\titulo{Cobertura do solo e situação socioambiental de \preencher{nome da área}}
+\titulocurto{\preencher{nome da área}}
+\subtitulo{\preencher{município}, \preencher{UF}. Safra \preencher{safra},
+  Sentinel-2 de \preencher{início} a \preencher{fim}}
+\identificacao{TERRA-RA-\preencher{ano}-\preencher{nnn}}
+\revisao{A}
+\emissao{\preencher{data de emissão}}
+\situacao{\emelaboracao}
+\titular{\preencher{instituição ou empresa}}
+\destinatario{\preencher{quem recebe}}
+\responsavel{\preencher{autor}}
+\aprovacao{\preencher{quem aprova}}
+
+\begin{document}
+
+\terraabertura
+
+% --- sintese ---------------------------------------------------------
+% Tres a cinco achados. Cada um com o numero, a unidade e a condicao em que
+% foi medido. Nenhum qualificador sem numero ("expressiva", "baixa"): o
+% leitor que so ler esta caixa sai com os valores, e nao com uma impressao.
+\secaolivre{Síntese}
+
+Este relatório descreve \preencher{produtos executados} sobre
+\preencher{nome da área} (\preencher{área} ha, \preencher{n} talhões), a partir
+de \preencher{n\_dates} cenas Sentinel-2 L2A entre \preencher{início} e
+\preencher{fim}.
+
+\begin{sintese}
+  \item \preencherbloco{achado 1: valor, unidade e condição de medida.
+        Ex.: classe dominante e sua fração, com a concordância com o MapBiomas}
+  \item \preencherbloco{achado 2}
+  \item \preencherbloco{achado 3}
+\end{sintese}
+
+% Ficha de procedencia, na primeira pagina pelo motivo que terra.sty da:
+% "com que dado?" e a pergunta que decide se vale ler o resto.
+\begin{ficha}
+  \item[Área] \preencher{nome}, \preencher{area\_ha} ha;
+        \preencher{n} talhões, limites de \preencher{delineação ou arquivo importado}
+  \item[Imagens] Sentinel-2 L2A, catálogo STAC do Planetary Computer;
+        \preencher{start} a \preencher{end}, nuvem abaixo de
+        \preencher{max\_cloud}\,\%, \preencher{uma cena por mês ou todas}
+  \item[Referência] MapBiomas Coleção \preencher{n}, ano \preencher{year}
+  \item[Produtos] \preencher{classificação, fenologia, saúde, água,
+        sobreposição, mineral}
+  \item[Software] TERRA \preencher{versão}; execuções listadas na
+        seção~\ref{sec:repro}
+\end{ficha}
+
+\newpage
+
+% =====================================================================
+\section{Pergunta e escopo}
+% A pergunta do destinatario, em uma ou duas frases, e o que o relatorio
+% deixa de fora. Nao descreva a tela: diga o que a analise responde.
+
+\preencherbloco{A pergunta que o destinatário fez, e a decisão que depende
+dela. Ex.: quanto da área está sob cultura anual na safra, e se algum
+talhão sobrepõe cadastro público de restrição.}
+
+\preencherbloco{O que o relatório não cobre. Ex.: produtividade, sanidade
+por patógeno, regularidade fundiária.}
+
+% Estas duas ressalvas vem do proprio codigo (sidecar/terra/overlap e
+% frontend/src/lib/health.ts). Mantenha a que corresponder a um produto
+% executado e apague a outra.
+\begin{aviso}
+Sobreposição com cadastro público não constitui constatação de
+irregularidade, e vale para a data em que os cadastros foram lidos.
+Desvio de índice de vegetação não constitui diagnóstico: semeadura mais
+tardia, outra cultura ou pousio produzem o mesmo desvio que estresse.
+\end{aviso}
+
+% =====================================================================
+\section{Área e talhões}
+
+\begin{figure}[htbp]\centering
+  \figurapendente[8cm]{Mapa da área com os limites dos talhões, identificados
+  pelo nome usado nas tabelas. Escala gráfica, norte e sistema de referência}
+  \legenda{\preencher{O que o mapa sustenta}}{Limites de
+  \preencher{origem}. Sistema de referência \preencher{EPSG}.
+  Fundo: composição de cor verdadeira de \preencher{data}.}
+  \label{fig:area}
+\end{figure}
+
+\begin{table}[htbp]\centering\small
+  \caption{Talhões da área (\preencher{n} talhões,
+  \preencher{área total} ha).}\label{tab:talhoes}
+  \begin{tabular}{@{}lS[table-format=4.1]ll@{}}
+    \arrayrulecolor{terratrim}\toprule
+    \cab{Talhão} & {\cab{Área (ha)}} & \cab{Cultura declarada} & \cab{Origem do limite} \\
+    \midrule
+    {\preencher{nome}} & {\preencher{ha}} & {\preencher{cultura}} & {\preencher{origem}} \\
+    \bottomrule
+  \end{tabular}
+\end{table}
+
+% =====================================================================
+\section{Dados e método}
+% Uma subsecao por produto EXECUTADO. O texto de cada uma afirma o que o
+% sidecar faz; o arquivo que o sustenta esta no comentario ao lado. Se o
+% codigo mudar, o texto muda junto.
+
+\subsection{Aquisição}
+% frontend/src/lib/methodBrief.ts, acquisition(). Criterio de selecao, conforme
+% monthly_best: "Uma cena por mês, a de menor cobertura de nuvem" ou "Todas
+% as cenas abaixo do limite".
+Cenas Sentinel-2 L2A obtidas pelo catálogo STAC do Planetary Computer, de
+\preencher{start} a \preencher{end}, com cobertura de nuvem abaixo de
+\preencher{max\_cloud}\,\%. \preencher{critério de seleção}. Apenas a janela do polígono e as
+bandas usadas pelo modelo são lidas. \preencher{n\_dates} datas atenderam ao
+filtro (lista no apêndice~\ref{ap:cenas}).
+
+\subsection{Cobertura do solo}
+% sidecar/terra/landcover/mapbiomas.py
+Classificação por pixel com \preencher{modelo}, na legenda de cinco classes
+MapBiomas (3, 21, 25, 39, 41). A concordância com o mapa MapBiomas
+\citep{souza2020} é medida por exatidão global, exatidão do produtor e do
+usuário, com intervalo de Wilson a 95\,\% \citep{brown2001}, e pela divisão da
+discordância em quantidade e alocação \citep{pontius2011}. O coeficiente kappa
+não é calculado, pelo argumento de \citet{pontius2011}.
+
+\subsection{Fenologia}
+% sidecar/terra/phenology.py
+Série temporal de NDVI médio por talhão, suavizada por Savitzky--Golay
+\citep{savitzky1964}, da qual se extraem início (SOS), pico (POS) e fim (EOS)
+da estação, em dia do ano, e a duração (LOS), em dias.
+
+\subsection{Saúde da vegetação}
+% sidecar/terra/health/series.py; frontend/src/lib/health.ts
+NDVI e NDRE de cada data da estação comparados a duas referências: as
+estações anteriores (\preencher{baseline\_years}), nas datas a até
+\preencher{window\_days} dias do mesmo dia do ano, em desvios-padrão; e os
+demais talhões do conjunto numa data comum, contra a mediana, em
+desvios-padrão robustos ($1{,}4826 \times$ desvio absoluto mediano;
+\citealp{rousseeuw1993}). Os cortes de leitura são 1 e 2 desvios-padrão.
+
+\subsection{Água superficial}
+% sidecar/terra/water/indices.py
+Índice \preencher{NDWI | MNDWI} \citep{xu2006} por data, com limiar
+\preencher{Otsu | fixo} \citep{otsu1979}. A ocorrência é a fração das datas
+válidas em que o pixel foi classificado como água; água efêmera é a presente
+em parte das datas, e persistente a presente na maioria.
+
+\subsection{Sobreposição com cadastros públicos}
+% sidecar/terra/overlap; frontend/src/lib/overlap.ts
+Interseção da área com PRODES, DETER, embargos do IBAMA e do ICMBio, terras
+indígenas, unidades de conservação e CAR, como estavam em
+\preencher{read\_at}. Feições sobrepostas de um mesmo cadastro contam uma vez.
+Cadastro que não pôde ser lido é reportado como não lido, e não como zero.
+
+\subsection{Mapa mineral}
+% sidecar/terra/mineral
+Identificação de minerais de superfície pelo sistema especialista Tetracorder
+\citep{clark2003} sobre reflectância EMIT, em células de 60 m, com uma resposta
+por grupo Tetracorder. Seleção de passagem por NDVI e índice de absorção de
+celulose.
+
+% =====================================================================
+\section{Resultados}
+
+\subsection{Cobertura do solo}
+
+\begin{figure}[htbp]\centering
+  \figurapendente[8cm]{Mapa de classes e mapa de confiança lado a lado,
+  painéis a e b}
+  \legenda{\preencher{Achado que o mapa sustenta}}{\textbf{a},~classe
+  prevista por pixel; \textbf{b},~confiança do classificador, de 0 a 1.
+  Cores das classes conforme a legenda MapBiomas.}
+  \label{fig:classes}
+\end{figure}
+
+% Area por classe. Numeros copiados de class_stats (area_ha, pct).
+\begin{table}[htbp]\centering\small
+  \caption{Área por classe prevista (\preencher{n\_pixels} pixels de
+  \preencher{pixel\_size\_m} m).}\label{tab:classes}
+  \begin{tabular}{@{}lS[table-format=5.1]S[table-format=3.1]@{}}
+    \arrayrulecolor{terratrim}\toprule
+    \cab{Classe} & {\cab{Área (ha)}} & {\cab{Fração (\%)}} \\
+    \midrule
+    {\preencher{name}} & {\preencher{area\_ha}} & {\preencher{pct}} \\
+    \midrule
+    Total & {\preencher{ha}} & 100,0 \\
+    \bottomrule
+  \end{tabular}
+\end{table}
+
+% Concordancia. Numeros de agreement: overall_pct, overall_ci,
+% quantity_disagreement_pct, allocation_disagreement_pct, per_class.
+A exatidão global contra o MapBiomas \preencher{year} é de
+\preencher{overall\_pct}\,\% (IC 95\,\%: \preencher{overall\_ci}), sobre
+\preencher{n\_reference\_cells} células de referência. A discordância divide-se
+em \preencher{quantity\_disagreement\_pct}\,\% de quantidade e
+\preencher{allocation\_disagreement\_pct}\,\% de alocação.
+
+\begin{table}[htbp]\centering\small
+  \caption{Exatidão por classe contra o MapBiomas, com intervalo de Wilson a
+  95\,\%.}\label{tab:exatidao}
+  \begin{tabular}{@{}lllrr@{}}
+    \arrayrulecolor{terratrim}\toprule
+    \cab{Classe} & \cab{Produtor (\%)} & \cab{Usuário (\%)} &
+    \cab{$n$ ref.} & \cab{$n$ prev.} \\
+    \midrule
+    \preencher{name} & \preencher{producers\_pct [CI]} &
+    \preencher{users\_pct [CI]} & \preencher{n} & \preencher{n} \\
+    \bottomrule
+  \end{tabular}
+\end{table}
+
+\begin{objecao}
+A comparação mede concordância com outro mapa, não exatidão contra
+verificação de campo. Não há desenho amostral por trás dela; a avaliação de
+exatidão com amostragem é a de \citet{olofsson2014}, e esta não é uma.
+\end{objecao}
+
+\subsection{Fenologia}
+
+\begin{figure}[htbp]\centering
+  \figurapendente[6cm]{Série de NDVI por talhão ao longo da estação, com SOS,
+  POS e EOS marcados}
+  \legenda{\preencher{Achado que a série sustenta}}{NDVI médio por data,
+  $n$ = \preencher{n\_dates} datas. Linha: série suavizada; marcadores:
+  médias observadas; faixa: \preencher{desvio-padrão}.}
+  \label{fig:fenologia}
+\end{figure}
+
+\begin{aviso}
+NDVI marca emergência e senescência, não semeadura e colheita. A semeadura
+antecede a emergência e a colheita sucede a senescência; com revisita de 5 dias
+e nuvem, a incerteza das datas é de \preencher{n} dias nesta série.
+\end{aviso}
+
+\subsection{Saúde da vegetação}
+
+\preencherbloco{Talhões com desvio abaixo de $-1$ e de $-2$ desvios-padrão na
+data \preencher{map\_date}, com o valor de cada um e a referência usada.}
+
+\begin{figure}[htbp]\centering
+  \figurapendente[7cm]{Mapa de anomalia de NDVI na data mais recente com
+  referência}
+  \legenda{\preencher{Achado}}{NDVI menos a mediana das estações anteriores na
+  mesma época do ano, por célula, em \preencher{map\_date}. Escala divergente
+  centrada em zero, de $-$\preencher{map\_range} a $+$\preencher{map\_range}.}
+  \label{fig:saude}
+\end{figure}
+
+\subsection{Água superficial}
+
+A fração máxima de água foi de \preencher{peak\_water\_fraction\_pct}\,\% da
+área, em \preencher{peak\_date}. Água persistente ocupou
+\preencher{persistent\_area\_ha} ha, e efêmera \preencher{ephemeral\_area\_ha}
+ha, em \preencher{n\_dates} datas.
+
+\subsection{Sobreposição com cadastros públicos}
+
+% Registros em REGISTER_ORDER (frontend/src/lib/overlap.ts); publicador
+% conforme o campo `publisher' de cada camada. Cadastro nao
+% lido: escreva "não lido" na coluna de area, nunca 0.
+\begin{table}[htbp]\centering\small
+  \caption{Área sobreposta a cada cadastro, lida em \preencher{read\_at}.}
+  \label{tab:cadastros}
+  \begin{tabularx}{\linewidth}{@{}L{4.2cm}L{3.8cm}rrY@{}}
+    \arrayrulecolor{terratrim}\toprule
+    \cab{Cadastro} & \cab{Publicador} & \cab{Área (ha)} & \cab{Feições} &
+    \cab{Nota} \\
+    \midrule
+    PRODES              & INPE, TerraBrasilis & \preencher{ha} & \preencher{n} & \\
+    DETER               & INPE, TerraBrasilis & \preencher{ha} & \preencher{n} & \\
+    Embargo IBAMA       & IBAMA   & \preencher{ha} & \preencher{n} & \\
+    Embargo ICMBio      & ICMBio, publicado pelo IBAMA & \preencher{ha} & \preencher{n} & \\
+    Terra indígena      & FUNAI   & \preencher{ha} & \preencher{n} & \\
+    Unidade de conservação & MMA, CNUC & \preencher{ha} & \preencher{n} & \\
+    CAR                 & SFB, SICAR & \preencher{ha} & \preencher{n} & \\
+    \bottomrule
+  \end{tabularx}
+\end{table}
+
+Supressão PRODES após o marco do Código Florestal (\preencher{forest\_code\_cutoff}):
+\preencher{ha} ha. Após o marco do regulamento europeu EUDR
+(\preencher{eudr\_cutoff}): \preencher{ha} ha.
+
+\subsection{Mapa mineral}
+
+\preencherbloco{Grupos Tetracorder identificados, fração da área com resposta
+em cada um, e a concordância com o produto EMIT L2B da mesma passagem.}
+
+% =====================================================================
+\section{Resultados por talhão}\label{sec:talhoes}
+% As colunas do Field table do compositor (frontend/src/lib/fieldTable.ts).
+% Celula sem dado fica com travessao, e a nota da tabela diz por que.
+
+\begin{xltabular}{\linewidth}{@{}L{2.2cm}YL{1.35cm}L{1.35cm}L{1.35cm}rrr@{}}
+  \caption{Resultados por talhão. SOS, POS e EOS em data; confiança média do
+  classificador, de 0 a 1; desvio de NDVI em desvios-padrão contra as
+  estações anteriores.}\label{tab:porTalhao}\\
+  \arrayrulecolor{terratrim}\toprule
+  \cab{Talhão} & \cab{Classe dominante} & \cab{SOS} & \cab{POS} & \cab{EOS} &
+  \cab{Conf.} & \cab{$z$ NDVI} & \cab{Cadastro (ha)} \\
+  \midrule\endfirsthead
+  \toprule
+  \cab{Talhão} & \cab{Classe dominante} & \cab{SOS} & \cab{POS} & \cab{EOS} &
+  \cab{Conf.} & \cab{$z$ NDVI} & \cab{Cadastro (ha)} \\
+  \midrule\endhead
+  \bottomrule\endfoot
+  \preencher{nome} & \preencher{classe (\%)} & \preencher{data} &
+  \preencher{data} & \preencher{data} & \preencher{0,00} &
+  \preencher{z} & \preencher{ha} \\
+\end{xltabular}
+
+% =====================================================================
+\section{Limitações}
+% Cada limitacao com a medida e com a direcao em que move o resultado.
+% Apague as que nao se aplicam; acrescente as que a execucao reportou.
+\begin{limitacoes}
+  \item[Resolução espacial] Pixel de 10 m (0,01 ha). Talhões com borda
+        irregular perdem \preencher{n}\,\% da área em pixels mistos de borda.
+  \item[Nuvem] \preencher{n\_dates} datas válidas no período; o maior
+        intervalo sem observação foi de \preencher{n} dias, entre
+        \preencher{data} e \preencher{data}.
+  \item[Confiança do classificador] A confiança é a probabilidade atribuída
+        pelo modelo à classe prevista. Uma confiança de 0,67 não corresponde a
+        67\,\% de acerto.
+  \item[Referência] MapBiomas ano \preencher{year} contra imagens de
+        \preencher{ano}. Mudança de uso entre os dois anos aparece como
+        discordância.
+  \item[Validade] Os cadastros públicos refletem \preencher{read\_at}; um
+        embargo ou alerta posterior não está neste relatório.
+  \item[Campo] \preencher{Nenhuma verificação de campo | n pontos
+        verificados em data}.
+\end{limitacoes}
+
+% =====================================================================
+\section{Reprodutibilidade}\label{sec:repro}
+
+\begin{ficha}
+  \item[TERRA] versão \preencher{AppVersion}, commit \preencher{hash}
+  \item[Ambiente] \preencher{requirements.lock.txt, hash}
+  \item[Projeto] \preencher{arquivo .terra}
+  \item[Execuções] \preencher{run\_id} (\preencher{tipo}),
+        \preencher{data e hora UTC}
+\end{ficha}
+
+% O pedido que o TERRA enviou ao sidecar, copiado da execucao. O ambiente
+% `parametros' cita o texto como esta; lacuna nao funciona dentro dele, por
+% isso a lacuna fica fora e o exemplo comentado mostra a forma:
+%
+% \begin{parametros}
+% {"start": "2025-09-01", "end": "2026-04-30", "max_cloud": 30,
+%  "monthly_best": true, "model_kind": "...", "area_id": "..."}
+% \end{parametros}
+\preencherbloco{Pedido JSON de cada execução, no ambiente parametros.}
+
+% =====================================================================
+\appendix
+
+\section{Matriz de confusão}\label{ap:matriz}
+% agreement.matrix, com agreement.matrix_classes como rotulos. Linhas:
+% prevista; colunas: referencia (a ordem de mapbiomas.py).
+\preencherbloco{Matriz de confusão em número de células, linhas = classe
+prevista, colunas = classe de referência.}
+
+\section{Cenas utilizadas}\label{ap:cenas}
+% DataCubeScene: id, date, cloud_cover, tile, satellite.
+\begin{xltabular}{\linewidth}{@{}YL{2.2cm}rL{1.6cm}L{1.8cm}@{}}
+  \arrayrulecolor{terratrim}\toprule
+  \cab{Identificador} & \cab{Data} & \cab{Nuvem (\%)} & \cab{Tile} &
+  \cab{Satélite} \\
+  \midrule\endfirsthead
+  \toprule
+  \cab{Identificador} & \cab{Data} & \cab{Nuvem (\%)} & \cab{Tile} &
+  \cab{Satélite} \\
+  \midrule\endhead
+  \bottomrule\endfoot
+  \preencher{id} & \preencher{date} & \preencher{cloud\_cover} &
+  \preencher{tile} & \preencher{satellite} \\
+\end{xltabular}
+
+% =====================================================================
+\begin{thebibliography}{99}
+\small
+
+\bibitem[Brown et~al.(2001)]{brown2001}
+Brown, L.~D., Cai, T.~T., DasGupta, A. (2001). Interval estimation for a
+binomial proportion. \textit{Statistical Science}, 16(2), 101--133.
+
+\bibitem[Clark et~al.(2003)]{clark2003}
+Clark, R.~N., Swayze, G.~A., Livo, K.~E., et~al. (2003). Imaging spectroscopy:
+Earth and planetary remote sensing with the USGS Tetracorder and expert
+systems. \textit{Journal of Geophysical Research: Planets}, 108(E12), 5131.
+
+\bibitem[Olofsson et~al.(2014)]{olofsson2014}
+Olofsson, P., Foody, G.~M., Herold, M., Stehman, S.~V., Woodcock, C.~E.,
+Wulder, M.~A. (2014). Good practices for estimating area and assessing
+accuracy of land change. \textit{Remote Sensing of Environment}, 148, 42--57.
+
+\bibitem[Otsu(1979)]{otsu1979}
+Otsu, N. (1979). A threshold selection method from gray-level histograms.
+\textit{IEEE Transactions on Systems, Man, and Cybernetics}, 9(1), 62--66.
+
+\bibitem[Pontius e Millones(2011)]{pontius2011}
+Pontius, R.~G., Millones, M. (2011). Death to Kappa: birth of quantity
+disagreement and allocation disagreement for accuracy assessment.
+\textit{International Journal of Remote Sensing}, 32(15), 4407--4429.
+
+\bibitem[Rousseeuw e Croux(1993)]{rousseeuw1993}
+Rousseeuw, P.~J., Croux, C. (1993). Alternatives to the median absolute
+deviation. \textit{Journal of the American Statistical Association}, 88(424),
+1273--1283.
+
+\bibitem[Savitzky e Golay(1964)]{savitzky1964}
+Savitzky, A., Golay, M.~J.~E. (1964). Smoothing and differentiation of data by
+simplified least squares procedures. \textit{Analytical Chemistry}, 36(8),
+1627--1639.
+
+\bibitem[Souza et~al.(2020)]{souza2020}
+Souza, C.~M., Shimbo, J.~Z., Rosa, M.~R., et~al. (2020). Reconstructing three
+decades of land use and land cover changes in Brazilian biomes with Landsat
+archive and Earth Engine. \textit{Remote Sensing}, 12(17), 2735.
+
+\bibitem[Xu(2006)]{xu2006}
+Xu, H. (2006). Modification of normalised difference water index (NDWI) to
+enhance open water features in remotely sensed imagery.
+\textit{International Journal of Remote Sensing}, 27(14), 3025--3033.
+
+\end{thebibliography}
+
+% =====================================================================
+\secaolivre{Controle do documento}
+
+\begin{historico}
+  \revisaolinha{A}{\preencher{data}}{Emissão inicial.}{\preencher{autor}}
+\end{historico}
+
+\assinaturas{\preencher{nome}}{\preencher{função}}
+            {\preencher{nome}}{\preencher{função}}
+
+\end{document}

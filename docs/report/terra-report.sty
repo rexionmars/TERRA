@@ -1,0 +1,408 @@
+% =====================================================================
+% terra-report.sty -- relatorio de analise da linha TERRA
+%
+%   \documentclass[11pt,a4paper]{article}
+%   \usepackage[brazilian]{babel}
+%   \usepackage{terra-report}
+%
+% Carrega terra.sty e acrescenta o que um relatorio tem e um guia nao tem:
+% cabecalho de documento com os campos da ISO 7200, numeracao "pagina n de
+% N", historico de revisoes, bloco de assinatura e marcas de pendencia. Nao
+% redefine cor, fonte nem ressalva: a identidade continua sendo a de
+% terra.sty, e um relatorio le como parte da mesma linha que o guia.
+%
+% terra.sty NAO e copiado para ca. O .latexmkrc deste diretorio poe
+% ../user-manual/tex-files no TEXINPUTS; uma segunda copia seria a que fica
+% velha quando a primeira mudar.
+%
+% Opcoes:
+%   english     rotulos em ingles (o padrao e portugues)
+%   final       campo pendente vira ERRO de compilacao, e nao aviso
+%   rascunho    marca d'agua RASCUNHO / DRAFT em todas as paginas
+%   plex, source, libertinus, padrao   repassadas a terra.sty
+% =====================================================================
+\NeedsTeXFormat{LaTeX2e}
+\ProvidesPackage{terra-report}[2026/09/26 Relatorio de analise TERRA]
+
+\newif\ifterrarel@en      \terrarel@enfalse
+\newif\ifterrarel@final   \terrarel@finalfalse
+\newif\ifterrarel@marca   \terrarel@marcafalse
+\DeclareOption{english}{\terrarel@entrue}
+\DeclareOption{final}{\terrarel@finaltrue}
+\DeclareOption{rascunho}{\terrarel@marcatrue}
+\DeclareOption*{\PassOptionsToPackage{\CurrentOption}{terra}}
+\ProcessOptions\relax
+
+% `semcapa`: o relatorio nao usa a capa fotografica, e sem ela terra.sty
+% deixa de carregar Oswald. O TikZ que a abertura usa e carregado abaixo,
+% por conta propria.
+\RequirePackage[semcapa]{terra}
+
+% A4, com a margem interna da linha. 2,2 cm e nao os 2,0 do guia: o
+% relatorio tem cabecalho e rodape corridos, e o bloco estreito compensa a
+% altura que eles tomam.
+\RequirePackage[a4paper,top=2.7cm,bottom=2.6cm,left=2.2cm,right=2.2cm,
+                headheight=18pt,headsep=.9cm,footskip=1.1cm]{geometry}
+
+\RequirePackage{tikz}
+\RequirePackage{eso-pic}
+\RequirePackage{fancyhdr}
+\RequirePackage{lastpage}
+\RequirePackage{tabularx}
+\RequirePackage{xltabular}
+\RequirePackage{fvextra}
+\RequirePackage{siunitx}
+\RequirePackage{etoolbox}
+% booktabs com cor de regra: \arrayrulecolor vem de colortbl, que xcolor
+% so carrega com a opcao `table'.
+\RequirePackage{colortbl}
+
+\linespread{1.08}
+\setlength{\emergencystretch}{2em}
+\setlist{itemsep=2pt,topsep=4pt}
+
+% --- idioma dos rotulos ----------------------------------------------
+% Um par por rotulo, escolhido na carga. O texto do relatorio e escrito na
+% lingua que o autor escolher; so o que o pacote imprime sozinho passa por
+% aqui.
+\newcommand{\terrarel@t}[2]{\ifterrarel@en#2\else#1\fi}
+
+% --- numeros ---------------------------------------------------------
+% SI, com o separador decimal do idioma do documento (guia de plotagem,
+% secao 3): virgula em portugues, ponto em ingles, nunca os dois no mesmo
+% documento. Milhar por espaco fino a partir de cinco digitos, para que um
+% ano (2025) nao vire "2 025".
+\sisetup{group-separator={\,},group-minimum-digits=5,
+         uncertainty-mode=separate}
+\ifterrarel@en
+  \sisetup{output-decimal-marker={.},range-phrase={ to },
+           list-final-separator={ and },list-pair-separator={ and }}
+\else
+  \sisetup{output-decimal-marker={,},range-phrase={ a },
+           list-final-separator={ e },list-pair-separator={ e }}
+\fi
+
+% --- colunas de tabela -----------------------------------------------
+% A esquerda com folga limitada, pelo motivo que guia.tex registra: com o
+% `plus 1fil` de \raggedright, uma celula com conteudo inquebravel vaza sobre
+% a vizinha sem que o log acuse `Overfull`.
+\newcolumntype{L}[1]{>{\raggedright\arraybackslash\rightskip=0pt plus 2em\relax
+                       \hbadness=10000\relax}p{#1}}
+\newcolumntype{Y}{>{\raggedright\arraybackslash\rightskip=0pt plus 2em\relax
+                    \hbadness=10000\relax}X}
+
+% Cabecalho de tabela: sem serifa, em negrito e pequeno, como os titulos.
+\newcommand{\cab}[1]{{\sffamily\bfseries\footnotesize #1}}
+
+% --- campos pendentes ------------------------------------------------
+% Um modelo que compila com o texto de exemplo no lugar do dado e um
+% relatorio falso esperando para ser enviado. Cada lacuna aqui se desenha
+% como lacuna -- fundo creme, colchetes, sem serifa -- e e contada. Com a
+% opcao `final` a mesma lacuna interrompe a compilacao: o PDF liberado nao
+% pode existir com um campo por preencher.
+%
+% Contada UMA vez por lacuna distinta. O rodape repete numero e revisao em
+% toda pagina; sem isso um campo vazio de cabecalho somava uma pendencia por
+% folha, e o total no fim do log deixava de dizer quantas faltam.
+\newcounter{terrarel@pend}
+\newcommand{\terrarel@avisa}[1]{%
+  \ifcsname terrarel@visto@\detokenize{#1}\endcsname\else
+    \expandafter\gdef\csname terrarel@visto@\detokenize{#1}\endcsname{}%
+    \stepcounter{terrarel@pend}%
+    \ifterrarel@final
+      \PackageError{terra-report}{Campo pendente: \detokenize{#1}}%
+        {Preencha o campo, ou compile sem a opcao `final'.}%
+    \else
+      \PackageWarning{terra-report}{Campo pendente: \detokenize{#1}}%
+    \fi
+  \fi}
+
+% Lacuna curta, dentro da linha: um valor, um nome, uma data.
+\DeclareRobustCommand{\preencher}[1]{%
+  \terrarel@avisa{#1}%
+  % fboxsep curto e sem \strut: a caixa nao pode abrir a entrelinha do
+  % paragrafo em que esta, ou o rascunho diagrama diferente do liberado.
+  {\setlength{\fboxsep}{1pt}%
+   \colorbox{terrapapel}{\sffamily\footnotesize\color{terrawaiouru}[#1]}}}
+
+% Lacuna de paragrafo: o que o autor escreve naquele lugar.
+\DeclareRobustCommand{\preencherbloco}[1]{%
+  \terrarel@avisa{#1}%
+  \par\smallskip\noindent
+  \colorbox{terrapapel}{\parbox{\dimexpr\linewidth-2\fboxsep\relax}{%
+    \sffamily\footnotesize\color{terrawaiouru}\strut[#1]\strut}}%
+  \par\smallskip}
+
+% Lacuna de figura, na proporcao que a figura tera.
+%   \figurapendente[altura]{o que a figura mostra}
+\DeclareRobustCommand{\figurapendente}[2][6cm]{%
+  \terrarel@avisa{figura: #2}%
+  \begin{tikzpicture}
+    % O traco soma meia espessura de cada lado; o retangulo desconta a
+    % espessura inteira para a caixa medir exatamente \linewidth.
+    \draw[terratrim,dashed,line width=.6pt,fill=terrapapel]
+      (0,0) rectangle (\linewidth-.6pt,#1);
+    \node[text width=.7\linewidth,align=center,font=\sffamily\footnotesize,
+          text=terrawaiouru] at (.5\linewidth,.5*#1) {[#2]};
+  \end{tikzpicture}}
+
+\AtEndDocument{%
+  \ifnum\value{terrarel@pend}>0
+    \PackageWarningNoLine{terra-report}{%
+      \arabic{terrarel@pend}\space campo(s) pendente(s) neste documento}%
+  \fi}
+
+% --- metadados do documento ------------------------------------------
+% Os campos da ISO 7200 (Technical product documentation -- Data fields in
+% title blocks and document headers) que se aplicam a um relatorio. A norma
+% separa o que IDENTIFICA o documento (titular, numero, revisao, data,
+% idioma) do que o DESCREVE (titulo, tipo, situacao) e do que o
+% RESPONSABILIZA (autor, aprovacao). O cabecalho da abertura segue essa
+% divisao, e o rodape repete so o que identifica.
+%
+% Campo nao informado aparece como lacuna, e nao em branco: cabecalho com
+% celula vazia nao distingue "nao se aplica" de "esqueceram".
+%
+% Cada campo guarda tambem se foi informado (\terrarel@<campo>@dado), para
+% que o metadado do PDF so receba o que o autor escreveu: a lacuna desenhada
+% e uma caixa colorida, e caixa nao cabe numa string de PDF.
+\newcommand{\terrarel@campo}[2]{%
+  \expandafter\newcommand\csname terrarel@#1\endcsname{\preencher{#2}}%
+  \expandafter\newcommand\csname #1\endcsname[1]{%
+    \expandafter\renewcommand\csname terrarel@#1\endcsname{##1}%
+    \expandafter\def\csname terrarel@#1@dado\endcsname{##1}}}
+
+\terrarel@campo{titulo}{\terrarel@t{t\'itulo}{title}}
+\terrarel@campo{subtitulo}{\terrarel@t{subt\'itulo}{supplementary title}}
+\terrarel@campo{identificacao}{\terrarel@t{n\'umero do documento}{document number}}
+\terrarel@campo{revisao}{\terrarel@t{revis\~ao}{revision}}
+\terrarel@campo{emissao}{\terrarel@t{data de emiss\~ao}{date of issue}}
+\terrarel@campo{titular}{\terrarel@t{titular}{legal owner}}
+\terrarel@campo{responsavel}{\terrarel@t{autor}{creator}}
+\terrarel@campo{aprovacao}{\terrarel@t{aprova\c{c}\~ao}{approved by}}
+\terrarel@campo{destinatario}{\terrarel@t{destinat\'ario}{recipient}}
+\terrarel@campo{situacao}{\terrarel@t{situa\c{c}\~ao}{status}}
+
+% Situacao do documento, com os valores da ISO 7200 (5.2.6). Escritos por
+% extenso aqui para que dois relatorios nao digam a mesma coisa de dois
+% jeitos.
+\newcommand{\emelaboracao}{\terrarel@t{Em elabora\c{c}\~ao}{In preparation}}
+\newcommand{\emrevisao}{\terrarel@t{Em revis\~ao}{In approval}}
+\newcommand{\liberado}{\terrarel@t{Liberado}{Released}}
+\newcommand{\retirado}{\terrarel@t{Retirado}{Withdrawn}}
+
+% Titulo do cabecalho corrido. Por padrao o titulo inteiro; um titulo que
+% passe de meia linha vaza sobre a marca a esquerda, e ai se da um curto.
+\newcommand{\terrarel@titulocurto}{\terrarel@titulo}
+\newcommand{\titulocurto}[1]{\renewcommand{\terrarel@titulocurto}{#1}}
+
+% O tipo do documento, fixo: e o que este pacote produz.
+\newcommand{\terrarel@tipo}{\terrarel@t{Relat\'orio de an\'alise}{Analysis report}}
+
+% O emblema do aplicativo, o mesmo que a TitleBar desenha. Referenciado no
+% frontend, e nao copiado, pela mesma razao de terra.sty acima.
+\newcommand{\terrarel@logo}{../../frontend/public/terra-logo.png}
+\newcommand{\setlogo}[1]{\renewcommand{\terrarel@logo}{#1}}
+
+% --- cabecalho e rodape corridos -------------------------------------
+% Cabecalho: o que o documento e. Rodape: qual exemplar ele e -- numero,
+% revisao, situacao -- e a pagina sobre o total. "Pagina 4 de 12" em cada
+% folha e o que permite a quem recebe uma folha solta saber que falta algo.
+\newcommand{\terrarel@pagina}{%
+  \terrarel@t{P\'agina}{Page}~\thepage~\terrarel@t{de}{of}~\pageref*{LastPage}}
+
+\fancypagestyle{terrarel}{%
+  \fancyhf{}%
+  \fancyhead[L]{\raisebox{-.28em}{\includegraphics[height=1.15em]{\terrarel@logo}}%
+                \hspace{.45em}{\sffamily\bfseries\footnotesize\color{terrashadowwarrior}TERRA}%
+                \hspace{.6em}{\sffamily\footnotesize\color{terratrim}\terrarel@tipo}}%
+  \fancyhead[R]{\sffamily\footnotesize\color{terrawaiouru}\terrarel@titulocurto}%
+  \fancyfoot[L]{\sffamily\scriptsize\color{terrawaiouru}%
+                \terrarel@identificacao\quad
+                \terrarel@t{Rev.}{Rev.}~\terrarel@revisao\quad
+                \terrarel@situacao}%
+  \fancyfoot[R]{\sffamily\scriptsize\color{terrawaiouru}\terrarel@pagina}%
+  \renewcommand{\headrule}{{\color{terratrim}\hrule height .4pt}\vspace{-.4pt}}%
+  \renewcommand{\footrule}{{\color{terratrim}\hrule height .4pt}\vspace{2pt}}}
+
+% A primeira pagina nao tem cabecalho: a faixa da abertura ocupa o lugar.
+\fancypagestyle{terrarel@abertura}{%
+  \fancyhf{}%
+  \fancyfoot[L]{\sffamily\scriptsize\color{terrawaiouru}%
+                \terrarel@identificacao\quad
+                \terrarel@t{Rev.}{Rev.}~\terrarel@revisao\quad
+                \terrarel@situacao}%
+  \fancyfoot[R]{\sffamily\scriptsize\color{terrawaiouru}\terrarel@pagina}%
+  \renewcommand{\headrule}{}%
+  \renewcommand{\footrule}{{\color{terratrim}\hrule height .4pt}\vspace{2pt}}}
+
+\pagestyle{terrarel}
+
+% --- marca d'agua de rascunho ----------------------------------------
+\ifterrarel@marca
+  % No FUNDO, atras do texto, e clara: a marca avisa que o documento nao foi
+  % liberado sem impedir que o rascunho seja lido e revisado.
+  \AddToShipoutPictureBG{%
+    \AtPageCenter{%
+      \makebox[0pt]{\rotatebox{45}{%
+        \sffamily\bfseries\fontsize{96}{96}\selectfont
+        \color{terratrim!9}\terrarel@t{RASCUNHO}{DRAFT}}}}}
+\fi
+
+% --- abertura --------------------------------------------------------
+% \terraabertura
+%
+% Faixa de sangria a sangria no topo, com o emblema, a marca e o tipo do
+% documento; abaixo, titulo, subtitulo e o bloco de identificacao. Nao e
+% capa: um relatorio de analise abre direto no que diz, e a primeira pagina
+% ja carrega a sintese. Capa fotografica e de guia, que e lido de outro modo.
+%
+% A faixa usa Black Glaze, o tom de terra.sty para o disco da capa, e o
+% creme do letreiro: a mesma dupla que a capa do guia, em outra escala.
+\newlength{\terrarel@faixa}
+\setlength{\terrarel@faixa}{2.35cm}
+
+\newcommand{\terrarel@rotulo}[1]{%
+  {\sffamily\scriptsize\bfseries\color{terratrim}\MakeUppercase{#1}}}
+\newcommand{\terrarel@celula}[2]{%
+  \terrarel@rotulo{#1}\par\vspace{1pt}{\sffamily\small #2}}
+
+\newcommand{\terraabertura}{%
+  \thispagestyle{terrarel@abertura}%
+  \AddToShipoutPictureBG*{%
+    \AtPageUpperLeft{%
+      \begin{tikzpicture}[remember picture,overlay]
+        \fill[terrablackglaze] (0,0) rectangle (\paperwidth,-\terrarel@faixa);
+        \node[anchor=west,inner sep=0] at (2.2cm,-.5\terrarel@faixa)
+          {\includegraphics[height=1.35cm]{\terrarel@logo}};
+        \node[anchor=west,inner sep=0,text=terrapapel,align=left]
+          at (3.85cm,-.5\terrarel@faixa)
+          {{\sffamily\bfseries\fontsize{17}{19}\selectfont TERRA}\\[1pt]
+           {\sffamily\fontsize{7.5}{9}\selectfont\color{terrabroto}%
+            EARTH OBSERVATION}};
+        \node[anchor=east,inner sep=0,text=terrapapel,align=right]
+          at (\paperwidth-2.2cm,-.5\terrarel@faixa)
+          {{\sffamily\bfseries\fontsize{10}{12}\selectfont
+            \MakeUppercase{\terrarel@tipo}}\\[2pt]
+           {\sffamily\fontsize{8.5}{10}\selectfont\color{terrapapelfraco}%
+            \terrarel@identificacao\ \textperiodcentered\
+            \terrarel@t{Rev.}{Rev.}~\terrarel@revisao}};
+      \end{tikzpicture}}}%
+  \vspace*{\dimexpr\terrarel@faixa-2.7cm+.9cm\relax}%
+  \begingroup
+  % \raggedright: titulo em corpo 20 justificado abre espacos largos, e uma
+  % lacuna, que nao quebra, estoura a margem em vez de descer de linha.
+  \noindent{\raggedright\sffamily\bfseries\fontsize{20}{24}\selectfont
+    \color{terrashadowwarrior}\terrarel@titulo\par}%
+  \vspace{.45em}%
+  \noindent{\sffamily\fontsize{11.5}{15}\selectfont
+    \color{terrawaiouru}\terrarel@subtitulo\par}%
+  \vspace{1.1em}%
+  % Bloco de identificacao. Tres linhas, na divisao da ISO 7200:
+  % identifica / descreve / responsabiliza.
+  \renewcommand{\arraystretch}{1.0}%
+  \noindent
+  \begin{tabularx}{\linewidth}{@{}XXXX@{}}
+    \arrayrulecolor{terratrim}\toprule
+    \terrarel@celula{\terrarel@t{Documento}{Document}}{\terrarel@identificacao} &
+    \terrarel@celula{\terrarel@t{Revis\~ao}{Revision}}{\terrarel@revisao} &
+    \terrarel@celula{\terrarel@t{Emiss\~ao}{Date of issue}}{\terrarel@emissao} &
+    \terrarel@celula{\terrarel@t{Situa\c{c}\~ao}{Status}}{\terrarel@situacao} \\[.55em]
+    \terrarel@celula{\terrarel@t{Titular}{Legal owner}}{\terrarel@titular} &
+    \terrarel@celula{\terrarel@t{Destinat\'ario}{Recipient}}{\terrarel@destinatario} &
+    \terrarel@celula{\terrarel@t{Autor}{Creator}}{\terrarel@responsavel} &
+    \terrarel@celula{\terrarel@t{Aprova\c{c}\~ao}{Approved by}}{\terrarel@aprovacao} \\
+    \bottomrule
+  \end{tabularx}\par
+  \endgroup
+  \vspace{1.2em}}
+
+% --- sintese ---------------------------------------------------------
+% Os achados que o relatorio existe para comunicar, numerados, cada um com
+% o numero e a condicao em que foi medido. E a unica parte que quase todo
+% leitor le, entao vem na primeira pagina e nao repete o metodo.
+\newlist{sintese}{enumerate}{1}
+\setlist[sintese]{label={\sffamily\bfseries\color{destaque}\arabic*},
+                  leftmargin=1.6em,labelsep=.7em,itemsep=.45em,topsep=.5em}
+
+% Titulo sem numero para a sintese e para o controle do documento, no
+% mesmo desenho das secoes.
+\newcommand{\secaolivre}[1]{%
+  \par\vspace{1.1em}\noindent{\sffamily\large\bfseries #1}\par\vspace{.5em}}
+
+% --- limitacoes ------------------------------------------------------
+% Uma limitacao por item: o rotulo nomeia, o corpo da a medida e diz em que
+% direcao ela move o resultado. Sem medida, a limitacao e modestia
+% retorica (escrita.md, secao 8.3).
+\newlist{limitacoes}{description}{1}
+\setlist[limitacoes]{font=\normalfont\sffamily\bfseries\color{fechada},
+                     style=nextline,leftmargin=1.4em,topsep=.5em,
+                     itemsep=.5em,parsep=.2em}
+
+% --- legenda de figura -----------------------------------------------
+% A estrutura da Parte V do guia de plotagem: um titulo que enuncia o
+% achado, depois metodo, paineis, codigos e integridade. O titulo vai em
+% negrito e e o que entra na lista de figuras.
+%   \legenda{A agua ocupou 12 % da area em 3 de marco.}{MNDWI, limiar ...}
+\newcommand{\legenda}[2]{\caption[#1]{\textbf{#1} #2}}
+
+% --- parametros de execucao ------------------------------------------
+% O pedido que a aplicacao enviou ao sidecar, citado como foi enviado. Em
+% monoespacada, com quebra de linha, e sem realce de sintaxe: e registro,
+% nao codigo para ler.
+\DefineVerbatimEnvironment{parametros}{Verbatim}{%
+  fontsize=\footnotesize,breaklines=true,breakanywhere=true,
+  frame=leftline,framerule=.35em,rulecolor=\color{destaque},
+  framesep=.8em,xleftmargin=.2em}
+
+% --- historico de revisoes -------------------------------------------
+%   \begin{historico}
+%     \revisaolinha{A}{2026-09-26}{Emissao inicial.}{J. Leonardi}
+%   \end{historico}
+%
+% \tabularx e \endtabularx, e nao \begin/\end: tabularx le o corpo ate achar
+% o texto literal \end{tabularx}, e dentro de um ambiente definido aqui esse
+% texto nao aparece no arquivo do autor -- a leitura corre ate o fim do
+% documento.
+\newenvironment{historico}{%
+  \par\smallskip\noindent\small
+  \renewcommand{\arraystretch}{1.15}%
+  \tabularx{\linewidth}{@{}L{1.2cm}L{2.3cm}YL{3.4cm}@{}}
+    \arrayrulecolor{terratrim}\toprule
+    \cab{\terrarel@t{Rev.}{Rev.}} & \cab{\terrarel@t{Data}{Date}} &
+    \cab{\terrarel@t{Descri\c{c}\~ao}{Description}} &
+    \cab{\terrarel@t{Respons\'avel}{By}} \\
+    \midrule}
+  {\bottomrule\endtabularx\par\smallskip}
+\newcommand{\revisaolinha}[4]{#1 & #2 & #3 & #4 \\}
+
+% --- assinaturas -----------------------------------------------------
+%   \assinaturas{Nome}{Funcao}{Nome}{Funcao}
+% Duas colunas: quem elaborou e quem aprovou. A linha fica em branco para
+% assinatura manuscrita ou digital; o nome e a funcao vem impressos.
+\newcommand{\terrarel@assina}[3]{%
+  \begin{minipage}[t]{.44\linewidth}
+    \vspace{2.2em}{\color{terrawaiouru}\rule{\linewidth}{.4pt}}\par\vspace{.3em}
+    {\sffamily\small\bfseries #2}\par
+    {\sffamily\footnotesize\color{terrawaiouru}#3}\par
+    {\sffamily\scriptsize\color{terratrim}\MakeUppercase{#1}}
+  \end{minipage}}
+\newcommand{\assinaturas}[4]{%
+  \par\bigskip\noindent
+  \terrarel@assina{\terrarel@t{Elaborado por}{Prepared by}}{#1}{#2}\hfill
+  \terrarel@assina{\terrarel@t{Aprovado por}{Approved by}}{#3}{#4}\par}
+
+% --- metadados do PDF ------------------------------------------------
+%
+% Um titulo pode estar informado e ainda conter lacuna -- "Cobertura do solo
+% de \preencher{nome da area}". Na string do PDF a lacuna vira o proprio
+% rotulo entre colchetes, sem a caixa.
+\pdfstringdefDisableCommands{\def\preencher#1{[#1]}}
+\AtBeginDocument{%
+  \hypersetup{pdfsubject={\terrarel@tipo},pdfcreator={TERRA}}%
+  \ifdefined\terrarel@titulo@dado
+    \hypersetup{pdftitle={\terrarel@titulo@dado}}\fi
+  \ifdefined\terrarel@responsavel@dado
+    \hypersetup{pdfauthor={\terrarel@responsavel@dado}}\fi}
+
+\endinput
