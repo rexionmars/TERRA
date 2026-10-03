@@ -19,6 +19,68 @@ hand-written "unreleased" section beside a generated one is the same list twice,
 and only one of them is kept current.
 
 
+## [0.7.0](https://github.com/rexionmars/TERRA/compare/v0.6.0...v0.7.0) (2026-10-03)
+
+
+### Features
+
+* **app:** project file bindings, a document type, and files from the Finder ([07ecd88](https://github.com/rexionmars/TERRA/commit/07ecd88ccc5905205467394dffa384c9d3aad0b3))
+* **compositor:** one graph for every field of an area ([b039a3f](https://github.com/rexionmars/TERRA/commit/b039a3f40ce84a37c8aff06255697c5241e245a1))
+* **fields:** areas hold fields, and a delineation is run and kept ([c05ac9f](https://github.com/rexionmars/TERRA/commit/c05ac9f66bfaf8d2652fca07bf0e5ceb96a0c7b3))
+* **fields:** field boundaries delineated from two Sentinel-2 scenes ([d9f55de](https://github.com/rexionmars/TERRA/commit/d9f55deb65404d5942a929220fd99dc34caa6177))
+* **fields:** field boundaries in the studio, and their actions as compositor nodes ([2225acd](https://github.com/rexionmars/TERRA/commit/2225acd93641e1f9065fed43a73fe6c651d6616b))
+* **globe:** a right-click on a raster opens its menu on the globe ([e4f983b](https://github.com/rexionmars/TERRA/commit/e4f983bb8dd23aaa61f9de1c196ac8ee3eabbdd7))
+* **jobs:** a queue that runs one analysis per area, one after another ([00236b8](https://github.com/rexionmars/TERRA/commit/00236b8ae2c67faedc5edec1c73a2e3609baebfc))
+* **mineral:** each cell from its least covered pass, and what the map reads beside its answer ([44d5561](https://github.com/rexionmars/TERRA/commit/44d5561e58241be71238e2b7b10d971dc29f31ad))
+* **mineral:** mineral map tool, layers, reading panel and token setting ([45272ad](https://github.com/rexionmars/TERRA/commit/45272ad0c0ed57f496fadd2991baa3bac6ca330f))
+* **mineral:** Tetracorder on EMIT reflectance, over the area alone ([61187e3](https://github.com/rexionmars/TERRA/commit/61187e3fa54714c23f6cb6012dfdaa29f0e8b6cb))
+* **mineral:** the map's figures as compositor cards, its rasters as layers ([cd0b813](https://github.com/rexionmars/TERRA/commit/cd0b813071de8ff5e1e01f07eda75f408e09a443))
+* **mineral:** the mineral map as a run, and the Earthdata token it needs ([fe32fca](https://github.com/rexionmars/TERRA/commit/fe32fcad21f3ac20097123fd06c2b5f47218174b))
+* **mineral:** the pass selection, derived figures and layers reach the app and the store ([dee626e](https://github.com/rexionmars/TERRA/commit/dee626e92ff466fb0f665ce891447252f7273b84))
+* **report:** a PDF report node in the compositor ([deb8c14](https://github.com/rexionmars/TERRA/commit/deb8c146570b5bc647a745dd06aec9db329094a8))
+* **report:** the sidecar lays out a PDF report with Typst ([463aaeb](https://github.com/rexionmars/TERRA/commit/463aaebd560f0b343f5348aa08da7a55a6f757a8))
+* **settings:** a Keymap page, drawn from the operator table ([278b940](https://github.com/rexionmars/TERRA/commit/278b9406525f884350487ff103a77896a5a96ad6))
+* **splash:** a dusk horizon for the still, and the splash without orbit or code name ([0ab8c3e](https://github.com/rexionmars/TERRA/commit/0ab8c3e8b6383c5798f146ac041f8a1e8b08ae15))
+* **splash:** outline the website's wordmark as a path ([99f9514](https://github.com/rexionmars/TERRA/commit/99f951415ec139e05c33b40c6027deecae1d88ee))
+* **splash:** the status says when the boot has an answer ([aa1694f](https://github.com/rexionmars/TERRA/commit/aa1694f3f87bdf32a8cb4cff7a2110d1c3f25834))
+* **splash:** the still framed on its own subject, under a scrim for its tone ([8222d38](https://github.com/rexionmars/TERRA/commit/8222d3874164532346409d62497bfb3808a97cf6))
+* **splash:** the website's design, in one stylesheet for both copies ([2099fd1](https://github.com/rexionmars/TERRA/commit/2099fd1770ed3953372ce53bb070826ebf2d2135))
+* **store:** a project as a .terra file, saved out and opened in ([62c3cd1](https://github.com/rexionmars/TERRA/commit/62c3cd1cc7647011c765acaba0b4d66e0607899b))
+* **studio:** a compositor, which works the board's rasters as nodes ([476ce68](https://github.com/rexionmars/TERRA/commit/476ce68ed82e32fc49e95d49ae14a54f9289fb4c))
+* **studio:** a Console, which runs operators by name ([a507302](https://github.com/rexionmars/TERRA/commit/a507302f2a0c8566223f1c74cc6d9f7b7eadcbd7))
+* **studio:** a Reports editor, which keeps what the toasts said ([eade5ac](https://github.com/rexionmars/TERRA/commit/eade5acdb3b3b87af67dc2d1f85423668e21c5ae))
+* **studio:** a split copies its editor, and a division resets on double-click ([3925ea4](https://github.com/rexionmars/TERRA/commit/3925ea4f73158ab27f0f7bc14d7903ca23e1aa20))
+* **studio:** a start screen, once per launch ([a60ab47](https://github.com/rexionmars/TERRA/commit/a60ab474ff7a390d013f953205b91ce38e095b84))
+* **studio:** an operator registry, and the keymap that reads it ([5f32664](https://github.com/rexionmars/TERRA/commit/5f32664a0093685c8bbcdeb570fc9cb25ef73ae5))
+* **studio:** arrange the compositor's nodes by their links ([3c239dd](https://github.com/rexionmars/TERRA/commit/3c239dd6bcd40352bde111c49b57a040fafc5770))
+* **studio:** ask before a close would discard an unsaved board ([2c7138f](https://github.com/rexionmars/TERRA/commit/2c7138fec7f8b71611e1af51eb00c3dcf037668b))
+* **studio:** cut the wires a reader pulled in the run graph ([afd0e1d](https://github.com/rexionmars/TERRA/commit/afd0e1df983413fa3711d56f36ba3edfd359cc36))
+* **studio:** draw the run graph as Solara's node editor ([c3956be](https://github.com/rexionmars/TERRA/commit/c3956bee4c442703cdcbfdcc58679f3d9f018fa2))
+* **studio:** every workspace on the bar, as a tab ([217955d](https://github.com/rexionmars/TERRA/commit/217955d0f052379f94f2fc6cfda51e0b98f6c274))
+* **studio:** fields selected with shift, their jobs followed and their results drawn ([7a58d33](https://github.com/rexionmars/TERRA/commit/7a58d33af429effa9176b2c2467c046c1e8ef91b))
+* **studio:** folders in the Studio Icons tan ([9b790e8](https://github.com/rexionmars/TERRA/commit/9b790e8ecad03aee7a2a035c11a550f8f9f48ac8))
+* **studio:** menus walked with the arrow keys ([7af816f](https://github.com/rexionmars/TERRA/commit/7af816fca1e6e2ef6da0407ffe091ce676a9c0b0))
+* **studio:** menus, keys and an operator search, run through the registry ([c5fedaa](https://github.com/rexionmars/TERRA/commit/c5fedaabc3e1bf39367de0d2cbdc711b93246702))
+* **studio:** open and save project files from the studio ([5bfd7cd](https://github.com/rexionmars/TERRA/commit/5bfd7cd5fa6defa147fba2817e74dea974ee6cbd))
+* **studio:** the compositor sends rasters to the globe, in layers ([48101cc](https://github.com/rexionmars/TERRA/commit/48101cc4667a2745da80268768a55f64434167b2))
+* **studio:** undo and redo for what is on the board ([14d6afd](https://github.com/rexionmars/TERRA/commit/14d6afdd7f8546cba3312c061f8d2c1f9d2c4ca7))
+* vegetation health, public-register overlap, radar and management zones per field ([c1c765a](https://github.com/rexionmars/TERRA/commit/c1c765a694464dc479172e7db7cc50fa4e3425f0))
+
+
+### Bug fixes
+
+* **compose:** every composition made over an area stays in its list ([e147730](https://github.com/rexionmars/TERRA/commit/e147730475213e3532e069f7c10a68ec31c91b98))
+* **fields:** the delineation's rasters cut to the area, not its bounding box ([f48790c](https://github.com/rexionmars/TERRA/commit/f48790cf4c51e6101c0104a4088c6f02f6480c12))
+* **flood:** the envelope's raster reaches the studio ([fe07b52](https://github.com/rexionmars/TERRA/commit/fe07b5253f3e240e77190fc06f12ae81ef3f87cb))
+* **globe:** draw class rasters without interpolation ([b888000](https://github.com/rexionmars/TERRA/commit/b8880001e0ff9f968ec6bf74a52dcfeb49485e78))
+* **landcover:** the spectral response reaches the run again ([e2f97a1](https://github.com/rexionmars/TERRA/commit/e2f97a1ea8454f62c538cb475a8c04ad904d2889))
+* **mineral:** a band position fitted to rounding is not reported ([60efc83](https://github.com/rexionmars/TERRA/commit/60efc83f46c81ac8e4d674acc264a14d53c75ef8))
+* **store:** purge the runs the sensor simulator wrote ([f3bb2c8](https://github.com/rexionmars/TERRA/commit/f3bb2c839ae01a56a650ad6897e81bb1ea895712))
+* **studio:** an editor's layers stay inside its area ([5127907](https://github.com/rexionmars/TERRA/commit/5127907f10d62b2d50e985f09eec6896ac377e89))
+* **studio:** every preset draws its editors at the minimum window ([9fb4044](https://github.com/rexionmars/TERRA/commit/9fb40444dc2512919f1d52ce4c197b3f70efe349))
+* **studio:** the board no longer holds the screen in the tree after it leaves ([5c3c8da](https://github.com/rexionmars/TERRA/commit/5c3c8da6d8249db54a61fd4624883f9106e3fd2e))
+* **types:** MineralPositionClass written out, so the type contract compares it ([d846994](https://github.com/rexionmars/TERRA/commit/d8469942ff74cd0261987e367ede2f5355b763c2))
+
 ## [0.6.0](https://github.com/rexionmars/TERRA/compare/v0.5.0...v0.6.0) (2026-09-10)
 
 

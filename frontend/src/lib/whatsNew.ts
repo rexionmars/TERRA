@@ -7,6 +7,21 @@ export type WhatsNewEntry = {
 /** Newest first. Keep in sync with AppVersion / Git tags when cutting a release. */
 export const WHATS_NEW: WhatsNewEntry[] = [
   {
+    version: "0.7.0",
+    title: "Sunset — a compositor for the board, and an area read field by field",
+    items: [
+      "The board's rasters are worked as nodes. A compositor takes each run's outputs as sockets, filters, masks, mixes and tabulates them, and reads each product as a card; what reaches a Globe node is drawn over its ground, in layers",
+      "Areas hold fields. Field boundaries are delineated from two Sentinel-2 scenes with the Fields of The World baseline, the fields can be made areas of their own, and fields selected with shift run one after another in a queue followed in the Run graph",
+      "Four products read an area field by field: vegetation health against the same days of earlier seasons, the hectares on the public registers of clearing, embargo, protection and property, a Sentinel-1 backscatter series that cloud does not stop, and management zones from several seasons of NDVI. Under a field set one graph is evaluated for every field",
+      "A mineral map from EMIT imaging spectroscopy: Tetracorder over the area alone, each cell answered from the pass it is least covered in, the EMIT L2B products compared beside it, and its figures as compositor cards. It needs an Earthdata token, set in Settings",
+      "What reaches a PDF report node is written up as a PDF: summary, the method as the runs record it, maps with graticule, scale bar and legend, one table per product, and the limitations. It is laid out on this machine, with no TeX installation and no network",
+      "Every command has a name, a menu and a key: an operator search on F3 or Mod+K, a Keymap page in Settings, undo and redo for the board, a Console that runs commands by name, a Reports editor that keeps what the toasts said, and a start screen",
+      "A project can be saved out as a .terra file and opened again, from the studio or from the Finder",
+      "A right-click on a raster on the globe offers its legend, taking it off the globe and framing it. Class rasters are drawn without interpolation",
+      "The canopy simulation, the solar, wind and energy products, the Brazilian operational-record readings and the flood products are removed. Solar, wind and flood runs are cleared from the store when it opens",
+    ],
+  },
+  {
     version: "0.6.0",
     title: "Cumulus — the network a site would join, and the work filed where it is done",
     items: [
