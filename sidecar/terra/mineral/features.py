@@ -125,7 +125,11 @@ def measure(spectra: np.ndarray, waves_nm: np.ndarray, w: Window) -> Position:
         with np.errstate(invalid='ignore', divide='ignore'):
             vx = -b / (2.0 * a)
             vy = c - b * b / (4.0 * a)
-        ok = (a > 0) & (np.abs(vx) <= w.half_width) & np.isfinite(vx)
+        # A depth at floating-point resolution is a fit to rounding, not a band:
+        # a straight spectrum divided by its own continuum is 1 to within 1e-15,
+        # and whether that noise has a minimum inside the window depends on the
+        # BLAS. 1e-9 is far below any depth a reflectance can carry.
+        ok = (a > 0) & (np.abs(vx) <= w.half_width) & np.isfinite(vx) & (np.abs(1.0 - vy) > 1e-9)
         pos[good] = np.where(ok, waves_nm[ch] + vx, np.nan)
         depth[good] = np.where(ok, 1.0 - vy, np.nan)
     return Position(pos, depth)
