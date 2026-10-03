@@ -1322,9 +1322,19 @@ export interface MineralSpread {
   p90: number
 }
 
-export interface MineralPositionClass extends MineralSpread {
+/**
+ * A MineralSpread's fields beside the class, written out as the Go struct
+ * writes them, so check-types compares them field by field.
+ */
+export interface MineralPositionClass {
   class: string
   label: string
+  cells: number
+  mean: number
+  sd: number
+  p10: number
+  p50: number
+  p90: number
 }
 
 /** The same measurement on the library references of one class. */
