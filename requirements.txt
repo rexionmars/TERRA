@@ -19,3 +19,8 @@ planetary-computer>=1.0
 # promise to this one.
 h5py>=3.10
 requests>=2.31
+
+# The PDF report lays its document out with Typst. The wheel carries the
+# compiler itself, so the report needs no TeX installation and no network; it
+# adds about 60 MB to the environment (sidecar/terra/report).
+typst>=0.15

@@ -1,0 +1,644 @@
+{
+  "schema": 1,
+  "meta": {
+    "title": "Report on 2 fields of Fazenda Boa Vista",
+    "subtitle": "Imagery 2025-09-27 to 2026-09-19 and 2025-09-25 to 2026-09-25",
+    "number": "TERRA-RA-2026-001",
+    "revision": "A",
+    "issued": "2026-09-27",
+    "status": "draft",
+    "owner": "",
+    "recipient": "",
+    "author": "J. Leonardi",
+    "approver": "",
+    "app_version": "0.6.0",
+    "generated_at": "2026-09-27 01:30"
+  },
+  "question": "Which fields departed this season?",
+  "scope": "",
+  "summary": [
+    "Across 2 fields, 249.5 ha were classified into 2 classes; the largest, Soybean, covers 96.6% of it.",
+    "NDVI peaks fall between 2025-12-20 and 2025-12-20 in the 2 fields with a season.",
+    "On its latest date with a reference, NDVI is at least one standard deviation below the field's earlier seasons in 1 of 2 fields, and at least two below in 1 (field 7).",
+    "Public registers other than CAR meet 2 fields: PRODES clearing after 22 Jul 2008, 3.0 ha over 2 fields. Not read: Conservation units.",
+    "The Sentinel-1 series records at least one canopy loss in 1 of 1 fields.",
+    "The suggested number of management zones is 3 in 2 fields."
+  ],
+  "provenance": [
+    {
+      "label": "Area",
+      "value": "Fazenda Boa Vista, 2 fields"
+    },
+    {
+      "label": "Products",
+      "value": "Land cover, Season, Vegetation health, Socio-environmental overlap, Sentinel-1 radar, Management zones"
+    },
+    {
+      "label": "Periods",
+      "value": "2025-09-27 to 2026-09-19 and 2025-09-25 to 2026-09-25"
+    },
+    {
+      "label": "Runs",
+      "value": "2 runs, listed under Reproducibility"
+    },
+    {
+      "label": "Software",
+      "value": "TERRA 0.6.0"
+    }
+  ],
+  "method": [
+    {
+      "product": "Land cover and season",
+      "subtitle": "Land cover with Random Forest",
+      "source": "sidecar/infer.py · build_feature_matrix",
+      "sections": [
+        {
+          "title": "Acquisition",
+          "lines": [
+            "Sentinel-2 L2A through the Planetary Computer STAC catalogue",
+            "2025-09-27 to 2026-09-19",
+            "scenes under the cloud ceiling set for the run (not recorded with it)",
+            "one scene per month or every scene under the ceiling, as the run was set (not recorded with it)",
+            "bands read over /vsicurl: only the polygon window, only the bands the model needs"
+          ],
+          "note": ""
+        },
+        {
+          "title": "Features",
+          "lines": [
+            "B02, B03, B04 and B08 at 10 m, reflectance scaled by 1/10000",
+            "NDVI, EVI and SAVI per date",
+            "14 temporal statistics per index: mean, sd, max, min, amplitude, median, index of peak and of trough, first- and second-half means and their difference, mean change, largest rise, largest fall",
+            "4 statistics per raw band, and the 22 raw NDVI dates",
+            "80 features per pixel"
+          ],
+          "note": "A pixel is kept only where at least half its dates are non-zero. Remaining gaps are filled by linear interpolation along time, so a cloud-masked date is inferred rather than dropped."
+        },
+        {
+          "title": "Model",
+          "lines": [
+            "Random forest, 300 trees, maximum depth 20",
+            "features standardised by the scaler fitted at training"
+          ],
+          "note": ""
+        },
+        {
+          "title": "Output",
+          "lines": [
+            "5 MapBiomas classes: 3, 21, 25, 39, 41",
+            "confidence: the largest class probability"
+          ],
+          "note": ""
+        }
+      ]
+    },
+    {
+      "product": "Vegetation health",
+      "subtitle": "NDVI and NDRE against the same days of earlier seasons",
+      "source": "sidecar/terra/health",
+      "sections": [
+        {
+          "title": "Acquisition",
+          "lines": [
+            "Sentinel-2 L2A, B04 B08 at 10 m and B05 B8A at 20 m, from the Planetary Computer",
+            "every acquisition from 2025-09-25 to 2026-09-25 under the scene cloud ceiling set for the run (not recorded with it), and the same days of the three seasons before",
+            "per acquisition, the cells its scene classification calls clear; one under 30% of the area clear is not counted",
+            "reflectance with the 04.00 offset removed; NDVI (B08, B04) and NDRE (B8A, B05) averaged over the clear cells"
+          ],
+          "note": ""
+        },
+        {
+          "title": "Comparison",
+          "lines": [
+            "each date against the earlier seasons' dates within 16 days of the same day of the year",
+            "departure (x - mean) / sd, the sd floored at 0.02; none with fewer than two earlier dates",
+            "a map of the latest date at least 60% clear: its NDVI minus the median of the earlier seasons around that day, per cell",
+            "in the compositor, the fields of a set can also be compared with each other on a date they share"
+          ],
+          "note": "NDRE beside NDVI because NDVI saturates over a closed canopy, where the red edge still moves with chlorophyll (Gitelson and Merzlyak, 1994)."
+        },
+        {
+          "title": "Reading",
+          "lines": [
+            "one and two standard deviations are the cuts between typical, below and well below"
+          ],
+          "note": "A departure is not a diagnosis: a later sowing, another crop or a fallow field departs as a stressed one does. Earlier seasons of another crop in rotation widen or shift the reference."
+        }
+      ]
+    }
+  ],
+  "figures": [
+    {
+      "title": "Predicted class, field 7.",
+      "caption": "One colour per class. Drawn by the raster's extent in an equirectangular plane at the mid-latitude, north up; the scales hold along that parallel.",
+      "uri": "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==",
+      "aspect": 1.0161636378491645,
+      "legend": [
+        {
+          "label": "Soybean",
+          "color": "#f5b3c8"
+        }
+      ],
+      "pixelated": true,
+      "source": "Sentinel-2 L2A (Copernicus), classified by TERRA; MapBiomas legend, 2025-09-27 to 2026-09-19 (run e699f536)",
+      "map": {
+        "graticule": {
+          "lon": [
+            {
+              "at": 0.289099526066223,
+              "label": "55°43′30″W"
+            },
+            {
+              "at": 0.6840442338071728,
+              "label": "55°43′00″W"
+            }
+          ],
+          "lat": [
+            {
+              "at": 0.779967159277538,
+              "label": "12°08′45″S"
+            },
+            {
+              "at": 0.5747126436781951,
+              "label": "12°08′30″S"
+            },
+            {
+              "at": 0.36945812807876466,
+              "label": "12°08′15″S"
+            },
+            {
+              "at": 0.16420361247942183,
+              "label": "12°08′00″S"
+            }
+          ]
+        },
+        "ground_width_m": 2296.322524156863,
+        "scale_bar": {
+          "fraction": 0.2177394485052069,
+          "ticks": [
+            "0",
+            "250",
+            "500 m"
+          ]
+        },
+        "crs": "Geographic coordinates, datum WGS 84 (EPSG:4326)"
+      }
+    }
+  ],
+  "series": [
+    {
+      "title": "NDVI through the season, field 7.",
+      "caption": "Mean NDVI of the field's clear observations (n = 7), 2025-10-05 to 2026-03-05. Dashed lines: rise, peak and fall, placed on the smoothed curve; each lies between the observations the season table lists.",
+      "x_label": "Date",
+      "y_label": "NDVI",
+      "x_range": [
+        0,
+        151
+      ],
+      "y_range": [
+        0,
+        1
+      ],
+      "x_ticks": [
+        {
+          "at": 27,
+          "label": "Nov 2025"
+        },
+        {
+          "at": 57,
+          "label": "Dec"
+        },
+        {
+          "at": 88,
+          "label": "Jan 2026"
+        },
+        {
+          "at": 119,
+          "label": "Feb"
+        },
+        {
+          "at": 147,
+          "label": "Mar"
+        }
+      ],
+      "y_ticks": [
+        {
+          "at": 0,
+          "label": "0.0"
+        },
+        {
+          "at": 0.2,
+          "label": "0.2"
+        },
+        {
+          "at": 0.4,
+          "label": "0.4"
+        },
+        {
+          "at": 0.6,
+          "label": "0.6"
+        },
+        {
+          "at": 0.8,
+          "label": "0.8"
+        },
+        {
+          "at": 1,
+          "label": "1.0"
+        }
+      ],
+      "points": [
+        {
+          "x": 0,
+          "y": 0.21
+        },
+        {
+          "x": 15,
+          "y": 0.28
+        },
+        {
+          "x": 30,
+          "y": 0.55
+        },
+        {
+          "x": 70,
+          "y": 0.84
+        },
+        {
+          "x": 85,
+          "y": 0.86
+        },
+        {
+          "x": 128,
+          "y": 0.62
+        },
+        {
+          "x": 151,
+          "y": 0.3
+        }
+      ],
+      "marks": [
+        {
+          "x": 22,
+          "label": "rise"
+        },
+        {
+          "x": 76,
+          "label": "peak"
+        },
+        {
+          "x": 137,
+          "label": "fall"
+        }
+      ]
+    }
+  ],
+  "tables": [
+    {
+      "title": "Land cover by field.",
+      "caption": "Area classified and its largest class, after the filters the compositor graph applies (n = 2 fields).",
+      "columns": [
+        {
+          "label": "Field"
+        },
+        {
+          "label": "Classified (ha)",
+          "align": "right"
+        },
+        {
+          "label": "Largest class"
+        },
+        {
+          "label": "Share",
+          "align": "right"
+        }
+      ],
+      "rows": [
+        [
+          "field 7",
+          "124.8",
+          "Soybean",
+          "96.6%"
+        ],
+        [
+          "field 12",
+          "124.8",
+          "Soybean",
+          "96.6%"
+        ]
+      ]
+    },
+    {
+      "title": "Season dates by field.",
+      "caption": "Rise and fall are where the smoothed NDVI crossed half its amplitude; in brackets, the clear observations each lies between. Mean confidence is the classifier's largest class probability averaged over the run, from 0 to 1.",
+      "columns": [
+        {
+          "label": "Field"
+        },
+        {
+          "label": "Rise"
+        },
+        {
+          "label": "Peak"
+        },
+        {
+          "label": "Fall"
+        },
+        {
+          "label": "Days",
+          "align": "right"
+        },
+        {
+          "label": "Peak NDVI",
+          "align": "right"
+        },
+        {
+          "label": "Confidence",
+          "align": "right"
+        }
+      ],
+      "rows": [
+        [
+          "field 7",
+          "2025-10-27 (10-20–11-04)",
+          "2025-12-20 (12-14–12-29)",
+          "2026-02-19 (02-10–03-05)",
+          "115",
+          "0.86",
+          "0.82"
+        ],
+        [
+          "field 12",
+          "2025-10-27 (10-20–11-04)",
+          "2025-12-20 (12-14–12-29)",
+          "2026-02-19 (02-10–03-05)",
+          "115",
+          "0.86",
+          "0.82"
+        ]
+      ]
+    },
+    {
+      "title": "Vegetation health by field.",
+      "caption": "The latest date with a reference, against the same days of earlier seasons, in standard deviations; one and two standard deviations separate typical, below and well below.",
+      "columns": [
+        {
+          "label": "Field"
+        },
+        {
+          "label": "Date"
+        },
+        {
+          "label": "NDVI",
+          "align": "right"
+        },
+        {
+          "label": "NDVI dep.",
+          "align": "right"
+        },
+        {
+          "label": "NDRE dep.",
+          "align": "right"
+        },
+        {
+          "label": "Reading"
+        }
+      ],
+      "rows": [
+        [
+          "field 7",
+          "2026-01-12",
+          "0.61",
+          "−2.40",
+          "−1.10",
+          "well below"
+        ],
+        [
+          "field 12",
+          "2026-01-12",
+          "0.83",
+          "+0.30",
+          "+0.10",
+          "typical"
+        ]
+      ]
+    },
+    {
+      "title": "Public registers under each field, in hectares.",
+      "caption": "Read at 2026-09-26T22:55:01Z (UTC). PRODES clearing is split at 22 Jul 2008 and 31 Dec 2020; PRODES 2021 spans the second date. \"Outside CAR\" is the part of the field no CAR registration covers. A dash is a register not read, not zero.",
+      "columns": [
+        {
+          "label": "Field"
+        },
+        {
+          "label": "PRODES 2009–20",
+          "align": "right"
+        },
+        {
+          "label": "PRODES 2021",
+          "align": "right"
+        },
+        {
+          "label": "PRODES 2022–",
+          "align": "right"
+        },
+        {
+          "label": "DETER",
+          "align": "right"
+        },
+        {
+          "label": "Embargo IBAMA",
+          "align": "right"
+        },
+        {
+          "label": "Embargo ICMBio",
+          "align": "right"
+        },
+        {
+          "label": "Indig. land",
+          "align": "right"
+        },
+        {
+          "label": "Cons. unit",
+          "align": "right"
+        },
+        {
+          "label": "Outside CAR",
+          "align": "right"
+        }
+      ],
+      "rows": [
+        [
+          "field 7",
+          "0.0",
+          "0.0",
+          "1.5",
+          "0.0",
+          "0.0",
+          "0.0",
+          "0.0",
+          "—",
+          "3.2"
+        ],
+        [
+          "field 12",
+          "0.0",
+          "0.0",
+          "1.5",
+          "0.0",
+          "0.0",
+          "0.0",
+          "0.0",
+          "—",
+          "3.2"
+        ]
+      ]
+    },
+    {
+      "title": "Sentinel-1 series by field.",
+      "caption": "Passes counted over the period; a canopy loss is a VH drop of at least 3 dB with the cross ratio falling by at least 1 dB, placed between the two passes it fell between. Water share: the field read as open water on the latest pass.",
+      "columns": [
+        {
+          "label": "Field"
+        },
+        {
+          "label": "Passes",
+          "align": "right"
+        },
+        {
+          "label": "Losses",
+          "align": "right"
+        },
+        {
+          "label": "Last loss between"
+        },
+        {
+          "label": "Latest pass"
+        },
+        {
+          "label": "Water share",
+          "align": "right"
+        }
+      ],
+      "rows": [
+        [
+          "field 7",
+          "30",
+          "1",
+          "2026-03-01 and 2026-03-13",
+          "2026-09-25",
+          "0.4%"
+        ],
+        [
+          "field 12",
+          "—",
+          "—",
+          "—",
+          "—",
+          "—"
+        ]
+      ]
+    },
+    {
+      "title": "Management zones by field.",
+      "caption": "The number of zones that ranks best on the fuzziness performance index (FPI) and the normalised classification entropy (NCE) together; lower values of both separate more clearly.",
+      "columns": [
+        {
+          "label": "Field"
+        },
+        {
+          "label": "Zones",
+          "align": "right"
+        },
+        {
+          "label": "FPI",
+          "align": "right"
+        },
+        {
+          "label": "NCE",
+          "align": "right"
+        },
+        {
+          "label": "Seasons used",
+          "align": "right"
+        }
+      ],
+      "rows": [
+        [
+          "field 7",
+          "3",
+          "0.214",
+          "0.187",
+          "4"
+        ],
+        [
+          "field 12",
+          "3",
+          "0.214",
+          "0.187",
+          "4"
+        ]
+      ]
+    }
+  ],
+  "limitations": [
+    {
+      "label": "Resolution",
+      "text": "Sentinel-2 cells are 10 m (0.01 ha). A field's edge cells mix the field with what surrounds it."
+    },
+    {
+      "label": "Confidence",
+      "text": "Confidence is the probability the classifier gave its chosen class. A confidence of 0.67 does not mean 67% of such pixels are correct."
+    },
+    {
+      "label": "Season dates",
+      "text": "NDVI marks emergence and senescence, not sowing and harvest. Each date lies between the clear observations around it, and cloud widens that window."
+    },
+    {
+      "label": "Departure",
+      "text": "A departure is not a diagnosis: a later sowing, another crop or a fallow field departs as a stressed one does. Earlier seasons of another crop in rotation shift the reference."
+    },
+    {
+      "label": "Registers",
+      "text": "The registers hold for the moment they were read. An overlap is not a finding of irregularity: a clearing can be authorised, an embargo lifted after publication. APP and legal-reserve polygons are not published by WFS and are not read."
+    },
+    {
+      "label": "Radar thresholds",
+      "text": "The canopy-loss rule (VH drop of 3 dB, cross-ratio drop of 1 dB) and the water rule (VH below −23 dB and VV below −13 dB) are fixed, and were not calibrated against harvest records."
+    },
+    {
+      "label": "Zones",
+      "text": "The zones show where the canopy differed across seasons, not why: soil, drainage, compaction or a past management line draw the same boundary."
+    },
+    {
+      "label": "Field verification",
+      "text": "No figure in this report was verified on the ground by TERRA."
+    }
+  ],
+  "runs": [
+    {
+      "id": "e699f536-efbb-4f05-a857-1a2b1f300f9b",
+      "kind": "classification",
+      "period": "2025-09-27 to 2026-09-19",
+      "created": "2026-09-26 08:58"
+    },
+    {
+      "id": "1ff30854-6969-4b2a-a77e-add4ba3d7ec4",
+      "kind": "health",
+      "period": "2025-09-25 to 2026-09-25",
+      "created": "2026-09-26 17:19"
+    }
+  ],
+  "references": [
+    "Savitzky, A., Golay, M. J. E. (1964). Smoothing and differentiation of data by simplified least squares procedures. Analytical Chemistry, 36(8), 1627–1639.",
+    "Gitelson, A. A., Merzlyak, M. N. (1994). Spectral reflectance changes associated with autumn senescence of Aesculus hippocastanum L. and Acer platanoides L. leaves. Journal of Plant Physiology, 143(3), 286–292.",
+    "Rousseeuw, P. J., Croux, C. (1993). Alternatives to the median absolute deviation. Journal of the American Statistical Association, 88(424), 1273–1283.",
+    "Brazil (2012). Law No. 12,651 of 25 May 2012 (Forest Code).",
+    "European Union (2023). Regulation (EU) 2023/1115 of the European Parliament and of the Council of 31 May 2023 on deforestation-free products.",
+    "Lee, J.-S. (1980). Digital image enhancement and noise filtering by use of local statistics. IEEE Transactions on Pattern Analysis and Machine Intelligence, PAMI-2(2), 165–168.",
+    "Veloso, A., Mermoz, S., Bouvet, A., Le Toan, T., Planells, M., Dejoux, J.-F., Ceschia, E. (2017). Understanding the temporal behavior of crops using Sentinel-1 and Sentinel-2-like data for agricultural applications. Remote Sensing of Environment, 199, 415–426.",
+    "Bezdek, J. C. (1981). Pattern Recognition with Fuzzy Objective Function Algorithms. Plenum Press, New York.",
+    "Fridgen, J. J., Kitchen, N. R., Sudduth, K. A., Drummond, S. T., Wiebold, W. J., Fraisse, C. W. (2004). Management Zone Analyst (MZA): software for subfield management zone delineation. Agronomy Journal, 96(1), 100–108.",
+    "Odeh, I. O. A., Chittleborough, D. J., McBratney, A. B. (1992). Soil pattern recognition with fuzzy-c-means: application to classification and soil-landform interrelationships. Soil Science Society of America Journal, 56(2), 505–516."
+  ]
+}
