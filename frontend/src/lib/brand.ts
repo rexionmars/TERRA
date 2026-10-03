@@ -51,4 +51,4 @@ export const BRAND_TAGLINE = "earth observation"
  * this is edited less often than AppVersion in version.go, not with it --
  * see docs/RELEASING.md.
  */
-export const RELEASE_NAME = "Terminator"
+export const RELEASE_NAME = "Sunset"

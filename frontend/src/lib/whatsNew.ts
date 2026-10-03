@@ -8,7 +8,7 @@ export type WhatsNewEntry = {
 export const WHATS_NEW: WhatsNewEntry[] = [
   {
     version: "0.7.0",
-    title: "Terminator — a compositor for the board, and an area read field by field",
+    title: "Sunset — a compositor for the board, and an area read field by field",
     items: [
       "The board's rasters are worked as nodes. A compositor takes each run's outputs as sockets, filters, masks, mixes and tabulates them, and reads each product as a card; what reaches a Globe node is drawn over its ground, in layers",
       "Areas hold fields. Field boundaries are delineated from two Sentinel-2 scenes with the Fields of The World baseline, the fields can be made areas of their own, and fields selected with shift run one after another in a queue followed in the Run graph",

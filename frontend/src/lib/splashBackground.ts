@@ -68,12 +68,10 @@ export type SplashStill = {
 export const SPLASH_STILLS: SplashStill[] = [
   {
     /*
-      The line between day and night, which is what this frame is.
-
-      From orbit the terminator is the edge the planet's shadow draws across
-      it; from a ridge at dusk it is this band, the lit sky thinning to orange
-      over a horizon already in shadow, with the crescent above. The name keeps
-      the register of the set -- Meander, Terraces, Vortex, Windfarm, Soybean,
+      A sunset, which is what this frame is: the lit sky thinning to orange
+      over a horizon already in shadow, with the crescent above. From orbit it
+      is the band along the line between day and night. The name keeps the
+      register of the set -- Meander, Terraces, Vortex, Windfarm, Soybean,
       Cumulus each name the thing observed rather than where -- and Pexels
       records no location to read a place off in any case.
 
@@ -87,8 +85,8 @@ export const SPLASH_STILLS: SplashStill[] = [
       stays at 0.6.0 until release-please bumps it, and check-version.ts does
       not compare this field for exactly that reason.
     */
-    name: "Terminator",
-    path: "/terra-splash-images/terminator.webp",
+    name: "Sunset",
+    path: "/terra-splash-images/sunset.webp",
     subject:
       "a clear sky at dusk over a dark, low ridge line: a yellow-orange band " +
       "on the horizon fading through rose to violet and near-black overhead, " +
@@ -136,7 +134,7 @@ export const SPLASH_STILLS: SplashStill[] = [
  * show; the rest walk the others, so featuring a still neither discards them
  * nor makes the code name decorative.
  */
-export const FEATURED_STILL = "Terminator"
+export const FEATURED_STILL = "Sunset"
 
 /** Paths alone, for the places that only need to load them. */
 export const SPLASH_IMAGES = SPLASH_STILLS.map((s) => s.path)
