@@ -17,6 +17,8 @@ import {
   nodeOf,
   outputType,
   parseGraph,
+  PDF_REPORT_MAX_MAPS,
+  pdfReportMaps,
   removeNode,
   SIEVE_MIN,
   type CompositorGraph,
@@ -109,6 +111,49 @@ describe("connect", () => {
     g = disconnect(g, "globe-1", "layer-1")
     expect(layers()).toEqual(["layer-2=Layer 1", "layer-3=Layer 2"])
     expect(connect(g, link("run-1", "ndvi", "globe-1", "image"), runOutputs).ok).toBe(false)
+  })
+
+  it("gives a PDF report one more map than it has links, up to its limit", () => {
+    let g = graphOf("run", "pdfReport")
+    const report = () => nodeOf(g, "pdfReport-1")!
+    const maps = () => inputsOf(g, report()).filter((i) => i.id.startsWith("map-")).map((i) => `${i.id}=${i.label}`)
+    expect(maps()).toEqual(["map-1=Map 1"])
+    // The product inputs stay where they are declared, ahead of the maps.
+    expect(inputsOf(g, report())[0].id).toBe("classes")
+    for (let n = 1; n <= PDF_REPORT_MAX_MAPS; n++) {
+      const r = connect(g, link("run-1", n % 2 ? "prediction" : "ndvi", "pdfReport-1", `map-${n}`), runOutputs)
+      expect(r.ok).toBe(true)
+      if (r.ok) g = r.graph
+    }
+    expect(pdfReportMaps(g, report())).toHaveLength(PDF_REPORT_MAX_MAPS)
+    // Full: no empty map is offered, and one past the limit is refused with its reason.
+    expect(maps()).toHaveLength(PDF_REPORT_MAX_MAPS)
+    const over = connect(g, link("run-1", "ndvi", "pdfReport-1", `map-${PDF_REPORT_MAX_MAPS + 1}`), runOutputs)
+    expect(over.ok).toBe(false)
+    if (!over.ok) expect(over.reason).toContain(`at most ${PDF_REPORT_MAX_MAPS} maps`)
+    g = disconnect(g, "pdfReport-1", "map-1")
+    expect(maps()[0]).toBe("map-2=Map 1")
+    expect(maps()).toHaveLength(PDF_REPORT_MAX_MAPS)
+  })
+
+  it("reads a stored PDF report's two fixed maps as the first two numbered ones", () => {
+    const stored = {
+      nodes: [
+        { id: "run-1", kind: "run", runId: "r1" },
+        { id: "pdfReport-1", kind: "pdfReport", settings: { title: "T" } },
+      ],
+      links: [
+        { from: "run-1", fromSocket: "prediction", to: "pdfReport-1", toSocket: "map1" },
+        { from: "run-1", fromSocket: "ndvi", to: "pdfReport-1", toSocket: "map2" },
+      ],
+      places: {},
+      viewer: null,
+    }
+    const g = parseGraph(stored)!
+    expect(g.links.map((l) => l.toSocket)).toEqual(["map-1", "map-2"])
+    const node = nodeOf(g, "pdfReport-1")!
+    expect(node.kind === "pdfReport" && node.settings.title).toBe("T")
+    expect(node.kind === "pdfReport" && node.settings.revision).toBe("A")
   })
 
   it("gives a Mask the type of what reaches its raster input", () => {

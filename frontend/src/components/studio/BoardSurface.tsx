@@ -28,6 +28,7 @@ import {
   Package,
 } from "@phosphor-icons/react"
 import type { RasterLayer } from "@/lib/mapLayers"
+import type { PdfReportRun } from "@/lib/pdfReport"
 import type { LayerPatch } from "@/components/studio/BoardSidebar"
 import {
   BoardSidebar,
@@ -4423,6 +4424,25 @@ export function BoardSurface({
     extraRuns.find((x) => x.run.id === id)?.result ??
     null
 
+  /*
+    A run as the store recorded it, for the PDF report's method and its list of
+    runs: the catalogue's row, or the row a run brought in with the picker
+    carried with it.
+  */
+  const runRecordOf = (id: string): PdfReportRun | null => {
+    const r = runs.find((x) => x.id === id) ?? extraRuns.find((x) => x.run.id === id)?.run
+    if (!r) return null
+    return {
+      id: r.id,
+      kind: r.kind || "classification",
+      title: r.label || r.id,
+      modelKind: r.model_kind,
+      periodStart: r.period_start,
+      periodEnd: r.period_end,
+      created: r.created_at,
+    }
+  }
+
   const mineralOfRun = (runId: string) =>
     (mineralResult?.run_id === runId ? mineralResult : null) ??
     retainedRuns.find((r) => r.id === runId)?.result.mineral ??
@@ -4767,6 +4787,7 @@ export function BoardSurface({
         fieldSets={compositorFieldSets}
         onNeedRuns={holdRuns}
         resultOf={resultOfRun}
+        runRecordOf={runRecordOf}
       />
     ),
     mineralReading: mineralResult ? (

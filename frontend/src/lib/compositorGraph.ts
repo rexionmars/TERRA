@@ -20,6 +20,7 @@
  * Data and rules only; `compositorEval` computes and `CompositorEditor` draws.
  */
 import type { Connectivity, WindowSize } from "@/lib/classFilters"
+import { PDF_REPORT_DEFAULT, type PdfReportSettings } from "@/lib/pdfReportSettings"
 
 export type Place = { x: number; y: number }
 
@@ -132,6 +133,12 @@ export type GraphNode =
       k: number | null
     }
   | { id: string; kind: "saveFields" }
+  | {
+      id: string
+      kind: "pdfReport"
+      /** The document's identification and question, as typed on the card. */
+      settings: PdfReportSettings
+    }
   | { id: string; kind: "mineralCoverage" }
   | { id: string; kind: "mineralClasses"; group: MineralGroupId }
   | { id: string; kind: "mineralReferences"; group: MineralGroupId }
@@ -385,6 +392,28 @@ export const NODE_KINDS: readonly KindMeta[] = [
     outputs: [],
   },
   /*
+    The Field table's inputs, and two rasters drawn as maps: what reaches it
+    is written up as a PDF (lib/pdfReport.ts), laid out by the sidecar. Under a
+    field set it reports every field; the maps are the field in focus.
+    Its maps are numbered inputs that grow with its links, as the Globe's
+    layers do: see inputsOf.
+  */
+  {
+    kind: "pdfReport",
+    category: "output",
+    label: "PDF report",
+    hint: "What reaches it written up as a PDF: summary, method, maps, one table per product, limitations",
+    inputs: [
+      { id: "classes", label: "Classes", accepts: CLASSES },
+      { id: "season", label: "Season", accepts: SEASON },
+      { id: "health", label: "Health", accepts: HEALTH },
+      { id: "overlap", label: "Overlap", accepts: OVERLAP },
+      { id: "radar", label: "Radar", accepts: RADAR },
+      { id: "zones", label: "Zones", accepts: ZONES },
+    ],
+    outputs: [],
+  },
+  /*
     The mineral map's figures, one card each: what a reading panel used to hold
     in one column, now read where the reader chooses and placed beside the
     rasters they describe.
@@ -508,29 +537,57 @@ export function kindMeta(kind: NodeKind): KindMeta {
 }
 
 const LAYER = /^layer-(\d+)$/
+const MAP = /^map-(\d+)$/
+
+/**
+ * The most maps a PDF report takes: the number of figures the sidecar lays
+ * out (MAX_FIGURES in sidecar/terra/report/document.py). Past it the report
+ * would be refused whole, so the node refuses the thirteenth link instead.
+ */
+export const PDF_REPORT_MAX_MAPS = 12
+
+/**
+ * Numbered inputs that grow with the links: every linked one, in the order of
+ * their numbers, then one empty one to link the next raster to -- until `max`
+ * are linked. Labelled by position rather than by id, so a list whose second
+ * was unlinked reads 1, 2 rather than 1, 3.
+ */
+function growing(graph: CompositorGraph, node: GraphNode, pattern: RegExp, prefix: string, label: string, max: number): InputDef[] {
+  const used = graph.links
+    .filter((l) => l.to === node.id && pattern.test(l.toSocket))
+    .map((l) => Number(pattern.exec(l.toSocket)![1]))
+    .sort((a, b) => a - b)
+  const next = used.length < max ? [(used[used.length - 1] ?? 0) + 1] : []
+  return [...used, ...next].map((n, i) => ({ id: `${prefix}-${n}`, label: `${label} ${i + 1}`, accepts: ANY }))
+}
 
 /**
  * The inputs a node has on this graph.
  *
- * Declared per kind, except the Globe's. Its inputs are the layers of one
- * stack on the globe, and a stack has as many as the reader links: every
- * linked layer, in the order of their numbers, then one empty layer to link
- * the next raster to. Labelled by position rather than by id, so a stack
- * whose second layer was unlinked reads Layer 1, Layer 2 rather than 1, 3.
+ * Declared per kind, except where they grow with the links. The Globe's are
+ * the layers of one stack on the globe, as many as the reader links. A PDF
+ * report's are its declared product inputs, then its maps: a report of a
+ * mineral map, its registers and its zones has more to draw than a fixed
+ * number of sockets would allow.
  */
 export function inputsOf(graph: CompositorGraph, node: GraphNode): readonly InputDef[] {
-  if (node.kind !== "globe") return kindMeta(node.kind).inputs
-  const used = graph.links
-    .filter((l) => l.to === node.id && LAYER.test(l.toSocket))
-    .map((l) => Number(LAYER.exec(l.toSocket)![1]))
-    .sort((a, b) => a - b)
-  const next = (used[used.length - 1] ?? 0) + 1
-  return [...used, next].map((n, i) => ({ id: `layer-${n}`, label: `Layer ${i + 1}`, accepts: ANY }))
+  if (node.kind === "globe") return growing(graph, node, LAYER, "layer", "Layer", Infinity)
+  if (node.kind === "pdfReport") {
+    return [...kindMeta(node.kind).inputs, ...growing(graph, node, MAP, "map", "Map", PDF_REPORT_MAX_MAPS)]
+  }
+  return kindMeta(node.kind).inputs
+}
+
+/** A PDF report's linked maps, in the order the report draws them. */
+export function pdfReportMaps(graph: CompositorGraph, node: GraphNode): InputDef[] {
+  return inputsOf(graph, node).filter((i) => MAP.test(i.id) && !!linkInto(graph, node.id, i.id))
 }
 
 /** Whether `socket` names an input a node of this kind can have at all. */
 function canHaveInput(node: GraphNode, socket: string): boolean {
-  return node.kind === "globe" ? LAYER.test(socket) : kindMeta(node.kind).inputs.some((i) => i.id === socket)
+  if (node.kind === "globe") return LAYER.test(socket)
+  if (node.kind === "pdfReport" && MAP.test(socket)) return true
+  return kindMeta(node.kind).inputs.some((i) => i.id === socket)
 }
 
 /** The sieve's threshold bounds, in pixels. Below 2 the sieve does nothing. */
@@ -575,6 +632,8 @@ export function createNode(kind: NodeKind, id: string): GraphNode {
       return { id, kind }
     case "saveFields":
       return { id, kind }
+    case "pdfReport":
+      return { id, kind, settings: { ...PDF_REPORT_DEFAULT } }
     case "seasonDates":
       return { id, kind }
     case "health":
@@ -685,9 +744,18 @@ export function connect(
   if (!a || !b) return { ok: false, reason: "That node is no longer on the graph." }
   if (a.id === b.id) return { ok: false, reason: "A node cannot read its own output." }
   const input = canHaveInput(b, link.toSocket)
-    ? (inputsOf(graph, b).find((i) => i.id === link.toSocket) ?? { id: link.toSocket, label: "Layer", accepts: ANY })
+    ? (inputsOf(graph, b).find((i) => i.id === link.toSocket) ??
+      { id: link.toSocket, label: b.kind === "pdfReport" ? "Map" : "Layer", accepts: ANY })
     : undefined
   if (!input) return { ok: false, reason: `${kindMeta(b.kind).label} has no input called ${link.toSocket}.` }
+  if (
+    b.kind === "pdfReport" &&
+    MAP.test(link.toSocket) &&
+    !linkInto(graph, b.id, link.toSocket) &&
+    pdfReportMaps(graph, b).length >= PDF_REPORT_MAX_MAPS
+  ) {
+    return { ok: false, reason: `A PDF report draws at most ${PDF_REPORT_MAX_MAPS} maps.` }
+  }
   if (!outputsOf(a, runOutputs).some((o) => o.id === link.fromSocket)) {
     return { ok: false, reason: "That output is no longer on its node." }
   }
@@ -959,6 +1027,25 @@ const group = (v: unknown): MineralGroupId => (v === 1 ? 1 : 2)
 
 const str = (v: unknown): string | null => (typeof v === "string" && v ? v : null)
 
+/** A stored node's report settings, each field its type or its default. */
+function parsePdfReportSettings(raw: unknown): PdfReportSettings {
+  const o = raw && typeof raw === "object" ? (raw as Record<string, unknown>) : {}
+  const text = (k: keyof PdfReportSettings) => (typeof o[k] === "string" ? (o[k] as string) : (PDF_REPORT_DEFAULT[k] as string))
+  return {
+    title: text("title"),
+    subtitle: text("subtitle"),
+    number: text("number"),
+    revision: text("revision"),
+    owner: text("owner"),
+    recipient: text("recipient"),
+    author: text("author"),
+    approver: text("approver"),
+    question: text("question"),
+    scope: text("scope"),
+    released: o.released === true,
+  }
+}
+
 function parseNode(raw: unknown): GraphNode | null {
   if (!raw || typeof raw !== "object") return null
   const o = raw as Record<string, unknown>
@@ -1031,6 +1118,8 @@ function parseNode(raw: unknown): GraphNode | null {
       return { id, kind: "adoptFields" }
     case "saveFields":
       return { id, kind: "saveFields" }
+    case "pdfReport":
+      return { id, kind: "pdfReport", settings: parsePdfReportSettings(o.settings) }
     case "seasonDates":
       return { id, kind: "seasonDates" }
     case "health":
@@ -1098,6 +1187,8 @@ export function parseGraph(raw: unknown): CompositorGraph | null {
     if (!from || !to || from.id === to.id) continue
     // The Globe took one input, `image`, before it took layers.
     if (to.kind === "globe" && link.toSocket === "image") link.toSocket = "layer-1"
+    // The PDF report took two fixed maps, map1 and map2, before its maps grew.
+    if (to.kind === "pdfReport" && /^map[12]$/.test(link.toSocket)) link.toSocket = `map-${link.toSocket.slice(3)}`
     if (linkInto(graph, link.to, link.toSocket)) continue
     if (!canHaveInput(to, link.toSocket)) continue
     // Structure only. A Run node's outputs, and so the types, are not known
