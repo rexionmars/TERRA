@@ -278,6 +278,7 @@ import {
   PlaneContextMenu,
   type PlaneContextTarget,
 } from "@/components/studio/PlaneContextMenu"
+import { GlobeOverlayMenu, type GlobeOverlayTarget } from "@/components/studio/GlobeOverlayMenu"
 import {
   mergePreferenceExtras,
   parsePreferenceExtras,
@@ -2851,6 +2852,8 @@ export function BoardSurface({
     still.
   */
   const [planeMenu, setPlaneMenu] = useState<PlaneContextTarget | null>(null)
+  /** The raster menu on the globe; see GlobeOverlayMenu. */
+  const [globeMenu, setGlobeMenu] = useState<GlobeOverlayTarget | null>(null)
   /**
    * Opens the plane menu on one raster, wherever the press came from.
    *
@@ -3051,6 +3054,14 @@ export function BoardSurface({
           }
         }
       }
+      /*
+        A raster the graph changed has no plane, and so no plane legend; what
+        its colours mean is what the compositor resolved from the class map
+        that reached the Globe node, drawn where the reader asked for it.
+      */
+      if (!o.source && o.legend && propertyOnMap.has(o.key)) {
+        caption = { legend: o.legend, area: areas.find((a) => a.id === o.areaId)?.title ?? "", detail: null }
+      }
       out.push({ key: o.key, areaId: o.areaId, layer: o.layer, caption })
     }
     return out
@@ -3060,6 +3071,45 @@ export function BoardSurface({
 
   const areasRef = useRef(areas)
   areasRef.current = areas
+
+  /*
+    THE GLOBE'S RASTER MENU. A globe overlay is either a plane sent there, keyed
+    as the plane, or a compositor layer. Its legend is keyed as the plane it
+    shows -- the compositor's own `source` where it draws a plane unchanged, so
+    the viewport's menu and this one toggle one legend -- and as the layer
+    itself where the graph changed the raster.
+  */
+  const legendKeyOf = (key: string): string => {
+    const c = compositorLive.find((o) => o.key === key)
+    if (!c) return key
+    return c.source ? sceneKey(c.source.areaId, c.source.sceneId) : c.key
+  }
+  const openGlobeMenu = (hits: { key: string; fit: () => void }[], at: { x: number; y: number }) => {
+    const entries = hits.flatMap(({ key, fit }) => {
+      const c = compositorLive.find((o) => o.key === key)
+      if (c) {
+        const src = c.source ? legendByArea.get(c.source.areaId) : null
+        const hasLegend = c.source ? !!(src && legendFor(c.source.sceneId, src)) : !!c.legend
+        return [{ key, title: c.layer.title, hasLegend, propertyOnMap: propertyOnMap.has(legendKeyOf(key)), fit }]
+      }
+      for (const a of areas) {
+        for (const l of a.layers) {
+          if (sceneKey(a.id, l.id) !== key) continue
+          const src = legendByArea.get(a.id)
+          return [{ key, title: l.title, hasLegend: !!(src && legendFor(l.id, src)), propertyOnMap: propertyOnMap.has(key), fit }]
+        }
+      }
+      return []
+    })
+    if (entries.length) setGlobeMenu({ at, entries })
+  }
+  const takeOffGlobe = (key: string) => {
+    if (compositorLive.some((o) => o.key === key)) {
+      setHiddenOnGlobe((prev) => new Set(prev).add(key))
+    } else {
+      toggleGlobe(key)
+    }
+  }
   /*
     Through refs for the reason the ones below are: openPlaneMenu is handed to
     the scene, which holds the scope it was built in.
@@ -4481,6 +4531,7 @@ export function BoardSurface({
           polygon={customPolygon}
           onPolygonDrawn={onPolygonDrawn}
           overlays={globeOverlays}
+          onOverlayContext={openGlobeMenu}
           fieldDrafts={fieldDrafts}
           /*
             The same memory the work map keeps. The globe opened over Brazil at
@@ -5887,6 +5938,13 @@ export function BoardSurface({
         onRemove={() =>
           planeMenu && removeFromScene(planeMenu.areaId, planeMenu.layerId)
         }
+      />
+      <GlobeOverlayMenu
+        target={globeMenu}
+        surface={surfaceRef.current}
+        onClose={() => setGlobeMenu(null)}
+        onToggleProperty={(key) => toggleProperty(legendKeyOf(key))}
+        onTakeOff={takeOffGlobe}
       />
 
       {/*

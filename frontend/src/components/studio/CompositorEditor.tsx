@@ -118,6 +118,7 @@ import {
 } from "@/lib/compositorEval"
 import { seasonOf } from "@/lib/season"
 import { fieldRow, fieldTableCsv } from "@/lib/fieldTable"
+import type { LayerLegend } from "@/lib/layerLegend"
 import type { AssetRun, ClassRaster } from "@/lib/runAssets"
 import { isZeroExtent, type RasterLayer } from "@/lib/mapLayers"
 import { arrange } from "@/lib/compositorLayout"
@@ -568,6 +569,30 @@ export interface CompositorGlobeOverlay {
   /** Every run it derives from; the board drops the overlay when one leaves. */
   runIds: string[]
   layer: RasterLayer
+  /**
+   * What its colours mean, where the graph can say: a class map's classes as
+   * they reach the Globe node, after whatever filters and masks it passed
+   * through, with each one's share. Null for an image, whose colours no node
+   * publishes. A raster drawn unchanged (`source`) takes its plane's legend
+   * instead, which carries the run's own figures.
+   */
+  legend: LayerLegend | null
+}
+
+/** A class map's classes as a legend: those present, largest first, with their shares. */
+function classLegend(v: ClassValue, subject: string): LayerLegend {
+  const { rows, total } = classAreas(v)
+  const cell = v.info.pixelAreaHa
+  return {
+    kind: "classes",
+    subject,
+    entries: rows.map((r) => ({
+      name: r.entry.name,
+      color: r.entry.color,
+      pct: total > 0 ? (100 * r.px) / total : undefined,
+      areaHa: cell != null ? r.px * cell : undefined,
+    })),
+  }
 }
 
 /*
@@ -1155,6 +1180,7 @@ export function CompositorEditor({
           smooth: false,
           visible: true,
         },
+        legend: s.value.type === "classes" ? classLegend(s.value, describe(s.from, s.fromSocket)) : null,
       }))
     )
     // `sent` is rebuilt every render; its key is what changes.

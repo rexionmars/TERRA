@@ -52,6 +52,7 @@ import type { GlobeArea } from "@/components/globe/globeArea"
 import { MapBar, MapButton, MapMenu } from "@/components/globe/MapChrome"
 import {
   raisedRasterLayer,
+  rastersAt,
   type RaisedRasterLayer,
 } from "@/components/globe/raisedRasters"
 import { SpreadHandle } from "@/components/globe/SpreadHandle"
@@ -350,8 +351,23 @@ export function GlobeSurface({
   spreadM = 0,
   onSpreadChange,
   fieldDrafts = null,
+  onOverlayContext,
   className,
 }: {
+  /**
+   * A right-click on the rasters, without a drag: the overlays under the
+   * pointer, top of the stack first, each with a way to frame it, and where
+   * the press was. The caller opens the menu; nothing opens where there is no
+   * raster, since a menu about nothing is a control that appears to fail.
+   *
+   * PICKED ON THE GROUND. A raised raster is drawn off the ground and MapLibre
+   * has no public way to project an elevated point (SpreadHandle says the
+   * same), so the press is resolved to the ground point under it and every
+   * overlay whose extent holds that point is offered. A stack over one area
+   * shares one extent, which is why the answer is a list: the menu names each
+   * one rather than guessing which plane the pointer meant.
+   */
+  onOverlayContext?: (hits: { key: string; fit: () => void }[], at: { x: number; y: number }) => void
   areas: readonly GlobeArea[]
   /**
    * A delineation's polygons not yet made fields, as a GeoJSON
@@ -547,6 +563,11 @@ export function GlobeSurface({
         }
       })
   }, [overlays, spreadM])
+  /* Read by the right-button listener, which is registered once with the map. */
+  const raisedListRef = useRef(raisedRasters)
+  raisedListRef.current = raisedRasters
+  const overlayContextRef = useRef(onOverlayContext)
+  overlayContextRef.current = onOverlayContext
 
   const rasterCaptions = useMemo(
     () =>
@@ -620,6 +641,9 @@ export function GlobeSurface({
     polygon,
     onPolygonDrawn: (geom) => drawnRef.current?.(geom),
   })
+  /* Drawing or editing an area owns the pointer; the raster menu waits. */
+  const modeRef = useRef(mode)
+  modeRef.current = mode
   const stopRef = useRef(stop)
   stopRef.current = stop
   const [zoom, setZoom] = useState(initialView?.zoom ?? START_ZOOM)
@@ -1047,6 +1071,45 @@ export function GlobeSurface({
         const f = hits.find((h) => h.properties?.isField === true) ?? hits[0]
         const id = f?.properties?.areaId
         if (typeof id === "string") pickAreaRef.current(id, false)
+      })
+    )
+    /*
+      The right button: a drag turns the camera (MapLibre's own binding), a
+      press opens the raster menu. Told apart by how far the pointer moved
+      between the press and the release, with the tolerance a shift-press uses.
+    */
+    let rightDown: { x: number; y: number } | null = null
+    const onRightDown = (e: MouseEvent) => {
+      if (e.button === 2) rightDown = { x: e.clientX, y: e.clientY }
+    }
+    map.getCanvasContainer().addEventListener("mousedown", onRightDown)
+    subs.push({ unsubscribe: () => map.getCanvasContainer().removeEventListener("mousedown", onRightDown) })
+    subs.push(
+      map.on("contextmenu", (e: MapMouseEvent) => {
+        const open = overlayContextRef.current
+        const ev = e.originalEvent
+        const down = rightDown
+        rightDown = null
+        if (!open || modeRef.current !== "idle") return
+        if (down && Math.hypot(ev.clientX - down.x, ev.clientY - down.y) > PRESS_PX) return
+        const { lng, lat } = e.lngLat
+        const hits = rastersAt(raisedListRef.current, lng, lat)
+        if (!hits.length) return
+        ev.preventDefault()
+        open(
+          hits.map((h) => ({
+            key: h.key,
+            fit: () =>
+              map.fitBounds(
+                [
+                  [h.bounds.lon_min, h.bounds.lat_min],
+                  [h.bounds.lon_max, h.bounds.lat_max],
+                ],
+                { padding: 60, duration: 700 }
+              ),
+          })),
+          { x: ev.clientX, y: ev.clientY }
+        )
       })
     )
     // A shift-press with no drag; see the note on PRESS_PX.

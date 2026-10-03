@@ -91,6 +91,24 @@ export interface RaisedRaster {
   pixelated?: boolean
 }
 
+/**
+ * The rasters whose extent holds a ground point, top of the stack first.
+ *
+ * What a right-click on the globe offers (GlobeSurface, onOverlayContext).
+ * Picked on the ground because an elevated point cannot be projected through
+ * MapLibre's public interface; a stack over one area shares one extent, so all
+ * of it is returned and the menu names each.
+ */
+export function rastersAt<T extends Pick<RaisedRaster, "bounds" | "elevationM">>(
+  rasters: readonly T[],
+  lng: number,
+  lat: number
+): T[] {
+  return rasters
+    .filter((r) => lng >= r.bounds.lon_min && lng <= r.bounds.lon_max && lat >= r.bounds.lat_min && lat <= r.bounds.lat_max)
+    .sort((a, b) => b.elevationM - a.elevationM)
+}
+
 /*
   A texture per url AND filter. The same raster drawn once as classes and once
   as colour is two textures, since the filter is a property of the texture.
