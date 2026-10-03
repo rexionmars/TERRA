@@ -15,7 +15,7 @@
  */
 import { describe, expect, it } from "vitest"
 
-import { vertexSource } from "./raisedRasters"
+import { rastersAt, vertexSource } from "./raisedRasters"
 
 /** Enough of the prelude's shape for the branches to be readable. */
 const PRELUDE = "uniform mat4 u_projection_matrix;"
@@ -69,5 +69,23 @@ describe("the raised raster's vertex source", () => {
     expect(src).toContain(PRELUDE)
     expect(src).toContain("#define GLOBE")
     expect(src.startsWith("#version 300 es")).toBe(true)
+  })
+})
+
+describe("rastersAt", () => {
+  const box = (lon: number, lat: number) => ({ lon_min: lon, lat_min: lat, lon_max: lon + 1, lat_max: lat + 1 })
+  const stack = [
+    { key: "low", bounds: box(-56, -13), elevationM: 1 },
+    { key: "high", bounds: box(-56, -13), elevationM: 81 },
+    { key: "elsewhere", bounds: box(-50, -10), elevationM: 41 },
+  ]
+
+  it("returns every raster over the point, the top of the stack first", () => {
+    expect(rastersAt(stack, -55.5, -12.5).map((r) => r.key)).toEqual(["high", "low"])
+  })
+
+  it("counts the edge as inside, and returns nothing off every raster", () => {
+    expect(rastersAt(stack, -56, -13).map((r) => r.key)).toEqual(["high", "low"])
+    expect(rastersAt(stack, 0, 0)).toEqual([])
   })
 })
