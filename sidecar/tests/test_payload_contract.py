@@ -82,6 +82,13 @@ CONTRACTS = [
         REPO / "internal" / "analysis" / "types_zones.go",
         "zonesSidecarResult",
     ),
+    (
+        REPO / "sidecar" / "terra" / "report" / "actions.py",
+        "pdf_report",
+        "pdf_path",
+        REPO / "internal" / "analysis" / "types_report.go",
+        "reportSidecarResult",
+    ),
 ]
 
 

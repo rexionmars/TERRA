@@ -29,7 +29,7 @@ import { NumberField } from "@/components/ui/NumberField"
 import { parseFields, type FieldsTarget } from "@/lib/fields"
 import type { FieldsAnalysis, MineralAnalysis, PredictResult } from "@/lib/types"
 import { notifyExportFail, notifyExportOk } from "@/lib/notify"
-import { ExportOverlayFile } from "../../../wailsjs/go/main/App"
+import { ExportOverlayFile, ExportPDFReport, GetAppVersion } from "../../../wailsjs/go/main/App"
 import {
   linkKey,
   SocketCanvas,
@@ -43,6 +43,7 @@ import { Choice, Head } from "./nodeCard"
 import { ActionButton, Figure, Note, StatusNote, Swatch } from "./nodeParts"
 import { MineralNodeBody, mineralNodeTitle } from "./mineralNodes"
 import { FieldTableCard, HealthCard, SeasonCard } from "./fieldNodes"
+import { PdfReportCard } from "./pdfReportNodes"
 import { OverlapCard } from "./overlapNodes"
 import { RadarCard } from "./radarNodes"
 import { ZonesCard } from "./zonesNodes"
@@ -81,6 +82,7 @@ import {
   nextNodeId,
   NODE_KINDS,
   nodeOf,
+  pdfReportMaps,
   outputsOf,
   outputType,
   removeNode,
@@ -119,6 +121,7 @@ import {
 import { seasonOf } from "@/lib/season"
 import { fieldRow, fieldTableCsv } from "@/lib/fieldTable"
 import type { LayerLegend } from "@/lib/layerLegend"
+import { buildPdfReport, mapSource, productsIn, type PdfReportFigure, type PdfReportRun } from "@/lib/pdfReport"
 import type { AssetRun, ClassRaster } from "@/lib/runAssets"
 import { isZeroExtent, type RasterLayer } from "@/lib/mapLayers"
 import { arrange } from "@/lib/compositorLayout"
@@ -141,6 +144,7 @@ const WIDTH: Record<NodeKind, number> = {
   fieldFilter: 220,
   adoptFields: 230,
   saveFields: 200,
+  pdfReport: 300,
   seasonDates: 340,
   health: 330,
   fieldTable: 380,
@@ -174,6 +178,7 @@ const GUESS_H: Record<NodeKind, number> = {
   fieldFilter: 150,
   adoptFields: 120,
   saveFields: 100,
+  pdfReport: 380,
   seasonDates: 280,
   health: 280,
   fieldTable: 300,
@@ -635,7 +640,14 @@ export function CompositorEditor({
   fieldSets = NO_SETS,
   onNeedRuns,
   resultOf,
+  runRecordOf,
 }: {
+  /**
+   * A run as the store recorded it -- kind, model, period, when it was made --
+   * for the PDF report's method and reproducibility sections; null for a run
+   * the store has no record of.
+   */
+  runRecordOf?: (runId: string) => PdfReportRun | null
   /**
    * A run's whole result, for the outputs that are not rasters: a
    * classification's Season and a vegetation health run's Health report.
@@ -1026,6 +1038,92 @@ export function CompositorEditor({
     const runIds = runsFeeding(nodeId)
     const name = runOf(runIds[0] ?? null)?.title ?? "Run"
     return [row(name, (socket) => inputOf(nodeId, socket))]
+  }
+
+  /*
+    THE PDF REPORT. Its rows are the Field table's (tableRows), so the report
+    and the table cannot disagree; its maps are the rasters that reach Map 1
+    and Map 2 as the Viewer would draw them. The runs it lists are every run
+    that feeds it, in every field's evaluation under a field set.
+  */
+  const [reportBusy, setReportBusy] = useState<string | null>(null)
+  const reportRuns = (nodeId: string): string[] => {
+    const ids = new Set<string>(runsFeeding(nodeId))
+    for (const f of fieldEvaluations ?? []) for (const id of runsFeeding(nodeId, f.graph)) ids.add(id)
+    return [...ids]
+  }
+  /** The field set the graph reads, and the field in focus; null for plain runs. */
+  const reportSet = () => {
+    if (!fieldEvaluations) return null
+    const each = graph.nodes.find((n): n is Extract<GraphNode, { kind: "run" }> => n.kind === "run" && !!n.each)?.each
+    const set = each ? fieldSets.find((x) => x.areaId === each.areaId && x.runKind === each.runKind) : undefined
+    if (!each || !set) return null
+    const focus = set.members.find((m) => m.fieldId === each.fieldId) ?? set.members[0]
+    return { areaName: set.areaName, focus: focus?.fieldName ?? null }
+  }
+  /** What a linked input carries, named by the output it comes from. */
+  const sourceLabel = (nodeId: string, socket: string): string => {
+    const l = linkInto(graph, nodeId, socket)
+    if (!l) return ""
+    const from = nodeOf(graph, l.from)
+    if (from?.kind === "run") return runOutputs(from.runId).find((o) => o.id === l.fromSocket)?.label ?? "Raster"
+    return from ? kindMeta(from.kind).label : "Raster"
+  }
+  const reportFigures = (node: GraphNode, subject: string): PdfReportFigure[] =>
+    pdfReportMaps(graph, node).flatMap(({ id: socket }) => {
+      const nodeId = node.id
+      const v = readyValue(inputOf(nodeId, socket))
+      if (!v) return []
+      const image = painted(v)
+      const legend = v.type === "classes" ? classAreas(v).rows.map((r) => ({ label: r.entry.name, color: r.entry.color })) : []
+      return [
+        {
+          title: `${sourceLabel(nodeId, socket)}, ${subject}.`,
+          caption:
+            v.type === "classes"
+              ? "One colour per class present, as the legend lists; drawn without interpolation."
+              : "As the compositor draws it.",
+          uri: dataUriOf(image),
+          width: image.width,
+          height: image.height,
+          extent: v.extent && !isZeroExtent(v.extent) ? v.extent : null,
+          legend,
+          pixelated: v.type === "classes",
+          source: mapSource(
+            runsFeeding(linkInto(graph, nodeId, socket)!.from)
+              .map((id) => runRecordOf?.(id) ?? null)
+              .filter((r): r is PdfReportRun => !!r)
+          ),
+        },
+      ]
+    })
+  const exportReport = async (node: Extract<GraphNode, { kind: "pdfReport" }>) => {
+    setReportBusy(node.id)
+    try {
+      const rows = tableRows(node.id)
+      const set = reportSet()
+      const plainName = runOf(runsFeeding(node.id)[0] ?? null)?.title ?? "Run"
+      const subject = set?.focus ?? plainName
+      const season = readySeason(inputOf(node.id, "season"))?.season ?? null
+      const doc = buildPdfReport({
+        settings: node.settings,
+        rows,
+        areaName: set?.areaName ?? null,
+        season: season ? { field: subject, season } : null,
+        figures: reportFigures(node, subject),
+        runs: reportRuns(node.id)
+          .map((id) => runRecordOf?.(id) ?? null)
+          .filter((r): r is PdfReportRun => !!r),
+        appVersion: (await GetAppVersion().catch(() => "")) || "unknown",
+        now: new Date(),
+      })
+      const dest = await ExportPDFReport(JSON.stringify(doc), doc.meta.title)
+      if (dest) notifyExportOk(dest)
+    } catch (e) {
+      notifyExportFail(e)
+    } finally {
+      setReportBusy(null)
+    }
   }
 
   const saveTable = async (nodeId: string) => {
@@ -1949,6 +2047,40 @@ export function CompositorEditor({
           !linked("zones") && "a Zones report",
         ].filter((x): x is string => !!x)
         return <FieldTableCard rows={tableRows(node.id)} missing={missing} onExport={() => void saveTable(node.id)} />
+      }
+
+      case "pdfReport": {
+        const linked = (socket: string) => !!linkInto(graph, node.id, socket)
+        const rows = tableRows(node.id)
+        const products = productsIn(rows)
+        const names: Record<string, string> = {
+          classes: "land cover",
+          season: "season",
+          health: "vegetation health",
+          overlap: "overlap",
+          radar: "radar",
+          zones: "zones",
+        }
+        const missing = [
+          !linked("classes") && "a class map",
+          !linked("season") && "a Season",
+          !linked("health") && "a Health report",
+          !linked("overlap") && "an Overlap report",
+          !linked("radar") && "a Radar report",
+          !linked("zones") && "a Zones report",
+        ].filter((x): x is string => !!x)
+        return (
+          <PdfReportCard
+            settings={node.settings}
+            onSettings={(settings) => edit(updateNode(graph, { ...node, settings }))}
+            products={products.map((p) => names[p])}
+            fields={rows.length}
+            maps={pdfReportMaps(graph, node).filter((m) => readyValue(inputOf(node.id, m.id))).length}
+            missing={missing}
+            busy={reportBusy === node.id}
+            onExport={() => void exportReport(node)}
+          />
+        )
       }
 
       case "overlap": {

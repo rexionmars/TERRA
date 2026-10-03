@@ -52,9 +52,19 @@ export interface MethodInputs {
   modelKind: ModelKind
   start: string
   end: string
-  maxCloud: number
-  monthlyBest: boolean
+  /**
+   * The scene cloud ceiling, in percent. Null where it is not known: a saved
+   * run does not record it, and a report of one must not state the band's
+   * current setting as the run's.
+   */
+  maxCloud: number | null
+  /** Whether one scene per month was kept; null where the run does not record it. */
+  monthlyBest: boolean | null
 }
+
+/** The cloud ceiling as a phrase, or what is known where the value is not. */
+const cloudCeiling = (i: MethodInputs) =>
+  i.maxCloud == null ? "the scene cloud ceiling set for the run (not recorded with it)" : `${i.maxCloud}% scene cloud`
 
 /** MapBiomas legend the three classifiers share, named once. */
 const CLASSES = "5 MapBiomas classes: 3, 21, 25, 39, 41"
@@ -70,13 +80,17 @@ function acquisition(i: MethodInputs): MethodSection {
     lines: [
       "Sentinel-2 L2A through the Planetary Computer STAC catalogue",
       `${i.start} to ${i.end}`,
-      `scenes with cloud cover below ${i.maxCloud}%`,
-      i.monthlyBest
-        ? "one scene per calendar month, the least cloudy of it"
-        : "every scene under the ceiling, no monthly pick",
+      i.maxCloud == null
+        ? "scenes under the cloud ceiling set for the run (not recorded with it)"
+        : `scenes with cloud cover below ${i.maxCloud}%`,
+      i.monthlyBest == null
+        ? "one scene per month or every scene under the ceiling, as the run was set (not recorded with it)"
+        : i.monthlyBest
+          ? "one scene per calendar month, the least cloudy of it"
+          : "every scene under the ceiling, no monthly pick",
       "bands read over /vsicurl: only the polygon window, only the bands the model needs",
     ],
-    note: i.monthlyBest
+    note: i.monthlyBest !== false
       ? undefined
       : "The trained models were fitted on the roughly one-scene-per-month cadence of the training set. Keeping every scene changes the temporal statistics they expect.",
   }
@@ -348,7 +362,7 @@ function healthBrief(i: MethodInputs): MethodBrief {
         title: "Acquisition",
         lines: [
           "Sentinel-2 L2A, B04 B08 at 10 m and B05 B8A at 20 m, from the Planetary Computer",
-          `every acquisition from ${i.start || "the start"} to ${i.end || "the end"} under ${i.maxCloud}% scene cloud, and the same days of the three seasons before`,
+          `every acquisition from ${i.start || "the start"} to ${i.end || "the end"} under ${cloudCeiling(i)}, and the same days of the three seasons before`,
           "per acquisition, the cells its scene classification calls clear; one under 30% of the area clear is not counted",
           "reflectance with the 04.00 offset removed; NDVI (B08, B04) and NDRE (B8A, B05) averaged over the clear cells",
         ],
@@ -452,7 +466,7 @@ function zonesBrief(i: MethodInputs): MethodBrief {
       {
         title: "Seasons",
         lines: [
-          `the period (${i.start || "start"} to ${i.end || "end"}) and the same days of the three years before, under ${i.maxCloud}% scene cloud`,
+          `the period (${i.start || "start"} to ${i.end || "end"}) and the same days of the three years before, under ${cloudCeiling(i)}`,
           "per season and 10 m cell, the 90th percentile of NDVI over clear acquisitions; a cell needs 3 of them",
           "a season is used where half the field has a value; each used season is standardised over the field",
         ],

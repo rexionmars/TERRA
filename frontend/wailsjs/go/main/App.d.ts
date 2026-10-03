@@ -67,6 +67,8 @@ export function ExportClassification(arg1:string):Promise<string>;
 
 export function ExportOverlayFile(arg1:string,arg2:string):Promise<string>;
 
+export function ExportPDFReport(arg1:string,arg2:string):Promise<string>;
+
 export function ExportResearchPack(arg1:analysis.ResearchExportMeta,arg2:analysis.PredictResult):Promise<string>;
 
 export function GeocodeSearch(arg1:string):Promise<Array<geocode.GeocodeResult>>;
