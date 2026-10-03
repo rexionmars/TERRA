@@ -40,6 +40,7 @@ ACTIONS: dict[str, str] = {
     'socioenvironmental_overlap': 'terra.overlap.actions:overlap',
     'radar_series': 'terra.radar.actions:radar',
     'management_zones': 'terra.zones.actions:zones',
+    'pdf_report': 'terra.report.actions:pdf_report',
 }
 
 DEFAULT_ACTION = 'predict'

@@ -64,7 +64,7 @@ ignore_missing_imports = true
 # cheaper thing: it does not ask for annotations, it asks that the annotations
 # and inferences that exist do not contradict each other. Every module passes
 # it, so the CI step guards the package rather than four modules of it.
-module = ["terra.protocol", "terra.registry", "terra.cli", "terra.stac"]
+module = ["terra.protocol", "terra.registry", "terra.cli", "terra.stac", "terra.report.*"]
 disallow_untyped_defs = true
 disallow_incomplete_defs = true
 
@@ -80,7 +80,7 @@ type = "layers"
 layers = [
     "terra.cli",
     "terra.registry",
-    "terra.water | terra.landcover | terra.scenes | terra.mineral | terra.fields | terra.health | terra.overlap | terra.radar | terra.zones",
+    "terra.water | terra.landcover | terra.scenes | terra.mineral | terra.fields | terra.health | terra.overlap | terra.radar | terra.zones | terra.report",
     "terra.imagery",
     "terra.stac | terra.mapbiomas",
     "terra.aoi | terra.phenology",
@@ -100,4 +100,5 @@ modules = [
     "terra.overlap",
     "terra.radar",
     "terra.zones",
+    "terra.report",
 ]

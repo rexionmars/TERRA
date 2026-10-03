@@ -71,6 +71,7 @@ NEEDS = [
     Need("planetary_computer", "planetary-computer", "reading Sentinel-2 scenes"),
     Need("h5py", "h5py", "reading EMIT reflectance for the mineral map"),
     Need("requests", "requests", "the authenticated EMIT reads of the mineral map"),
+    Need("typst", "typst", "the PDF report", optional=True),
     # The heavy models. Deliberately absent from the bundled environment: torch
     # alone outweighs everything else the application ships.
     Need("torch", "torch", "Temporal Transformer and Prithvi", optional=True),
