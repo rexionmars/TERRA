@@ -17,7 +17,7 @@
  * at all: "how many scenes did that use" is asked once the map is on screen,
  * not while the spinner is turning.
  */
-import { Info } from "@phosphor-icons/react"
+import { Info } from "@/components/icons"
 import { useState } from "react"
 import type { MethodBrief } from "@/lib/methodBrief"
 import type { RunLogEntry } from "@/lib/runLog"

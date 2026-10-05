@@ -7,7 +7,7 @@
  * every field's zones. The figures come from lib/zones.ts.
  */
 import { useState } from "react"
-import { DownloadSimple } from "@phosphor-icons/react"
+import { DownloadSimple } from "@/components/icons"
 
 import { Choice } from "./nodeCard"
 import { ActionButton, Figure, Note, Swatch } from "./nodeParts"

@@ -28,7 +28,7 @@
  */
 import { useMemo, useRef, useState } from "react"
 import { useTheme } from "next-themes"
-import { Info } from "@phosphor-icons/react"
+import { Info } from "@/components/icons"
 
 import { StudioPopover } from "@/components/studio/StudioPopover"
 

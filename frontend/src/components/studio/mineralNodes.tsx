@@ -14,7 +14,7 @@
  * where the column said it in a paragraph, and the longer account is in the
  * method brief.
  */
-import { DownloadSimple } from "@phosphor-icons/react"
+import { DownloadSimple } from "@/components/icons"
 import type { GraphNode, MineralBand, MineralGroupId } from "@/lib/compositorGraph"
 import type { MineralValue } from "@/lib/compositorEval"
 import {

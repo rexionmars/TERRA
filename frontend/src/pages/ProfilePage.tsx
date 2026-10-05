@@ -12,7 +12,7 @@ import {
   Star,
   Trash,
   Upload,
-} from "@phosphor-icons/react"
+} from "@/components/icons"
 import { BrowserOpenURL } from "../../wailsjs/runtime/runtime"
 import {
   ChooseBackupArchive,

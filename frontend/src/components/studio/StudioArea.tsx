@@ -36,7 +36,7 @@ import {
   useSyncExternalStore,
 } from "react"
 import { createPortal } from "react-dom"
-import { Columns, ArrowsOut, ArrowsIn, Rows, X } from "@phosphor-icons/react"
+import { Columns, ArrowsOut, ArrowsIn, Rows, X, type Icon } from "@/components/icons"
 import { AREA_RADIUS_PX } from "@/lib/boardAreas"
 import {
   studioGutterOn,
@@ -73,7 +73,7 @@ export const AREA_HEADER_PX = 26
 export interface StudioEditorMode {
   id: string
   label: string
-  icon?: React.ComponentType<{ className?: string; strokeWidth?: number }>
+  icon?: Icon
   active: boolean
   select: () => void
 }
@@ -558,10 +558,7 @@ export function StudioArea({
             </AreaHeaderOptionsHost.Provider>
           ) : (
             <div className="flex h-full flex-col items-center justify-center gap-1 px-2 text-center">
-              <meta.icon
-                className="size-4 text-muted-foreground/60"
-                strokeWidth={1.5}
-              />
+              <meta.icon className="size-4 text-muted-foreground/60" />
               <p className="text-[10px] leading-snug text-muted-foreground">
                 {meta.label} needs {meta.minRem}×{meta.minRowRem} rem.
                 <br />

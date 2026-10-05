@@ -17,7 +17,7 @@
  * here, so every socket sits at a height known without measuring a row.
  */
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react"
-import { ArrowsOut, CaretDown, CaretRight, TreeStructure } from "@phosphor-icons/react"
+import { ArrowsOut, CaretDown, CaretRight, TreeStructure } from "@/components/icons"
 import { cn } from "@/lib/utils"
 import { BODY_PAD, HEAD_H, ROW_H, wirePath } from "./NodeCanvas"
 
@@ -597,9 +597,9 @@ export function SocketCanvas({
                   className="grid size-4 shrink-0 place-items-center rounded-sm opacity-80 hover:bg-hover hover:opacity-100"
                 >
                   {isFolded ? (
-                    <CaretRight className="size-2.5" weight="bold" />
+                    <CaretRight className="size-2.5" />
                   ) : (
-                    <CaretDown className="size-2.5" weight="bold" />
+                    <CaretDown className="size-2.5" />
                   )}
                 </button>
                 <span className="flex min-w-0 flex-1 items-center gap-1.5">{n.header}</span>

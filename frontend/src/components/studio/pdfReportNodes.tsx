@@ -8,7 +8,7 @@
  * step of the compositor's undo rather than one per letter.
  */
 import { useEffect, useState } from "react"
-import { FilePdf } from "@phosphor-icons/react"
+import { FilePdf } from "@/components/icons"
 
 import { Choice } from "./nodeCard"
 import { ActionButton, Figure, Note } from "./nodeParts"

@@ -8,7 +8,7 @@
  * has to answer on the settings screen too, where no board exists.
  */
 import { useEffect, useMemo, useRef, useState } from "react"
-import { MagnifyingGlass } from "@phosphor-icons/react"
+import { MagnifyingGlass } from "@/components/icons"
 
 import { useAuth } from "@/lib/auth"
 import {

@@ -12,7 +12,7 @@
  * having if it is believed, so it reports what it can see.
  */
 import { useMemo, useState } from "react"
-import { CircleNotch, ArrowsClockwise, Trash } from "@phosphor-icons/react"
+import { CircleNotch, ArrowsClockwise, Trash } from "@/components/icons"
 import { ModalShell, ModalHeader } from "@/components/ui/ModalShell"
 import { btnGhost } from "@/components/ui/buttons"
 import { cn } from "@/lib/utils"

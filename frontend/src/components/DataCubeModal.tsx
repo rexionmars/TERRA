@@ -3,7 +3,7 @@ import {
   CubeTransparent,
   ImageBroken,
   X,
-} from "@phosphor-icons/react"
+} from "@/components/icons"
 import type { DataCubeResult } from "@/lib/types"
 import { btnIcon } from "@/components/ui/buttons"
 

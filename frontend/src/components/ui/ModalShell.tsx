@@ -29,7 +29,7 @@ import { SURFACE, SCRIM } from "@/lib/motion"
 import { useEffect } from "react"
 import { createPortal } from "react-dom"
 import { motion } from "motion/react"
-import { X } from "@phosphor-icons/react"
+import { X } from "@/components/icons"
 import { cn } from "@/lib/utils"
 import { btnIcon } from "@/components/ui/buttons"
 

@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react"
-import { ArrowDown, ArrowUp, Check, Copy, Table } from "@phosphor-icons/react"
+import { ArrowDown, ArrowUp, Check, Copy, Table } from "@/components/icons"
 import { cn } from "@/lib/utils"
 import { notifyError } from "@/lib/notify"
 import { btnGhostDense } from "@/components/ui/buttons"

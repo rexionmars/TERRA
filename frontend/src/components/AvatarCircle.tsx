@@ -1,4 +1,4 @@
-import { User } from "@phosphor-icons/react"
+import { User } from "@/components/icons"
 
 export function AvatarCircle({
   uri,

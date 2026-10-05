@@ -26,7 +26,7 @@ import {
   FloppyDisk,
   FolderSimple,
   Package,
-} from "@phosphor-icons/react"
+} from "@/components/icons"
 import type { RasterLayer } from "@/lib/mapLayers"
 import type { PdfReportRun } from "@/lib/pdfReport"
 import type { LayerPatch } from "@/components/studio/BoardSidebar"
@@ -193,7 +193,7 @@ import {
   type EditorId,
 } from "@/lib/studioEditors"
 import { toGlobeArea, type GlobeArea } from "@/components/globe/globeArea"
-import type { Icon } from "@phosphor-icons/react"
+import type { Icon } from "@/components/icons"
 import {
   DEFAULT_WORKSPACE,
   studioWorkspace,
@@ -259,7 +259,7 @@ import {
   Stack,
   Tag,
   Waves,
-} from "@phosphor-icons/react"
+} from "@/components/icons"
 import { StudioAreaTree } from "@/components/studio/StudioAreaTree"
 import {
   studioGutterPx,

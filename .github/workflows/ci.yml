@@ -66,6 +66,13 @@ jobs:
         working-directory: frontend
         run: npm run check:contrast
 
+      # src/components/icons.tsx is generated from vendor/breeze-icons and
+      # committed, so it can be edited in place or left behind by a change to
+      # the table, and either still builds.
+      - name: Check the icons against the vendored Breeze sources
+        working-directory: frontend
+        run: npm run check:icons
+
       # version.go against wails.json, CITATION.cff and the newest What's New
       # entry. wails.json carried no info block at all, so every packaged
       # bundle reported CFBundleShortVersionString 1.0.0 on a v0.4.0 release --

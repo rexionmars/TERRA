@@ -13,7 +13,7 @@
  * same ground. Where there is more than one, each gets its own group, top of
  * the stack first, rather than the menu guessing which one was meant.
  */
-import { CornersOut, MapTrifold as MapIcon, Note } from "@phosphor-icons/react"
+import { CornersOut, MapTrifold as MapIcon, Note } from "@/components/icons"
 
 import { StudioContextMenu, StudioMenuGroup, StudioMenuItem } from "@/components/studio/StudioPopover"
 

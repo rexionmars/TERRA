@@ -24,7 +24,7 @@ import {
   CircleNotch,
   Warning,
   X,
-} from "@phosphor-icons/react"
+} from "@/components/icons"
 import { EventsOn } from "../../wailsjs/runtime/runtime"
 import {
   BuildManagedEnvironment,

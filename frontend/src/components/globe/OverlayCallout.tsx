@@ -55,7 +55,7 @@ import {
   useRef,
   useState,
 } from "react";
-import { CaretRight } from "@phosphor-icons/react";
+import { CaretRight } from "@/components/icons";
 import { Marker, type Map as MapLibreMap } from "maplibre-gl";
 import { createRoot, type Root } from "react-dom/client";
 

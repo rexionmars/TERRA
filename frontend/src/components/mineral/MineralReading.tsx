@@ -15,7 +15,7 @@
  * the identified hectares are a small part of the AOI; an identified area read
  * without the ground it was taken over reads as the composition of the whole.
  */
-import { DownloadSimple, Trash } from "@phosphor-icons/react"
+import { DownloadSimple, Trash } from "@/components/icons"
 
 import { Chip, WaterFigure } from "@/components/analysisPrimitives"
 import { btnGhostDense, btnIcon } from "@/components/ui/buttons"

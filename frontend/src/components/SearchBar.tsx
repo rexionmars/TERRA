@@ -1,5 +1,5 @@
 import { useState } from "react"
-import { MagnifyingGlass, CircleNotch, MapPin } from "@phosphor-icons/react"
+import { MagnifyingGlass, CircleNotch, MapPin } from "@/components/icons"
 import { notifyError, notifyInfo } from "@/lib/notify"
 import { GeocodeSearch } from "../../wailsjs/go/main/App"
 import type { GeocodeResult } from "@/lib/types"

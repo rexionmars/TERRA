@@ -21,7 +21,7 @@
  * beside it, so a second destructive act does not become a third way of asking.
  */
 import { useEffect } from "react"
-import { Trash } from "@phosphor-icons/react"
+import { Trash } from "@/components/icons"
 import { ModalHeader, ModalShell } from "@/components/ui/ModalShell"
 import { btnGhost } from "@/components/ui/buttons"
 

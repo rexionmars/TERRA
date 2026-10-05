@@ -6,7 +6,7 @@
  * Lifted out of CompositorEditor when the Mineral nodes needed the same ones
  * (mineralNodes.tsx): a figure written two ways would be two figures.
  */
-import { CircleNotch } from "@phosphor-icons/react"
+import { CircleNotch } from "@/components/icons"
 import { cn } from "@/lib/utils"
 import type { Result } from "@/lib/compositorEval"
 
