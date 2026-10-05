@@ -37,7 +37,7 @@ import {
   ArrowsOutCardinal,
   Trash,
   Warning,
-} from "@phosphor-icons/react"
+} from "@/components/icons"
 import {
   Map as MapLibreMap,
   type ExpressionSpecification,

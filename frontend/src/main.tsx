@@ -1,5 +1,4 @@
 import { createRoot } from "react-dom/client"
-import { IconContext } from "@phosphor-icons/react"
 import { MotionConfig } from "motion/react"
 import { ThemeProvider } from "next-themes"
 import { Toaster } from "sonner"
@@ -69,21 +68,6 @@ root.render(
       happen where a smaller ring was put.
     */}
     {/*
-      THE ICONS' WEIGHT, SET ONCE.
-
-      Phosphor carries stroke weight as a named variant rather than as a
-      settable width, and it draws with fill -- so the `strokeWidth={1.75}`
-      this application had scattered through it under Lucide did nothing at
-      all, and 29 of those props were removed rather than translated. This is
-      where the setting lives now: one default for every icon in the tree,
-      which is what a weight should be. An icon that wants another one says so
-      with `weight` at its own call site.
-
-      `light` rather than `regular`. Phosphor is drawn on a 256 grid against
-      Lucide's 24 and reads heavier at the same nominal size; at regular the
-      chrome of a dense studio panel competes with the content it labels.
-    */}
-    {/*
       MOTION HONOURS THE SYSTEM SETTING, which it does not do on its own.
 
       `motion` reads prefers-reduced-motion only when it is told to, and it was
@@ -97,11 +81,9 @@ root.render(
       what the setting is about; a screen sliding across the stage is.
     */}
     <MotionConfig reducedMotion="user">
-    <IconContext.Provider value={{ weight: "light" }}>
       <ErrorBoundary fallback={(state) => <AppErrorFallback {...state} />}>
         <App />
       </ErrorBoundary>
-    </IconContext.Provider>
     </MotionConfig>
     <Toaster
       theme="system"

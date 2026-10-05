@@ -84,7 +84,7 @@ import {
   Tray,
   Waves,
   X,
-} from "@phosphor-icons/react"
+} from "@/components/icons"
 
 import {
   CreateProject,
@@ -1216,13 +1216,11 @@ function SourceNode({
             for one thing -- and this row is the same folder the tile is.
           */
           <FolderOpen
-            weight="fill"
             className="size-3.5 shrink-0"
             style={{ color: tint("--p-folder") }}
           />
         ) : (
           <Folder
-            weight="fill"
             className="size-3.5 shrink-0"
             style={{ color: tint("--p-folder") }}
           />
@@ -1460,7 +1458,6 @@ function FolderRow({
       )}
     >
       <Folder
-        weight="fill"
         className="size-4 shrink-0"
         style={{ color: tint("--p-folder") }}
       />

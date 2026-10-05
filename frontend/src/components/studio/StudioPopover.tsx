@@ -28,6 +28,7 @@ import {
   shortcut,
   type OperatorId,
 } from "@/lib/operators"
+import type { Icon } from "@/components/icons"
 import { cn } from "@/lib/utils"
 
 const MENU_ITEM = "[role='menuitem']:not(:disabled)"
@@ -235,7 +236,7 @@ export function StudioMenuItem({
   onSelect,
   title,
 }: {
-  icon?: React.ComponentType<{ className?: string; strokeWidth?: number }>
+  icon?: Icon
   label: string
   /** A shortcut or a value, set at the right end where Blender puts it. */
   note?: string
@@ -300,7 +301,7 @@ export function OperatorMenuItem({
 }: {
   id: OperatorId
   label?: string
-  icon?: React.ComponentType<{ className?: string; strokeWidth?: number }>
+  icon?: Icon
   checked?: boolean
   /** Closes the menu. Called before the operator runs, so a dialog it opens is not under the menu. */
   onDone: () => void

@@ -30,7 +30,7 @@ import {
   WarningOctagon,
   X,
   type Icon,
-} from "@phosphor-icons/react"
+} from "@/components/icons"
 
 import { CancelAllJobs, CancelJob, ClearJobs, RetryJob } from "../../../wailsjs/go/main/App"
 import {

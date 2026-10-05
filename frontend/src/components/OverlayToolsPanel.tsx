@@ -12,7 +12,7 @@ import {
   Palette,
   SlidersHorizontal,
   X,
-} from "@phosphor-icons/react"
+} from "@/components/icons"
 import { exportPng, exportTif, runAssets } from "@/lib/runAssets"
 import type {
   CompositionOverlay,

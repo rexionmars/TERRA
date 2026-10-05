@@ -29,7 +29,7 @@ import {
   Note,
   Stack,
   Trash,
-} from "@phosphor-icons/react"
+} from "@/components/icons"
 import {
   StudioContextMenu,
   StudioMenuItem,

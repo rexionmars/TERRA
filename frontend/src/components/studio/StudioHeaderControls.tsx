@@ -22,7 +22,7 @@
  * 20px controls in a 26px header, 12px glyphs. These are Blender's own
  * proportions, and they are why its headers fit what they fit.
  */
-import { CaretDown } from "@phosphor-icons/react"
+import { CaretDown, type Icon } from "@/components/icons"
 import { cn } from "@/lib/utils"
 
 /** Every control in a header is this tall. */
@@ -71,7 +71,7 @@ export function StudioHeaderToggle({
   showLabel = false,
   disabled,
 }: {
-  icon: React.ComponentType<{ className?: string; strokeWidth?: number }>
+  icon: Icon
   label: string
   on: boolean
   onToggle: () => void
@@ -120,7 +120,7 @@ export const StudioHeaderPopoverButton = ({
   ...rest
 }: {
   ref?: (el: HTMLElement | null) => void
-  icon?: React.ComponentType<{ className?: string; strokeWidth?: number }>
+  icon?: Icon
   label: string
   showLabel?: boolean
   open?: boolean
@@ -179,7 +179,7 @@ export function StudioHeaderRadio<T extends string>({
     label: string
     /** The full sentence, for the pointer. Falls back to the label. */
     title?: string
-    icon: React.ComponentType<{ className?: string; strokeWidth?: number }>
+    icon: Icon
   }>
   onChange: (id: T) => void
 }) {
@@ -212,7 +212,7 @@ export function StudioHeaderRadio<T extends string>({
               : "text-muted-foreground hover:bg-hover hover:text-foreground"
           )}
         >
-          <o.icon className="size-3 shrink-0" strokeWidth={1.75} />
+          <o.icon className="size-3 shrink-0" />
           <span className="header-label text-meta">{o.label}</span>
         </button>
       ))}

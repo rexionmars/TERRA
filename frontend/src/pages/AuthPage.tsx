@@ -1,5 +1,5 @@
 import { useState } from "react"
-import { SignIn, UserPlus } from "@phosphor-icons/react"
+import { SignIn, UserPlus } from "@/components/icons"
 import { useAuth } from "@/lib/auth"
 import { PageShell } from "@/components/ui/PageShell"
 import { btnPrimaryCommit } from "@/components/ui/buttons"

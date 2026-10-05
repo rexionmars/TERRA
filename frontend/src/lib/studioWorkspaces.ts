@@ -22,8 +22,8 @@
  * The fractions are chosen against the application's minimum window of
  * 1000x700, so no preset is born with an area under its editor's own floor.
  */
-import type { Icon } from "@phosphor-icons/react"
-import { Cube, Diamond, GitDiff, Graph, Polygon, Table, Waves } from "@phosphor-icons/react"
+import type { Icon } from "@/components/icons"
+import { Cube, Diamond, GitDiff, Graph, Polygon, Table, Waves } from "@/components/icons"
 
 import type { AreaNode } from "@/lib/boardAreas"
 import { type EditorId, type StudioGroup } from "@/lib/studioEditors"

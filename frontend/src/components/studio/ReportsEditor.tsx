@@ -14,7 +14,7 @@ import {
   Play,
   WarningOctagon,
   type Icon,
-} from "@phosphor-icons/react"
+} from "@/components/icons"
 
 import { clearReports, useReports, type ReportLevel } from "@/lib/reports"
 import { AreaHeaderOptions } from "@/components/studio/StudioArea"

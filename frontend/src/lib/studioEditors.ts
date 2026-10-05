@@ -15,7 +15,7 @@
  * registry becomes a second copy of the component tree. The switch lives where
  * the props are.
  */
-import type { Icon } from "@phosphor-icons/react"
+import type { Icon } from "@/components/icons"
 import {
   Books,
   ChartLine,
@@ -34,7 +34,7 @@ import {
   TreeStructure,
   TreeView,
   Waves,
-} from "@phosphor-icons/react"
+} from "@/components/icons"
 
 export type EditorId =
   | "viewport"

@@ -19,7 +19,7 @@
  * Unpinned is the old behaviour, unchanged, so nothing anyone already does
  * stops working -- an empty slot follows the selection and says so.
  */
-import { PushPin, PushPinSlash } from "@phosphor-icons/react"
+import { PushPin, PushPinSlash } from "@/components/icons"
 import type { PredictionCompareSide } from "@/components/studio/BoardPredictionDetail"
 import {
   StudioMenuGroup,

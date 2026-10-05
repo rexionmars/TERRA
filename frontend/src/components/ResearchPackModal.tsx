@@ -6,7 +6,7 @@ import {
   Shapes,
   Table,
   X,
-} from "@phosphor-icons/react"
+} from "@/components/icons"
 import { ModalShell } from "@/components/ui/ModalShell"
 import { btnGhost, btnPrimaryCommit } from "@/components/ui/buttons"
 import { cn } from "@/lib/utils"

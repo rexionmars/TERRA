@@ -12,10 +12,11 @@
     "check:types": "tsx scripts/check-types.ts",
     "check:version": "tsx scripts/check-version.ts",
     "check:cursors": "tsx scripts/build-cursors.ts --check",
-    "build:cursors": "tsx scripts/build-cursors.ts"
+    "build:cursors": "tsx scripts/build-cursors.ts",
+    "check:icons": "tsx scripts/build-icons.ts --check",
+    "build:icons": "tsx scripts/build-icons.ts"
   },
   "dependencies": {
-    "@phosphor-icons/react": "^2.1.10",
     "@tmcw/togeojson": "^7.1.2",
     "clsx": "^2.1.1",
     "d3-array": "^3.2.4",

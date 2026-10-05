@@ -12,7 +12,7 @@
  * it open do what they say, and it closes behind them.
  */
 import { useEffect, useRef, useState } from "react"
-import { File, FolderOpen, Stack, type Icon } from "@phosphor-icons/react"
+import { File, FolderOpen, Stack, type Icon } from "@/components/icons"
 
 import { GetAppVersion } from "../../../wailsjs/go/main/App"
 import { BRAND_TAGLINE } from "@/lib/brand"

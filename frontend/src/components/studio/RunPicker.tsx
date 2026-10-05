@@ -31,7 +31,7 @@
  * it does not scroll away from the list it adds to.
  */
 import { useMemo, useState } from "react"
-import { Plus, MagnifyingGlass } from "@phosphor-icons/react"
+import { Plus, MagnifyingGlass } from "@/components/icons"
 import { displayRunLabel } from "@/lib/aoiLabel"
 import { datesByMonth, runRowLine } from "@/lib/runSummary"
 import type { InferenceRun, Project } from "@/lib/types"

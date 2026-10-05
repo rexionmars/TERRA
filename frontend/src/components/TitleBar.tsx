@@ -4,7 +4,7 @@ import {
   Square,
   User,
   X,
-} from "@phosphor-icons/react"
+} from "@/components/icons"
 import { BRAND_TAGLINE } from "@/lib/brand"
 import { shortcut } from "@/lib/operators"
 import { AvatarCircle } from "@/components/AvatarCircle"

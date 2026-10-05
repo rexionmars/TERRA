@@ -24,7 +24,7 @@
  * shown without being stored, so opening the editor is not an edit.
  */
 import { useEffect, useMemo, useRef, useState } from "react"
-import { CaretLeft, CaretRight, DownloadSimple, Polygon, X } from "@phosphor-icons/react"
+import { CaretLeft, CaretRight, DownloadSimple, Polygon, X } from "@/components/icons"
 import { NumberField } from "@/components/ui/NumberField"
 import { parseFields, type FieldsTarget } from "@/lib/fields"
 import type { FieldsAnalysis, MineralAnalysis, PredictResult } from "@/lib/types"
@@ -529,7 +529,7 @@ function AddCascade({
             style={category === c.id ? { background: "rgb(var(--p-accent) / 0.18)" } : undefined}
           >
             <span className="min-w-0 flex-1 truncate">{c.label}</span>
-            <CaretRight className="size-2.5 shrink-0 opacity-60" weight="bold" />
+            <CaretRight className="size-2.5 shrink-0 opacity-60" />
           </button>
         ))}
       </div>
@@ -2260,7 +2260,7 @@ export function CompositorEditor({
             onClick={() => remove(node.id)}
             className="grid size-4 shrink-0 place-items-center rounded-sm opacity-70 hover:bg-hover hover:opacity-100"
           >
-            <X className="size-2.5" weight="bold" />
+            <X className="size-2.5" />
           </button>
         </>
       ),

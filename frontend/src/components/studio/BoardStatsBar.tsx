@@ -10,7 +10,7 @@
  * the area title when the parent wires `onRenameArea`.
  */
 import { useEffect, useRef, useState } from "react"
-import { Pencil } from "@phosphor-icons/react"
+import { Pencil } from "@/components/icons"
 import { cn } from "@/lib/utils"
 import type { LayerLegend } from "@/lib/layerLegend"
 import type { LULCAgreement } from "@/lib/types"

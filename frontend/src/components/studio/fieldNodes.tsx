@@ -10,7 +10,7 @@
  * it is drawn in a card.
  */
 import { useMemo, useState } from "react"
-import { DownloadSimple } from "@phosphor-icons/react"
+import { DownloadSimple } from "@/components/icons"
 
 import { Choice } from "./nodeCard"
 import { ActionButton, Figure, Note, Swatch } from "./nodeParts"

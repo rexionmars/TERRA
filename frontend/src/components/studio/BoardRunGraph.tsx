@@ -38,7 +38,7 @@ import {
   type Icon,
   Upload,
   CaretRight,
-} from "@phosphor-icons/react"
+} from "@/components/icons"
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { DateField } from "@/components/ui/DateField"
 import { NumberField } from "@/components/ui/NumberField"

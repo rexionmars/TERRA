@@ -14,7 +14,7 @@
  * "delete" beside a list of analyses does not answer it.
  */
 import { useEffect, useState } from "react"
-import { Check, Stack, Pencil, Trash, X } from "@phosphor-icons/react"
+import { Check, Stack, Pencil, Trash, X, type Icon } from "@/components/icons"
 
 import { ConfirmDelete } from "@/components/ui/ConfirmDelete"
 import { ModalShell } from "@/components/ui/ModalShell"
@@ -225,7 +225,7 @@ function RowButton({
   danger = false,
   onClick,
 }: {
-  icon: React.ComponentType<{ className?: string; strokeWidth?: number }>
+  icon: Icon
   label: string
   danger?: boolean
   onClick: () => void

@@ -51,7 +51,7 @@ import {
   Sparkle,
   Terminal,
   type Icon,
-} from "@phosphor-icons/react"
+} from "@/components/icons"
 
 import { notifyError, notifyInfo } from "@/lib/notify"
 import { report } from "@/lib/reports"

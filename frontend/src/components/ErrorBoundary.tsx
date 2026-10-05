@@ -20,7 +20,7 @@
  * work that produced it.
  */
 import { Component, type ErrorInfo, type ReactNode } from "react"
-import { Warning, ArrowCounterClockwise } from "@phosphor-icons/react"
+import { Warning, ArrowCounterClockwise } from "@/components/icons"
 import { btnGhostDense, btnPrimary } from "@/components/ui/buttons"
 import { cn } from "@/lib/utils"
 

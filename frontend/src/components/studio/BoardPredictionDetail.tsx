@@ -9,7 +9,7 @@
  *
  * `sidebar` keeps the older full-height right column when a call site needs it.
  */
-import { CaretDown, PaintBrush, Stack } from "@phosphor-icons/react"
+import { CaretDown, PaintBrush, Stack } from "@/components/icons"
 import { BOARD_LEFT_REM, BOARD_RIGHT_REM } from "@/lib/boardPartition"
 import { useMemo, useState } from "react"
 import { WaterFigure } from "@/components/analysisPrimitives"

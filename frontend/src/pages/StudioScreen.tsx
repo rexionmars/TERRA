@@ -31,7 +31,7 @@ import { isMineralLayer, type MineralRunOptions } from "@/lib/mineral";
 import { fieldWindows, isFieldLayer, MIN_PERIOD_DAYS } from "@/lib/fields";
 import { isJobKind, type JobKind } from "@/lib/jobs";
 import { cn } from "@/lib/utils";
-import { CaretDown, Database } from "@phosphor-icons/react";
+import { CaretDown, Database } from "@/components/icons";
 import { BoardRunGraph, TOOL_ICON } from "@/components/studio/BoardRunGraph";
 import {
   StudioMenuItem,
