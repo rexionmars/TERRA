@@ -346,13 +346,14 @@ export const STUDIO_EDITORS: readonly StudioEditorMeta[] = [
     label: "Browser",
     icon: TreeStructure,
     /*
-      Four regions across, in Unreal's shape: sources, toolbar, items, count.
-      The sources tree alone is 11.5rem and a tile is 8.5, so anything under
-      this draws one column of one tile -- which is a list with a sidebar
-      taking half of it. Tall enough for the toolbar, a few rows of tiles and
-      the status bar, which is what makes the count worth drawing.
+      Four regions, in Unreal's shape: sources, toolbar, items, count. Side by
+      side from 32rem of width, where the 11.5rem tree leaves room for three
+      tiles; under that the tree goes above the items (see SOURCES_COLUMN in
+      StudioBrowser), so the floor is no longer the two columns but the tree's
+      own deepest row and two 5rem tiles. Tall enough for the toolbar, the
+      tree's floor, a row of tiles and the status bar.
     */
-    minRem: 32,
+    minRem: 14,
     minRowRem: 14,
     /*
       Not unique. Two browsers is one project beside another, which is how a
