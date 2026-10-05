@@ -36,6 +36,7 @@ import {
   Pencil,
   ArrowsOutCardinal,
   Trash,
+  UploadSimple,
   Warning,
 } from "@/components/icons"
 import {
@@ -345,6 +346,7 @@ export function GlobeSurface({
   onClearSelection,
   polygon = null,
   onPolygonDrawn,
+  onImportPolygon,
   initialView = null,
   onViewChange,
   overlays = [],
@@ -400,6 +402,12 @@ export function GlobeSurface({
    * and the tools are withheld rather than shown refusing.
    */
   onPolygonDrawn?: (geom: GeoJSONGeometry | null) => void
+  /**
+   * Asks for a .kml or GeoJSON file and makes its polygon the area. The caller
+   * owns the picker and the parsing, since the area it creates belongs to a
+   * project this surface knows nothing about. Absent, the control is withheld.
+   */
+  onImportPolygon?: () => void
   /**
    * Where to open, when the session remembers.
    *
@@ -1793,6 +1801,19 @@ export function GlobeSurface({
               >
                 <Path className="size-4" />
               </MapButton>
+              {/*
+                BESIDE THE PENCIL, because a file is the other way an area
+                arrives: the shape comes from a .kml instead of from a hand,
+                and what follows is the same.
+              */}
+              {onImportPolygon && (
+                <MapButton
+                  label="Import an area from a .kml or GeoJSON file"
+                  onClick={onImportPolygon}
+                >
+                  <UploadSimple className="size-4" />
+                </MapButton>
+              )}
               <MapButton label="Delete the area" onClick={clear}>
                 <Trash className="size-4" />
               </MapButton>

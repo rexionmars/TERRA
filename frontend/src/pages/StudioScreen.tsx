@@ -1316,6 +1316,7 @@ export function StudioScreen(props: StudioScreenProps) {
             */
           customPolygon={props.customPolygon}
           onPolygonDrawn={props.onPolygonDrawn}
+          onImportPolygon={props.onImportPolygon}
           catalogAreas={props.areas}
           initialView={props.initialView}
           onViewChange={props.onViewChange}

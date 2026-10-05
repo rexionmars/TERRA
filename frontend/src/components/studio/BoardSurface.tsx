@@ -497,6 +497,7 @@ export function BoardSurface({
   onUseArea,
   customPolygon = null,
   onPolygonDrawn,
+  onImportPolygon,
   catalogAreas = [],
   activeAreaId,
   onActivateArea,
@@ -592,6 +593,8 @@ export function BoardSurface({
    * an existing geometry and cannot mean "there is no area now". Drawing can.
    */
   onPolygonDrawn?: (geom: GeoJSONGeometry | null) => void
+  /** Opens the picker for a .kml or GeoJSON file, from the globe's own rail. */
+  onImportPolygon?: () => void
   /** Drawn / imported AOIs kept in the catalog (not only the active one). */
   catalogAreas?: import("@/lib/areas").Area[]
   activeAreaId?: string
@@ -4550,6 +4553,7 @@ export function BoardSurface({
           onClearSelection={selectedAreaIds.length ? onClearSelection : undefined}
           polygon={customPolygon}
           onPolygonDrawn={onPolygonDrawn}
+          onImportPolygon={onImportPolygon}
           overlays={globeOverlays}
           onOverlayContext={openGlobeMenu}
           fieldDrafts={fieldDrafts}
