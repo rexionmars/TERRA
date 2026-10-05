@@ -44,3 +44,4 @@ docs/img/*/original/
 
 # Local credentials (Earthdata token and other keys). Never committed.
 .env
+.claude
