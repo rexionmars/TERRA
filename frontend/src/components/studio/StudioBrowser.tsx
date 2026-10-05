@@ -63,7 +63,7 @@
  * come back under Unfiled; the confirmation says so, because the opposite
  * assumption is the one a reader arrives with.
  */
-import { useEffect, useMemo, useState } from "react"
+import { useEffect, useMemo, useRef, useState } from "react"
 import {
   CaretRight,
   Check,
@@ -114,8 +114,22 @@ import type { InferenceRun, Project } from "@/lib/types"
  * starts, and "Classification" is the longest of the five. Below this the
  * products truncate to where they no longer name themselves, which is the one
  * thing the second level is for.
+ *
+ * ONLY WHERE THERE IS ROOM FOR TWO COLUMNS. The editor was drawn for a strip
+ * along the bottom of the board, and in an area taller than it is wide the
+ * column and one tile did not fit side by side, so the area refused the editor
+ * outright. Under 32rem of its own width -- this column, three tiles and their
+ * gaps -- the tree goes above the items instead: full width, at its content's
+ * height up to 11rem, giving way before the items do, which are drawn as rows
+ * there (see `stacked` in the component). A class and not a
+ * measurement in script, because the container query is what knows the width.
  */
-const SOURCES_REM = 11.5
+/** The width, in rem, under which the tree goes above the items. */
+const STACK_BELOW_REM = 32
+
+const SOURCES_COLUMN =
+  "w-full max-h-[11rem] min-h-[4.5rem] border-b " +
+  "@[32rem]:max-h-none @[32rem]:min-h-0 @[32rem]:w-[11.5rem] @[32rem]:shrink-0 @[32rem]:border-b-0 @[32rem]:border-r"
 
 /**
  * The plate every tile carries, folder and run alike.
@@ -266,7 +280,33 @@ export function StudioBrowser({
   )
   const [query, setQuery] = useState("")
   const [kinds, setKinds] = useState<ReadonlySet<KindId>>(new Set())
-  const [tiles, setTiles] = useState(true)
+  const [tilesChosen, setTiles] = useState(true)
+  /*
+    ROWS ONLY WHEN STACKED. Under the tree, at the width of one column, a tile
+    grid is three plates across with the names cut to "Rio de Jan..." -- the
+    label the grid is read by is the first thing it loses. A row gives the name
+    the whole width, so the stacked layout has no choice to offer and the toggle
+    is withdrawn with it; the reader's own choice is kept for when the area is
+    wide again.
+
+    Measured in script, beside the container query that moves the tree,
+    because which component draws an item is not something CSS can choose.
+  */
+  const rootRef = useRef<HTMLDivElement>(null)
+  const [stacked, setStacked] = useState(false)
+  useEffect(() => {
+    const el = rootRef.current
+    if (!el) return
+    const measure = () => {
+      const rootPx = parseFloat(getComputedStyle(document.documentElement).fontSize) || 16
+      setStacked(el.clientWidth < STACK_BELOW_REM * rootPx)
+    }
+    measure()
+    const ro = new ResizeObserver(measure)
+    ro.observe(el)
+    return () => ro.disconnect()
+  }, [])
+  const tiles = tilesChosen && !stacked
   const [selected, setSelected] = useState<string | null>(null)
 
   const [runMenu, setRunMenu] = useState<{
@@ -377,6 +417,19 @@ export function StudioBrowser({
     return out
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [source, filtering, projects, counts])
+
+  /*
+    STACKED, THE TREE IS THE ONLY LIST OF FOLDERS. Side by side, the grid
+    repeats the projects at the root on purpose -- entering one is a double
+    click on what is already being looked at. Stacked and drawn as rows, the
+    same seven names appeared twice, one list over the other, saying nothing
+    the first had not. So the folders leave the items pane there, and at the
+    root with nothing asked -- where folders were all it held -- the pane goes
+    too and the tree takes its height. It returns, under the tree, once a
+    project or a product is chosen or a search is typed.
+  */
+  const gridFolders = stacked ? [] : folders
+  const showItems = !(stacked && source.scope === "all" && !filtering)
 
   /*
     A selection that survives the filter that hid it is a selection the status
@@ -495,17 +548,22 @@ export function StudioBrowser({
   }
 
   return (
-    <div className="flex h-full min-h-0 flex-col">
+    <div ref={rootRef} className="@container flex h-full min-h-0 flex-col">
       {/*
         THE TOOLBAR. Search first, because it is what a reader reaches for when
         the store is large enough to need this panel at all; the type chips
         beside it, which are the same question asked categorically.
+
+        IT WRAPS, and needs no breakpoint to. The search keeps a floor of
+        10rem, so the chips drop to a line of their own when the three no
+        longer fit in one, and wrap among themselves in an area narrower than
+        the eight of them.
       */}
       <div
-        className="flex shrink-0 items-center gap-1.5 border-b px-2 py-1.5"
+        className="flex shrink-0 flex-wrap items-center gap-1.5 border-b px-2 py-1.5"
         style={{ borderColor: "rgb(var(--p-line) / 0.22)" }}
       >
-        <label className="relative flex min-w-0 flex-1 items-center">
+        <label className="relative flex min-w-[10rem] flex-1 items-center">
           <MagnifyingGlass className="pointer-events-none absolute left-1.5 size-3 text-muted-foreground" />
           <input
             value={query}
@@ -531,7 +589,7 @@ export function StudioBrowser({
           )}
         </label>
 
-        <div className="flex shrink-0 items-center gap-0.5">
+        <div className="flex min-w-0 flex-wrap items-center gap-0.5">
           {KINDS.map((k) => {
             const on = kinds.has(k.id)
             return (
@@ -583,7 +641,10 @@ export function StudioBrowser({
         {/* Tiles or rows. Unreal's own toggle, and the same trade: a tile shows
             the type at a glance, a row shows the provenance line in full. */}
         <div
-          className="flex shrink-0 items-center rounded-sm border"
+          className={cn(
+            "ml-auto shrink-0 items-center rounded-sm border",
+            stacked ? "hidden" : "flex"
+          )}
           style={{ borderColor: "rgb(var(--p-line) / 0.28)" }}
         >
           {[
@@ -611,14 +672,15 @@ export function StudioBrowser({
         </div>
       </div>
 
-      <div className="flex min-h-0 flex-1">
-        {/* THE SOURCES COLUMN. */}
+      <div className="flex min-h-0 flex-1 flex-col @[32rem]:flex-row">
+        {/* THE SOURCES COLUMN, or the sources band in a narrow area. */}
         <div
-          className="flex shrink-0 flex-col border-r"
-          style={{
-            width: `${SOURCES_REM}rem`,
-            borderColor: "rgb(var(--p-line) / 0.22)",
-          }}
+          className={cn(
+            "flex flex-col",
+            SOURCES_COLUMN,
+            !showItems && "max-h-none flex-1 border-b-0"
+          )}
+          style={{ borderColor: "rgb(var(--p-line) / 0.22)" }}
         >
           {/*
             A SECTION HEADER, as Unreal puts one over each of its source trees.
@@ -773,101 +835,103 @@ export function StudioBrowser({
         </div>
 
         {/* THE ITEMS. */}
-        <div className="panel-scroll min-h-0 min-w-0 flex-1 overflow-y-auto p-2">
-          {/*
-            FOLDERS FIRST, and in the grid rather than only in the tree. This is
-            what Unreal does and it is the reason its browser scales: entering
-            a folder is a double-click on the thing you are already looking at,
-            so the tree is for jumping and the grid is for walking.
+        {showItems && (
+          <div className="panel-scroll min-h-[4rem] min-w-0 flex-1 overflow-y-auto p-2 @[32rem]:min-h-0">
+            {/*
+              FOLDERS FIRST, and in the grid rather than only in the tree. This is
+              what Unreal does and it is the reason its browser scales: entering
+              a folder is a double-click on the thing you are already looking at,
+              so the tree is for jumping and the grid is for walking.
 
-            Only at the root, and only with nothing asked. There are two levels
-            here, so a folder inside a folder does not arise; and a search is
-            answered across all of them at once.
-          */}
-          {folders.length > 0 && (
-            <div
-              className={cn(
-                "mb-2",
-                tiles ? "flex flex-wrap gap-2" : "flex flex-col"
-              )}
-            >
-              {folders.map((f) => {
-                const enter = () =>
-                  setSource(
-                    f.id === "unfiled"
-                      ? { scope: "unfiled" }
-                      : { scope: "project", id: f.id }
+              Only at the root, and only with nothing asked. There are two levels
+              here, so a folder inside a folder does not arise; and a search is
+              answered across all of them at once.
+            */}
+            {gridFolders.length > 0 && (
+              <div
+                className={cn(
+                  "mb-2",
+                  tiles ? "flex flex-wrap gap-2" : "flex flex-col"
+                )}
+              >
+                {gridFolders.map((f) => {
+                  const enter = () =>
+                    setSource(
+                      f.id === "unfiled"
+                        ? { scope: "unfiled" }
+                        : { scope: "project", id: f.id }
+                    )
+                  const context = (at: { x: number; y: number }) => {
+                    const p = projects.find((x) => x.id === f.id)
+                    if (p) setProjectMenu({ project: p, at })
+                  }
+                  return tiles ? (
+                    <FolderTile
+                      key={f.id}
+                      name={f.name}
+                      count={f.count}
+                      kinds={folderKinds(f.id)}
+                      onOpen={enter}
+                      onContext={context}
+                    />
+                  ) : (
+                    <FolderRow
+                      key={f.id}
+                      name={f.name}
+                      count={f.count}
+                      onOpen={enter}
+                      onContext={context}
+                    />
                   )
-                const context = (at: { x: number; y: number }) => {
-                  const p = projects.find((x) => x.id === f.id)
-                  if (p) setProjectMenu({ project: p, at })
-                }
-                return tiles ? (
-                  <FolderTile
-                    key={f.id}
-                    name={f.name}
-                    count={f.count}
-                    kinds={folderKinds(f.id)}
-                    onOpen={enter}
-                    onContext={context}
-                  />
-                ) : (
-                  <FolderRow
-                    key={f.id}
-                    name={f.name}
-                    count={f.count}
-                    onOpen={enter}
-                    onContext={context}
-                  />
-                )
-              })}
-            </div>
-          )}
+                })}
+              </div>
+            )}
 
-          {items.length === 0 && folders.length === 0 ? (
-            <p className="p-2 text-meta leading-relaxed text-muted-foreground">
-              {runs.length === 0
-                ? "No saved analyses yet. A run is recorded here once it finishes."
-                : filtering
-                  ? "Nothing here matches. Clear the search or the type filters."
-                  : "This folder is empty."}
-            </p>
-          ) : tiles ? (
-            <div className="flex flex-wrap gap-2">
-              {items.map((r) => (
-                <RunTile
-                  key={r.id}
-                  run={r}
-                  on={r.id === selected}
-                  busy={busy}
-                  onSelect={() => setSelected(r.id)}
-                  onOpen={() => onOpenRun?.(r)}
-                  onContext={(at) => {
-                    setSelected(r.id)
-                    setRunMenu({ run: r, at })
-                  }}
-                />
-              ))}
-            </div>
-          ) : (
-            <div className="flex flex-col">
-              {items.map((r) => (
-                <RunRow
-                  key={r.id}
-                  run={r}
-                  on={r.id === selected}
-                  busy={busy}
-                  onSelect={() => setSelected(r.id)}
-                  onOpen={() => onOpenRun?.(r)}
-                  onContext={(at) => {
-                    setSelected(r.id)
-                    setRunMenu({ run: r, at })
-                  }}
-                />
-              ))}
-            </div>
-          )}
-        </div>
+            {items.length === 0 && gridFolders.length === 0 ? (
+              <p className="p-2 text-meta leading-relaxed text-muted-foreground">
+                {runs.length === 0
+                  ? "No saved analyses yet. A run is recorded here once it finishes."
+                  : filtering
+                    ? "Nothing here matches. Clear the search or the type filters."
+                    : "This folder is empty."}
+              </p>
+            ) : tiles ? (
+              <div className="flex flex-wrap gap-2">
+                {items.map((r) => (
+                  <RunTile
+                    key={r.id}
+                    run={r}
+                    on={r.id === selected}
+                    busy={busy}
+                    onSelect={() => setSelected(r.id)}
+                    onOpen={() => onOpenRun?.(r)}
+                    onContext={(at) => {
+                      setSelected(r.id)
+                      setRunMenu({ run: r, at })
+                    }}
+                  />
+                ))}
+              </div>
+            ) : (
+              <div className="flex flex-col">
+                {items.map((r) => (
+                  <RunRow
+                    key={r.id}
+                    run={r}
+                    on={r.id === selected}
+                    busy={busy}
+                    onSelect={() => setSelected(r.id)}
+                    onOpen={() => onOpenRun?.(r)}
+                    onContext={(at) => {
+                      setSelected(r.id)
+                      setRunMenu({ run: r, at })
+                    }}
+                  />
+                ))}
+              </div>
+            )}
+          </div>
+        )}
       </div>
 
       {/*
