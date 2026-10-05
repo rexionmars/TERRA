@@ -14,128 +14,108 @@ What is missing: Sentinel-1, Landsat or HLS, error-adjusted area, training on
 user samples, management zones, socio-environmental checks and vegetation
 anomaly. Only surface water computes an anomaly today.
 
-## 1. Built on what exists (fields, jobs, single graph)
+# TERRA product status and backlog
 
-- [x] **Per-field table**
-  - Delivers: one row per field (area by class, season dates, mean
-    confidence), exportable to CSV.
-  - Builds on: the per-field runs and the single compositor graph.
-  - Complexity: low.
-- [x] **Season dates per field**
-  - Delivers: emergence, peak and senescence for each field, with an
-    uncertainty window.
-  - Builds on: `sidecar/terra/phenology.py`, which already runs in every
-    field job. What is missing is gathering the results across fields and
-    showing them.
-  - Complexity: low to medium.
-  - Limitation: NDVI marks emergence and senescence, not the sowing and
-    harvest days. Sowing precedes emergence by several days and harvest
-    follows senescence. With a 5-day revisit and cloud, the uncertainty is
-    days to weeks, and the product has to show it.
-- [x] **Vegetation health**
-  - Delivers: NDVI/NDRE anomaly of each field against its own history and
-    against neighbouring fields of the same crop, as a map and a score per
-    field.
-  - Builds on: the existing Sentinel-2 series and red-edge bands B05–B07. It
-    would be a new job kind (`jobWork` in `app_jobs.go`, `JOB_KINDS` in
-    `frontend/src/lib/jobs.ts`).
-  - Complexity: medium.
-  - Reference: both, chosen on the compositor's Vegetation health node
-    (earlier seasons, computed by the sidecar; other fields of the set on a
-    shared date, within one crop where a class map is linked).
-- [x] **Management zones**
-  - Delivers: 3 to 5 zones per field from several seasons of NDVI/EVI (fuzzy
-    k-means; Fridgen et al., 2004), exportable to GeoJSON or shapefile for
-    variable-rate application.
-  - Builds on: the field polygons and the series.
-  - Complexity: medium.
-  - Implemented as the `zones` job kind (sidecar `terra/zones`) and the
-    compositor's Management zones node, which chooses 3, 4 or 5 zones and
-    exports every field's zones as one GeoJSON. NDVI only (per season, the
-    90th percentile of clear dates); diagonal distance, not Mahalanobis, for
-    the reason terra/zones/cluster.py gives. No shapefile: no writer is
-    installed in the sidecar environment.
-- [ ] **Field event alerts**
-  - Delivers: abrupt drops in the series (hail, frost, lodging, early
-    harvest), found by break detection (BFAST; Verbesselt et al., 2010).
-  - Builds on: the per-field series. It can be part of vegetation health.
-  - Complexity: medium.
+This file separates capabilities present in the application from work that is
+still proposed. “Implemented” means the product path exists in the UI and/or
+sidecar; it does not by itself mean that the method has been independently
+validated for every region or use.
 
-## 2. Need new data or new screens
+## Implemented
 
-- [x] **Socio-environmental checks**
-  - Delivers: overlap of each field, in hectares and with dates, with:
-    - PRODES/DETER: deforestation after 2008 (Código Florestal) and after
-      31 Dec 2020 (EUDR);
-    - CAR/SICAR (APP and legal reserve);
-    - IBAMA embargoes;
-    - indigenous lands;
-    - conservation units.
-  - Missing: downloading the public layers per area (TerraBrasilis offers
-    WFS) and the vector intersections.
-  - Complexity: medium.
-  - Implemented as the `overlap` job kind (sidecar `terra/overlap`) and the
-    compositor's Socio-environmental overlap node; the Field table carries
-    its columns. ICMBio embargoes are read beside IBAMA's. APP and legal
-    reserve are not: SICAR publishes only the property boundary by WFS.
-- [ ] **Error-adjusted area**
-  - Delivers: area of each class with a 95% confidence interval, plus user's
-    and producer's accuracy (Olofsson et al., 2014).
-  - Missing: a stratified random sample, a screen to label each point over
-    the imagery, and the estimator. Today the method is only cited
-    (`sidecar/terra/landcover/mapbiomas.py`), not computed.
-  - Complexity: medium to high.
-- [ ] **Training on user samples**
-  - Delivers: a classifier fitted to the region, using labelled fields
-    ("soybean", "maize") as training samples.
-  - Missing: a labelling screen, and retraining the Random Forest or a layer
-    over Prithvi. Prithvi is used frozen today.
-  - Complexity: medium for the Random Forest, high for the network.
+- **Land-cover classification:** spectro-temporal Random Forest by default,
+  with optional Temporal Transformer and Prithvi paths. The classifiers emit
+  MapBiomas classes `{3, 21, 25, 39, 41}`. Results include confidence and
+  comparison with MapBiomas, including class-level and spatial diagnostics.
+- **Surface water:** NDWI, MNDWI and AWEI_nsh masks and per-date water
+  frequency summaries.
+- **Field boundaries:** Sentinel-2 delineation; resulting fields can be used
+  as areas for queued analyses.
+- **Vegetation health and phenology:** NDVI/NDRE departures from previous
+  seasons, vegetation-index time series, and seasonal dates.
+- **Public-register overlap:** PRODES/DETER, IBAMA/ICMBio, indigenous lands,
+  conservation units and CAR property boundaries, with source-read status.
+- **Sentinel-1 radar:** VV/VH time series, water screening and canopy-loss
+  signals.
+- **Management zones:** per-field NDVI zones exported as GeoJSON.
+- **Surface mineral map:** EMIT-based products and associated spectral
+  diagnostics.
+- **Analysis workspace:** projects, areas and runs; saved Studio boards and
+  task-oriented workspaces; comparisons, domain-shift diagnostics, data
+  tables, field-level compositor runs and PDF reports.
 
-## 3. New imagery sources
+See [README.md](README.md) for the product descriptions and current
+limitations. The application remains local-first and is intended for focused
+research and analysis, not as a general-purpose GIS.
 
-- [x] **Sentinel-1 (radar)**
-  - Delivers: a series that does not depend on cloud (VV/VH). It serves the
-    season cycle in the summer crop, harvest detection by the drop in VH, and
-    water mapping under cloud.
-  - Builds on: the Planetary Computer serves the RTC collection through the
-    same STAC as Sentinel-2.
-  - Complexity: high (speckle, terrain, new sidecar slice).
-  - Implemented as the `radar` job kind (sidecar `terra/radar`) and the
-    compositor's Radar series node; the Field table carries its columns.
-    Canopy losses are every VH drop of 3 dB the cross ratio follows by 1 dB,
-    not the largest drop alone, since a period across two crops holds two
-    harvests. Thresholds are not calibrated against harvest records.
-- [ ] **HLS (Landsat + Sentinel-2)**
-  - Delivers: a 2 to 3 day revisit, which improves season dates and health in
-    cloudy regions.
-  - Builds on: the data is at NASA, and the Earthdata token already exists
-    because of EMIT.
-  - Complexity: medium.
-- [ ] **Yield**
-  - Delivers: reliable only when calibrated with the user's harvest data
-    (yield monitor). Without that data, only a relative potential map is
-    possible.
-  - Complexity: high, and depends on data.
+## Highest-priority gaps
 
-## Suggested order
+These address the reliability and usability of results already produced.
 
-1. Per-field table with CSV export: it closes the field → jobs → results flow
-   at the lowest cost.
-2. Vegetation health as a job kind: the queue and the single graph are ready
-   for it.
-3. Socio-environmental checks: relevant to rural credit, the soy moratorium
-   and the EUDR, and they depend on no model.
-4. Error-adjusted area: it gives a statistical basis to the areas TERRA
-   reports.
+- [ ] **Independent validation and error-adjusted area.** Add a reference
+  sampling and labeling workflow, estimate class areas with confidence
+  intervals, and report user's and producer's accuracy. Agreement with
+  MapBiomas is not field validation. See Olofsson et al. (2014).
+- [ ] **Regional evaluation of classification and confidence.** Test across
+  independent areas, seasons and relevant land-cover contexts; document where
+  the fixed legend and training domain do not support interpretation.
+- [ ] **Field-boundary review and validation.** Measure performance on local
+  fields and support manual correction, split and merge before downstream
+  field-level analyses.
+- [ ] **Reproducible exports.** Extend the research pack to include the
+  accuracy and domain-shift results and a manifest of inputs, selected scenes,
+  model/version, parameters and output geometry.
+- [ ] **Task-based onboarding.** Make the first useful workflow discoverable
+  without requiring users to know which Studio editors to assemble. Update
+  the user guide to match the current Studio-first application.
+
+## Research and product candidates
+
+These are not implemented commitments; each method needs a stated use case,
+validation data and acceptance criteria before being promoted into the product.
+
+- [ ] **Field event detection:** identify abrupt time-series changes. A signal
+  must not be presented as a cause such as frost, hail or harvest without
+  independent event records. BFAST is one candidate method (Verbesselt et al.,
+  2010).
+- [ ] **User-labeled classifier adaptation:** train or calibrate for a local
+  region only after a labeling workflow and spatially independent validation
+  are defined.
+- [ ] **Harmonized Landsat and Sentinel-2 (HLS):** investigate whether a denser
+  time series materially improves seasonal products in cloudy regions.
+- [ ] **Phenology by class and temporal index explorer:** add only where these
+  readings answer a defined research question beyond the existing series and
+  phenology products.
+- [ ] **Yield-related analysis:** require matched harvest/yield-monitor data
+  and local calibration. Do not describe an uncalibrated relative potential
+  map as a yield estimate.
+- [ ] **Change detection:** distinguish within-area change maps from the
+  existing comparison of classified runs; define reference data and
+  uncertainty before interpreting change as land-cover conversion.
+
+## Interpretation limits to preserve
+
+- The classifier legend is fixed and the models were fitted for western
+  Paraná study areas; confidence is not accuracy.
+- MapBiomas is a reference map, not field truth, and reported hectares are
+  not adjusted for classification error.
+- Field segmentation has not been validated on Paraná fields; adjacent fields
+  can merge.
+- Vegetation departures are not diagnoses of stress or its cause.
+- Register overlap is a screening result, not a legal finding; APP and legal
+  reserve geometries are not available from the current SICAR source.
+- Radar canopy-loss thresholds are not calibrated against harvest records.
+- Management zones describe canopy similarity, not its cause or a prescription.
+- EMIT mineral products have 60 m pixels; band depth is not mineral abundance
+  and no spectral unmixing is performed.
 
 ## References
 
-- Fridgen, J. J. et al. (2004). Management Zone Analyst (MZA): software for
-  subfield management zone delineation. *Agronomy Journal*, 96(1), 100–108.
 - Olofsson, P. et al. (2014). Good practices for estimating area and
   assessing accuracy of land change. *Remote Sensing of Environment*, 148,
   42–57.
 - Verbesselt, J. et al. (2010). Detecting trend and seasonal changes in
   satellite image time series. *Remote Sensing of Environment*, 114(1),
-  106–115.
+  106–115. These references inform candidate methods; they do not validate
+  TERRA outputs.
+
