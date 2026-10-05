@@ -96,6 +96,7 @@ import {
 } from "@/lib/aoiStyle"
 import { AuthProvider, useAuth } from "@/lib/auth"
 import { extendSelection, toArea, toAreas, type Area } from "@/lib/areas"
+import { importedPolygon } from "@/lib/importedPolygon"
 import { countJobs, useJobs, type JobKind, type JobSpec } from "@/lib/jobs"
 
 import { ThemeSync } from "@/components/ThemeSync"
@@ -2917,25 +2918,19 @@ function AppBody(props: {
         const text = await file.text()
         let geom: GeoJSONGeometry | null = null
         try {
+          /*
+            Either format ends as GeoJSON, and `importedPolygon` reads both the
+            same way: the first polygon wherever the file keeps it, at the
+            coordinates the draw store accepts. See the module.
+          */
           if (file.name.toLowerCase().endsWith(".kml")) {
             const dom = new DOMParser().parseFromString(text, "text/xml")
-            const fc = kml(dom)
-            const poly = fc.features.find(
-              (f) => f.geometry && f.geometry.type === "Polygon"
-            )
-            geom = (poly?.geometry as GeoJSONGeometry) ?? null
-          } else {
-            const parsed = JSON.parse(text)
-            if (parsed.type === "FeatureCollection") {
-              geom =
-                parsed.features.find(
-                  (f: { geometry?: { type?: string } }) => f.geometry?.type === "Polygon"
-                )?.geometry ?? null
-            } else if (parsed.type === "Feature") {
-              geom = parsed.geometry
-            } else if (parsed.type === "Polygon") {
-              geom = parsed
+            if (dom.querySelector("parsererror")) {
+              throw new Error("the file is not well-formed XML")
             }
+            geom = importedPolygon(kml(dom))
+          } else {
+            geom = importedPolygon(JSON.parse(text))
           }
         } catch (e) {
           notifyError("Invalid file", e)
