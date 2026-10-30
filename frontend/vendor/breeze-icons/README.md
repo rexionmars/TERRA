@@ -19,13 +19,13 @@ Copied from the `icons/` tree of KDE's `breeze-icons` repository at commit
   containing the elements" that the clarification in that file asks for.
 - File contents are unmodified.
 
-Only the 122 files the generator's table names are taken, out of roughly
+Only the 127 files the generator's table names are taken, out of roughly
 eleven thousand. Each keeps its upstream path, `icons/<context>/<size>/<name>.svg`.
 
 ## Aliases are stored as copies
 
 Upstream reaches many names through symbolic links: `download` is a link to
-`edit-download`, `search` to `edit-find`. 29 of the files here are such names.
+`edit-download`, `search` to `edit-find`. 30 of the files here are such names.
 They are stored as regular files under the name the table asks for, holding the
 bytes of the link's target, so that the table reads as what was chosen and the
 tree works on a filesystem or an archive that does not keep links.
