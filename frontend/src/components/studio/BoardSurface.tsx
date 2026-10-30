@@ -3582,7 +3582,7 @@ export function BoardSurface({
         // panels around it are a reading surface. See index.css.
         background: tokenColor("--v-ink", "#333333"),
         line: tokenColor("--v-line", "#F6F6F6"),
-        accent: tokenColor("--p-accent", "#ED8744"),
+        accent: tokenColor("--p-accent", "#EC662D"),
         // The separation in force at the moment of the build, so a plane lands
         // at its true height rather than at the base for a frame.
         gap: gapRef.current,

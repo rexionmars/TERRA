@@ -116,23 +116,23 @@ export function apca(text: Channels, background: Channels): number {
 /** The channel values in index.css, per theme. Edited together with it. */
 export const TOKENS = {
   dark: {
-    sunk: [24, 24, 24],
-    ink: [30, 30, 30],
-    control: [40, 40, 40],
-    surface: [48, 48, 48],
-    head: [53, 53, 53],
-    surfaceRaised: [67, 67, 67],
-    line: [91, 91, 91],
-    lineStrong: [145, 145, 145],
-    text: [221, 221, 221],
-    muted: [184, 184, 184],
-    accent: [97, 167, 255],
-    accentQuiet: [122, 181, 255],
-    accentDim: [24, 54, 91],
+    sunk: [14, 14, 14],
+    ink: [20, 20, 20],
+    control: [27, 27, 27],
+    surface: [33, 33, 33],
+    head: [39, 39, 39],
+    surfaceRaised: [50, 50, 50],
+    line: [85, 85, 85],
+    lineStrong: [133, 133, 133],
+    text: [217, 211, 209],
+    muted: [155, 155, 155],
+    accent: [236, 102, 45],
+    accentQuiet: [250, 115, 60],
+    accentDim: [74, 32, 15],
     destructive: [159, 43, 58],
-    success: [177, 250, 99],
-    warning: [213, 190, 75],
-    destructiveForeground: [221, 221, 221],
+    success: [106, 216, 149],
+    warning: [240, 207, 76],
+    destructiveForeground: [217, 211, 209],
     destructiveQuiet: [248, 152, 158],
     aside: [112, 150, 190],
     boardCard: [35, 38, 44],
@@ -176,23 +176,23 @@ export const TOKENS = {
     wireFailed: [249, 88, 49],
   },
   light: {
-    sunk: [215, 215, 215],
-    ink: [231, 231, 231],
-    control: [238, 238, 238],
-    surface: [244, 244, 244],
-    head: [248, 248, 248],
-    surfaceRaised: [253, 253, 253],
-    line: [177, 177, 177],
-    lineStrong: [121, 121, 121],
-    text: [31, 31, 31],
-    muted: [92, 92, 92],
-    accent: [0, 102, 199],
-    accentQuiet: [6, 89, 173],
-    accentDim: [204, 222, 244],
+    sunk: [217, 211, 209],
+    ink: [228, 223, 222],
+    control: [236, 232, 230],
+    surface: [243, 240, 239],
+    head: [249, 247, 245],
+    surfaceRaised: [255, 253, 252],
+    line: [176, 174, 172],
+    lineStrong: [118, 116, 115],
+    text: [20, 20, 20],
+    muted: [82, 80, 79],
+    accent: [171, 65, 16],
+    accentQuiet: [154, 57, 11],
+    accentDim: [253, 221, 208],
     destructive: [178, 54, 69],
-    success: [63, 97, 21],
-    warning: [135, 112, 0],
-    destructiveForeground: [244, 244, 244],
+    success: [0, 100, 54],
+    warning: [109, 89, 0],
+    destructiveForeground: [243, 240, 239],
     destructiveQuiet: [163, 43, 59],
     aside: [70, 106, 152],
     boardCard: [244, 244, 244],
@@ -298,21 +298,14 @@ export interface ContrastRule {
  * Every pair the interface paints, and the floor each has to clear.
  *
  * `accent` is checked at 3.0, not 4.5, and only as a fill, a focus ring and an
- * active state. The present accent happens to measure 3.84 on the raised
- * surface, which is a property of this accent being a light one and not a rule
- * the token holds -- the blue before it measured 3.01 there. The floor stays at
- * 3.0 because the next accent may be a mid tone again, and text that has to
- * READ as the accent uses `accentQuiet` either way. Listing it at 4.5 would
- * either fail honestly or push the palette away from the brand value, and
- * neither is what the token is for.
+ * active state. The present accent measures 3.97 on the raised surface, which
+ * is a property of this accent being a light one and not a rule the token
+ * holds. The floor stays at 3.0 because a later accent may be a mid tone, and
+ * text that has to READ as the accent uses `accentQuiet` either way.
  *
- * The label ON the accent fill is not listed either, and it is worth saying why
- * the omission survived a change that removed its original reason. Under the
- * blue it was a stated exception: that accent was a mid tone, white measured
- * 4.43 on it and nothing at that hue cleared both floors. Under this one the
- * ink measures 6.25 and there is no exception left. The pair stays unlisted
- * because --accent-foreground resolves to --p-ink and the rule would restate
- * `text on ink`, not because the trade is still open.
+ * The label ON the accent fill is not listed either. --accent-foreground
+ * resolves to --p-ink, which measures 5.71 on it, and the rule would restate
+ * `text on ink`.
  */
 export const RULES: readonly ContrastRule[] = [
   {
