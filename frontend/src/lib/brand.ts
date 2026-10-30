@@ -52,3 +52,6 @@ export const BRAND_TAGLINE = "earth observation"
  * see docs/RELEASING.md.
  */
 export const RELEASE_NAME = "Sunset"
+
+/** Where the source, the issues and the documents are. */
+export const REPO_URL = "https://github.com/rexionmars/TERRA"

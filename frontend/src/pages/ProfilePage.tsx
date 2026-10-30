@@ -1,3 +1,4 @@
+import { REPO_URL } from "@/lib/brand"
 import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react"
 import {
   ArrowLeft,
@@ -86,7 +87,6 @@ type SettingsSectionId = "account" | "telemetry" | "system" | "keymap"
   `github: rexionmars` -- rather than guessed: a sponsor button that leads
   nowhere is worse than no button.
 */
-const REPO_URL = "https://github.com/rexionmars/TERRA"
 const SPONSOR_URL = "https://github.com/sponsors/rexionmars"
 
 const SECTIONS: {
