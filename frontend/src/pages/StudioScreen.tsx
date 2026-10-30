@@ -27,8 +27,9 @@ import {
 } from "@/lib/panelSelection";
 import type { AoiContourSchemeId } from "@/lib/aoiStyle";
 import { isMapTool, type BoardToolId } from "@/lib/mapTools";
-import { isMineralLayer, type MineralRunOptions } from "@/lib/mineral";
-import { fieldWindows, isFieldLayer, MIN_PERIOD_DAYS } from "@/lib/fields";
+import type { MineralRunOptions } from "@/lib/mineral";
+import { applyLayerPatch, mergeLayerPatch, type LayerPatch } from "@/lib/layerPatch";
+import { fieldWindows, MIN_PERIOD_DAYS } from "@/lib/fields";
 import { isJobKind, type JobKind } from "@/lib/jobs";
 import { cn } from "@/lib/utils";
 import { CaretDown, Database } from "@/components/icons";
@@ -545,60 +546,18 @@ export function StudioScreen(props: StudioScreenProps) {
     fieldLayers: fieldLayerState,
   });
 
-  const changeBoardLayer = (
-    id: string,
-    patch: { visible?: boolean; opacity?: number },
-  ) => {
-    if (id === "composition") {
-      if (patch.visible !== undefined)
-        props.onShowCompositionOverlayChange(patch.visible);
-      if (patch.opacity !== undefined)
-        props.onComposeOpacityChange(patch.opacity);
-      return;
-    }
-    if (id === "water") {
-      if (patch.visible !== undefined)
-        props.onShowWaterOverlayChange(patch.visible);
-      if (patch.opacity !== undefined)
-        props.onWaterOpacityChange(patch.opacity);
-      return;
-    }
-    // One entry per group's layer, merged so a patch naming only the opacity
-    // leaves the switch where the reader put it.
-    if (isFieldLayer(id)) {
-      setFieldLayerState((prev) => ({
-        ...prev,
-        [id]: {
-          ...prev[id],
-          ...(patch.visible !== undefined ? { visible: patch.visible } : {}),
-          ...(patch.opacity !== undefined ? { opacity: patch.opacity } : {}),
-        },
-      }));
-      return;
-    }
-    if (isMineralLayer(id)) {
-      setMineralLayerState((prev) => ({
-        ...prev,
-        [id]: {
-          ...prev[id],
-          ...(patch.visible !== undefined ? { visible: patch.visible } : {}),
-          ...(patch.opacity !== undefined ? { opacity: patch.opacity } : {}),
-        },
-      }));
-      return;
-    }
-    if (id === "confidence") {
-      if (patch.visible !== undefined)
-        props.onShowConfidenceChange(patch.visible);
-      if (patch.opacity !== undefined) props.onOpacityChange(patch.opacity);
-      return;
-    }
-    if (id === "prediction") {
-      if (patch.visible !== undefined)
-        props.onShowPredictionOverlayChange(patch.visible);
-      if (patch.opacity !== undefined) props.onOpacityChange(patch.opacity);
-    }
-  };
+  const changeBoardLayer = (id: string, patch: LayerPatch) =>
+    applyLayerPatch(id, patch, {
+      setCompositionVisible: props.onShowCompositionOverlayChange,
+      setCompositionOpacity: props.onComposeOpacityChange,
+      setWaterVisible: props.onShowWaterOverlayChange,
+      setWaterOpacity: props.onWaterOpacityChange,
+      setConfidenceVisible: props.onShowConfidenceChange,
+      setPredictionVisible: props.onShowPredictionOverlayChange,
+      setOverlayOpacity: props.onOpacityChange,
+      patchFieldLayer: (l, p) => setFieldLayerState((prev) => mergeLayerPatch(prev, l, p)),
+      patchMineralLayer: (l, p) => setMineralLayerState((prev) => mergeLayerPatch(prev, l, p)),
+    });
 
   /**
    * The run action for whichever product is in view.
