@@ -22,135 +22,58 @@
 :root,
 :root[data-theme="dark"] {
   /*
-    A neutral chassis, with the hue left to the accent.
+    Neutral greys, and an orange that does the asking.
 
-    Two families preceded it and both put the hue in the surfaces: Mars sand
-    under an orange accent, then cool greys under a blue one. This puts none
-    there. The accent is then the only colour on screen that is not data, which
-    is a stronger position than it held when every surface leaned with it -- and
-    it is what lets the accent change again without the chassis being rebuilt.
+    The accent #EC662D and the paper #D9D3D1 are the Tangerine Alloy palette's, and
+    #323232 is the raised surface of the other references. The dark ramp holds no
+    hue at all, on purpose. Tangerine's own #0B120E carries green, and interpolated
+    across every surface that tint read as a green interface, which nobody asked for.
 
-    Every value below is measured, not chosen by eye. The ratios in the comments
-    are WCAG 2.x against the surfaces each token actually lands on, and
-    frontend/src/lib/contrast.ts re-derives them from these channels so a future
-    edit that breaks one fails a check rather than shipping.
+    DEEPER THAN THE RAMP BEFORE IT, because the map is the ground now. Panels
+    float over imagery rather than meeting each other at seams, so what tells
+    one from what is behind it is being darker than almost any of it.
 
-    The surfaces sit well above either predecessor -- ink 33 against 23, the
-    raised surface 67 against 41 -- and lifting a surface does not lift what
-    lands on it. Every token measured against these had to follow, which is the
-    Three tokens did not follow, and that is a decision rather than an
-    oversight: --p-line-strong, --p-muted and --destructive-quiet each read below
-    their floor on the raised surface. The values that would clear were measured
-    -- 142, 175 and #E59E8F -- and were not taken. They are listed by name in
-    scripts/check-contrast.ts, which prints them every run and still fails for
-    anything not on that list.
-  */
-  /*
-    SIX STEPS, NOT THREE, AND THE THREE WERE THE DEFECT.
-
-    Measured against Blender, which is the reference for this: sampling its
-    window, its neutral chrome holds seven modes -- 24 for the status bar, 30
-    for the menu strip and the input wells, 40 for toolbar buttons and list row
-    headers, 43 for the outliner, 48 for the properties panel, 53 for editor
-    headers, 64 for the viewport. Sampling ours, EIGHTY-EIGHT PER CENT of the
-    chrome sat in a single eight-level bucket. As a distribution: 2.1 effective
-    levels against Blender's 5.5.
-
-    The consequence is not that it looked flat. It is that with one surface
-    level, every boundary between two regions has to be drawn by a 1px border,
-    because there is no step in the ground to draw it -- so reading the layout
-    means resolving hairlines at low contrast, everywhere, continuously. In
-    Blender the border is redundant: the step already said it.
-
-    These are Blender's own values, stopping at 67. Its 85 exists once, on a
-    single button carrying bright text, and this palette cannot follow it there:
-    the highest neutral ground --p-accent-quiet clears 4.5 on is 67, and 67 is
-    where the raised surface already was. The room was never at the top. It was
-    the four steps missing underneath.
+    Every value is measured, not chosen by eye. frontend/src/lib/contrast.ts
+    re-derives the ratios from these channels, so an edit that breaks one fails
+    a check rather than shipping.
 
     NAMED BY POSITION, WHICH IS WHAT A RAMP IS. What each step PAINTS is the
     next block down: these say how deep, and the roles say what for. Nothing
     outside that block should reach for one of these.
   */
+  --p-sunk: 14 14 14;
+  --p-ink: 20 20 20;
+  --p-control: 27 27 27;
+  --p-surface: 33 33 33;
+  --p-head: 39 39 39;
+  --p-surface-raised: 50 50 50;
   /*
-    TWENTY-FOUR, WHICH IS BLENDER'S OWN DEEPEST STEP.
-
-    It was briefly 12, on the argument that the gap between two panels is five
-    pixels wide with a panel on each side and needs more separation than a
-    status bar does. The measurement behind that was right -- 24 gives 1.35
-    against a panel and 12 gives 1.48 -- and the argument was still wrong,
-    because it was answering a problem that had already been fixed.
-
-    The gap was invisible because the studio's surface root was painted
-    `panel`, so the strip between two panels was the tone of the panels on
-    either side of it. Once that took `app` the gap is a different colour at
-    all, and 1.35 is what Blender ships. Deepening the ground on top of that
-    was correcting for a cause that had already been removed.
-
-    Kept as a note rather than dropped: the numbers are what a future reader
-    needs if the gap ever does look thin, and the answer then is 12, not a
-    tint.
-
-    STILL NEUTRAL, WHICH IS A DECISION AND NOT AN OMISSION. A tint here is the
-    obvious other answer and it is the one this chassis has already refused:
-    the note at the top of this block records two predecessors that put the hue
-    in the surfaces, and the reason for taking it out is that the accent is
-    then the only colour on screen that is not data. A coloured ground would be
-    a second one, permanently, behind everything.
+    The boundary clears WCAG 1.4.11 on every surface: 3.47 on the raised one and
+    4.36 on a panel. Under 4.5 on the raised surface, so never text.
   */
-  --p-sunk: 24 24 24;
-  --p-ink: 30 30 30;
-  --p-control: 40 40 40;
-  --p-surface: 48 48 48;
-  --p-head: 53 53 53;
-  --p-surface-raised: 67 67 67;
+  --p-line: 85 85 85;
+  --p-line-strong: 133 133 133;
+  --p-text: 217 211 209;
   /*
-    Surface separation is 1.20 and 1.35 -- wider than any earlier reading of
-    this family, because the surfaces were lifted apart rather than merely
-    lifted. --p-line-strong is what tells two panels apart, and it clears WCAG
-    1.4.11 on surface at 3.34 but NOT on the raised one, where it reads 2.47.
-    That shortfall is accepted rather than corrected: see the note above and the
-    ACCEPTED list in scripts/check-contrast.ts.
-
-    127 is where the measurement left it against a raised surface of 54. The
-    surface has since reached 67 and the boundary has not followed.
+    Muted text clears WCAG 1.4.3 (4.5:1) on the raised surface at 4.61, and more
+    on everything darker. Used only as a text colour, never as a background.
   */
-  --p-line: 91 91 91;
-  --p-line-strong: 145 145 145;
-  --p-text: 221 221 221;
-  /*
-    Muted text must clear WCAG 1.4.3 (4.5:1) on the darkest surface it lands on,
-    which is the raised one. This measures 3.83 there, under the floor, and
-    5.18 on surface and 6.23 on ink. 175 is the first value that clears and was
-    not taken -- the pair is accepted by name in scripts/check-contrast.ts.
-    Used only as a text colour, never as a background.
-  */
-  --p-muted: 184 184 184;
+  --p-muted: 155 155 155;
   /*
     The accent is a fill, a focus ring and an active state.
 
-    Neutral greys under it, deliberately: the chassis carried the accent's hue
-    while the accent was blue, and does not now. So the accent is the only hue
-    on screen that is not data, which is a stronger position than it had when
-    every surface leaned the same way. That still holds, and it is why this is
-    blue again without being the blue it was.
+    A MID-TONE FILL TAKES THE NEAR-BLACK LABEL: ink measures 5.71 on it, and
+    white 3.23, under the floor. Text that has to read as the accent uses
+    --p-accent-quiet, at 4.63 on the raised surface.
 
-    BLUE AGAIN, BY ROTATION AND NOT BY REPLACEMENT. The hue moved to 255 deg in
-    OKLCH and nothing else did: each of the three below keeps its own lightness
-    and its own chroma, so the accent weighs on screen exactly what the orange
-    weighed. A blue chosen rather than derived would have had to be argued back
-    up from nothing -- how bright, how saturated, how it sits against four
-    board hues and a field of ink -- and every one of those answers is already
-    here, in the values the orange was measured into.
-
-    A LIGHT FILL STILL TAKES THE NEAR-BLACK LABEL, which is the property the
-    rotation was for. Ink measures 6.73 on it and white 2.48, against 6.47 and
-    2.58 for the orange -- the same relation, so --accent-foreground stays
-    where it is rather than following a second time.
+    NOT OVER IMAGERY ON ITS OWN. It measures 2.44 on the red soil of western
+    Paraná and 2.25 on grass, and orange runs through the inferno and rdylgn
+    ramps. So a line drawn in it over the map carries a dark casing, which is
+    what the contrast is then measured against; see AREA_CASING in GlobeSurface.
   */
-  --p-accent: 97 167 255;
-  --p-accent-quiet: 122 181 255;
-  --p-accent-dim: 24 54 91;
+  --p-accent: 236 102 45;
+  --p-accent-quiet: 250 115 60;
+  --p-accent-dim: 74 32 15;
   --p-place: 120 138 148;
   --p-haze: 144 144 144;
   /*
@@ -591,7 +514,7 @@
   above, so every ratio is measured here too. Neutral for the same reason, at
   the luminances the sand family was measured at.
 
-  The accent is darkened rather than reused: the dark theme's #ED8744 on a light
+  The accent is darkened rather than reused: the dark theme's #EC662D on a light
   surface reads as a highlight and not as a control, and it carries no label at
   all there. This one measures 4.42 on the raised surface and takes the light
   ink at 5.02.
@@ -627,27 +550,26 @@
     between its deepest surface and white, a dark one has sixty-seven below its
     panels.
   */
-  --p-sunk: 215 215 215;
-  --p-ink: 231 231 231;
-  --p-control: 238 238 238;
-  --p-surface: 244 244 244;
-  --p-head: 248 248 248;
-  --p-surface-raised: 253 253 253;
-  --p-line: 177 177 177;
-  --p-line-strong: 121 121 121;
-  --p-text: 31 31 31;
-  --p-muted: 92 92 92;
+  --p-sunk: 217 211 209;
+  --p-ink: 228 223 222;
+  --p-control: 236 232 230;
+  --p-surface: 243 240 239;
+  --p-head: 249 247 245;
+  --p-surface-raised: 255 253 252;
+  --p-line: 176 174 172;
+  --p-line-strong: 118 116 115;
+  --p-text: 20 20 20;
+  --p-muted: 82 80 79;
   /*
     Same rule as dark: a fill, not a text colour.
 
-    ROTATED WITH THE DARK ONE, AND THEN DARKENED BY ONE STEP. At the orange's
-    own lightness the blue measures 4.30 against this theme's label, under the
-    4.5 floor -- a warm fill and a cool one of equal lightness do not carry a
-    light label equally. L 0.532 to 0.517, chroma untouched, takes it to 4.56.
+    DARKER THAN THE DARK THEME'S, and by what its label asks. The fill takes
+    --p-ink, which is near-white here, so the orange comes down to L 0.516 for that
+    pair to clear 4.5: 4.55. At the lightness first tried, #B7440B, it read 4.14.
   */
-  --p-accent: 0 102 199;
-  --p-accent-quiet: 6 89 173;
-  --p-accent-dim: 204 222 244;
+  --p-accent: 171 65 16;
+  --p-accent-quiet: 154 57 11;
+  --p-accent-dim: 253 221 208;
   --p-place: 90 110 122;
   --p-haze: 176 176 176;
   /* The same, at the lightness a light ground needs: 4.33 on the raised
@@ -897,37 +819,20 @@
   --destructive-foreground: rgb(var(--p-text));
   --destructive-quiet: #f8989e;
   /*
-    An amber of its own, one value per theme, rather than the accent.
+    A yellow of its own, one value per theme, rather than the accent.
 
-    It used to be --p-accent-quiet, which worked while the accent was orange:
-    the warning mark and the informational one were the same hue by accident
-    and nobody could tell, because there was no other hue for them to be. With
-    a blue accent that inheritance would have drawn the warning toast in the
-    colour the interface uses for "this is the selected thing", which is the
-    one meaning it must not carry. Measured 7.97 / 7.13 / 5.93 dark and
-    5.21 / 5.65 / 4.58 light, so it clears the mark floor on every surface.
+    At OKLCH h 95, 54 degrees from the accent's 41. The amber before it sat at 72,
+    which is the same family as this orange, and a warning must not read as "this
+    is the thing to act on". contrast.ts holds it to the mark floor of 3.0 on every
+    surface.
   */
-  --warning: #d5be4b;
+  --warning: #f0cf4c;
   /*
-    THE ROUTE THAT WAS TAKEN, AND IT IS A REFERENCE VALUE RATHER THAN A
-    NEIGHBOUR OF ONE.
-
-    It was #6f9c5a, a mid green measured for a toast mark -- a small graphic on
-    a plate, where 3.0 is the floor. It became the widest thing on the run
-    board, an opaque band crossing the whole field, and at L 0.644 a band of it
-    read as one more dark stripe among the waiting ones. That is the
-    distinction the board exists to draw.
-
-    It went to a lime constructed at L 0.887 C 0.173 h124, which was near a
-    reference and not one. This IS one: #B1FA63, the "Neon Sprout" of the
-    graphite palette, at L 0.91 C 0.196 h131. Three hundredths more chroma and
-    two of lightness than the value that was aiming at it.
-
-    Dark type clears 11.39:1 on the band and white would read 1.08, which is
-    why the reading here is set in --p-ink. As a toast mark it measures 14.14,
-    10.51 and 7.88 on the three surfaces against a floor of 3.
+    A green of its own at OKLCH h 155, far from the accent's 41. It paints the
+    widest band on the run board as well as a toast mark, so it is light enough
+    for --p-ink to read on it, and contrast.ts holds that pair at 4.5.
   */
-  --success: #b1fa63;
+  --success: #6ad895;
   /*
     THE WIRE THAT FAILED, and it is NOT --destructive.
 
@@ -1021,7 +926,7 @@
   --destructive: #b23645;
   --destructive-foreground: rgb(var(--p-surface));
   --destructive-quiet: #a32b3b;
-  --warning: #877000;
+  --warning: #6d5900;
   /* The same two, at the lightness a light ground needs. The bands invert with
      the theme rather than holding their value: --p-ink is the light surface
      here, so the reading on a band is LIGHT type and the band has to be dark
@@ -1030,7 +935,7 @@
      giving 5.29 and 4.88 for that reading. The references are dark palettes
      and have no light counterpart to copy, so what carries across is the hue
      and not the value. */
-  --success: #3f6115;
+  --success: #006436;
   --p-wire-failed: #a43e26;
   /* Darkened for the light ground; same four floors, same search. */
   --series-ndvi: #4b9b55;

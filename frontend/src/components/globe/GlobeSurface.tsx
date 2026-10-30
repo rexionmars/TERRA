@@ -210,6 +210,15 @@ const START_CENTER: [number, number] = [-51.4, -23.4]
 const AREA_SOURCE = "terra-areas"
 const AREA_FILL = "terra-areas-fill"
 const AREA_LINE = "terra-areas-line"
+/*
+  UNDER THE LINE, because the line is the accent and the ground is anything. Orange
+  measures 2.44 on red soil and 2.25 on grass, under the 3.0 a boundary needs, and no
+  single colour clears both a roof and a canopy. The casing is what the line is read
+  against wherever it goes, so it is a literal and does not follow the theme: its
+  ground is the imagery, not the chassis. Fields are drawn thinner and in their own
+  yellow, which holds on imagery without one.
+*/
+const AREA_CASING = "terra-areas-casing"
 
 /*
   THE FIELDS OF AN AREA, and a delineation's polygons before they are fields.
@@ -942,6 +951,16 @@ export function GlobeSurface({
               },
             },
             {
+              id: AREA_CASING,
+              type: "line",
+              source: AREA_SOURCE,
+              paint: {
+                "line-color": "#141414",
+                "line-opacity": 0.85,
+                "line-width": ["case", IS_FIELD, 0, 3.5],
+              },
+            },
+            {
               id: AREA_LINE,
               type: "line",
               source: AREA_SOURCE,
@@ -952,7 +971,7 @@ export function GlobeSurface({
                   "#ffffff",
                   IS_FIELD,
                   FIELD_LINE_COLOR,
-                  "#ED8744",
+                  "#EC662D",
                 ],
                 "line-width": ["case", IS_SELECTED, 1.5, IS_FIELD, 1, 1.5],
               },
@@ -1004,7 +1023,7 @@ export function GlobeSurface({
 
     const paint = () => {
       if (!map.isStyleLoaded()) return
-      const accent = token("--p-accent", "#ED8744")
+      const accent = token("--p-accent", "#EC662D")
       // AREA_FILL is not repainted: its one colour is the selection's white.
       map.setPaintProperty(AREA_LINE, "line-color", [
         "case",

@@ -95,11 +95,11 @@ describe("contrast", () => {
     )
     // Two tokens the interface actually paints, one per theme.
     expect(contrast(TOKENS.dark.text, TOKENS.dark.ink)).toBeCloseTo(
-      12.274022068707811,
+      12.44726444295712,
       10
     )
     expect(contrast(TOKENS.light.text, TOKENS.light.ink)).toBeCloseTo(
-      13.329277433268102,
+      13.956081564981705,
       10
     )
   })
@@ -139,14 +139,14 @@ describe("checkContrast", () => {
     // a token's channels shows up here as a named number rather than only as a
     // pass/fail somewhere else.
     const expected: Record<string, number> = {
-      "dark.text.surfaceRaised": 7.28,
-      "dark.muted.surfaceRaised": 4.99,
-      "dark.accentQuiet.accentDim": 5.75,
-      "dark.lineStrong.surfaceRaised": 3.14,
-      "dark.destructiveForeground.destructive": 5.37,
-      "light.text.surface": 14.99,
-      "light.accent.accentDim": 4.11,
-      "light.warning.surfaceRaised": 4.75,
+      "dark.text.surfaceRaised": 8.66,
+      "dark.muted.surfaceRaised": 4.61,
+      "dark.accentQuiet.accentDim": 5.04,
+      "dark.lineStrong.surfaceRaised": 3.47,
+      "dark.destructiveForeground.destructive": 4.93,
+      "light.text.surface": 16.25,
+      "light.accent.accentDim": 4.7,
+      "light.warning.surfaceRaised": 6.73,
     }
     for (const [key, ratio] of Object.entries(expected)) {
       const r = results.find((x) => `${x.theme}.${x.fg}.${x.bg}` === key)
