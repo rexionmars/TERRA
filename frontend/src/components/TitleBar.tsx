@@ -30,6 +30,7 @@ import {
   type CreditPart,
 } from "@/lib/basemaps"
 import { useAuth } from "@/lib/auth"
+import { chooseShell } from "@/lib/shellChoice"
 import { cn } from "@/lib/utils"
 
 interface TitleBarProps {
@@ -121,29 +122,6 @@ export function TitleBar({
   */
   const live = useSyncExternalStore(subscribeMapPose, mapPose)
   const shown = live ?? view
-  /*
-    Whether the platform draws the window controls, asked once.
-
-    Not a user-agent string: Wails reports the platform it was built for, which
-    is the thing being asked about. Starts false, so the buttons are absent for
-    the frame before the answer arrives -- appearing late reads as the bar
-    settling, where disappearing late reads as a glitch.
-  */
-  const [onMac, setOnMac] = useState(false)
-  useEffect(() => {
-    let cancelled = false
-    void Environment()
-      .then((env) => {
-        if (!cancelled) setOnMac(env.platform === "darwin")
-      })
-      .catch(() => {
-        /* No runtime to ask: leave the buttons drawn, which is the safe way
-           to be wrong -- a window with no controls cannot be closed. */
-      })
-    return () => {
-      cancelled = true
-    }
-  }, [])
   const hasMap = screen === "studio"
   // The map's own readings, which need the map to be on screen to mean
   // anything. The board slot and the layout toggle stay on `hasMap`: they are
@@ -315,6 +293,17 @@ export function TitleBar({
           </div>
         )}
 
+        {/* The way back from the studio, while the two stand side by side. */}
+        {hasMap && (
+          <button
+            type="button"
+            onClick={() => chooseShell("map")}
+            className="app-no-drag h-7 rounded-sm border border-border px-2 text-body text-foreground transition-colors hover:bg-hover"
+          >
+            Map interface
+          </button>
+        )}
+
         {/*
           THE ONLY WAY INTO SETTINGS. It was drawn when the navigation column
           was withheld, since the column carried this item everywhere else and
@@ -343,34 +332,64 @@ export function TitleBar({
         )}
 
 
-        {/*
-          NOT ON macOS, where the platform draws them itself.
-
-          These were written for a frameless window, which has no controls of
-          its own. The window is titled now -- frameless made macOS composite it
-          off the path it uses for titled windows, and that slowed every other
-          window sharing its space -- so the traffic lights sit at the other end
-          of this same bar, and drawing a second minimise, maximise and close
-          beside the avatar put two sets of window controls on one window.
-
-          Kept everywhere else: on Windows and Linux this bar is still the only
-          place they exist.
-        */}
-        {!onMac && (
-          <div className="app-no-drag flex items-center gap-1">
-            <WindowButton onClick={WindowMinimise} title="Minimize">
-              <Minus className="h-3.5 w-3.5" />
-            </WindowButton>
-            <WindowButton onClick={WindowToggleMaximise} title="Maximize">
-              <Square className="h-3 w-3" />
-            </WindowButton>
-            <WindowButton onClick={Quit} danger title="Close">
-              <X className="h-3.5 w-3.5" />
-            </WindowButton>
-          </div>
-        )}
+        <WindowControls />
       </div>
     </header>
+  )
+}
+
+/**
+ * The window's own buttons, where the platform does not draw them.
+ *
+ * Exported for the map shell's bar, which replaces this one and has the same
+ * obligation: on Windows and Linux there is no other way to close the window.
+ */
+export function WindowControls() {
+  /*
+    Whether the platform draws the window controls, asked once.
+
+    Not a user-agent string: Wails reports the platform it was built for, which
+    is the thing being asked about. Starts false, so the buttons are absent for
+    the frame before the answer arrives -- appearing late reads as the bar
+    settling, where disappearing late reads as a glitch.
+  */
+  const [onMac, setOnMac] = useState(false)
+  useEffect(() => {
+    let cancelled = false
+    void Environment()
+      .then((env) => {
+        if (!cancelled) setOnMac(env.platform === "darwin")
+      })
+      .catch(() => {
+        /* No runtime to ask: leave the buttons drawn, which is the safe way
+           to be wrong -- a window with no controls cannot be closed. */
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [])
+  /*
+    NOT ON macOS, where the platform draws them itself.
+
+    These were written for a frameless window, which has no controls of its own.
+    The window is titled now -- frameless made macOS composite it off the path it
+    uses for titled windows, and that slowed every other window sharing its space
+    -- so the traffic lights sit at the other end of the bar, and drawing a second
+    set beside the avatar put two sets of window controls on one window.
+  */
+  if (onMac) return null
+  return (
+      <div className="app-no-drag flex items-center gap-1">
+        <WindowButton onClick={WindowMinimise} title="Minimize">
+          <Minus className="h-3.5 w-3.5" />
+        </WindowButton>
+        <WindowButton onClick={WindowToggleMaximise} title="Maximize">
+          <Square className="h-3 w-3" />
+        </WindowButton>
+        <WindowButton onClick={Quit} danger title="Close">
+          <X className="h-3.5 w-3.5" />
+        </WindowButton>
+      </div>
   )
 }
 

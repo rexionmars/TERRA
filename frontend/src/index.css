@@ -1111,6 +1111,17 @@
   --text-emphasis--line-height: 1.5;
   --text-heading: 14px;
   --text-heading--line-height: 1.4;
+  /*
+    The map shell's reading sizes. Floating over imagery, at a window's distance,
+    a panel is read rather than scanned, so it does not take the studio's scale;
+    they sit beside those steps until the studio is gone.
+  */
+  --text-label: 12px;
+  --text-label--line-height: 1.45;
+  --text-read: 13px;
+  --text-read--line-height: 1.5;
+  --text-title: 15px;
+  --text-title--line-height: 1.35;
 
   --font-sans: var(--font-sans);
   --font-mono: var(--font-telemetry);

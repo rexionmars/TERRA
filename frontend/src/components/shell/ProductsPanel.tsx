@@ -1,0 +1,313 @@
+import { CaretRight, Play } from "@/components/icons"
+import { RunQueue } from "@/components/studio/RunQueue"
+import { btnPrimaryCommit } from "@/components/ui/buttons"
+import { MODE_OPTIONS, MODEL_OPTIONS, modeBlockedBy } from "@/lib/classifyOptions"
+import { isJobKind } from "@/lib/jobs"
+import { BOARD_TOOLS, type BoardToolId } from "@/lib/mapTools"
+import { MAX_DRAWS, MAX_PASSES } from "@/lib/mineral"
+import { PRODUCT_NOTES } from "@/lib/productNotes"
+import { productOffered, productRun, type ProductRunProps } from "@/lib/productRun"
+import type { ModelKind, WaterIndex } from "@/lib/types"
+import { cn } from "@/lib/utils"
+import { WATER_INDICES } from "@/lib/waterOptions"
+import { PanelLimit, ShellPanel } from "@/components/shell/ShellPanel"
+import type { MineralRunOptions } from "@/lib/mineral"
+
+/**
+ * The parameters each product reads, beside what starts it.
+ *
+ * Every value is the application's own state passed straight through, so a run
+ * started here and one started from the studio are made of the same inputs.
+ */
+export interface ProductsPanelProps extends ProductRunProps {
+  maxCloud: number
+  monthlyBest: boolean
+  mode: "single" | "temporal"
+  modelKind: ModelKind
+  prithviMode: "pixel" | "patch"
+  waterIndex: WaterIndex
+  mineralOptions?: MineralRunOptions
+  onStartChange: (v: string) => void
+  onEndChange: (v: string) => void
+  onMaxCloudChange: (v: number) => void
+  onMonthlyBestChange: (v: boolean) => void
+  onModeChange: (m: "single" | "temporal") => void
+  onModelKindChange: (m: ModelKind) => void
+  onPrithviModeChange: (m: "pixel" | "patch") => void
+  onWaterIndexChange: (i: WaterIndex) => void
+  onMineralOptionsChange?: (o: MineralRunOptions) => void
+}
+
+/*
+  Compositions wait for the Visualization panel, which is what the same request
+  is under this shell: a way of looking at a scene rather than a run of a
+  product. Until then they are reached in the studio.
+*/
+const LISTED = BOARD_TOOLS.filter((t) => t.id !== "compose")
+
+function Plate({ tool }: { tool: BoardToolId }) {
+  const { icon: Glyph, tint } = PRODUCT_NOTES[tool]
+  return (
+    <span
+      className="flex size-11 shrink-0 items-center justify-center rounded-sm"
+      style={{ background: `rgb(var(${tint}) / 0.16)`, color: `rgb(var(${tint}))` }}
+    >
+      <Glyph className="size-5" />
+    </span>
+  )
+}
+
+function Field({ label, children }: { label: string; children: React.ReactNode }) {
+  return (
+    <label className="flex min-w-0 flex-1 flex-col gap-1">
+      <span className="text-label text-muted-foreground">{label}</span>
+      {children}
+    </label>
+  )
+}
+
+/** Clamped on the way out, because a number field holds whatever is typed. */
+function clamp(v: number, lo: number, hi: number): number {
+  return Math.min(hi, Math.max(lo, Number.isFinite(v) ? v : lo))
+}
+
+export function ProductsPanel({
+  product,
+  onProductChange,
+  onClose,
+  ...p
+}: ProductsPanelProps & {
+  product: BoardToolId | null
+  onProductChange: (t: BoardToolId | null) => void
+  onClose: () => void
+}) {
+  if (!product) {
+    return (
+      <ShellPanel crumbs={[{ label: "Products" }]} onClose={onClose}>
+        <ul className="flex flex-col gap-1">
+          {LISTED.filter((t) => productOffered(t.id, p)).map((t) => (
+            <li key={t.id}>
+              <button
+                type="button"
+                onClick={() => onProductChange(t.id)}
+                className="flex w-full items-center gap-3 rounded-sm p-2 text-left transition-colors hover:bg-hover"
+              >
+                <Plate tool={t.id} />
+                <span className="min-w-0 flex-1">
+                  <span className="block text-read font-medium text-foreground">{t.label}</span>
+                  <span className="block text-label text-muted-foreground">
+                    {PRODUCT_NOTES[t.id].hint}
+                  </span>
+                </span>
+                <CaretRight className="size-3.5 shrink-0 text-muted-foreground" />
+              </button>
+            </li>
+          ))}
+        </ul>
+      </ShellPanel>
+    )
+  }
+
+  const tool = BOARD_TOOLS.find((t) => t.id === product)
+  const note = PRODUCT_NOTES[product]
+  const run = productRun(product, p)
+  const usesPeriod = product !== "overlap"
+  const usesCloud = product === "classify" || product === "water"
+  const passes = p.mineralOptions
+
+  return (
+    <ShellPanel
+      crumbs={[
+        { label: "Products", onClick: () => onProductChange(null) },
+        { label: tool?.label ?? product },
+      ]}
+      onClose={onClose}
+      footer={
+        <div className="flex flex-col gap-2">
+          {run.running && (
+            <div
+              role="progressbar"
+              aria-valuemin={0}
+              aria-valuemax={100}
+              aria-valuenow={Math.round(run.progress)}
+              aria-label={run.label}
+            >
+              <div className="h-1 overflow-hidden rounded-sm bg-[rgb(var(--p-control))]">
+                <div
+                  className="h-full bg-primary transition-[width] duration-300"
+                  style={{ width: `${clamp(run.progress, 0, 100)}%` }}
+                />
+              </div>
+              <p className="mt-1 truncate text-label text-muted-foreground">{run.progressMsg}</p>
+            </div>
+          )}
+          {run.blocked && !run.running && (
+            <p className="text-label text-muted-foreground">{run.blocked}</p>
+          )}
+          <button
+            type="button"
+            disabled={!!run.blocked || run.running}
+            onClick={run.onRun}
+            className={cn(btnPrimaryCommit, "w-full")}
+          >
+            <Play className="size-3.5" />
+            {run.label}
+          </button>
+        </div>
+      }
+    >
+      <div className="flex flex-col gap-4">
+        <div className="flex items-start gap-3">
+          <Plate tool={product} />
+          <p className="text-read text-muted-foreground">{note.hint}</p>
+        </div>
+
+        {usesPeriod && (
+          <div className="flex gap-2">
+            <Field label="Start">
+              <input
+                type="date"
+                className="field-input"
+                value={p.start}
+                onChange={(e) => p.onStartChange(e.target.value)}
+              />
+            </Field>
+            <Field label="End">
+              <input
+                type="date"
+                className="field-input"
+                value={p.end}
+                onChange={(e) => p.onEndChange(e.target.value)}
+              />
+            </Field>
+          </div>
+        )}
+
+        {usesCloud && (
+          <div className="flex items-end gap-3">
+            <Field label="Cloud limit per scene (%)">
+              <input
+                type="number"
+                min={0}
+                max={100}
+                className="field-input"
+                value={p.maxCloud}
+                onChange={(e) => p.onMaxCloudChange(clamp(e.target.valueAsNumber, 0, 100))}
+              />
+            </Field>
+            <label className="flex h-8 flex-1 items-center gap-2 text-read text-foreground">
+              <input
+                type="checkbox"
+                checked={p.monthlyBest}
+                onChange={(e) => p.onMonthlyBestChange(e.target.checked)}
+              />
+              Clearest scene per month
+            </label>
+          </div>
+        )}
+
+        {product === "classify" && (
+          <>
+            <Field label="Model">
+              <select
+                className="field-input"
+                value={p.modelKind}
+                onChange={(e) => {
+                  const m = e.target.value as ModelKind
+                  p.onModelKindChange(m)
+                  if (modeBlockedBy(p.mode, m)) p.onModeChange("single")
+                }}
+              >
+                {MODEL_OPTIONS.map((m) => (
+                  <option key={m.id} value={m.id}>
+                    {m.label} · {m.detail}
+                  </option>
+                ))}
+              </select>
+            </Field>
+            <Field label="Mode">
+              <select
+                className="field-input"
+                value={p.mode}
+                onChange={(e) => p.onModeChange(e.target.value as "single" | "temporal")}
+              >
+                {MODE_OPTIONS.map((o) => (
+                  <option key={o.id} value={o.id} disabled={!!modeBlockedBy(o.id, p.modelKind)}>
+                    {o.label} · {o.detail}
+                  </option>
+                ))}
+              </select>
+            </Field>
+            {p.modelKind === "prithvi" && (
+              <Field label="Prithvi prediction">
+                <select
+                  className="field-input"
+                  value={p.prithviMode}
+                  onChange={(e) => p.onPrithviModeChange(e.target.value as "pixel" | "patch")}
+                >
+                  <option value="pixel">Per pixel</option>
+                  <option value="patch">Per patch</option>
+                </select>
+              </Field>
+            )}
+          </>
+        )}
+
+        {product === "water" && (
+          <Field label="Index">
+            <select
+              className="field-input"
+              value={p.waterIndex}
+              onChange={(e) => p.onWaterIndexChange(e.target.value as WaterIndex)}
+            >
+              {WATER_INDICES.map((w) => (
+                <option key={w.id} value={w.id}>
+                  {w.label} · {w.detail}
+                </option>
+              ))}
+            </select>
+          </Field>
+        )}
+
+        {product === "mineral" && passes && (
+          <div className="flex gap-2">
+            <Field label={`Passes compared per cell (1 to ${MAX_PASSES})`}>
+              <input
+                type="number"
+                min={1}
+                max={MAX_PASSES}
+                className="field-input"
+                value={passes.passes}
+                onChange={(e) =>
+                  p.onMineralOptionsChange?.({
+                    ...passes,
+                    passes: clamp(e.target.valueAsNumber, 1, MAX_PASSES),
+                  })
+                }
+              />
+            </Field>
+            <Field label={`Uncertainty draws (0 to ${MAX_DRAWS})`}>
+              <input
+                type="number"
+                min={0}
+                max={MAX_DRAWS}
+                className="field-input"
+                value={passes.draws}
+                onChange={(e) =>
+                  p.onMineralOptionsChange?.({
+                    ...passes,
+                    draws: clamp(e.target.valueAsNumber, 0, MAX_DRAWS),
+                  })
+                }
+              />
+            </Field>
+          </div>
+        )}
+
+        <PanelLimit>{note.limit}</PanelLimit>
+
+        {isJobKind(product) && <RunQueue kind={product} />}
+      </div>
+    </ShellPanel>
+  )
+}

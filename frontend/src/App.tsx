@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react"
+import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react"
 import { SCREEN } from "@/lib/motion"
 import type { Dispatch, SetStateAction } from "react"
 import { AnimatePresence, motion } from "motion/react"
@@ -106,6 +106,8 @@ import { ProjectFileHost } from "@/components/ProjectFileHost"
 import { SplashScreen } from "@/components/SplashScreen"
 import { WhatsNewGate } from "@/components/WhatsNewGate"
 import { StudioScreen } from "@/pages/StudioScreen"
+import { MapShell } from "@/pages/MapShell"
+import { shellChoice, subscribeShellChoice } from "@/lib/shellChoice"
 import { DEFAULT_MINERAL_RUN_OPTIONS, mineralPassesUsed, type MineralRunOptions } from "@/lib/mineral"
 import type { BasemapKind } from "@/lib/basemaps"
 import { AuthPage } from "@/pages/AuthPage"
@@ -3193,20 +3195,30 @@ function AppBody(props: {
     [props.customPolygon]
   )
 
+  /*
+    Which interface draws the surface. Both take the same props: they are the
+    whole contract between this file and whatever draws its state, so the choice
+    is made here at one word rather than across every handler.
+  */
+  const shell = useSyncExternalStore(subscribeShellChoice, shellChoice)
+  const Surface = shell === "map" ? MapShell : StudioScreen
+
   return (
     <div className="flex h-screen w-screen flex-col overflow-hidden bg-app text-foreground">
-      <TitleBar
-        view={props.view}
-        /*
-          Handed back so the map screen can portal its studio toggle up
-          here. What App holds is WHERE the button goes; whether the board is
-          open stays in the screen, which is the only place it can stay without
-          surviving a trip to another screen.
-        */
-        boardOpen={boardOpen}
-        result={props.result}
-        credit={credit}
-      />
+      {!(screen === "studio" && shell === "map") && (
+        <TitleBar
+          view={props.view}
+          /*
+            Handed back so the map screen can portal its studio toggle up
+            here. What App holds is WHERE the button goes; whether the board is
+            open stays in the screen, which is the only place it can stay without
+            surviving a trip to another screen.
+          */
+          boardOpen={boardOpen}
+          result={props.result}
+          credit={credit}
+        />
+      )}
       {/* The keymap and the operator search, on every screen. */}
       <OperatorHost />
       {/* Project files: opening, saving, and what the Finder hands over. */}
@@ -3252,7 +3264,7 @@ function AppBody(props: {
                 exit={{ opacity: 0, x: -10 }}
                 transition={SCREEN}
               >
-                <StudioScreen
+                <Surface
                   onOpenReading={openSavedAnalysis}
                   onPickBoundary={handlePickBoundary}
                   activeProjectId={activeProjectId}

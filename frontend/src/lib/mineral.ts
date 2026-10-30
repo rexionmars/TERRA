@@ -75,11 +75,14 @@ export function mineralRampGradient(colors: readonly string[]): string {
 
 /** What the next mineral run is asked to do beyond the area and the period. */
 export interface MineralRunOptions {
-  /** Passes compared per cell, 1 to 10. */
+  /** Passes compared per cell, 1 to MAX_PASSES. */
   passes: number
-  /** Uncertainty draws, 0 to 50; 0 skips them. */
+  /** Uncertainty draws, 0 to MAX_DRAWS; 0 skips them. */
   draws: number
 }
+
+export const MAX_PASSES = 10
+export const MAX_DRAWS = 50
 
 /**
  * Six passes: EMIT observes a place on few, irregular passes (4 to 16 over

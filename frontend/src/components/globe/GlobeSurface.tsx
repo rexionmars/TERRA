@@ -74,7 +74,7 @@ import {
 import { Credit } from "@/components/TitleBar"
 import { SearchBar } from "@/components/SearchBar"
 import { useAreaDrawing } from "@/components/globe/useAreaDrawing"
-import type { GeoJSONGeometry } from "@/lib/types"
+import type { Bounds, GeoJSONGeometry } from "@/lib/types"
 import {
   CameraControls,
   useCameraNavigation,
@@ -363,6 +363,9 @@ export function GlobeSurface({
   onSpreadChange,
   fieldDrafts = null,
   onOverlayContext,
+  leadingTools,
+  frame = null,
+  rightInsetPx = 60,
   className,
 }: {
   /**
@@ -474,6 +477,26 @@ export function GlobeSurface({
   spreadM?: number
   /** Where the reader left it. Held by the caller, so it survives a remount. */
   onSpreadChange?: (m: number) => void
+  /**
+   * The caller's own tools, at the head of the map's column.
+   *
+   * In this column rather than a second one beside it, for the reason its own
+   * note gives: one surface, one corner for chrome.
+   */
+  leadingTools?: React.ReactNode
+  /**
+   * Somewhere to send the camera, once per key.
+   *
+   * The globe frames what is drawn on it and otherwise leaves the camera to the
+   * reader's hand. A choice made off the map -- an area picked from a list --
+   * has no hand on it, so it has to be asked for.
+   */
+  frame?: { key: number; bounds: Bounds } | null
+  /**
+   * How much of the right edge the caller has covered, in pixels, so that what
+   * this surface frames lands in what is left rather than behind a panel.
+   */
+  rightInsetPx?: number
   className?: string
 }) {
   const hostRef = useRef<HTMLDivElement>(null)
@@ -1324,6 +1347,21 @@ export function GlobeSurface({
     does not pull the camera under the reader's hand.
   */
   const fitKey = overlays.map((o) => o.key).join("|")
+  const frameKey = frame?.key
+  useEffect(() => {
+    const map = mapRef.current
+    if (!map || !ready || !frame) return
+    map.fitBounds(
+      [
+        [frame.bounds.lon_min, frame.bounds.lat_min],
+        [frame.bounds.lon_max, frame.bounds.lat_max],
+      ],
+      { padding: { top: 60, bottom: 60, left: 60, right: rightInsetPx }, duration: 900 }
+    )
+    // The key is the request; the bounds it carries are read when it changes.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [frameKey, ready])
+
   useEffect(() => {
     const map = mapRef.current
     if (!map || !ready) return
@@ -1342,7 +1380,7 @@ export function GlobeSurface({
           Math.max(...boxes.map((e) => e.lat_max)),
         ],
       ],
-      { padding: 60 }
+      { padding: { top: 60, bottom: 60, left: 60, right: rightInsetPx } }
     )
     // eslint-disable-next-line react-hooks/exhaustive-deps -- the set, not the array
   }, [fitKey, ready])
@@ -1678,7 +1716,7 @@ export function GlobeSurface({
             `pointer-events-auto` on the credits alone, because the line around
             them is a readout that must not take the pointer off the planet.
           */}
-          <span className="pointer-events-auto font-sans normal-case opacity-80">
+          <span className="pointer-events-auto rounded-sm bg-[rgb(var(--p-ink)/0.72)] px-1.5 py-0.5 font-sans normal-case">
             <Credit part={MAPLIBRE_CREDIT} />
             {/* The title bar's own order and wording, so the date reads the
                 same on both surfaces. */}
@@ -1722,6 +1760,10 @@ export function GlobeSurface({
       */}
       {ready && !failure && (
         <MapBar className="app-no-drag absolute right-3 top-3 z-[400] flex flex-col">
+          {leadingTools}
+          {leadingTools && (
+            <div aria-hidden className="h-1 bg-[rgb(var(--p-line)/0.45)]" />
+          )}
           {/*
             THE COLUMN READS IN THE ORDER THE WORK HAPPENS: find the place,
             light the ground, draw on it. One column rather than a bar per
