@@ -80,10 +80,10 @@ function AccuracyRow({ c }: { c: LULCClassAccuracy }) {
           style={{ backgroundColor: c.color }}
           aria-hidden
         />
-        <span className="min-w-0 flex-1 truncate text-[10px] text-muted-foreground">
+        <span className="min-w-0 flex-1 truncate text-meta text-muted-foreground">
           {c.name}
         </span>
-        <span className="telemetry shrink-0 text-[9px] text-muted-foreground tabular-nums">
+        <span className="telemetry shrink-0 text-micro text-muted-foreground tabular-nums">
           n={c.n_reference.toLocaleString()}
         </span>
       </span>
@@ -205,7 +205,7 @@ function AccuracyAxis() {
       {[0, 50, 100].map((t) => (
         <span
           key={t}
-          className="telemetry absolute top-0.5 text-[8px] text-muted-foreground tabular-nums"
+          className="telemetry absolute top-0.5 text-micro text-muted-foreground tabular-nums"
           style={{
             left: `${t}%`,
             // The end labels are pulled inside the axis rather than centred on
@@ -238,8 +238,8 @@ export function ClassAccuracyChart({ classes }: { classes: LULCClassAccuracy[] }
         width and neither wraps.
       */}
       <div className="flex w-full min-w-0 flex-col gap-0.5">
-        <p className="eyebrow truncate !text-[9px]">Accuracy by class</p>
-        <span className="telemetry flex items-center gap-1 text-[8px] whitespace-nowrap text-muted-foreground">
+        <p className="eyebrow truncate !text-micro">Accuracy by class</p>
+        <span className="telemetry flex items-center gap-1 text-micro whitespace-nowrap text-muted-foreground">
           <svg viewBox="0 0 18 6" className="h-1.5 w-4" aria-hidden>
             <circle cx="3" cy="3" r="2.2" className="fill-muted-foreground" />
             <circle
@@ -369,8 +369,8 @@ export function DisagreementBar({ a }: { a: LULCAgreement }) {
       {/* Stacked for the same reason as the accuracy figure: a heading and a
           reading do not both fit across 15rem without one of them wrapping. */}
       <div className="flex w-full min-w-0 flex-col gap-0.5">
-        <p className="eyebrow truncate !text-[9px]">Agreement with MapBiomas</p>
-        <span className="telemetry text-[9px] whitespace-nowrap text-foreground tabular-nums">
+        <p className="eyebrow truncate !text-micro">Agreement with MapBiomas</p>
+        <span className="telemetry text-micro whitespace-nowrap text-foreground tabular-nums">
           {a.overall_pct.toFixed(1)}
           <span className="text-muted-foreground">
             {" "}
@@ -436,7 +436,7 @@ export function DisagreementBar({ a }: { a: LULCAgreement }) {
           vectorEffect="non-scaling-stroke"
         />
       </svg>
-      <div className="telemetry flex flex-wrap items-baseline gap-x-3 gap-y-0.5 text-[9px] text-muted-foreground">
+      <div className="telemetry flex flex-wrap items-baseline gap-x-3 gap-y-0.5 text-micro text-muted-foreground">
         {placed.slice(1).map((p) => (
           <span key={p.key} className="flex items-baseline gap-1">
             <svg viewBox="0 0 6 6" className="size-1.5 shrink-0" aria-hidden>
@@ -501,7 +501,7 @@ export function ConfusionMatrix({ a, title }: { a: LULCAgreement; title?: string
 
   return (
     <div className="flex min-w-0 flex-col gap-1.5">
-      {title && <p className="eyebrow truncate !text-[9px]">{title}</p>}
+      {title && <p className="eyebrow truncate !text-micro">{title}</p>}
       {/*
         ROWS ARE THE RUN, COLUMNS ARE THE REFERENCE, and this line said the
         reverse. `agreement_against_reference` in sidecar/lulc.py fills
@@ -515,12 +515,12 @@ export function ConfusionMatrix({ a, title }: { a: LULCAgreement; title?: string
         contradicted the caption: a reader following it read every off-diagonal
         cell as the opposite error, omission for commission.
       */}
-      <p className="text-[10px] leading-snug text-muted-foreground">
+      <p className="text-meta leading-snug text-muted-foreground">
         Rows = this run · columns = MapBiomas reference. Off-diagonal cells are the
         pairs actually confused.
       </p>
       <div className="min-w-0 overflow-x-auto">
-        <table className="border-separate border-spacing-0.5 text-[9px]">
+        <table className="border-separate border-spacing-0.5 text-micro">
           <thead>
             <tr>
               <th className="p-0.5" />
@@ -532,7 +532,7 @@ export function ConfusionMatrix({ a, title }: { a: LULCAgreement; title?: string
                 */
                 <th key={c.id} className="p-0.5 align-bottom font-normal">
                   <span
-                    className="telemetry block h-24 max-h-24 overflow-hidden text-left text-[9px] whitespace-nowrap text-muted-foreground"
+                    className="telemetry block h-24 max-h-24 overflow-hidden text-left text-micro whitespace-nowrap text-muted-foreground"
                     style={{
                       writingMode: "vertical-rl",
                       transform: "rotate(180deg)",
@@ -551,11 +551,11 @@ export function ConfusionMatrix({ a, title }: { a: LULCAgreement; title?: string
                 <th className="max-w-[9rem] p-0.5 text-left font-normal">
                   <span className="flex items-center gap-1.5">
                     <span
-                      className="size-2 shrink-0 rounded-[2px]"
+                      className="size-2 shrink-0 rounded-xs"
                       style={{ backgroundColor: rowClass.color }}
                       aria-hidden
                     />
-                    <span className="truncate text-[10px] text-muted-foreground">
+                    <span className="truncate text-meta text-muted-foreground">
                       {rowClass.name}
                     </span>
                   </span>
@@ -567,7 +567,7 @@ export function ConfusionMatrix({ a, title }: { a: LULCAgreement; title?: string
                   return (
                     <td key={colClass.id} className="p-0">
                       <div
-                        className="telemetry flex min-h-[1.6rem] min-w-[1.6rem] items-center justify-center rounded-[2px] px-1"
+                        className="telemetry flex min-h-[1.6rem] min-w-[1.6rem] items-center justify-center rounded-xs px-1"
                         style={{
                           background:
                             cell > 0
@@ -639,8 +639,8 @@ export function BlockAgreementPair({
 
   return (
     <div className="flex min-w-0 flex-col gap-1.5">
-      <p className="eyebrow !text-[9px]">Agreement by block</p>
-      <p className="text-[10px] leading-snug text-muted-foreground">
+      <p className="eyebrow !text-micro">Agreement by block</p>
+      <p className="text-meta leading-snug text-muted-foreground">
         {/*
           Broken at the boundaries between the three claims rather than left to
           wrap: on a wide board this ran as one line the full width of the
@@ -659,7 +659,7 @@ export function BlockAgreementPair({
           const at = new Map(g.blocks.cells.map((c) => [`${c.row}:${c.col}`, c]))
           return (
             <div key={g.letter} className="flex flex-col gap-1">
-              <p className="telemetry truncate text-[9px] text-muted-foreground">
+              <p className="telemetry truncate text-micro text-muted-foreground">
                 {g.letter} · {g.label}
               </p>
               <div
@@ -675,7 +675,7 @@ export function BlockAgreementPair({
                     return (
                       <div
                         key={`${r}:${c}`}
-                        className="h-[0.85rem] rounded-[1px]"
+                        className="h-[0.85rem] rounded-xs"
                         style={{
                           background:
                             v == null
@@ -694,7 +694,7 @@ export function BlockAgreementPair({
                   })
                 )}
               </div>
-              <p className="telemetry text-[9px] text-muted-foreground">
+              <p className="telemetry text-micro text-muted-foreground">
                 med {g.blocks.median_pct.toFixed(0)} · IQR {g.blocks.iqr_pct.toFixed(0)}{" "}
                 · {g.blocks.min_pct.toFixed(0)}–{g.blocks.max_pct.toFixed(0)}
               </p>
@@ -809,24 +809,24 @@ export function ReferenceConfusionPair({
 
   return (
     <div className="flex min-w-0 flex-col gap-1.5">
-      <p className="eyebrow !text-[9px]">Confusion against reference</p>
-      <p className="text-[10px] leading-snug text-muted-foreground">
+      <p className="eyebrow !text-micro">Confusion against reference</p>
+      <p className="text-meta leading-snug text-muted-foreground">
         Rows = MapBiomas reference, columns = the run.
       </p>
       <div className="flex flex-row items-start gap-3">
         {grids.map((g) => (
           <div key={g.letter} className="flex min-w-0 flex-col gap-1">
-            <p className="telemetry truncate text-[9px] text-muted-foreground">
+            <p className="telemetry truncate text-micro text-muted-foreground">
               {g.letter} · {g.label}
             </p>
-            <table className="border-separate border-spacing-0.5 text-[9px]">
+            <table className="border-separate border-spacing-0.5 text-micro">
               <thead>
                 <tr>
                   <th className="p-0.5" />
                   {axis.map((c) => (
                     <th key={c.id} className="p-0.5 font-normal" title={c.name}>
                       <span
-                        className="mx-auto flex size-3 items-center justify-center rounded-[2px] text-[7px] text-white"
+                        className="mx-auto flex size-3.5 items-center justify-center rounded-xs text-micro text-white"
                         style={{ backgroundColor: c.color }}
                       >
                         {c.id}
@@ -841,7 +841,7 @@ export function ReferenceConfusionPair({
                     <th className="p-0.5 text-left font-normal" title={rowClass.name}>
                       <span className="flex items-center gap-1">
                         <span
-                          className="size-2.5 shrink-0 rounded-[2px]"
+                          className="size-2.5 shrink-0 rounded-xs"
                           style={{ backgroundColor: rowClass.color }}
                           aria-hidden
                         />
@@ -859,7 +859,7 @@ export function ReferenceConfusionPair({
                         <td key={colClass.id} className="p-0">
                           <div
                             className={cn(
-                              "telemetry flex min-h-[1.35rem] min-w-[1.35rem] items-center justify-center rounded-[2px] px-0.5",
+                              "telemetry flex min-h-[1.35rem] min-w-[1.35rem] items-center justify-center rounded-xs px-0.5",
                               // The same mark the other matrix uses. One said
                               // the accent and one said the boundary token, so
                               // two readings of the same thing disagreed about
@@ -957,8 +957,8 @@ export function AgreementDelta({
   return (
     <div className="flex w-full min-w-0 flex-col gap-2">
       <div className="flex flex-col gap-0.5">
-        <p className="eyebrow !text-[9px]">Accuracy delta (A &rarr; B)</p>
-        <p className="telemetry truncate text-[9px] text-muted-foreground">
+        <p className="eyebrow !text-micro">Accuracy delta (A &rarr; B)</p>
+        <p className="telemetry truncate text-micro text-muted-foreground">
           {labelA} &rarr; {labelB}
         </p>
       </div>
@@ -995,7 +995,7 @@ export function AgreementDelta({
               style={{ backgroundColor: ca.color }}
               aria-hidden
             />
-            <span className="min-w-0 flex-1 truncate text-[10px] text-muted-foreground">
+            <span className="min-w-0 flex-1 truncate text-meta text-muted-foreground">
               {ca.name}
             </span>
             <DeltaCell
@@ -1015,11 +1015,11 @@ export function AgreementDelta({
               style={{ backgroundColor: cb.color }}
               aria-hidden
             />
-            <span className="min-w-0 flex-1 truncate text-[10px] text-muted-foreground">
+            <span className="min-w-0 flex-1 truncate text-meta text-muted-foreground">
               {cb.name}
             </span>
             <span
-              className="telemetry w-[3.25rem] shrink-0 text-right text-[9px] text-muted-foreground"
+              className="telemetry w-[3.25rem] shrink-0 text-right text-micro text-muted-foreground"
               title={`Only ${labelB} measured this class`}
             >
               only B
@@ -1029,7 +1029,7 @@ export function AgreementDelta({
       </ul>
 
       {/* The key, said once: which column is which accuracy. */}
-      <p className="telemetry flex items-baseline justify-end gap-1.5 text-[9px] text-muted-foreground">
+      <p className="telemetry flex items-baseline justify-end gap-1.5 text-micro text-muted-foreground">
         <span className="w-[3.25rem] text-right">prod.</span>
         <span className="w-[3.25rem] text-right">user&apos;s</span>
       </p>
@@ -1054,10 +1054,10 @@ function DeltaFigure({
   const good = value == null ? null : betterWhenLower ? value < 0 : value > 0
   return (
     <div className="min-w-0">
-      <div className="eyebrow !text-[9px]">{label}</div>
+      <div className="eyebrow !text-micro">{label}</div>
       <div
         className={cn(
-          "telemetry mt-0.5 truncate text-sm tabular-nums",
+          "telemetry mt-0.5 truncate text-heading tabular-nums",
           value == null
             ? "text-muted-foreground"
             : Math.abs(value) < 0.05
@@ -1068,7 +1068,7 @@ function DeltaFigure({
         )}
       >
         {value == null ? "—" : `${value > 0 ? "+" : ""}${value.toFixed(1)}`}
-        {value != null && <span className="text-[9px] text-muted-foreground"> pp</span>}
+        {value != null && <span className="text-meta text-muted-foreground"> pp</span>}
       </div>
     </div>
   )
@@ -1080,7 +1080,7 @@ function DeltaCell({ value, title }: { value: number | null; title: string }) {
     <span
       title={title}
       className={cn(
-        "telemetry w-[3.25rem] shrink-0 text-right text-[9px] tabular-nums",
+        "telemetry w-[3.25rem] shrink-0 text-right text-micro tabular-nums",
         value == null
           ? "text-muted-foreground/50"
           : Math.abs(value) < 0.05

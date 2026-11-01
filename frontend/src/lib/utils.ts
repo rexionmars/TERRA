@@ -22,6 +22,7 @@ const TYPE_SCALE = [
   "label",
   "read",
   "title",
+  "display",
 ] as const
 
 const twMerge = extendTailwindMerge({

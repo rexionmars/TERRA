@@ -402,7 +402,7 @@ function Ramp({
   return (
     <>
       <div
-        className="mt-1.5 h-1.5 w-full rounded-[1px]"
+        className="mt-1.5 h-1.5 w-full rounded-xs"
         style={{ background: gradient }}
       />
       <div className="mt-1 flex items-baseline justify-between gap-2">
@@ -440,7 +440,7 @@ function LegendBody({ legend }: { legend: NonNullable<LayerLegend> }) {
         {shown.map((c) => (
           <div key={c.name} className="flex items-baseline gap-1.5">
             <span
-              className="size-2 shrink-0 translate-y-[1px] rounded-[1px]"
+              className="size-2 shrink-0 translate-y-[1px] rounded-xs"
               style={{ background: c.color }}
             />
             <span className="min-w-0 flex-1 truncate text-micro text-foreground">
@@ -663,7 +663,7 @@ function CalloutBody({ caption }: { caption: OverlayCaption }) {
           border: "1px solid rgb(var(--p-line) / 0.35)",
         }}
       >
-        <p className="eyebrow truncate !text-[9px] text-primary">
+        <p className="eyebrow truncate !text-micro text-primary">
           {caption.legend.subject}
         </p>
         {/*

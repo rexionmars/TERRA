@@ -193,7 +193,7 @@ export function MapMenu<T extends string>({
             role="menu"
             style={{ position: "fixed", top: at.top, right: at.right }}
             className={cn(
-              "z-[401] w-44 overflow-hidden",
+              "z-401 w-44 overflow-hidden",
               "rounded-md border border-[rgb(var(--p-line)/0.28)]",
               "bg-[rgb(var(--p-ink)/0.92)] backdrop-blur-[18px]",
               "shadow-[0_2px_8px_rgb(0_0_0/0.28)]"

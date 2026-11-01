@@ -36,7 +36,7 @@ function Section({
 }) {
   return (
     <div className="px-2.5 py-1.5">
-      <p className="eyebrow pb-1 !text-[9px]">{title}</p>
+      <p className="eyebrow pb-1 !text-micro">{title}</p>
       <ul className="flex flex-col gap-1">
         {lines.map((l) => (
           <li
@@ -94,13 +94,13 @@ function Rule() {
 function Trace({ entries, running }: { entries: RunLogEntry[]; running: boolean }) {
   return (
     <div className="px-2.5 py-1.5">
-      <p className="eyebrow pb-1 !text-[9px]">{running ? "Running" : "Last run"}</p>
+      <p className="eyebrow pb-1 !text-micro">{running ? "Running" : "Last run"}</p>
       <ul className="selectable panel-scroll flex max-h-40 flex-col gap-0.5 overflow-y-auto">
         {entries.map((e, i) => {
           const last = i === entries.length - 1
           return (
             <li key={`${i}-${e.text}`} className="flex items-baseline gap-2">
-              <span className="telemetry w-7 shrink-0 text-right text-[9px] text-muted-foreground">
+              <span className="telemetry w-7 shrink-0 text-right text-micro text-muted-foreground">
                 {Math.round(e.at)}%
               </span>
               <span
@@ -200,7 +200,7 @@ export function MethodPanel({
           next run does, not documentation, so a reader who doubts one needs to
           know where it is asserted.
         */}
-        <p className="telemetry px-2.5 py-1.5 text-[9px] text-muted-foreground">
+        <p className="telemetry px-2.5 py-1.5 text-micro text-muted-foreground">
           {brief.source}
         </p>
       </div>

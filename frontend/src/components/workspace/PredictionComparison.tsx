@@ -35,8 +35,8 @@ function CompactMatrix({
   return (
     <div className="flex flex-col gap-2">
       <div className="flex flex-col gap-0.5">
-        <p className="eyebrow !text-[9px]">{title}</p>
-        <p className="text-[9px] leading-snug text-muted-foreground">
+        <p className="eyebrow !text-micro">{title}</p>
+        <p className="text-meta leading-snug text-muted-foreground">
           {rowLabel} · {colLabel}
         </p>
       </div>
@@ -44,14 +44,14 @@ function CompactMatrix({
         className="overflow-x-auto rounded-sm border p-1.5"
         style={{ borderColor: "rgb(var(--p-line) / 0.28)" }}
       >
-        <table className="w-full border-separate border-spacing-0.5 text-[9px]">
+        <table className="w-full border-separate border-spacing-0.5 text-micro">
           <thead>
             <tr>
               <th className="p-0.5" />
               {colClasses.map((c) => (
                 <th key={c.id} className="p-0.5 font-normal" title={c.name}>
                   <span
-                    className="mx-auto flex size-3 items-center justify-center rounded-[2px] text-[7px] text-white"
+                    className="mx-auto flex size-3.5 items-center justify-center rounded-xs text-micro text-white"
                     style={{ backgroundColor: c.color }}
                   >
                     {c.id}
@@ -66,7 +66,7 @@ function CompactMatrix({
                 <th className="p-0.5 text-left font-normal" title={rowClasses[i]?.name}>
                   <span className="flex items-center gap-1">
                     <span
-                      className="size-2.5 shrink-0 rounded-[2px]"
+                      className="size-2.5 shrink-0 rounded-xs"
                       style={{ backgroundColor: rowClasses[i]?.color }}
                     />
                     <span className="telemetry text-muted-foreground">
@@ -82,7 +82,7 @@ function CompactMatrix({
                     <td key={j} className="p-0">
                       <div
                         className={cn(
-                          "telemetry flex min-h-[1.35rem] min-w-[1.35rem] items-center justify-center rounded-[2px] px-0.5",
+                          "telemetry flex min-h-[1.35rem] min-w-[1.35rem] items-center justify-center rounded-xs px-0.5",
                           diag && "ring-1 ring-primary/50"
                         )}
                         style={{
@@ -159,15 +159,15 @@ function WhatDiffers({ a, b }: { a: PredictionCompareSide; b: PredictionCompareS
 
   return (
     <div className="flex flex-col gap-1">
-      <p className="eyebrow !text-[9px]">What differs</p>
+      <p className="eyebrow !text-micro">What differs</p>
       <ul className="flex flex-col gap-0.5">
         {differing.map((f) => (
           <li key={f.label} className="flex flex-col">
-            <span className="telemetry text-[9px] text-muted-foreground">
+            <span className="telemetry text-micro text-muted-foreground">
               {f.label}
             </span>
             <span
-              className="truncate text-[10px] text-foreground"
+              className="truncate text-meta text-foreground"
               title={`${f.a ?? "—"} → ${f.b ?? "—"}`}
             >
               {f.a ?? "—"} <span className="text-muted-foreground">&rarr;</span>{" "}
@@ -283,8 +283,8 @@ function PredictionCompareBody({
       )}
     >
       <div className={cn("flex flex-col gap-2", compact && "w-[14rem] shrink-0")}>
-        <p className="eyebrow !text-[9px]">Prediction difference</p>
-        <p className="text-[10px] leading-snug text-muted-foreground">
+        <p className="eyebrow !text-micro">Prediction difference</p>
+        <p className="text-meta leading-snug text-muted-foreground">
           Two prediction planes in the selection path. Shared pixels are compared
           class-to-class; the matrix is how A’s labels land on B’s.
         </p>
@@ -292,14 +292,14 @@ function PredictionCompareBody({
         <div className="flex flex-col gap-2">
           {[a, b].map((s, i) => (
             <div key={s.areaId + i} className="flex flex-col gap-0.5">
-              <p className="telemetry text-[9px] text-muted-foreground">
+              <p className="telemetry text-micro text-muted-foreground">
                 {i === 0 ? "A" : "B"} · {s.label}
               </p>
               <p className="truncate text-meta text-foreground">
                 {s.model ? modelLabel(s.model as ModelKind) : "Classification"}
               </p>
               {s.period && (
-                <p className="telemetry truncate text-[9px] text-muted-foreground">
+                <p className="telemetry truncate text-micro text-muted-foreground">
                   {s.period}
                 </p>
               )}
@@ -310,9 +310,7 @@ function PredictionCompareBody({
         <WhatDiffers a={a} b={b} />
 
         {compareError && (
-          <p className="text-[10px] leading-snug text-muted-foreground">
-            {compareError}
-          </p>
+          <p className="text-meta leading-snug text-muted-foreground">{compareError}</p>
         )}
 
         {compare && (
@@ -455,12 +453,12 @@ function PredictionCompareBody({
 
       {statsA.length > 0 && statsB.length > 0 && (
         <div className={cn("flex flex-col gap-1.5", compact && "w-[12rem] shrink-0")}>
-          <p className="eyebrow !text-[9px]">Share delta (A → B)</p>
+          <p className="eyebrow !text-micro">Share delta (A → B)</p>
           <ul className="flex flex-col gap-1">
             {shareRows.map((r) => (
-              <li key={r.classId} className="flex items-center gap-2 text-[10px]">
+              <li key={r.classId} className="flex items-center gap-2 text-meta">
                 <span
-                  className="size-2 shrink-0 rounded-[2px]"
+                  className="size-2 shrink-0 rounded-xs"
                   style={{ backgroundColor: r.color }}
                 />
                 <span className="min-w-0 flex-1 truncate text-muted-foreground">

@@ -16,6 +16,25 @@
 import reactHooks from "eslint-plugin-react-hooks"
 import tseslint from "typescript-eslint"
 
+const RAW_CLASSES = [
+  ["text-\\[\\d", "a type token from docs/DESIGN.md"],
+  [
+    "text-(xs|sm|base|lg|xl|[2-9]xl)(?=$|[\\s\"'`])",
+    "a type token from docs/DESIGN.md",
+  ],
+  ["rounded(-[a-z]{1,2})?-\\[", "rounded-xs, rounded-sm or rounded-md"],
+  ["z-\\[\\d", "z-500 rather than z-[500]"],
+]
+
+const restrictClass = ([pattern, instead]) => {
+  const at = `(^|[\\s:!\"'\`])${pattern}`
+  const message = `Written by hand. Use ${instead}.`
+  return [
+    { selector: `Literal[value=/${at}/]`, message },
+    { selector: `TemplateElement[value.raw=/${at}/]`, message },
+  ]
+}
+
 export default [
   { ignores: ["dist/", "vendor/", "wailsjs/", "src/components/icons.tsx"] },
   {
@@ -34,6 +53,19 @@ export default [
       curly: ["error", "multi-line"],
       // `== null` is how this tree says null or undefined. Anything else loose coerces.
       eqeqeq: ["error", "always", { null: "ignore" }],
+    },
+  },
+  {
+    /*
+      A size written by hand. text-[9px] and text-[10px] stood beside the tokens of the
+      same size 106 times, without their leading, so one label could sit 1px off another
+      that looked identical. Below the 9px floor there were four more, and Tailwind's own
+      text-sm beside text-heading. docs/DESIGN.md holds the ramp and the radii.
+    */
+    files: ["src/**/*.{ts,tsx}"],
+    ignores: ["**/*.test.*"],
+    rules: {
+      "no-restricted-syntax": ["error", ...RAW_CLASSES.flatMap(restrictClass)],
     },
   },
   {

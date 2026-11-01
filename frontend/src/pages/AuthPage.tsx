@@ -36,10 +36,10 @@ export function AuthPage() {
       <div className="flex w-full max-w-md flex-col justify-center gap-4 px-5 py-10 sm:px-6">
         <div>
           <p className="telemetry text-meta text-accent-quiet">AUTH</p>
-          <h1 className="mt-0.5 font-display text-xl font-semibold tracking-wide">
+          <h1 className="mt-0.5 font-display text-display font-semibold tracking-wide">
             {mode === "login" ? "Sign in" : "Create account"}
           </h1>
-          <p className="mt-1 text-xs text-muted-foreground">
+          <p className="mt-1 text-label text-muted-foreground">
             Local account stored on this machine. No cloud sync.
           </p>
         </div>

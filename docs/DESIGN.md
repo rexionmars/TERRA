@@ -206,9 +206,12 @@ Tailwind utilities.
 | `text-label` | 12px | 1.45 | A panel's labels and captions |
 | `text-read` | 13px | 1.5 | What is read in a panel |
 | `text-title` | 15px | 1.35 | A panel's title |
+| `text-display` | 18px | 1.25 | A window's own title, and one large reading on a card |
 
 `micro` is a floor, not a size to reach for. It is legible only because every use
-of it is uppercase monospace with wide tracking.
+of it is uppercase monospace with wide tracking, or a figure in the telemetry face.
+A size outside this table does not lint: `eslint.config.mjs` refuses `text-[9px]` and
+Tailwind's own `text-sm`, an arbitrary radius and a bracketed `z-[500]`.
 
 **`tailwind-merge` has to be told about these.** `src/lib/utils.ts` extends it so
 they classify as `font-size`; without that, `cn("text-body", "text-muted-foreground")`
@@ -218,9 +221,10 @@ Fonts: Space Grotesk (display), Inter (sans), JetBrains Mono (telemetry).
 
 ## Radius
 
-Two: `--radius-sm` 5px for a control or an inner card, `--radius-md` 9px for a
-container. `lg` and `xl` are aliases of `md` so a stray utility cannot introduce
-a third.
+Three: `--radius-xs` 2px for a mark (a swatch, a chip, a cell of a matrix),
+`--radius-sm` 5px for a control or an inner card, `--radius-md` 9px for a container.
+A 12px swatch at 5px stops reading as a square. `lg` and `xl` are aliases of `md` so
+a stray utility cannot introduce a fourth.
 
 ---
 

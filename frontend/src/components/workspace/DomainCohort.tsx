@@ -163,8 +163,8 @@ export function DomainCohort({
     <div className="flex min-w-0 flex-col gap-3">
       <div className="flex items-start justify-between gap-2">
         <div className="flex min-w-0 flex-col gap-0.5">
-          <p className="eyebrow !text-[9px]">Divergence against agreement</p>
-          <p className="telemetry truncate text-[9px] text-muted-foreground">
+          <p className="eyebrow !text-micro">Divergence against agreement</p>
+          <p className="telemetry truncate text-micro text-muted-foreground">
             source · {cohort.source.label}
             {sourceAgreement != null ? ` · ${sourceAgreement.toFixed(1)}%` : ""}
           </p>
@@ -188,7 +188,7 @@ export function DomainCohort({
               aria-pressed={id === axis}
               title={AXES[id].title}
               className={cn(
-                "telemetry px-1.5 py-0.5 text-[9px] transition-colors",
+                "telemetry px-1.5 py-0.5 text-micro transition-colors",
                 id === axis
                   ? "bg-accent text-accent-foreground"
                   : "text-muted-foreground hover:bg-hover hover:text-foreground"
@@ -201,19 +201,19 @@ export function DomainCohort({
       </div>
 
       {plotted.length === 0 ? (
-        <p className="text-[10px] leading-snug text-muted-foreground">
+        <p className="text-meta leading-snug text-muted-foreground">
           No target is comparable with this source, so there is no axis to place one on.
           The list below says why for each.
         </p>
       ) : (
         <>
-          <p className="text-[10px] leading-snug text-muted-foreground">
+          <p className="text-meta leading-snug text-muted-foreground">
             One point per target. A descending trend means divergence accounts for the
             loss; a point far right and high transfers despite distance; one near the
             axis and low fails for another reason.
           </p>
           {atCeiling && (
-            <p className="text-[10px] leading-snug text-amber-500/90">
+            <p className="text-meta leading-snug text-amber-500/90">
               Every target is at the top of MMD&apos;s range, where a bounded kernel
               stops separating: past roughly three training standard deviations the
               statistic moves in the third decimal while the domains keep moving apart.
@@ -292,7 +292,7 @@ export function DomainCohort({
             {plotted.map((p) => (
               <li
                 key={p.id}
-                className="telemetry text-[9px] text-muted-foreground"
+                className="telemetry text-micro text-muted-foreground"
                 title={`MMD² ${fmt(p.x, 4)} · agreement ${p.y.toFixed(1)}%`}
               >
                 {p.label}
@@ -308,14 +308,14 @@ export function DomainCohort({
             Named rather than dropped. A target missing from a figure with no
             account of why reads as a target that was not run.
           */}
-          <p className="eyebrow !text-[9px]">Not on the axis</p>
+          <p className="eyebrow !text-micro">Not on the axis</p>
           <ul className="flex flex-col gap-0.5">
             {excluded.map((row) => (
-              <li key={row.id} className="flex items-baseline gap-1.5 text-[10px]">
+              <li key={row.id} className="flex items-baseline gap-1.5 text-meta">
                 <span className="min-w-0 flex-1 truncate text-muted-foreground">
                   {row.label}
                 </span>
-                <span className="telemetry shrink-0 text-[9px] text-amber-500/90">
+                <span className="telemetry shrink-0 text-micro text-amber-500/90">
                   {exclusionReason(row, axis)}
                 </span>
               </li>
@@ -323,12 +323,12 @@ export function DomainCohort({
             {skipped?.map((label) => (
               <li
                 key={`skipped-${label}`}
-                className="flex items-baseline gap-1.5 text-[10px]"
+                className="flex items-baseline gap-1.5 text-meta"
               >
                 <span className="min-w-0 flex-1 truncate text-muted-foreground">
                   {label}
                 </span>
-                <span className="telemetry shrink-0 text-[9px] text-amber-500/90">
+                <span className="telemetry shrink-0 text-micro text-amber-500/90">
                   no domain fingerprint; re-classify to include it
                 </span>
               </li>

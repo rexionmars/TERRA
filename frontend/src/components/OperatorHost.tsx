@@ -98,7 +98,7 @@ function OperatorSearch({ onClose }: { onClose: () => void }) {
           }}
           className="h-9 min-w-0 flex-1 bg-transparent text-emphasis text-foreground outline-none placeholder:text-muted-foreground"
         />
-        <span className="telemetry shrink-0 text-[9px] text-muted-foreground">
+        <span className="telemetry shrink-0 text-micro text-muted-foreground">
           {formatKeys("F3")}
         </span>
       </div>
@@ -144,12 +144,12 @@ function OperatorSearch({ onClose }: { onClose: () => void }) {
               <span className="shrink-0 text-muted-foreground">{op.menu} ›</span>
               <span className="min-w-0 flex-1 truncate">{op.label}</span>
               {disabled && on && (
-                <span className="max-w-[45%] truncate text-[9px] text-warning">
+                <span className="max-w-[45%] truncate text-meta text-warning">
                   {poll}
                 </span>
               )}
               {keys && (
-                <span className="telemetry shrink-0 text-[9px] text-muted-foreground">
+                <span className="telemetry shrink-0 text-micro text-muted-foreground">
                   {keys}
                 </span>
               )}

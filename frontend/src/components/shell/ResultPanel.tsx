@@ -120,7 +120,7 @@ function ClassificationResult({ result }: { result: PredictResult }) {
                     <span className="flex items-center gap-2">
                       <span
                         aria-hidden
-                        className="size-3 shrink-0 rounded-[2px]"
+                        className="size-3 shrink-0 rounded-xs"
                         style={{ background: s.color }}
                       />
                       <span className="truncate text-foreground">{s.name}</span>

@@ -303,7 +303,7 @@ export function CompareScreen({
       ref={setSurface}
       hidden={hidden}
       className={cn(
-        "app-no-drag absolute inset-0 z-[480] flex-col bg-app",
+        "app-no-drag absolute inset-0 z-480 flex-col bg-app",
         hidden ? "hidden" : "flex"
       )}
     >

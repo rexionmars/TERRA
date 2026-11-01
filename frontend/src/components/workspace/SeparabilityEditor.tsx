@@ -302,16 +302,14 @@ export function SeparabilityEditor({
                       {r.swatches.map((c, i) => (
                         <span
                           key={i}
-                          className="size-2 rounded-[1px]"
+                          className="size-2 rounded-xs"
                           style={{ background: legibleOn(c, ground) }}
                         />
                       ))}
                     </span>
                     <span className="min-w-0 flex-1 truncate">{r.title}</span>
                     {r.best === null ? (
-                      <span className="telemetry shrink-0 text-[10px]">
-                        not measured
-                      </span>
+                      <span className="telemetry shrink-0 text-meta">not measured</span>
                     ) : (
                       <>
                         {/*
@@ -324,18 +322,18 @@ export function SeparabilityEditor({
                         */}
                         {r.measured < r.bands.length && (
                           <span
-                            className="telemetry shrink-0 text-[10px] text-muted-foreground"
+                            className="telemetry shrink-0 text-meta text-muted-foreground"
                             title={`${r.measured} of ${r.bands.length} bands could be measured for this comparison`}
                           >
                             {r.measured}/{r.bands.length}
                           </span>
                         )}
-                        <span className="telemetry shrink-0 text-[10px] text-muted-foreground">
+                        <span className="telemetry shrink-0 text-meta text-muted-foreground">
                           {r.best.band}
                         </span>
                         <span
                           className={cn(
-                            "telemetry w-[3.2rem] shrink-0 text-right text-[10px]",
+                            "telemetry w-[3.2rem] shrink-0 text-right text-meta",
                             active ? "text-foreground" : undefined
                           )}
                         >
@@ -352,7 +350,7 @@ export function SeparabilityEditor({
               className="rounded-sm border p-1.5"
               style={{ borderColor: "rgb(var(--p-line) / 0.22)" }}
             >
-              <p className="eyebrow !text-[9px]">{selected?.title ?? ""} · per band</p>
+              <p className="eyebrow !text-micro">{selected?.title ?? ""} · per band</p>
               <div
                 ref={host}
                 className="relative min-h-0 w-full flex-1"
@@ -528,7 +526,7 @@ function RunTabs({
 }) {
   return (
     <span className="flex min-w-0 items-center gap-1">
-      {prefix && <span className="eyebrow shrink-0 !text-[9px]">{prefix}</span>}
+      {prefix && <span className="eyebrow shrink-0 !text-micro">{prefix}</span>}
       {runs.map((r, i) => (
         <button
           key={r.id}
@@ -568,7 +566,7 @@ function Provenance({
   otherLabel?: string
 }) {
   return (
-    <p className="telemetry text-[10px] leading-snug text-muted-foreground">
+    <p className="telemetry text-meta leading-snug text-muted-foreground">
       {other ? (
         <>
           {runLabel} {spectra.scene_date} · {otherLabel} {other.scene_date}
@@ -601,14 +599,14 @@ function ShiftRow({
   const byBand = new Map(shifts.map((s) => [s.band, s.delta]))
   return (
     <div className="mt-1.5 flex flex-col gap-0.5">
-      <p className="eyebrow !text-[9px]">
+      <p className="eyebrow !text-micro">
         Mean reflectance, {aLabel} to {bLabel}
       </p>
       <div className="flex flex-wrap gap-x-2 gap-y-0.5">
         {bands.map((b) => {
           const d = byBand.get(b.band)
           return (
-            <span key={b.band} className="telemetry text-[10px] text-muted-foreground">
+            <span key={b.band} className="telemetry text-meta text-muted-foreground">
               {b.band}{" "}
               <span className={d == null ? undefined : "text-foreground"}>
                 {d == null ? "n/a" : fmtShift(d)}
@@ -641,7 +639,7 @@ function ShiftRow({
  */
 function Note({ reading }: { reading: Reading }) {
   return (
-    <p className="text-[10px] leading-snug text-muted-foreground">
+    <p className="text-meta leading-snug text-muted-foreground">
       {reading === "surround"
         ? "Jeffries-Matusita distance between each pair of predicted classes, one band at a time, from the mean and spread of a single acquisition under a normal assumption."
         : "Jeffries-Matusita distance for the same class measured in two runs, one band at a time, from the mean and spread of a single acquisition each under a normal assumption."}{" "}

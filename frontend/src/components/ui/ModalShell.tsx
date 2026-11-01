@@ -34,7 +34,7 @@ import { cn } from "@/lib/utils"
 import { btnIcon } from "@/components/ui/buttons"
 
 /** Above every panel and every foot track, which sit at 1000 and 900. */
-const MODAL_Z = "z-[2000]"
+const MODAL_Z = "z-2000"
 
 /**
  * Escape, handled here and taken away from whatever is underneath.

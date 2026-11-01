@@ -23,7 +23,7 @@ interface SearchBarProps {
 
 export function SearchBar({
   onSelectLocation,
-  className = "app-no-drag absolute left-1/2 top-3 z-[1050] w-[26rem] max-w-[60%] -translate-x-1/2",
+  className = "app-no-drag absolute left-1/2 top-3 z-1050 w-[26rem] max-w-[60%] -translate-x-1/2",
   autoFocus,
 }: SearchBarProps) {
   const [query, setQuery] = useState("")
@@ -57,7 +57,7 @@ export function SearchBar({
 
   return (
     <div className={className}>
-      <div className="panel flex items-center gap-2 rounded-lg px-2.5 py-1.5">
+      <div className="panel flex items-center gap-2 rounded-md px-2.5 py-1.5">
         <MagnifyingGlass className="size-3.5 shrink-0 text-muted-foreground" />
         <input
           autoFocus={autoFocus}
@@ -67,14 +67,14 @@ export function SearchBar({
             if (e.key === "Enter") void runSearch()
           }}
           placeholder="Search location..."
-          className="w-full bg-transparent text-sm outline-none placeholder:text-muted-foreground"
+          className="w-full bg-transparent text-read outline-none placeholder:text-muted-foreground"
         />
         {loading ? (
           <CircleNotch className="size-3.5 shrink-0 animate-spin text-muted-foreground" />
         ) : (
           <button
             onClick={() => void runSearch()}
-            className="shrink-0 rounded-md px-2 py-0.5 text-[11px] text-muted-foreground hover:bg-secondary hover:text-foreground"
+            className="shrink-0 rounded-md px-2 py-0.5 text-body text-muted-foreground hover:bg-secondary hover:text-foreground"
           >
             Search
           </button>
@@ -82,12 +82,12 @@ export function SearchBar({
       </div>
 
       {open && results.length > 0 && (
-        <ul className="panel panel-scroll mt-1 max-h-64 overflow-y-auto rounded-lg">
+        <ul className="panel panel-scroll mt-1 max-h-64 overflow-y-auto rounded-md">
           {results.map((r, i) => (
             <li key={i}>
               <button
                 onClick={() => pick(r)}
-                className="flex w-full items-start gap-2 px-3 py-2 text-left text-xs hover:bg-secondary"
+                className="flex w-full items-start gap-2 px-3 py-2 text-left text-label hover:bg-secondary"
               >
                 <MapPin className="mt-0.5 size-3 shrink-0 text-muted-foreground" />
                 <span className="line-clamp-2">{r.display_name}</span>

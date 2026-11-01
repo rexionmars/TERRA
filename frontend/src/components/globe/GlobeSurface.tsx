@@ -1681,7 +1681,7 @@ export function GlobeSurface({
         anything heavier would compete with the imagery for the answer.
       */}
       {ready && !failure && (
-        <div className="telemetry pointer-events-none absolute right-3 bottom-3 left-3 flex flex-wrap items-center gap-x-2 gap-y-0.5 text-[10px] text-muted-foreground">
+        <div className="telemetry pointer-events-none absolute right-3 bottom-3 left-3 flex flex-wrap items-center gap-x-2 gap-y-0.5 text-meta text-muted-foreground">
           <span className="text-foreground tabular-nums">z{zoom.toFixed(1)}</span>
           {/*
             AHEAD OF `busy`, ALONE AMONG THESE. The others are answers to "why
@@ -1772,7 +1772,7 @@ export function GlobeSurface({
         and "what am I drawing" apart.
       */}
       {ready && !failure && (
-        <MapBar className="app-no-drag absolute top-3 right-3 z-[400] flex flex-col">
+        <MapBar className="app-no-drag absolute top-3 right-3 z-400 flex flex-col">
           {leadingTools}
           {leadingTools && (
             <div aria-hidden className="h-1 bg-[rgb(var(--p-line)/0.45)]" />
@@ -1931,7 +1931,7 @@ export function GlobeSurface({
 
       {searching && ready && !failure && (
         <SearchBar
-          className="app-no-drag absolute top-3 right-[3.5rem] left-3 z-[401] max-w-[22rem]"
+          className="app-no-drag absolute top-3 right-[3.5rem] left-3 z-401 max-w-[22rem]"
           autoFocus
           onSelectLocation={(lat, lon) => {
             /*

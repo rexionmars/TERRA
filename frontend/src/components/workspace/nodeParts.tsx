@@ -29,7 +29,7 @@ export function Swatch({ color }: { color: string }) {
   return (
     <span
       aria-hidden
-      className="inline-block size-2 shrink-0 rounded-[2px]"
+      className="inline-block size-2 shrink-0 rounded-xs"
       style={{ background: color, boxShadow: "0 0 0 1px rgb(0 0 0 / 0.35)" }}
     />
   )

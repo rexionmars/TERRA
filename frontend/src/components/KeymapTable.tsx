@@ -37,7 +37,7 @@ export function KeymapTable() {
       />
       <table className="w-full text-body">
         <thead className="text-left">
-          <tr className="eyebrow !text-[9px]">
+          <tr className="eyebrow !text-micro">
             <th className="py-1 pr-2 font-normal">Command</th>
             <th className="py-1 pr-2 font-normal">Keys</th>
             <th className="py-1 font-normal">Menu</th>
@@ -53,7 +53,7 @@ export function KeymapTable() {
                   {o.keys?.map((k) => (
                     <span
                       key={k}
-                      className="telemetry mr-1 inline-block rounded-[2px] px-1 text-foreground"
+                      className="telemetry mr-1 inline-block rounded-xs px-1 text-foreground"
                       style={{ background: "rgb(var(--p-line) / 0.28)" }}
                     >
                       {formatKeys(k)}

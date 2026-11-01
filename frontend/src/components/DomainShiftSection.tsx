@@ -63,7 +63,7 @@ function AgreementBlock({
 }) {
   return (
     <div className="flex flex-col gap-2">
-      <p className="eyebrow !text-[9px]">{title}</p>
+      <p className="eyebrow !text-micro">{title}</p>
       <div className="grid grid-cols-2 gap-2">
         <WaterFigure
           label="Overall"
@@ -109,7 +109,7 @@ function AgreementBlock({
             .map((c) => (
               <li
                 key={c.class_id ?? c.index}
-                className="flex items-baseline gap-1.5 text-[10px]"
+                className="flex items-baseline gap-1.5 text-meta"
               >
                 <span className="min-w-0 flex-1 truncate text-muted-foreground">
                   {c.class_id != null
@@ -117,19 +117,19 @@ function AgreementBlock({
                     : `Class at ${c.index}`}
                 </span>
                 <span
-                  className="telemetry w-[2.5rem] shrink-0 text-right text-[9px] text-muted-foreground tabular-nums"
+                  className="telemetry w-[2.5rem] shrink-0 text-right text-micro text-muted-foreground tabular-nums"
                   title={`Precision ${fmt(c.precision, 3)}`}
                 >
                   {fmt(c.precision, 2)}
                 </span>
                 <span
-                  className="telemetry w-[2.5rem] shrink-0 text-right text-[9px] text-muted-foreground tabular-nums"
+                  className="telemetry w-[2.5rem] shrink-0 text-right text-micro text-muted-foreground tabular-nums"
                   title={`Recall ${fmt(c.recall, 3)}`}
                 >
                   {fmt(c.recall, 2)}
                 </span>
                 <span
-                  className="telemetry w-[2.5rem] shrink-0 text-right text-[9px] text-foreground tabular-nums"
+                  className="telemetry w-[2.5rem] shrink-0 text-right text-micro text-foreground tabular-nums"
                   title={`F1 ${fmt(c.f1, 3)}`}
                 >
                   {fmt(c.f1, 2)}
@@ -137,7 +137,7 @@ function AgreementBlock({
               </li>
             ))}
           {/* The key, said once, in the order the columns stand. */}
-          <li className="telemetry flex items-baseline justify-end gap-1.5 text-[9px] text-muted-foreground">
+          <li className="telemetry flex items-baseline justify-end gap-1.5 text-micro text-muted-foreground">
             <span className="w-[2.5rem] text-right">prec.</span>
             <span className="w-[2.5rem] text-right">recall</span>
             <span className="w-[2.5rem] text-right">F1</span>
@@ -303,7 +303,7 @@ export function DomainShiftSection({
     return (
       <section className={shell}>
         <p className="eyebrow mb-1">Domain shift</p>
-        <p className="text-[10px] leading-snug text-muted-foreground">
+        <p className="text-meta leading-snug text-muted-foreground">
           Both runs need a domain fingerprint from classify. Re-run prediction on each
           AOI to enable KL / CVA / MMD diagnosis.
         </p>
@@ -329,13 +329,13 @@ export function DomainShiftSection({
             header names the editor and not the subjects.
           */}
           {inArea ? (
-            <p className="telemetry truncate text-[9px] text-muted-foreground">
+            <p className="telemetry truncate text-micro text-muted-foreground">
               {labelA} → {labelB}
             </p>
           ) : (
             <>
               <p className="eyebrow !text-foreground">Domain shift</p>
-              <p className="mt-1 max-w-xl text-[10px] leading-snug text-muted-foreground">
+              <p className="mt-1 max-w-xl text-meta leading-snug text-muted-foreground">
                 Distance between source ({labelA}) and target ({labelB}) feature domains
                 — KL on NDVI, CVA magnitude, RBF MMD. High values with high confidence
                 usually mean the fixed crop legend is out of domain, not that the map is
@@ -348,16 +348,14 @@ export function DomainShiftSection({
           type="button"
           onClick={() => void runTsne()}
           disabled={tsneBusy || loading}
-          className="shrink-0 rounded-sm border border-border px-2 py-1 text-[10px] text-muted-foreground hover:text-foreground disabled:opacity-50"
+          className="shrink-0 rounded-sm border border-border px-2 py-1 text-meta text-muted-foreground hover:text-foreground disabled:opacity-50"
         >
           {tsneBusy ? "Projecting…" : "t-SNE project"}
         </button>
       </div>
 
-      {loading && (
-        <p className="text-[10px] text-muted-foreground">Comparing domains…</p>
-      )}
-      {error && <p className="text-[10px] leading-snug text-amber-500/90">{error}</p>}
+      {loading && <p className="text-meta text-muted-foreground">Comparing domains…</p>}
+      {error && <p className="text-meta leading-snug text-amber-500/90">{error}</p>}
 
       {report && (
         <>
@@ -438,7 +436,7 @@ export function DomainShiftSection({
             difference between a missing figure and a misleading one.
           */}
           {report.same_space === false ? (
-            <p className="mt-2 text-[10px] leading-snug text-amber-500/90">
+            <p className="mt-2 text-meta leading-snug text-amber-500/90">
               These fingerprints describe different feature spaces (
               {report.space_a ?? "?"} against {report.space_b ?? "?"}). The distances
               above are computed from quantities that are not the same, and are not
@@ -454,7 +452,7 @@ export function DomainShiftSection({
               them. With that fixed the banner is rare -- and the two remaining
               causes want opposite advice, so naming the side is not enough.
             */
-            <p className="mt-2 text-[10px] leading-snug text-amber-500/90">
+            <p className="mt-2 text-meta leading-snug text-amber-500/90">
               Not standardised: {unstandardisable.map((s) => s.label).join(" and ")}{" "}
               carr
               {unstandardisable.length === 1 ? "ies" : "y"} no training scaler, so the
@@ -515,7 +513,7 @@ export function DomainShiftSection({
                 Feature shift · top {report.feature_shift.length} by displacement
               </p>
               <div className="overflow-x-auto">
-                <table className="w-full min-w-[26rem] border-separate border-spacing-0 text-[10px]">
+                <table className="w-full min-w-[26rem] border-separate border-spacing-0 text-meta">
                   <thead>
                     <tr className="text-left text-muted-foreground">
                       <th className="py-1 pr-2 font-normal">Feature</th>
