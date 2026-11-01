@@ -224,9 +224,7 @@ export function ActivityGrid() {
                   // nothing has happened on them yet, and an empty square would
                   // claim it did.
                   if (cell.future) {
-                    return (
-                      <span key={cell.iso} className="aspect-square w-full" />
-                    )
+                    return <span key={cell.iso} className="aspect-square w-full" />
                   }
                   return (
                     <span

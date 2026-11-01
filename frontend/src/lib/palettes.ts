@@ -12,22 +12,8 @@
 export type PaletteName = "rdylgn" | "blues" | "inferno" | "viridis" | "rdbu_r"
 
 export const PALETTE_STOPS: Record<PaletteName, string[]> = {
-  rdylgn: [
-    "#a50026",
-    "#f46d42",
-    "#fcbf63",
-    "#ffffbf",
-    "#aadd89",
-    "#66bc63",
-    "#197738",
-  ],
-  blues: [
-    "#f7f9ff",
-    "#c6dbef",
-    "#6badd6",
-    "#3072af",
-    "#07306b",
-  ],
+  rdylgn: ["#a50026", "#f46d42", "#fcbf63", "#ffffbf", "#aadd89", "#66bc63", "#197738"],
+  blues: ["#f7f9ff", "#c6dbef", "#6badd6", "#3072af", "#07306b"],
   inferno: [
     "#000003",
     "#0a0723",

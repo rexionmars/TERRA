@@ -70,7 +70,7 @@ function Row({
       onClick={onSelect}
       className={cn(
         "group flex h-7 w-full min-w-0 items-center gap-2.5 rounded-sm px-1.5 text-left text-body transition-colors",
-        "focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring",
+        "focus-visible:ring-1 focus-visible:ring-ring focus-visible:outline-none",
         disabled
           ? "cursor-not-allowed text-muted-foreground/50"
           : "text-foreground/90 hover:bg-hover hover:text-foreground"
@@ -136,7 +136,9 @@ export function StartScreen({
 
   // The first row takes the focus, so the keyboard starts where the eye does.
   useEffect(() => {
-    card.current?.querySelector<HTMLElement>("button:not(:disabled)")?.focus({ preventScroll: true })
+    card.current
+      ?.querySelector<HTMLElement>("button:not(:disabled)")
+      ?.focus({ preventScroll: true })
   }, [])
 
   useEffect(() => {
@@ -180,14 +182,20 @@ export function StartScreen({
         role="dialog"
         aria-label="Start"
         className="w-[500px] max-w-full overflow-hidden rounded-md border shadow-[0_16px_48px_rgba(0,0,0,0.55)]"
-        style={{ background: "var(--s-panel)", borderColor: "rgb(var(--p-line) / 0.4)" }}
+        style={{
+          background: "var(--s-panel)",
+          borderColor: "rgb(var(--p-line) / 0.4)",
+        }}
       >
         {/*
           The splash's own picture, at the card's width: the release's still
           under the void scrim, the lockup, and the outlined wordmark.
           Fixed dark, as the splash is, whatever the theme.
         */}
-        <div className="relative h-[210px] overflow-hidden" style={{ background: "#04060b" }}>
+        <div
+          className="relative h-[210px] overflow-hidden"
+          style={{ background: "#04060b" }}
+        >
           <img
             src={still.path}
             alt=""
@@ -209,18 +217,21 @@ export function StartScreen({
             }}
             aria-hidden
           />
-          <div className="absolute left-5 top-4 flex items-center gap-2.5">
+          <div className="absolute top-4 left-5 flex items-center gap-2.5">
             <img src="/terra-logo.png" alt="" className="size-6" draggable={false} />
             <span
-              className="telemetry w-min border-l pl-2.5 text-[9px] uppercase leading-tight tracking-[0.14em]"
-              style={{ color: "rgb(236 232 223 / 0.92)", borderColor: "rgb(236 232 223 / 0.3)" }}
+              className="telemetry w-min border-l pl-2.5 text-[9px] leading-tight tracking-[0.14em] uppercase"
+              style={{
+                color: "rgb(236 232 223 / 0.92)",
+                borderColor: "rgb(236 232 223 / 0.3)",
+              }}
             >
               {BRAND_TAGLINE}
             </span>
           </div>
           {version && (
             <span
-              className="telemetry absolute right-4 top-4 text-[10px] uppercase tracking-[0.12em]"
+              className="telemetry absolute top-4 right-4 text-[10px] tracking-[0.12em] uppercase"
               style={{ color: "rgb(236 232 223 / 0.92)" }}
             >
               v{version}
@@ -235,7 +246,7 @@ export function StartScreen({
             draggable={false}
           />
           <span
-            className="absolute bottom-3.5 right-4 text-[10px]"
+            className="absolute right-4 bottom-3.5 text-[10px]"
             style={{ color: "rgb(236 232 223 / 0.7)" }}
             title={still.source}
           >
@@ -243,7 +254,7 @@ export function StartScreen({
           </span>
         </div>
 
-        <div className="grid grid-cols-2 gap-x-6 px-6 pb-2 pt-4">
+        <div className="grid grid-cols-2 gap-x-6 px-6 pt-4 pb-2">
           <section className="min-w-0">
             <p className="mb-1 px-1.5 text-body text-muted-foreground">Start</p>
             {opRow("WORKFLOW_NEW")}
@@ -257,18 +268,22 @@ export function StartScreen({
             {opRow("SEARCH")}
           </section>
           <section className="min-w-0">
-            <p className="mb-1 px-1.5 text-body text-muted-foreground">Recent workflows</p>
+            <p className="mb-1 px-1.5 text-body text-muted-foreground">
+              Recent workflows
+            </p>
             {studios.length ? (
-              studios.slice(0, RECENT_SHOWN).map((s) => (
-                <Row
-                  key={s.id}
-                  icon={Stack}
-                  label={s.name}
-                  checked={s.id === openStudioId}
-                  title={s.id === openStudioId ? "Already open" : `Open "${s.name}"`}
-                  onSelect={act(() => onOpenStudio(s))}
-                />
-              ))
+              studios
+                .slice(0, RECENT_SHOWN)
+                .map((s) => (
+                  <Row
+                    key={s.id}
+                    icon={Stack}
+                    label={s.name}
+                    checked={s.id === openStudioId}
+                    title={s.id === openStudioId ? "Already open" : `Open "${s.name}"`}
+                    onSelect={act(() => onOpenStudio(s))}
+                  />
+                ))
             ) : (
               <p className="px-1.5 py-1.5 text-meta leading-relaxed text-muted-foreground">
                 No workflow saved in this project yet. A saved workflow is listed here.
@@ -285,7 +300,9 @@ export function StartScreen({
         */}
         {recentFiles.length > 0 && (
           <section className="min-w-0 px-6 pb-2">
-            <p className="mb-1 px-1.5 text-body text-muted-foreground">Recent project files</p>
+            <p className="mb-1 px-1.5 text-body text-muted-foreground">
+              Recent project files
+            </p>
             <div className="grid grid-cols-2 gap-x-6">
               {recentFiles.slice(0, RECENT_SHOWN - 1).map((path) => (
                 <Row
@@ -302,7 +319,7 @@ export function StartScreen({
 
         <div className="mx-6 border-t border-hairline" />
 
-        <div className="grid grid-cols-2 gap-x-6 px-6 pb-3 pt-2">
+        <div className="grid grid-cols-2 gap-x-6 px-6 pt-2 pb-3">
           <section className="min-w-0">
             {opRow("KEYMAP")}
             {opRow("PREFERENCES", "Settings")}
@@ -318,7 +335,7 @@ export function StartScreen({
             type="checkbox"
             checked={showAtLaunch}
             onChange={(e) => onShowAtLaunchChange(e.target.checked)}
-            className="focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+            className="focus-visible:ring-1 focus-visible:ring-ring focus-visible:outline-none"
           />
           Show this when TERRA opens
         </label>

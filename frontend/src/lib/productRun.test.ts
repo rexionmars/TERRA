@@ -1,5 +1,10 @@
 import { describe, expect, it, vi } from "vitest"
-import { activeRuns, productOffered, productRun, type ProductRunProps } from "./productRun"
+import {
+  activeRuns,
+  productOffered,
+  productRun,
+  type ProductRunProps,
+} from "./productRun"
 
 function props(over: Partial<ProductRunProps> = {}): ProductRunProps {
   return {
@@ -26,7 +31,14 @@ function props(over: Partial<ProductRunProps> = {}): ProductRunProps {
 describe("productRun", () => {
   it("asks for an area before anything else", () => {
     const p = props({ hasArea: false, activeAreaId: undefined, start: "", end: "" })
-    for (const tool of ["classify", "water", "mineral", "fields", "health", "overlap"] as const) {
+    for (const tool of [
+      "classify",
+      "water",
+      "mineral",
+      "fields",
+      "health",
+      "overlap",
+    ] as const) {
       expect(productRun(tool, p).blocked).toMatch(/Draw an area/)
     }
   })
@@ -44,10 +56,12 @@ describe("productRun", () => {
   })
 
   it("refuses to delineate inside a field, or over a period too short to cut", () => {
-    expect(productRun("fields", props({ activeAreaId: "f1" })).blocked).toMatch(/holds no fields/)
-    expect(productRun("fields", props({ start: "2025-01-01", end: "2025-01-03" })).blocked).toMatch(
-      /at least \d+ days/
+    expect(productRun("fields", props({ activeAreaId: "f1" })).blocked).toMatch(
+      /holds no fields/
     )
+    expect(
+      productRun("fields", props({ start: "2025-01-01", end: "2025-01-03" })).blocked
+    ).toMatch(/at least \d+ days/)
     expect(productRun("fields", props()).blocked).toBeNull()
   })
 
@@ -61,7 +75,10 @@ describe("productRun", () => {
 
   it("does not queue the delineation, which makes what a queue is for", () => {
     const onRunFields = vi.fn()
-    const run = productRun("fields", props({ selectedAreaIds: ["a", "b"], onRunFields }))
+    const run = productRun(
+      "fields",
+      props({ selectedAreaIds: ["a", "b"], onRunFields })
+    )
     expect(run.label).toBe("Delineate fields")
     run.onRun()
     expect(onRunFields).toHaveBeenCalled()
@@ -76,9 +93,15 @@ describe("productRun", () => {
 
 describe("activeRuns", () => {
   it("lists only what is running, with its own progress", () => {
-    const runs = activeRuns(props({ waterRunning: true, waterProgress: 40, waterProgressMsg: "scene 2" }))
+    const runs = activeRuns(
+      props({ waterRunning: true, waterProgress: 40, waterProgressMsg: "scene 2" })
+    )
     expect(runs).toHaveLength(1)
-    expect(runs[0]).toMatchObject({ label: "Mapping", progress: 40, progressMsg: "scene 2" })
+    expect(runs[0]).toMatchObject({
+      label: "Mapping",
+      progress: 40,
+      progressMsg: "scene 2",
+    })
   })
 
   it("is not fooled by a selection, which would turn a run into a queue", () => {

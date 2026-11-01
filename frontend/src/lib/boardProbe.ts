@@ -218,4 +218,3 @@ export async function compareClassMaps(
     legendB: [...legendB],
   }
 }
-

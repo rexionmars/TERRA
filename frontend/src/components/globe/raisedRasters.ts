@@ -106,7 +106,13 @@ export function rastersAt<T extends Pick<RaisedRaster, "bounds" | "elevationM">>
   lat: number
 ): T[] {
   return rasters
-    .filter((r) => lng >= r.bounds.lon_min && lng <= r.bounds.lon_max && lat >= r.bounds.lat_min && lat <= r.bounds.lat_max)
+    .filter(
+      (r) =>
+        lng >= r.bounds.lon_min &&
+        lng <= r.bounds.lon_max &&
+        lat >= r.bounds.lat_min &&
+        lat <= r.bounds.lat_max
+    )
     .sort((a, b) => b.elevationM - a.elevationM)
 }
 
@@ -114,7 +120,8 @@ export function rastersAt<T extends Pick<RaisedRaster, "bounds" | "elevationM">>
   A texture per url AND filter. The same raster drawn once as classes and once
   as colour is two textures, since the filter is a property of the texture.
 */
-const textureKey = (r: Pick<RaisedRaster, "url" | "pixelated">) => `${r.pixelated ? "nearest" : "linear"}:${r.url}`
+const textureKey = (r: Pick<RaisedRaster, "url" | "pixelated">) =>
+  `${r.pixelated ? "nearest" : "linear"}:${r.url}`
 
 /** Four corners, clockwise from the top left, as the image source takes them. */
 function quad(b: Bounds): Float32Array {
@@ -123,15 +130,35 @@ function quad(b: Bounds): Float32Array {
     zig-zag, and the readable order here is the one the extent is written in.
     Six vertices is nothing, and the arithmetic below stays legible.
   */
-  const [tl, tr, br, bl] = cornersOf(b).map(([lng, lat]) => MercatorCoordinate.fromLngLat({ lng, lat }))
+  const [tl, tr, br, bl] = cornersOf(b).map(([lng, lat]) =>
+    MercatorCoordinate.fromLngLat({ lng, lat })
+  )
   // position.xy, uv.xy per vertex.
   return new Float32Array([
-    tl.x, tl.y, 0, 0,
-    tr.x, tr.y, 1, 0,
-    br.x, br.y, 1, 1,
-    tl.x, tl.y, 0, 0,
-    br.x, br.y, 1, 1,
-    bl.x, bl.y, 0, 1,
+    tl.x,
+    tl.y,
+    0,
+    0,
+    tr.x,
+    tr.y,
+    1,
+    0,
+    br.x,
+    br.y,
+    1,
+    1,
+    tl.x,
+    tl.y,
+    0,
+    0,
+    br.x,
+    br.y,
+    1,
+    1,
+    bl.x,
+    bl.y,
+    0,
+    1,
   ])
 }
 
@@ -221,11 +248,7 @@ const PROJECTION_UNIFORMS = [
   "u_projection_fallback_matrix",
 ] as const
 
-function compile(
-  gl: WebGL2RenderingContext,
-  src: string,
-  kind: number
-): WebGLShader {
+function compile(gl: WebGL2RenderingContext, src: string, kind: number): WebGLShader {
   const sh = gl.createShader(kind)!
   gl.shaderSource(sh, src)
   gl.compileShader(sh)
@@ -242,10 +265,7 @@ export interface RaisedRasterLayer extends CustomLayerInterface {
   set(rasters: readonly RaisedRaster[]): void
 }
 
-export function raisedRasterLayer(
-  id: string,
-  map: MapLibreMap
-): RaisedRasterLayer {
+export function raisedRasterLayer(id: string, map: MapLibreMap): RaisedRasterLayer {
   let gl: WebGL2RenderingContext | null = null
   let rasters: readonly RaisedRaster[] = []
   /** One program per projection variant, keyed by the name MapLibre gives. */
@@ -280,14 +300,7 @@ export function raisedRasterLayer(
       const filter = r.pixelated ? gl.NEAREST : gl.LINEAR
       gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, filter)
       gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, filter)
-      gl.texImage2D(
-        gl.TEXTURE_2D,
-        0,
-        gl.RGBA,
-        gl.RGBA,
-        gl.UNSIGNED_BYTE,
-        img
-      )
+      gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, img)
       textures.set(key, tex)
       map.triggerRepaint()
     }
@@ -389,23 +402,13 @@ export function raisedRasterLayer(
       ctx.useProgram(prog.program)
 
       const p = args.defaultProjectionData
-      ctx.uniformMatrix4fv(
-        prog.projection["u_projection_matrix"],
-        false,
-        p.mainMatrix
-      )
+      ctx.uniformMatrix4fv(prog.projection["u_projection_matrix"], false, p.mainMatrix)
       ctx.uniform4f(
         prog.projection["u_projection_tile_mercator_coords"],
         ...p.tileMercatorCoords
       )
-      ctx.uniform4f(
-        prog.projection["u_projection_clipping_plane"],
-        ...p.clippingPlane
-      )
-      ctx.uniform1f(
-        prog.projection["u_projection_transition"],
-        p.projectionTransition
-      )
+      ctx.uniform4f(prog.projection["u_projection_clipping_plane"], ...p.clippingPlane)
+      ctx.uniform1f(prog.projection["u_projection_transition"], p.projectionTransition)
       ctx.uniformMatrix4fv(
         prog.projection["u_projection_fallback_matrix"],
         false,
@@ -443,10 +446,7 @@ export function raisedRasterLayer(
         ctx.bindTexture(ctx.TEXTURE_2D, tex)
         ctx.uniform1f(prog.uOpacity, r.opacity)
         ctx.uniform1f(prog.uElevM, r.elevationM)
-        ctx.uniform1f(
-          prog.uElevMerc,
-          r.elevationM * mercatorPerMetre(r.bounds)
-        )
+        ctx.uniform1f(prog.uElevMerc, r.elevationM * mercatorPerMetre(r.bounds))
         ctx.drawArrays(ctx.TRIANGLES, 0, 6)
       }
     },

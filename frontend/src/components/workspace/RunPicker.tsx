@@ -89,9 +89,7 @@ export function RunPicker({
       .filter((p) => byProject.has(p.id))
       .map((p) => ({ id: p.id, name: p.name, runs: byProject.get(p.id)! }))
     const loose = byProject.get("")
-    return loose
-      ? [...named, { id: "", name: "No project", runs: loose }]
-      : named
+    return loose ? [...named, { id: "", name: "No project", runs: loose }] : named
   }, [runs, projects, excludeRunIds, query])
 
   const total = groups.reduce((n, g) => n + g.runs.length, 0)
@@ -113,7 +111,7 @@ export function RunPicker({
           title="Bring in a saved run"
           className={cn(
             "flex h-8 shrink-0 items-center gap-1.5 rounded-sm border border-border px-2 text-label transition-colors",
-            "focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring",
+            "focus-visible:ring-1 focus-visible:ring-ring focus-visible:outline-none",
             "disabled:cursor-not-allowed disabled:opacity-50",
             open
               ? "bg-selected text-foreground"
@@ -125,7 +123,7 @@ export function RunPicker({
         </button>
       )}
     >
-      {(
+      {
         /*
           Layout only. The plate -- background, border, shadow, width and the
           placement -- belongs to `MenuPopover`, which every other menu in the
@@ -174,7 +172,7 @@ export function RunPicker({
                     without saying where.
                   */}
                   <p
-                    className="eyebrow !text-[9px] sticky top-0 z-10 px-2 py-1"
+                    className="eyebrow sticky top-0 z-10 px-2 py-1 !text-[9px]"
                     // The popover's own plate, so a heading scrolled under does
                     // not show the rows through a differently coloured band.
                     style={{ background: "var(--s-selected)" }}
@@ -211,7 +209,7 @@ export function RunPicker({
             )}
           </div>
         </div>
-      )}
+      }
     </MenuPopover>
   )
 }

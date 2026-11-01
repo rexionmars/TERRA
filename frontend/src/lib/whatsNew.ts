@@ -23,7 +23,8 @@ export const WHATS_NEW: WhatsNewEntry[] = [
   },
   {
     version: "0.6.0",
-    title: "Cumulus — the network a site would join, and the work filed where it is done",
+    title:
+      "Cumulus — the network a site would join, and the work filed where it is done",
     items: [
       "The grid a site would join is on the map. The transmission network is drawn under the plants that reach it, each circuit coloured by the voltage it runs at in ANEEL's own convention, and a connection reading says what the plants on an area are joined to — for bare ground, from the neighbours' attachment rather than from a distance alone",
       "Brazil's operational record is a slice of its own, so a yield can be read against a system that withholds part of what the resource delivers. The curtailment reading over an area of seventeen plants went from 78.5 seconds to 0.28",
@@ -116,8 +117,7 @@ export function entriesSince(
   return catalog
     .filter(
       (e) =>
-        compareSemver(e.version, lastSeen) > 0 &&
-        compareSemver(e.version, current) <= 0
+        compareSemver(e.version, lastSeen) > 0 && compareSemver(e.version, current) <= 0
     )
     .sort((x, y) => compareSemver(y.version, x.version))
 }

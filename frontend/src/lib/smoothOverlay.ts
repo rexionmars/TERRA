@@ -114,10 +114,7 @@ export async function majoritySmoothOverlay(url: string): Promise<string> {
 /**
  * Solid isobands with curved boundaries (argmax after blur).
  */
-export async function contourSmoothOverlay(
-  url: string,
-  sigma = 1.8
-): Promise<string> {
+export async function contourSmoothOverlay(url: string, sigma = 1.8): Promise<string> {
   const img = await loadImage(url)
   const srcW = img.naturalWidth || img.width
   const srcH = img.naturalHeight || img.height

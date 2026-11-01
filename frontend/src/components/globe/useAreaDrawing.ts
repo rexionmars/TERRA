@@ -59,7 +59,9 @@ class PointerSetAdapter extends TerraDrawMapLibreGLAdapter<MapLibreMap> {
     this.canvasOf = () => options.map.getCanvas()
   }
 
-  setCursor(cursor: Parameters<TerraDrawMapLibreGLAdapter<MapLibreMap>["setCursor"]>[0]) {
+  setCursor(
+    cursor: Parameters<TerraDrawMapLibreGLAdapter<MapLibreMap>["setCursor"]>[0]
+  ) {
     const style = this.canvasOf().style
     if (cursor === "unset") style.removeProperty("cursor")
     else style.cursor = `var(--cursor-${cursor}, ${cursor})`
@@ -158,9 +160,7 @@ export function useAreaDrawing({
         store to match what it was given, the store has nothing to report.
       */
       if (syncing.current) return
-      const polys = draw
-        .getSnapshot()
-        .filter((f) => f.geometry.type === "Polygon")
+      const polys = draw.getSnapshot().filter((f) => f.geometry.type === "Polygon")
       /*
         ONE AREA IS THIS HOOK'S INVARIANT, so two polygons is a state it is
         PASSING THROUGH and never a state to report from.

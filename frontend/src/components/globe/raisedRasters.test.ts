@@ -73,7 +73,12 @@ describe("the raised raster's vertex source", () => {
 })
 
 describe("rastersAt", () => {
-  const box = (lon: number, lat: number) => ({ lon_min: lon, lat_min: lat, lon_max: lon + 1, lat_max: lat + 1 })
+  const box = (lon: number, lat: number) => ({
+    lon_min: lon,
+    lat_min: lat,
+    lon_max: lon + 1,
+    lat_max: lat + 1,
+  })
   const stack = [
     { key: "low", bounds: box(-56, -13), elevationM: 1 },
     { key: "high", bounds: box(-56, -13), elevationM: 81 },

@@ -45,7 +45,8 @@ function OrbitChart({
   const t0 = Math.min(...all.map((p) => at(p.date)))
   const t1 = Math.max(...all.map((p) => at(p.date)))
   const x = (d: string) => 26 + ((at(d) - t0) / Math.max(1, t1 - t0)) * (W - 30)
-  const y = (v: number) => 4 + (1 - Math.max(0, Math.min(1, (v - lo) / (hi - lo)))) * (H - 10)
+  const y = (v: number) =>
+    4 + (1 - Math.max(0, Math.min(1, (v - lo) / (hi - lo)))) * (H - 10)
   return (
     <svg width={W} height={H} role="img" aria-label={label} className="block">
       {report.losses.map((l) => (
@@ -84,7 +85,10 @@ export function RadarReading({ report }: { report: RadarAnalysis | null }) {
   const latest = latestPass(report)
   return (
     <div className="flex flex-col gap-1">
-      <Figure label="Passes" value={`${report.series.length} in ${orbits.length} ${orbits.length === 1 ? "orbit" : "orbits"}`} />
+      <Figure
+        label="Passes"
+        value={`${report.series.length} in ${orbits.length} ${orbits.length === 1 ? "orbit" : "orbits"}`}
+      />
       <div className="flex flex-wrap gap-x-2 gap-y-0.5 text-micro text-muted-foreground">
         {orbits.map((o, k) => (
           <span key={o.relativeOrbit} className="flex items-center gap-1">
@@ -94,9 +98,23 @@ export function RadarReading({ report }: { report: RadarAnalysis | null }) {
         ))}
       </div>
       <span className="text-micro text-muted-foreground">VH, dB</span>
-      <OrbitChart orbits={orbits} report={report} value={(p) => p.vh_db} lo={-22} hi={-8} label="VH by orbit through the period" />
+      <OrbitChart
+        orbits={orbits}
+        report={report}
+        value={(p) => p.vh_db}
+        lo={-22}
+        hi={-8}
+        label="VH by orbit through the period"
+      />
       <span className="text-micro text-muted-foreground">Cross ratio VH/VV, dB</span>
-      <OrbitChart orbits={orbits} report={report} value={(p) => p.cr_db} lo={-12} hi={-3} label="Cross ratio by orbit through the period" />
+      <OrbitChart
+        orbits={orbits}
+        report={report}
+        value={(p) => p.cr_db}
+        lo={-12}
+        hi={-3}
+        label="Cross ratio by orbit through the period"
+      />
       {report.losses.length ? (
         report.losses.map((l) => (
           <Figure
@@ -109,13 +127,20 @@ export function RadarReading({ report }: { report: RadarAnalysis | null }) {
         <Figure label="Canopy loss" value="none found" />
       )}
       {latest && (
-        <Figure label={`Open water, ${shortDate(latest.date)}`} value={`${(100 * latest.water_fraction).toFixed(1)}%`} />
+        <Figure
+          label={`Open water, ${shortDate(latest.date)}`}
+          value={`${(100 * latest.water_fraction).toFixed(1)}%`}
+        />
       )}
     </div>
   )
 }
 
-function RadarTable({ rows }: { rows: { name: string; report: RadarAnalysis | null }[] }) {
+function RadarTable({
+  rows,
+}: {
+  rows: { name: string; report: RadarAnalysis | null }[]
+}) {
   return (
     <div className="panel-scroll max-h-[16rem] overflow-auto">
       <table className="w-full border-collapse text-meta">
@@ -125,10 +150,16 @@ function RadarTable({ rows }: { rows: { name: string; report: RadarAnalysis | nu
             <th className="px-1 text-right font-normal" title="Passes read">
               n
             </th>
-            <th className="px-1 text-right font-normal" title="The last canopy loss of the period">
+            <th
+              className="px-1 text-right font-normal"
+              title="The last canopy loss of the period"
+            >
               Last loss
             </th>
-            <th className="px-1 text-right font-normal" title="Share read as open water on the latest pass">
+            <th
+              className="px-1 text-right font-normal"
+              title="Share read as open water on the latest pass"
+            >
               Water
             </th>
           </tr>
@@ -138,13 +169,22 @@ function RadarTable({ rows }: { rows: { name: string; report: RadarAnalysis | nu
             const l = lastLoss(r.report)
             const p = latestPass(r.report)
             return (
-              <tr key={r.name} className="border-t" style={{ borderColor: "rgb(var(--p-line) / 0.2)" }}>
-                <td className="max-w-[5rem] truncate px-1 text-foreground" title={r.name}>
+              <tr
+                key={r.name}
+                className="border-t"
+                style={{ borderColor: "rgb(var(--p-line) / 0.2)" }}
+              >
+                <td
+                  className="max-w-[5rem] truncate px-1 text-foreground"
+                  title={r.name}
+                >
                   {r.name}
                 </td>
                 {r.report ? (
                   <>
-                    <td className="telemetry px-1 text-right text-muted-foreground">{r.report.series.length}</td>
+                    <td className="telemetry px-1 text-right text-muted-foreground">
+                      {r.report.series.length}
+                    </td>
                     <td className="telemetry px-1 text-right text-foreground">
                       {l ? `${shortDate(l.date_from)}–${shortDate(l.date_to)}` : "none"}
                     </td>
@@ -178,18 +218,25 @@ export function RadarCard({
     <div className="flex flex-col gap-1.5">
       {fields && (
         <div className="flex items-center gap-1">
-          <Choice label={`All ${fields.length} fields`} chosen={all} onPick={() => setAll(true)} />
+          <Choice
+            label={`All ${fields.length} fields`}
+            chosen={all}
+            onPick={() => setAll(true)}
+          />
           <Choice label="This field" chosen={!all} onPick={() => setAll(false)} />
         </div>
       )}
       {fields && all ? (
-        <RadarTable rows={fields.map((f) => ({ name: f.name, report: f.radar?.report ?? null }))} />
+        <RadarTable
+          rows={fields.map((f) => ({ name: f.name, report: f.radar?.report ?? null }))}
+        />
       ) : (
         <RadarReading report={focused?.report ?? null} />
       )}
       <Note>
-        A canopy loss is a VH drop the cross ratio follows: a harvest most often, but a lodged, hail-struck or desiccated
-        canopy reads the same way. The thresholds were not calibrated against harvest records.
+        A canopy loss is a VH drop the cross ratio follows: a harvest most often, but a
+        lodged, hail-struck or desiccated canopy reads the same way. The thresholds were
+        not calibrated against harvest records.
       </Note>
     </div>
   )

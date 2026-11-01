@@ -21,10 +21,7 @@
  * is drawing it. NDVI mean and the true-colour scene are assets and never
  * layers; the classification is both.
  */
-import {
-  ExportClassification,
-  ExportOverlayFile,
-} from "../../wailsjs/go/main/App"
+import { ExportClassification, ExportOverlayFile } from "../../wailsjs/go/main/App"
 import { notifyExportFail, notifyExportOk } from "@/lib/notify"
 import type { ClassLegendEntry } from "@/lib/classMask"
 import { MAPBIOMAS_CLASS_LEGEND } from "@/lib/classPalette"
@@ -118,7 +115,9 @@ export interface ClassRaster {
 }
 
 /** Hectares per pixel from rows that report both, or null where none do. */
-function areaPerPixel(rows: ReadonlyArray<{ pixels: number; area_ha: number }> | null | undefined) {
+function areaPerPixel(
+  rows: ReadonlyArray<{ pixels: number; area_ha: number }> | null | undefined
+) {
   let px = 0
   let ha = 0
   for (const r of rows ?? []) {
@@ -191,7 +190,11 @@ function mineralClasses(m: MineralAnalysis): ClassRaster {
     color: l.color,
   }))
   const noAnswer = legend.length
-  legend.push({ id: noAnswer, name: "No answer", color: cssHex(MINERAL_NO_ANSWER_COLOR) })
+  legend.push({
+    id: noAnswer,
+    name: "No answer",
+    color: cssHex(MINERAL_NO_ANSWER_COLOR),
+  })
   legend.push({ id: noAnswer + 1, name: "Masked", color: cssHex(MINERAL_MASKED_COLOR) })
   return {
     legend,
@@ -206,7 +209,10 @@ function mineralClasses(m: MineralAnalysis): ClassRaster {
  * its own colours; the colours marked `excluded` are not classes and are set
  * aside, as the group maps' masked grey is.
  */
-function mineralLayerClasses(m: MineralAnalysis, l: MineralLayer): ClassRaster | undefined {
+function mineralLayerClasses(
+  m: MineralAnalysis,
+  l: MineralLayer
+): ClassRaster | undefined {
   if (l.kind !== "classes" || !l.legend?.length) return undefined
   return {
     legend: l.legend.map((e, i) => ({ id: i, name: e.label, color: e.color })),
@@ -388,9 +394,7 @@ export function runAssets(i: RunAssetInput): RunAsset[] {
         modelLabel(i.modelKind),
         r.n_dates > 0 ? `${r.n_dates} scenes` : null,
         dateRange(r.date_range),
-        r.mean_confidence > 0
-          ? `conf ${(r.mean_confidence * 100).toFixed(0)}%`
-          : null,
+        r.mean_confidence > 0 ? `conf ${(r.mean_confidence * 100).toFixed(0)}%` : null,
       ]
         .filter(Boolean)
         .join(" · "),
@@ -402,9 +406,7 @@ export function runAssets(i: RunAssetInput): RunAsset[] {
       selectId: null,
       removeId: null,
       exportPng: { src: r.overlay_uri, filename: "terra_prediction.png" },
-      exportTif: r.raster_tif
-        ? { via: "classification", src: r.raster_tif }
-        : null,
+      exportTif: r.raster_tif ? { via: "classification", src: r.raster_tif } : null,
     })
   }
 
@@ -415,9 +417,7 @@ export function runAssets(i: RunAssetInput): RunAsset[] {
       title: "Confidence",
       params: [
         "from classification",
-        r.mean_confidence > 0
-          ? `mean ${(r.mean_confidence * 100).toFixed(0)}%`
-          : null,
+        r.mean_confidence > 0 ? `mean ${(r.mean_confidence * 100).toFixed(0)}%` : null,
       ]
         .filter(Boolean)
         .join(" · "),
@@ -626,7 +626,12 @@ export function runAssets(i: RunAssetInput): RunAsset[] {
         h.anomaly_uri,
         `NDVI minus the median of ${years} within ${h.window_days} days of the day of the year · colours span \u00b1${h.map_range}`,
       ],
-      ["health-ndvi", `NDVI, ${sceneDate(h.map_date)}`, h.ndvi_uri, "Sentinel-2 L2A, the clear cells of the date the map shows"],
+      [
+        "health-ndvi",
+        `NDVI, ${sceneDate(h.map_date)}`,
+        h.ndvi_uri,
+        "Sentinel-2 L2A, the clear cells of the date the map shows",
+      ],
     ] as const) {
       if (!uri) continue
       out.push({
@@ -716,7 +721,10 @@ export function runAssets(i: RunAssetInput): RunAsset[] {
   */
   const mz = i.zones
   if (mz && !isZeroExtent(mz.extent)) {
-    const parts = [...mz.partitions].sort((a, b) => Number(b.k === mz.suggested_k) - Number(a.k === mz.suggested_k) || a.k - b.k)
+    const parts = [...mz.partitions].sort(
+      (a, b) =>
+        Number(b.k === mz.suggested_k) - Number(a.k === mz.suggested_k) || a.k - b.k
+    )
     for (const p of parts) {
       if (!p.map_uri) continue
       const id = `zones-${p.k}`

@@ -153,9 +153,7 @@ function channelsFromCss(theme: ThemeName): Record<string, Channels> {
   if (!block) throw new Error(`no ${theme} token block found in index.css`)
   const out: Record<string, Channels> = {}
   for (const [key, name] of Object.entries(CSS_NAME)) {
-    const m = block[1].match(
-      new RegExp(`${name}:\\s*(\\d+)\\s+(\\d+)\\s+(\\d+)\\s*;`)
-    )
+    const m = block[1].match(new RegExp(`${name}:\\s*(\\d+)\\s+(\\d+)\\s+(\\d+)\\s*;`))
     if (!m) throw new Error(`${name} not declared in the ${theme} block`)
     out[key] = [Number(m[1]), Number(m[2]), Number(m[3])]
   }
@@ -219,11 +217,15 @@ for (const theme of Object.keys(TOKENS) as ThemeName[]) {
     const scope = theme === "light" ? css.slice(lightAt) : css.slice(0, lightAt)
     const alpha = scope.match(/--map-chrome-alpha:\s*([\d.]+)\s*;/)?.[1]
     const filter = scope.match(/--map-chrome-filter:\s*([^;]+);/)?.[1]
-    if (!alpha || !filter) throw new Error(`--map-chrome-* not declared for the ${theme} theme`)
+    if (!alpha || !filter)
+      throw new Error(`--map-chrome-* not declared for the ${theme} theme`)
     const brightness = filter.match(/brightness\(([\d.]+)\)/)?.[1]
     const brightest = 255 * (brightness ? Number(brightness) : 1)
     const declared = MAP_CHROME[theme]
-    if (Number(alpha) !== declared.alpha || Math.abs(brightest - declared.brightest) > 0.01) {
+    if (
+      Number(alpha) !== declared.alpha ||
+      Math.abs(brightest - declared.brightest) > 0.01
+    ) {
       console.error(
         `DRIFT  ${theme} map chrome: contrast.ts has alpha ${declared.alpha}, brightest ${declared.brightest}; ` +
           `index.css has alpha ${alpha}, brightest ${brightest}`

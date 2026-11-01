@@ -38,7 +38,14 @@ describe("nodeRows", () => {
     const nodes = [node("area"), node("period"), node("run")]
     const edges: CanvasEdge[] = [
       { from: "area", to: "run", name: "Area", note: "not set", state: "missing" },
-      { from: "period", to: "run", name: "Period", label: "366 d", note: "pending", state: "pending" },
+      {
+        from: "period",
+        to: "run",
+        name: "Period",
+        label: "366 d",
+        note: "pending",
+        state: "pending",
+      },
     ]
     const rows = nodeRows(nodes, edges)
 
@@ -62,7 +69,10 @@ describe("nodeRows", () => {
   })
 
   it("draws no rows on a node no wire touches, and an output on one the reader can pull from", () => {
-    const rows = nodeRows([node("lonely"), node("catalogue", { connectable: true })], [])
+    const rows = nodeRows(
+      [node("lonely"), node("catalogue", { connectable: true })],
+      []
+    )
     expect(rows.get("lonely")).toEqual({ inputs: [] })
     expect(rows.get("catalogue")!.output).toBeDefined()
   })
@@ -88,7 +98,9 @@ describe("socket heights", () => {
 
   it("puts each input on its own row, under the output row when there is one", () => {
     expect(inputY(at, 0, false, false)).toBe(100 + HEAD_H + BODY_PAD + ROW_H / 2)
-    expect(inputY(at, 1, true, false)).toBe(100 + HEAD_H + BODY_PAD + ROW_H * 2 + ROW_H / 2)
+    expect(inputY(at, 1, true, false)).toBe(
+      100 + HEAD_H + BODY_PAD + ROW_H * 2 + ROW_H / 2
+    )
   })
 
   it("brings every socket of a folded node to the middle of its header", () => {
@@ -102,7 +114,11 @@ describe("the classification graph", () => {
     const graph = runGraph("classify", null)!
     const places = defaultPlaces(graph, {})
     const nodes = graph.nodes.map((n) => node(n.id, { place: places[n.id], h: n.h }))
-    const edges: CanvasEdge[] = graph.edges.map(([from, to]) => ({ from, to, name: from }))
+    const edges: CanvasEdge[] = graph.edges.map(([from, to]) => ({
+      from,
+      to,
+      name: from,
+    }))
     const rows = nodeRows(nodes, edges)
 
     const intoRun = graph.edges.filter(([, to]) => to === "run").map(([from]) => from)

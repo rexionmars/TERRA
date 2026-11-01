@@ -51,15 +51,10 @@ interface PackEntry {
 function parseGeometry(raw?: string): GeoJSONGeometry | null {
   if (!raw?.trim()) return null
   try {
-    const parsed = JSON.parse(raw) as
-      | GeoJSONGeometry
-      | { geometry?: GeoJSONGeometry }
+    const parsed = JSON.parse(raw) as GeoJSONGeometry | { geometry?: GeoJSONGeometry }
     const geom =
-      (parsed as { geometry?: GeoJSONGeometry }).geometry ??
-      (parsed as GeoJSONGeometry)
-    return geom?.type === "Polygon" || geom?.type === "MultiPolygon"
-      ? geom
-      : null
+      (parsed as { geometry?: GeoJSONGeometry }).geometry ?? (parsed as GeoJSONGeometry)
+    return geom?.type === "Polygon" || geom?.type === "MultiPolygon" ? geom : null
   } catch {
     return null
   }
@@ -89,10 +84,7 @@ export function ResearchPackModal({
   const [selected, setSelected] = useState<string | null>(null)
   const [exporting, setExporting] = useState(false)
 
-  const geometry = useMemo(
-    () => parseGeometry(polygonGeoJSON),
-    [polygonGeoJSON]
-  )
+  const geometry = useMemo(() => parseGeometry(polygonGeoJSON), [polygonGeoJSON])
 
   /**
    * The run-metadata block of the manifest written by BuildResearchPackZIP.
@@ -199,7 +191,7 @@ export function ResearchPackModal({
           page-level 16rem: it lists file names inside a dialog, not
           destinations, and the dialog is already bounded. */}
       <aside className="flex w-[15rem] shrink-0 flex-col border-r border-border">
-        <div className="shrink-0 px-3.5 pb-2 pt-4">
+        <div className="shrink-0 px-3.5 pt-4 pb-2">
           <p className="font-display text-sm font-semibold tracking-wide text-foreground">
             Research pack
           </p>
@@ -217,10 +209,8 @@ export function ResearchPackModal({
                 onClick={() => setSelected(e.name)}
                 title={e.name}
                 className={cn(
-                  "rounded-sm hover:bg-secondary flex w-full items-center gap-2 px-2 py-1.5 text-left text-body",
-                  isActive
-                    ? "is-active"
-                    : "text-muted-foreground hover:text-foreground"
+                  "flex w-full items-center gap-2 rounded-sm px-2 py-1.5 text-left text-body hover:bg-secondary",
+                  isActive ? "is-active" : "text-muted-foreground hover:text-foreground"
                 )}
               >
                 {iconFor(e.kind)}
@@ -247,15 +237,15 @@ export function ResearchPackModal({
             </p>
           </div>
           <div className="flex items-center gap-2">
-          <button
-            type="button"
-            disabled={exporting}
-            onClick={() => void exportPack()}
-            className={btnPrimaryCommit}
-          >
-            <Download className="h-3.5 w-3.5" />
-            {exporting ? "Exporting…" : "Export pack"}
-          </button>
+            <button
+              type="button"
+              disabled={exporting}
+              onClick={() => void exportPack()}
+              className={btnPrimaryCommit}
+            >
+              <Download className="h-3.5 w-3.5" />
+              {exporting ? "Exporting…" : "Export pack"}
+            </button>
             <button
               type="button"
               onClick={onClose}
@@ -289,8 +279,8 @@ export function ResearchPackModal({
                 ))}
               </dl>
               <p className="mt-3 text-meta text-muted-foreground">
-                exported_at is stamped by the exporter when the archive is
-                written, so it is not known until then.
+                exported_at is stamped by the exporter when the archive is written, so
+                it is not known until then.
               </p>
             </section>
           ) : active?.kind === "aoi" && geometry ? (
@@ -300,12 +290,10 @@ export function ResearchPackModal({
               <p className="eyebrow mb-3">rasters/classification.tif</p>
               <p className="text-body text-muted-foreground">
                 The classification raster is copied into the archive from{" "}
-                <span className="telemetry text-foreground">
-                  {result.raster_tif}
-                </span>
-                . It is written in the Sentinel-2 UTM projection of the source
-                scene, not in the lon/lat used by the extent above, so a tool
-                reading it should take the CRS from the file itself.
+                <span className="telemetry text-foreground">{result.raster_tif}</span>.
+                It is written in the Sentinel-2 UTM projection of the source scene, not
+                in the lon/lat used by the extent above, so a tool reading it should
+                take the CRS from the file itself.
               </p>
             </section>
           ) : null}
@@ -315,13 +303,7 @@ export function ResearchPackModal({
   )
 }
 
-function AoiEntry({
-  geometry,
-  raw,
-}: {
-  geometry: GeoJSONGeometry
-  raw: string
-}) {
+function AoiEntry({ geometry, raw }: { geometry: GeoJSONGeometry; raw: string }) {
   const bounds = geometryBounds(geometry)
   const centroid = geometryCentroid(geometry)
   const parts = polygonParts(geometry)
@@ -367,14 +349,14 @@ function AoiEntry({
           ))}
         </dl>
         <p className="mt-3 text-meta text-muted-foreground">
-          Area is a vertex-shoelace on an equirectangular projection about the
-          AOI latitude, and the centroid is a vertex mean, adequate as a map
-          target but not an area centroid.
+          Area is a vertex-shoelace on an equirectangular projection about the AOI
+          latitude, and the centroid is a vertex mean, adequate as a map target but not
+          an area centroid.
         </p>
       </section>
       <section className="rounded-sm border border-border bg-secondary/50 p-4">
         <p className="eyebrow mb-3">geometry source</p>
-        <pre className="rounded-sm border border-border bg-sunk max-h-64 overflow-auto p-3 text-meta leading-relaxed text-muted-foreground">
+        <pre className="max-h-64 overflow-auto rounded-sm border border-border bg-sunk p-3 text-meta leading-relaxed text-muted-foreground">
           {raw}
         </pre>
       </section>

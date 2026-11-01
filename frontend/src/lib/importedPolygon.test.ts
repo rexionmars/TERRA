@@ -39,12 +39,15 @@ describe("importedPolygon", () => {
         type: "FeatureCollection",
         features: [
           point,
-          { type: "Feature", geometry: { type: "GeometryCollection", geometries: [poly] } },
+          {
+            type: "Feature",
+            geometry: { type: "GeometryCollection", geometries: [poly] },
+          },
         ],
-      })?.coordinates[0],
+      })?.coordinates[0]
     ).toEqual(SQUARE)
     expect(
-      importedPolygon({ type: "MultiPolygon", coordinates: [[SQUARE]] })?.coordinates[0],
+      importedPolygon({ type: "MultiPolygon", coordinates: [[SQUARE]] })?.coordinates[0]
     ).toEqual(SQUARE)
   })
 

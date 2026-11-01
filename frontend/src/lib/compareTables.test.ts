@@ -68,10 +68,7 @@ function agreement(over: Partial<LULCAgreement> = {}): LULCAgreement {
 }
 
 /** Only `min_cells` and `cells` are read; the summary figures are the panel's. */
-function blocks(
-  min_cells: number,
-  cells: LULCAgreementBlock[]
-): LULCAgreementBlocks {
+function blocks(min_cells: number, cells: LULCAgreementBlock[]): LULCAgreementBlocks {
   return {
     rows: 2,
     cols: 2,
@@ -134,9 +131,7 @@ describe("compareAccuracyDeltaTable", () => {
     const t = built("compare_accuracy_delta", compareAccuracyDeltaTable(a, b))
 
     // Assert
-    expect(t.rows).toEqual([
-      [24, "Urban", "#d4271e", null, 40, null, null, 33.5, null],
-    ])
+    expect(t.rows).toEqual([[24, "Urban", "#d4271e", null, 40, null, null, 33.5, null]])
     expectRectangular(t)
   })
 
@@ -223,9 +218,7 @@ describe("compareAccuracyDeltaTable", () => {
     const t = built("compare_accuracy_delta", compareAccuracyDeltaTable(a, b))
 
     // Assert: 0 - 0 = 0 and 12.5 - 0 = 12.5, and the zero cells stay 0.
-    expect(t.rows).toEqual([
-      [33, "Water", "#2532e4", 0, 0, 0, 0, 12.5, 12.5],
-    ])
+    expect(t.rows).toEqual([[33, "Water", "#2532e4", 0, 0, 0, 0, 12.5, 12.5]])
   })
 
   it("blanks only the delta of the accuracy one side left null, keeping the accuracy the other side has", () => {
@@ -259,9 +252,7 @@ describe("compareAccuracyDeltaTable", () => {
     const t = built("compare_accuracy_delta", compareAccuracyDeltaTable(a, b))
 
     // Assert
-    expect(t.rows).toEqual([
-      [3, "Forest", "#1f8d49", 82.5, null, null, null, 44, null],
-    ])
+    expect(t.rows).toEqual([[3, "Forest", "#1f8d49", 82.5, null, null, null, 44, null]])
   })
 
   it("names a class the runs left unnamed after its id and gives it no colour", () => {
@@ -483,7 +474,9 @@ describe("compareBlockAgreementTable", () => {
     // become a 0, which would read as a block the classifier got entirely
     // wrong rather than one nothing can be said about.
     const a = agreement({
-      blocks: blocks(30, [{ row: 2, col: 0, n_reference_cells: 12, overall_pct: null }]),
+      blocks: blocks(30, [
+        { row: 2, col: 0, n_reference_cells: 12, overall_pct: null },
+      ]),
     })
     const b = agreement()
 
@@ -520,7 +513,9 @@ describe("compareBlockAgreementTable", () => {
     // Arrange
     const a = agreement({ blocks: null })
     const b = agreement({
-      blocks: blocks(30, [{ row: 0, col: 0, n_reference_cells: 45, overall_pct: 51.5 }]),
+      blocks: blocks(30, [
+        { row: 0, col: 0, n_reference_cells: 45, overall_pct: 51.5 },
+      ]),
     })
 
     // Act
@@ -536,7 +531,9 @@ describe("compareBlockAgreementTable", () => {
   it("carries the CSV header the compare pack is read by", () => {
     // Arrange
     const a = agreement({
-      blocks: blocks(30, [{ row: 0, col: 0, n_reference_cells: 45, overall_pct: 51.5 }]),
+      blocks: blocks(30, [
+        { row: 0, col: 0, n_reference_cells: 45, overall_pct: 51.5 },
+      ]),
     })
     const b = agreement()
 

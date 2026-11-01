@@ -26,7 +26,8 @@ const HILLSHADE_LAYER = "terrain-hillshade"
  * Public and keyless, and it answers with `Access-Control-Allow-Origin: *`,
  * which a worker-fetched tile needs and an <img> would not have told us.
  */
-const DEM_TILES = "https://elevation-tiles-prod.s3.amazonaws.com/terrarium/{z}/{x}/{y}.png"
+const DEM_TILES =
+  "https://elevation-tiles-prod.s3.amazonaws.com/terrarium/{z}/{x}/{y}.png"
 
 /** The deepest level the mosaic carries; past it MapLibre magnifies the last. */
 const DEM_MAX_ZOOM = 15

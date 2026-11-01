@@ -13,7 +13,16 @@ import { extendTailwindMerge } from "tailwind-merge"
  *
  * Edited together with the --text-* block in index.css.
  */
-const TYPE_SCALE = ["micro", "meta", "body", "emphasis", "heading", "label", "read", "title"] as const
+const TYPE_SCALE = [
+  "micro",
+  "meta",
+  "body",
+  "emphasis",
+  "heading",
+  "label",
+  "read",
+  "title",
+] as const
 
 const twMerge = extendTailwindMerge({
   extend: {

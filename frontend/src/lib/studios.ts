@@ -128,9 +128,7 @@ export async function openStudio(id: string): Promise<OpenedStudio> {
   return {
     board,
     snapshot: parseSnapshot(board.view_json),
-    missingRunIds: (board.members ?? [])
-      .filter((m) => m.missing)
-      .map((m) => m.run_id),
+    missingRunIds: (board.members ?? []).filter((m) => m.missing).map((m) => m.run_id),
   }
 }
 

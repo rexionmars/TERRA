@@ -22,8 +22,7 @@
  *     the pair shipped at 3.12 until it was.
  */
 
-const FOCUS =
-  "focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+const FOCUS = "focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
 
 /** One convention across the whole set, so two buttons in a row never differ. */
 const DISABLED = "disabled:opacity-60"
@@ -32,8 +31,7 @@ const DISABLED = "disabled:opacity-60"
  * The chassis height, 32px, which is also what .field-input sets. A primary
  * beside an input lines up without either knowing about the other.
  */
-export const btnPrimary =
-  `inline-flex h-8 items-center justify-center gap-1.5 rounded-sm bg-primary px-3 text-body font-semibold text-primary-foreground ${DISABLED} ${FOCUS}`
+export const btnPrimary = `inline-flex h-8 items-center justify-center gap-1.5 rounded-sm bg-primary px-3 text-body font-semibold text-primary-foreground ${DISABLED} ${FOCUS}`
 
 /**
  * The taller primary, for the single committing action that anchors a panel
@@ -43,20 +41,16 @@ export const btnPrimary =
  * Callers add their own w-full or flex-1; the string omits both because w-full
  * inside a flex row fights flex-1.
  */
-export const btnPrimaryCommit =
-  `inline-flex h-9 items-center justify-center gap-1.5 rounded-sm bg-primary px-4 text-emphasis font-semibold text-primary-foreground ${DISABLED} ${FOCUS}`
+export const btnPrimaryCommit = `inline-flex h-9 items-center justify-center gap-1.5 rounded-sm bg-primary px-4 text-emphasis font-semibold text-primary-foreground ${DISABLED} ${FOCUS}`
 
-export const btnGhost =
-  `inline-flex h-8 items-center justify-center gap-1.5 rounded-sm border border-line/40 bg-control px-3 text-body text-muted-foreground transition-colors hover:bg-hover hover:text-foreground ${DISABLED} ${FOCUS}`
+export const btnGhost = `inline-flex h-8 items-center justify-center gap-1.5 rounded-sm border border-line/40 bg-control px-3 text-body text-muted-foreground transition-colors hover:bg-hover hover:text-foreground ${DISABLED} ${FOCUS}`
 
 /**
  * The dense band, 28px. Real rather than lazy: these sit in a table toolbar, an
  * overlay-card foot that wraps, and a project-card action row, where 4px per
  * control repeats per row or per card.
  */
-export const btnGhostDense =
-  `inline-flex h-7 items-center justify-center gap-1 rounded-sm border border-line/40 bg-control px-2 text-meta text-muted-foreground transition-colors hover:bg-hover hover:text-foreground ${DISABLED} ${FOCUS}`
+export const btnGhostDense = `inline-flex h-7 items-center justify-center gap-1 rounded-sm border border-line/40 bg-control px-2 text-meta text-muted-foreground transition-colors hover:bg-hover hover:text-foreground ${DISABLED} ${FOCUS}`
 
 /** 28px square, matching the dense height so a toolbar row lines up. */
-export const btnIcon =
-  `inline-flex size-7 shrink-0 items-center justify-center rounded-sm text-muted-foreground transition-colors hover:bg-secondary hover:text-foreground ${DISABLED} ${FOCUS}`
+export const btnIcon = `inline-flex size-7 shrink-0 items-center justify-center rounded-sm text-muted-foreground transition-colors hover:bg-secondary hover:text-foreground ${DISABLED} ${FOCUS}`

@@ -18,13 +18,7 @@
  * overriding the choice offered here.
  */
 import { useCallback, useEffect, useRef, useState } from "react"
-import {
-  ArrowsClockwise,
-  Check,
-  CircleNotch,
-  Warning,
-  X,
-} from "@/components/icons"
+import { ArrowsClockwise, Check, CircleNotch, Warning, X } from "@/components/icons"
 import { EventsOn } from "../../wailsjs/runtime/runtime"
 import {
   BuildManagedEnvironment,
@@ -192,13 +186,13 @@ export function EnvironmentPanel() {
       */}
       {(state?.retired_vars ?? []).length > 0 && (
         <Notice tone="warning">
-          {(state?.retired_vars ?? []).length === 1 ? "This variable is" : "These variables are"}{" "}
+          {(state?.retired_vars ?? []).length === 1
+            ? "This variable is"
+            : "These variables are"}{" "}
           set and no longer read:{" "}
-          <span className="telemetry">
-            {(state?.retired_vars ?? []).join(", ")}
-          </span>
-          . The prefix is now <span className="telemetry">TERRA_</span> — rename
-          them, or unset them to stop them being misleading.
+          <span className="telemetry">{(state?.retired_vars ?? []).join(", ")}</span>.
+          The prefix is now <span className="telemetry">TERRA_</span> — rename them, or
+          unset them to stop them being misleading.
         </Notice>
       )}
       {problem && <Notice tone="error">{problem}</Notice>}
@@ -220,8 +214,8 @@ export function EnvironmentPanel() {
             : !active.python_ok
               ? `TERRA needs Python ${active.min_python} or newer.`
               : "The selected interpreter is missing packages the sidecar imports."}{" "}
-          Pick a Python below and press <strong>Build environment</strong> —
-          TERRA installs the rest itself.
+          Pick a Python below and press <strong>Build environment</strong> — TERRA
+          installs the rest itself.
         </Notice>
       )}
 
@@ -287,8 +281,8 @@ export function EnvironmentPanel() {
         <section className="rounded-sm border border-border bg-secondary/50 p-4">
           <p className="eyebrow mb-1">Optional components</p>
           <p className="mb-3 text-body text-muted-foreground">
-            Not installed by default, because nothing else needs them. Each one
-            says what it unlocks and what it costs.
+            Not installed by default, because nothing else needs them. Each one says
+            what it unlocks and what it costs.
           </p>
           <ul className="flex flex-col gap-2">
             {optional.map((pkg) => {
@@ -428,7 +422,7 @@ export function EnvironmentPanel() {
               <p
                 key={i}
                 className={cn(
-                  "telemetry whitespace-pre-wrap break-all text-micro leading-relaxed",
+                  "telemetry text-micro leading-relaxed break-all whitespace-pre-wrap",
                   ev.error ? "text-destructive-quiet" : "text-muted-foreground"
                 )}
               >
@@ -498,9 +492,9 @@ function EarthdataSection() {
     <section className="rounded-sm border border-border bg-secondary/50 p-4">
       <p className="eyebrow mb-1">Earthdata token</p>
       <p className="mb-3 text-body text-muted-foreground">
-        The NASA Earthdata login the mineral map reads EMIT reflectance with.
-        Nothing else in TERRA uses it. The token is tested against the LP DAAC
-        before it is saved, and it is not shown again once saved.
+        The NASA Earthdata login the mineral map reads EMIT reflectance with. Nothing
+        else in TERRA uses it. The token is tested against the LP DAAC before it is
+        saved, and it is not shown again once saved.
       </p>
       <div className="flex flex-col gap-2 rounded-sm border border-border bg-sunk px-3 py-2">
         <div className="flex flex-wrap items-baseline justify-between gap-2">
@@ -511,8 +505,8 @@ function EarthdataSection() {
         </div>
         {fromEnv && (
           <p className="text-micro text-muted-foreground">
-            <span className="telemetry">EARTHDATA_TOKEN</span> is set in the
-            environment and takes precedence over a token saved here.
+            <span className="telemetry">EARTHDATA_TOKEN</span> is set in the environment
+            and takes precedence over a token saved here.
           </p>
         )}
         <form
@@ -530,14 +524,12 @@ function EarthdataSection() {
             autoComplete="off"
             spellCheck={false}
             aria-label="Earthdata token"
-            placeholder={status?.configured ? "Replace the saved token" : "Paste a token"}
+            placeholder={
+              status?.configured ? "Replace the saved token" : "Paste a token"
+            }
             className="field-input min-w-0 flex-1 focus-visible:ring-1 focus-visible:ring-ring"
           />
-          <button
-            type="submit"
-            disabled={busy || !draft.trim()}
-            className={btnPrimary}
-          >
+          <button type="submit" disabled={busy || !draft.trim()} className={btnPrimary}>
             {busy ? <CircleNotch className="size-3.5 animate-spin" /> : null}
             {busy ? "Testing" : "Save"}
           </button>
@@ -555,13 +547,11 @@ function EarthdataSection() {
             Clear
           </button>
         </form>
-        {error && (
-          <p className="text-micro text-destructive-quiet">{error}</p>
-        )}
+        {error && <p className="text-micro text-destructive-quiet">{error}</p>}
         <button
           type="button"
           onClick={() => void OpenExternal("https://urs.earthdata.nasa.gov/")}
-          className="self-start text-micro text-muted-foreground underline underline-offset-2 hover:text-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+          className="self-start text-micro text-muted-foreground underline underline-offset-2 hover:text-foreground focus-visible:ring-1 focus-visible:ring-ring focus-visible:outline-none"
         >
           Create a token at urs.earthdata.nasa.gov (Profile &gt; Generate Token)
         </button>
@@ -575,9 +565,7 @@ function StatusPill({ ok, label }: { ok: boolean; label: string }) {
     <span
       className={cn(
         "telemetry flex shrink-0 items-center gap-1.5 rounded-sm px-1.5 py-0.5 text-meta",
-        ok
-          ? "bg-primary/20 text-accent-quiet"
-          : "bg-secondary text-muted-foreground"
+        ok ? "bg-primary/20 text-accent-quiet" : "bg-secondary text-muted-foreground"
       )}
     >
       {ok ? <Check className="size-3" /> : <Warning className="size-3" />}
@@ -643,14 +631,14 @@ function PathRow({ path }: { path: main.ResolvedPath }) {
             </span>
           )}
           {!path.exists && (
-            <span className="telemetry flex items-center gap-1 rounded-sm bg-destructive-quiet/15 px-1 text-micro uppercase text-destructive-quiet">
+            <span className="telemetry flex items-center gap-1 rounded-sm bg-destructive-quiet/15 px-1 text-micro text-destructive-quiet uppercase">
               <Warning className="size-3" />
               not found
             </span>
           )}
         </div>
       </div>
-      <p className="telemetry mt-0.5 break-all text-micro text-muted-foreground">
+      <p className="telemetry mt-0.5 text-micro break-all text-muted-foreground">
         {path.path || "not resolved"}
       </p>
       {!path.exists && path.blocks && (
@@ -680,9 +668,7 @@ function CandidateRow({
   return (
     <li className="flex flex-wrap items-center justify-between gap-2 rounded-sm border border-border bg-sunk px-3 py-2">
       <div className="min-w-0">
-        <p className="telemetry truncate text-body text-foreground">
-          {candidate.path}
-        </p>
+        <p className="telemetry truncate text-body text-foreground">{candidate.path}</p>
         <p className="text-micro text-muted-foreground">
           {ORIGIN_LABEL[candidate.origin] ?? candidate.origin}
           {active && " · in use"}

@@ -8,7 +8,12 @@ function report(points: [string, number][]): HealthAnalysis {
     extent: { lon_min: 0, lat_min: 0, lon_max: 1, lat_max: 1 },
     window_days: 16,
     baseline_years: [],
-    current: points.map(([date, ndvi]) => ({ date, ndvi, ndre: 0.3, clear_fraction: 1 })),
+    current: points.map(([date, ndvi]) => ({
+      date,
+      ndvi,
+      ndre: 0.3,
+      clear_fraction: 1,
+    })),
     baseline: [],
     anomaly: [],
     latest: null,
@@ -19,7 +24,11 @@ function report(points: [string, number][]): HealthAnalysis {
   }
 }
 
-const field = (id: string, points: [string, number][], crop: string | null = null): FieldReport => ({
+const field = (
+  id: string,
+  points: [string, number][],
+  crop: string | null = null
+): FieldReport => ({
   fieldId: id,
   fieldName: `field ${id}`,
   report: report(points),
@@ -28,20 +37,38 @@ const field = (id: string, points: [string, number][], crop: string | null = nul
 
 describe("reading a departure", () => {
   it("cuts at one and two standard deviations", () => {
-    expect([-2.5, -1.5, 0, 1.2, 3].map(band)).toEqual(["well below", "below", "typical", "above", "well above"])
+    expect([-2.5, -1.5, 0, 1.2, 3].map(band)).toEqual([
+      "well below",
+      "below",
+      "typical",
+      "above",
+      "well above",
+    ])
   })
 })
 
 describe("fields against each other", () => {
   it("compares on the latest date half the fields share, within three days", () => {
     const reports = [
-      report([["2025-12-01", 0.8], ["2025-12-20", 0.8]]),
-      report([["2025-12-01", 0.8], ["2025-12-21", 0.8]]),
+      report([
+        ["2025-12-01", 0.8],
+        ["2025-12-20", 0.8],
+      ]),
+      report([
+        ["2025-12-01", 0.8],
+        ["2025-12-21", 0.8],
+      ]),
       report([["2025-12-01", 0.8]]),
       report([["2025-12-02", 0.8]]),
     ]
     expect(sharedDate(reports)).toBe("2025-12-21")
-    expect(sharedDate([report([["2025-12-01", 0.8]]), report([["2025-12-20", 0.8]]), report([["2025-12-25", 0.8]])])).toBeNull()
+    expect(
+      sharedDate([
+        report([["2025-12-01", 0.8]]),
+        report([["2025-12-20", 0.8]]),
+        report([["2025-12-25", 0.8]]),
+      ])
+    ).toBeNull()
   })
 
   it("scores each field against the median of its group, in robust standard deviations", () => {

@@ -96,7 +96,9 @@ describe("comparePairTables", () => {
   const run = (pct: number) => ({
     label: "r",
     result: {
-      class_stats: [{ class_id: 39, name: "Soybean", color: "#fff", pixels: 1, pct, area_ha: 1 }],
+      class_stats: [
+        { class_id: 39, name: "Soybean", color: "#fff", pixels: 1, pct, area_ha: 1 },
+      ],
     } as PredictResult,
   })
 

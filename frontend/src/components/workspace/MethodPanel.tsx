@@ -36,7 +36,7 @@ function Section({
 }) {
   return (
     <div className="px-2.5 py-1.5">
-      <p className="eyebrow !text-[9px] pb-1">{title}</p>
+      <p className="eyebrow pb-1 !text-[9px]">{title}</p>
       <ul className="flex flex-col gap-1">
         {lines.map((l) => (
           <li
@@ -91,18 +91,10 @@ function Rule() {
  * Bounded in height and scrolled rather than allowed to grow, so opening the
  * panel mid-run does not push the brief off the surface it is clamped inside.
  */
-function Trace({
-  entries,
-  running,
-}: {
-  entries: RunLogEntry[]
-  running: boolean
-}) {
+function Trace({ entries, running }: { entries: RunLogEntry[]; running: boolean }) {
   return (
     <div className="px-2.5 py-1.5">
-      <p className="eyebrow !text-[9px] pb-1">
-        {running ? "Running" : "Last run"}
-      </p>
+      <p className="eyebrow pb-1 !text-[9px]">{running ? "Running" : "Last run"}</p>
       <ul className="selectable panel-scroll flex max-h-40 flex-col gap-0.5 overflow-y-auto">
         {entries.map((e, i) => {
           const last = i === entries.length - 1
@@ -173,7 +165,7 @@ export function MethodPanel({
             // The same 22px the fields beside it stand at, so the band still
             // scans as one line.
             "flex h-[1.375rem] shrink-0 items-center gap-1 rounded-sm px-1.5 text-meta transition-colors",
-            "focus-visible:outline-none focus-visible:inset-ring-1 focus-visible:inset-ring-ring",
+            "focus-visible:inset-ring-1 focus-visible:inset-ring-ring focus-visible:outline-none",
             disabled
               ? "cursor-not-allowed text-muted-foreground/40"
               : open
@@ -186,11 +178,9 @@ export function MethodPanel({
         </button>
       )}
     >
-      <div className="flex max-h-[24rem] flex-col overflow-y-auto panel-scroll">
-        <div className="px-2.5 pb-1.5 pt-1">
-          <p className="text-meta leading-snug text-foreground">
-            {brief.subtitle}
-          </p>
+      <div className="panel-scroll flex max-h-[24rem] flex-col overflow-y-auto">
+        <div className="px-2.5 pt-1 pb-1.5">
+          <p className="text-meta leading-snug text-foreground">{brief.subtitle}</p>
         </div>
         {brief.sections.map((s) => (
           <div key={s.title}>

@@ -28,11 +28,7 @@
 import { PALETTE_STOPS } from "@/lib/palettes"
 import { rampStop } from "@/components/analysisPrimitives"
 import { cn } from "@/lib/utils"
-import type {
-  LULCAgreement,
-  LULCAgreementBlocks,
-  LULCClassAccuracy,
-} from "@/lib/types"
+import type { LULCAgreement, LULCAgreementBlocks, LULCClassAccuracy } from "@/lib/types"
 
 /**
  * Producer's against user's, per class, as an estimate with its interval.
@@ -87,7 +83,7 @@ function AccuracyRow({ c }: { c: LULCClassAccuracy }) {
         <span className="min-w-0 flex-1 truncate text-[10px] text-muted-foreground">
           {c.name}
         </span>
-        <span className="telemetry shrink-0 text-[9px] tabular-nums text-muted-foreground">
+        <span className="telemetry shrink-0 text-[9px] text-muted-foreground tabular-nums">
           n={c.n_reference.toLocaleString()}
         </span>
       </span>
@@ -123,9 +119,7 @@ function AccuracyRow({ c }: { c: LULCClassAccuracy }) {
             .map(
               (m) =>
                 `${m.kind} ${m.v!.toFixed(1)} percent${
-                  m.ci
-                    ? `, 95% CI ${m.ci[0].toFixed(0)} to ${m.ci[1].toFixed(0)}`
-                    : ""
+                  m.ci ? `, 95% CI ${m.ci[0].toFixed(0)} to ${m.ci[1].toFixed(0)}` : ""
                 }`
             )
             .join("; ")}
@@ -136,8 +130,7 @@ function AccuracyRow({ c }: { c: LULCClassAccuracy }) {
               two marks rather than one thicker one. Soybean reads 78 and 79 on
               a real run, which is the case this spacing is for.
             */
-            const top =
-              marks.length === 1 ? "50%" : k === 0 ? "28%" : "72%"
+            const top = marks.length === 1 ? "50%" : k === 0 ? "28%" : "72%"
             const lo = m.ci ? Math.max(0, m.ci[0]) : null
             const hi = m.ci ? Math.min(100, m.ci[1]) : null
             return (
@@ -181,8 +174,7 @@ function AccuracyRow({ c }: { c: LULCClassAccuracy }) {
                     top,
                     width: MARK_R * 2,
                     height: MARK_R * 2,
-                    background:
-                      k === 0 ? c.color : "rgb(var(--p-surface))",
+                    background: k === 0 ? c.color : "rgb(var(--p-surface))",
                     border: `1px solid ${c.color}`,
                   }}
                 />
@@ -213,18 +205,14 @@ function AccuracyAxis() {
       {[0, 50, 100].map((t) => (
         <span
           key={t}
-          className="telemetry absolute top-0.5 text-[8px] tabular-nums text-muted-foreground"
+          className="telemetry absolute top-0.5 text-[8px] text-muted-foreground tabular-nums"
           style={{
             left: `${t}%`,
             // The end labels are pulled inside the axis rather than centred on
             // it: a centred "100" hangs half its width past the right edge and
             // is clipped by the column.
             transform:
-              t === 0
-                ? "none"
-                : t === 100
-                  ? "translateX(-100%)"
-                  : "translateX(-50%)",
+              t === 0 ? "none" : t === 100 ? "translateX(-100%)" : "translateX(-50%)",
           }}
         >
           {t}
@@ -234,17 +222,11 @@ function AccuracyAxis() {
   )
 }
 
-export function ClassAccuracyChart({
-  classes,
-}: {
-  classes: LULCClassAccuracy[]
-}) {
+export function ClassAccuracyChart({ classes }: { classes: LULCClassAccuracy[] }) {
   // Classes the reference never sampled carry no accuracy in either direction.
   // Dropped rather than drawn as rows of dashes: a list of absences spends the
   // column's scarcest resource on nothing.
-  const measured = classes.filter(
-    (c) => c.producers_pct != null || c.users_pct != null
-  )
+  const measured = classes.filter((c) => c.producers_pct != null || c.users_pct != null)
   if (!measured.length) return null
 
   return (
@@ -256,8 +238,8 @@ export function ClassAccuracyChart({
         width and neither wraps.
       */}
       <div className="flex w-full min-w-0 flex-col gap-0.5">
-        <p className="eyebrow !text-[9px] truncate">Accuracy by class</p>
-        <span className="telemetry flex items-center gap-1 whitespace-nowrap text-[8px] text-muted-foreground">
+        <p className="eyebrow truncate !text-[9px]">Accuracy by class</p>
+        <span className="telemetry flex items-center gap-1 text-[8px] whitespace-nowrap text-muted-foreground">
           <svg viewBox="0 0 18 6" className="h-1.5 w-4" aria-hidden>
             <circle cx="3" cy="3" r="2.2" className="fill-muted-foreground" />
             <circle
@@ -387,8 +369,8 @@ export function DisagreementBar({ a }: { a: LULCAgreement }) {
       {/* Stacked for the same reason as the accuracy figure: a heading and a
           reading do not both fit across 15rem without one of them wrapping. */}
       <div className="flex w-full min-w-0 flex-col gap-0.5">
-        <p className="eyebrow !text-[9px] truncate">Agreement with MapBiomas</p>
-        <span className="telemetry whitespace-nowrap text-[9px] tabular-nums text-foreground">
+        <p className="eyebrow truncate !text-[9px]">Agreement with MapBiomas</p>
+        <span className="telemetry text-[9px] whitespace-nowrap text-foreground tabular-nums">
           {a.overall_pct.toFixed(1)}
           <span className="text-muted-foreground">
             {" "}
@@ -499,13 +481,7 @@ export function DisagreementBar({ a }: { a: LULCAgreement }) {
  * says what it fails INTO. Losing that would be losing the pair -- pasture read
  * as soy -- that names the actual error.
  */
-export function ConfusionMatrix({
-  a,
-  title,
-}: {
-  a: LULCAgreement
-  title?: string
-}) {
+export function ConfusionMatrix({ a, title }: { a: LULCAgreement; title?: string }) {
   /*
     `matrix_classes` carries the class ids in the matrix's own axis order,
     which is not the order of `per_class` and need not contain the same set.
@@ -525,7 +501,7 @@ export function ConfusionMatrix({
 
   return (
     <div className="flex min-w-0 flex-col gap-1.5">
-      {title && <p className="eyebrow !text-[9px] truncate">{title}</p>}
+      {title && <p className="eyebrow truncate !text-[9px]">{title}</p>}
       {/*
         ROWS ARE THE RUN, COLUMNS ARE THE REFERENCE, and this line said the
         reverse. `agreement_against_reference` in sidecar/lulc.py fills
@@ -540,8 +516,8 @@ export function ConfusionMatrix({
         cell as the opposite error, omission for commission.
       */}
       <p className="text-[10px] leading-snug text-muted-foreground">
-        Rows = this run · columns = MapBiomas reference. Off-diagonal cells are
-        the pairs actually confused.
+        Rows = this run · columns = MapBiomas reference. Off-diagonal cells are the
+        pairs actually confused.
       </p>
       <div className="min-w-0 overflow-x-auto">
         <table className="border-separate border-spacing-0.5 text-[9px]">
@@ -556,7 +532,7 @@ export function ConfusionMatrix({
                 */
                 <th key={c.id} className="p-0.5 align-bottom font-normal">
                   <span
-                    className="telemetry block h-24 max-h-24 overflow-hidden whitespace-nowrap text-left text-[9px] text-muted-foreground"
+                    className="telemetry block h-24 max-h-24 overflow-hidden text-left text-[9px] whitespace-nowrap text-muted-foreground"
                     style={{
                       writingMode: "vertical-rl",
                       transform: "rotate(180deg)",
@@ -676,14 +652,11 @@ export function BlockAgreementPair({
         <br />
         Spread says whether the disagreement sits in one place or everywhere.
         <br />
-        Blank blocks held fewer than {grids[0].blocks.min_cells} reference
-        cells.
+        Blank blocks held fewer than {grids[0].blocks.min_cells} reference cells.
       </p>
       <div className="flex flex-row items-start gap-3">
         {grids.map((g) => {
-          const at = new Map(
-            g.blocks.cells.map((c) => [`${c.row}:${c.col}`, c])
-          )
+          const at = new Map(g.blocks.cells.map((c) => [`${c.row}:${c.col}`, c]))
           return (
             <div key={g.letter} className="flex flex-col gap-1">
               <p className="telemetry truncate text-[9px] text-muted-foreground">
@@ -722,9 +695,8 @@ export function BlockAgreementPair({
                 )}
               </div>
               <p className="telemetry text-[9px] text-muted-foreground">
-                med {g.blocks.median_pct.toFixed(0)} · IQR{" "}
-                {g.blocks.iqr_pct.toFixed(0)} · {g.blocks.min_pct.toFixed(0)}–
-                {g.blocks.max_pct.toFixed(0)}
+                med {g.blocks.median_pct.toFixed(0)} · IQR {g.blocks.iqr_pct.toFixed(0)}{" "}
+                · {g.blocks.min_pct.toFixed(0)}–{g.blocks.max_pct.toFixed(0)}
               </p>
             </div>
           )
@@ -865,10 +837,7 @@ export function ReferenceConfusionPair({
               <tbody>
                 {axis.map((rowClass, i) => (
                   <tr key={rowClass.id}>
-                    <th
-                      className="p-0.5 text-left font-normal"
-                      title={rowClass.name}
-                    >
+                    <th className="p-0.5 text-left font-normal" title={rowClass.name}>
                       <span className="flex items-center gap-1">
                         <span
                           className="size-2.5 shrink-0 rounded-[2px]"
@@ -894,8 +863,7 @@ export function ReferenceConfusionPair({
                               // the accent and one said the boundary token, so
                               // two readings of the same thing disagreed about
                               // what a diagonal looks like.
-                              diag &&
-                                "ring-1 ring-[rgb(var(--p-line-strong)/0.9)]"
+                              diag && "ring-1 ring-[rgb(var(--p-line-strong)/0.9)]"
                             )}
                             style={{
                               background:
@@ -1013,10 +981,7 @@ export function AgreementDelta({
         />
         <DeltaFigure
           label="Allocation"
-          value={delta(
-            a.allocation_disagreement_pct,
-            b.allocation_disagreement_pct
-          )}
+          value={delta(a.allocation_disagreement_pct, b.allocation_disagreement_pct)}
           betterWhenLower
         />
       </div>
@@ -1102,9 +1067,7 @@ function DeltaFigure({
         )}
       >
         {value == null ? "—" : `${value > 0 ? "+" : ""}${value.toFixed(1)}`}
-        {value != null && (
-          <span className="text-[9px] text-muted-foreground"> pp</span>
-        )}
+        {value != null && <span className="text-[9px] text-muted-foreground"> pp</span>}
       </div>
     </div>
   )

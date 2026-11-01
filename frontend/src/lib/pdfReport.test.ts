@@ -25,7 +25,10 @@ import type { Season } from "@/lib/season"
 
     UPDATE_PDF_REPORT_FIXTURE=1 npx vitest run src/lib/pdfReport.test.ts
 */
-const FIXTURE = resolve(__dirname, "../../../sidecar/tests/data/pdf_report_document.json")
+const FIXTURE = resolve(
+  __dirname,
+  "../../../sidecar/tests/data/pdf_report_document.json"
+)
 
 // A 1 x 1 PNG, so the fixture carries a real image the sidecar can decode.
 const PIXEL =
@@ -73,15 +76,33 @@ function row(field: string, over: Partial<FieldRow> = {}): FieldRow {
       carGap: 3.2,
       unread: ["Conservation units"],
     },
-    radar: { passes: 30, losses: 1, lastLossFrom: "2026-03-01", lastLossTo: "2026-03-13", latestDate: "2026-09-25", latestWater: 0.004 },
+    radar: {
+      passes: 30,
+      losses: 1,
+      lastLossFrom: "2026-03-01",
+      lastLossTo: "2026-03-13",
+      latestDate: "2026-09-25",
+      latestWater: 0.004,
+    },
     zones: { suggestedK: 3, fpi: 0.214, nce: 0.187, seasonsUsed: 4 },
     ...over,
   }
 }
 
 const INPUT: PdfReportInput = {
-  settings: { ...PDF_REPORT_DEFAULT, author: "J. Leonardi", number: "TERRA-RA-2026-001", question: "Which fields departed this season?" },
-  rows: [row("field 7"), row("field 12", { health: { date: "2026-01-12", ndviZ: 0.3, ndreZ: 0.1, ndvi: 0.83 }, radar: null })],
+  settings: {
+    ...PDF_REPORT_DEFAULT,
+    author: "J. Leonardi",
+    number: "TERRA-RA-2026-001",
+    question: "Which fields departed this season?",
+  },
+  rows: [
+    row("field 7"),
+    row("field 12", {
+      health: { date: "2026-01-12", ndviZ: 0.3, ndreZ: 0.1, ndvi: 0.83 },
+      radar: null,
+    }),
+  ],
   areaName: "Fazenda Boa Vista",
   season: { field: "field 7", season },
   figures: [
@@ -91,10 +112,16 @@ const INPUT: PdfReportInput = {
       uri: PIXEL,
       width: 400,
       height: 300,
-      extent: { lon_min: -55.7311, lat_min: -12.1503, lon_max: -55.71, lat_max: -12.13 },
+      extent: {
+        lon_min: -55.7311,
+        lat_min: -12.1503,
+        lon_max: -55.71,
+        lat_max: -12.13,
+      },
       legend: [{ label: "Soybean", color: "#f5b3c8" }],
       pixelated: true,
-      source: "Sentinel-2 L2A (Copernicus), classified by TERRA; MapBiomas legend, 2025-09-27 to 2026-09-19 (run e699f536)",
+      source:
+        "Sentinel-2 L2A (Copernicus), classified by TERRA; MapBiomas legend, 2025-09-27 to 2026-09-19 (run e699f536)",
     },
   ],
   runs: [
@@ -133,17 +160,31 @@ describe("buildPdfReport", () => {
   it("titles an untitled report by its products and subject", () => {
     expect(doc.meta.title).toBe("Report on 2 fields of Fazenda Boa Vista")
     expect(doc.meta.status).toBe("draft")
-    expect(doc.meta.subtitle).toBe("Imagery 2025-09-27 to 2026-09-19 and 2025-09-25 to 2026-09-25")
+    expect(doc.meta.subtitle).toBe(
+      "Imagery 2025-09-27 to 2026-09-19 and 2025-09-25 to 2026-09-25"
+    )
   })
 
   it("states counts with their condition, and names the fields well below", () => {
     expect(doc.summary).toContain(
       "Across 2 fields, 249.5 ha were classified into 2 classes; the largest, Soybean, covers 96.6% of it."
     )
-    expect(doc.summary.some((s) => s.includes("in 1 of 2 fields, and at least two below in 1 (field 7)"))).toBe(true)
-    expect(doc.summary.some((s) => s.includes("PRODES clearing after 22 Jul 2008, 3.0 ha over 2 fields"))).toBe(true)
-    expect(doc.summary.some((s) => s.endsWith("Not read: Conservation units."))).toBe(true)
-    expect(doc.summary).toContain("The Sentinel-1 series records at least one canopy loss in 1 of 1 fields.")
+    expect(
+      doc.summary.some((s) =>
+        s.includes("in 1 of 2 fields, and at least two below in 1 (field 7)")
+      )
+    ).toBe(true)
+    expect(
+      doc.summary.some((s) =>
+        s.includes("PRODES clearing after 22 Jul 2008, 3.0 ha over 2 fields")
+      )
+    ).toBe(true)
+    expect(doc.summary.some((s) => s.endsWith("Not read: Conservation units."))).toBe(
+      true
+    )
+    expect(doc.summary).toContain(
+      "The Sentinel-1 series records at least one canopy loss in 1 of 1 fields."
+    )
   })
 
   it("prints a register not read as a dash, never as zero", () => {
@@ -160,7 +201,10 @@ describe("buildPdfReport", () => {
   })
 
   it("carries one method entry per run kind, and a limitation per product", () => {
-    expect(doc.method.map((m) => m.product)).toEqual(["Land cover and season", "Vegetation health"])
+    expect(doc.method.map((m) => m.product)).toEqual([
+      "Land cover and season",
+      "Vegetation health",
+    ])
     expect(doc.limitations.map((l) => l.label)).toContain("Radar thresholds")
     expect(doc.limitations.at(-1)?.label).toBe("Field verification")
   })
@@ -169,7 +213,10 @@ describe("buildPdfReport", () => {
     const rows = [row("f", { health: null, overlap: null, radar: null, zones: null })]
     expect(productsIn(rows)).toEqual(["classes", "season"])
     const bare = buildPdfReport({ ...INPUT, rows })
-    expect(bare.tables.map((t) => t.title)).toEqual(["Land cover by field.", "Season dates by field."])
+    expect(bare.tables.map((t) => t.title)).toEqual([
+      "Land cover by field.",
+      "Season dates by field.",
+    ])
     expect(bare.references.some((r) => r.startsWith("Lee"))).toBe(false)
   })
 })
@@ -177,17 +224,29 @@ describe("buildPdfReport", () => {
 describe("scaleBar", () => {
   it("is a round length no wider than a quarter of the map", () => {
     // 0.0211 degrees of longitude at 12.14 S is about 2.30 km.
-    const bar = scaleBar({ lon_min: -55.7311, lat_min: -12.1503, lon_max: -55.71, lat_max: -12.13 })!
+    const bar = scaleBar({
+      lon_min: -55.7311,
+      lat_min: -12.1503,
+      lon_max: -55.71,
+      lat_max: -12.13,
+    })!
     expect(bar.label).toBe("500 m")
     expect(bar.fraction).toBeGreaterThan(0.2)
     expect(bar.fraction).toBeLessThanOrEqual(0.25)
-    expect(scaleBar({ lon_min: -56, lat_min: -13, lon_max: -55, lat_max: -12 })!.label).toBe("20 km")
+    expect(
+      scaleBar({ lon_min: -56, lat_min: -13, lon_max: -55, lat_max: -12 })!.label
+    ).toBe("20 km")
     expect(scaleBar({ lon_min: 1, lat_min: 0, lon_max: 1, lat_max: 1 })).toBeNull()
   })
 })
 
 describe("map sheet", () => {
-  const extent = { lon_min: -55.7311, lat_min: -12.1503, lon_max: -55.71, lat_max: -12.13 }
+  const extent = {
+    lon_min: -55.7311,
+    lat_min: -12.1503,
+    lon_max: -55.71,
+    lat_max: -12.13,
+  }
 
   it("writes coordinates in degrees, minutes and seconds, to the precision of the interval", () => {
     expect(dms(-55.725, "lon", 30)).toBe("55°43′30″W")
@@ -200,7 +259,10 @@ describe("map sheet", () => {
     // 0.0211 degrees of longitude is 76 seconds of arc: 15 s would give five, 30 s gives two.
     const lon = graticule(extent.lon_min, extent.lon_max, "lon")
     expect(lon.map((t) => t.label)).toEqual(["55°43′30″W", "55°43′00″W"])
-    expect(lon[0].at).toBeCloseTo((-55.725 - extent.lon_min) / (extent.lon_max - extent.lon_min), 9)
+    expect(lon[0].at).toBeCloseTo(
+      (-55.725 - extent.lon_min) / (extent.lon_max - extent.lon_min),
+      9
+    )
     // Parallels are placed from the top: the northern one first, nearer 0.
     const lat = graticule(extent.lat_min, extent.lat_max, "lat")
     expect(lat.length).toBeGreaterThanOrEqual(2)
@@ -212,7 +274,10 @@ describe("map sheet", () => {
 
   it("shapes the frame by the ground, not by the pixels", () => {
     // 0.0211 x cos(12.14 S) over 0.0203 degrees.
-    expect(groundAspect(extent)).toBeCloseTo((0.0211 * Math.cos((12.14015 * Math.PI) / 180)) / 0.0203, 6)
+    expect(groundAspect(extent)).toBeCloseTo(
+      (0.0211 * Math.cos((12.14015 * Math.PI) / 180)) / 0.0203,
+      6
+    )
   })
 
   it("names the sensor, the period and the run behind a map", () => {
@@ -225,7 +290,10 @@ describe("map sheet", () => {
     const withExtent = buildPdfReport(INPUT).figures[0]
     expect(withExtent.map?.scale_bar.ticks).toEqual(["0", "250", "500 m"])
     expect(withExtent.map?.crs).toContain("WGS 84")
-    const bare = buildPdfReport({ ...INPUT, figures: [{ ...INPUT.figures[0], extent: null }] }).figures[0]
+    const bare = buildPdfReport({
+      ...INPUT,
+      figures: [{ ...INPUT.figures[0], extent: null }],
+    }).figures[0]
     expect(bare.map).toBeNull()
     expect(bare.aspect).toBeCloseTo(400 / 300, 9)
     expect(bare.caption).toContain("no coordinates and no scale")
@@ -244,6 +312,11 @@ describe("seasonSeries", () => {
   })
 
   it("draws nothing from fewer than two observations", () => {
-    expect(seasonSeries("f", { ...season, observations: [{ date: "2025-10-05", ndvi: 0.2 }] })).toBeNull()
+    expect(
+      seasonSeries("f", {
+        ...season,
+        observations: [{ date: "2025-10-05", ndvi: 0.2 }],
+      })
+    ).toBeNull()
   })
 })

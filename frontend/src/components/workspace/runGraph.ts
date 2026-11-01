@@ -178,10 +178,7 @@ export function runGraph(
     edge -- see SPEC.catalogue -- so a graph gains a card and the request it
     describes is unchanged.
   */
-  const nodes = [
-    ...graph.nodes,
-    ...extras.map((id) => ({ ...SPEC[id], col: 0 })),
-  ]
+  const nodes = [...graph.nodes, ...extras.map((id) => ({ ...SPEC[id], col: 0 }))]
   return { ...graph, nodes }
 }
 

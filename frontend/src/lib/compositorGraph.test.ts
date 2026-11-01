@@ -46,7 +46,12 @@ function graphOf(...kinds: NodeKind[]): CompositorGraph {
   return g
 }
 
-const link = (from: string, fromSocket: string, to: string, toSocket: string): GraphLink => ({
+const link = (
+  from: string,
+  fromSocket: string,
+  to: string,
+  toSocket: string
+): GraphLink => ({
   from,
   fromSocket,
   to,
@@ -60,7 +65,11 @@ describe("connect", () => {
     expect(a.ok).toBe(true)
     if (!a.ok) return
     g = a.graph
-    const b = connect(g, link("majority-1", "classes", "sieve-1", "classes"), runOutputs)
+    const b = connect(
+      g,
+      link("majority-1", "classes", "sieve-1", "classes"),
+      runOutputs
+    )
     expect(b.ok).toBe(true)
     if (!b.ok) return
     expect(linkInto(b.graph, "sieve-1", "classes")?.from).toBe("majority-1")
@@ -71,7 +80,9 @@ describe("connect", () => {
     const g = graphOf("run", "majority", "viewer")
     const bad = connect(g, link("run-1", "ndvi", "majority-1", "classes"), runOutputs)
     expect(bad.ok).toBe(false)
-    expect(connect(g, link("run-1", "ndvi", "viewer-1", "image"), runOutputs).ok).toBe(true)
+    expect(connect(g, link("run-1", "ndvi", "viewer-1", "image"), runOutputs).ok).toBe(
+      true
+    )
   })
 
   it("refuses a link that would close a loop", () => {
@@ -83,21 +94,28 @@ describe("connect", () => {
       const r = connect(g, l, runOutputs)
       if (r.ok) g = r.graph
     }
-    expect(connect(g, link("sieve-1", "classes", "majority-1", "classes"), runOutputs).ok).toBe(false)
+    expect(
+      connect(g, link("sieve-1", "classes", "majority-1", "classes"), runOutputs).ok
+    ).toBe(false)
   })
 
   it("lets a Viewer's output feed a Globe, and a class input when a class map reaches it", () => {
     let g = graphOf("run", "viewer", "globe", "majority")
     const r = connect(g, link("run-1", "prediction", "viewer-1", "image"), runOutputs)
     if (r.ok) g = r.graph
-    expect(connect(g, link("viewer-1", "image", "globe-1", "layer-1"), runOutputs).ok).toBe(true)
+    expect(
+      connect(g, link("viewer-1", "image", "globe-1", "layer-1"), runOutputs).ok
+    ).toBe(true)
     expect(outputType(g, "viewer-1", "image", runOutputs)).toBe("classes")
-    expect(connect(g, link("viewer-1", "image", "majority-1", "classes"), runOutputs).ok).toBe(true)
+    expect(
+      connect(g, link("viewer-1", "image", "majority-1", "classes"), runOutputs).ok
+    ).toBe(true)
   })
 
   it("gives a Globe one more layer than it has links, and keeps them in order", () => {
     let g = graphOf("run", "globe")
-    const layers = () => inputsOf(g, nodeOf(g, "globe-1")!).map((i) => `${i.id}=${i.label}`)
+    const layers = () =>
+      inputsOf(g, nodeOf(g, "globe-1")!).map((i) => `${i.id}=${i.label}`)
     expect(layers()).toEqual(["layer-1=Layer 1"])
     for (const [out, socket] of [
       ["prediction", "layer-1"],
@@ -110,25 +128,38 @@ describe("connect", () => {
     // Unlinking the first keeps the second's id and relabels it by position.
     g = disconnect(g, "globe-1", "layer-1")
     expect(layers()).toEqual(["layer-2=Layer 1", "layer-3=Layer 2"])
-    expect(connect(g, link("run-1", "ndvi", "globe-1", "image"), runOutputs).ok).toBe(false)
+    expect(connect(g, link("run-1", "ndvi", "globe-1", "image"), runOutputs).ok).toBe(
+      false
+    )
   })
 
   it("gives a PDF report one more map than it has links, up to its limit", () => {
     let g = graphOf("run", "pdfReport")
     const report = () => nodeOf(g, "pdfReport-1")!
-    const maps = () => inputsOf(g, report()).filter((i) => i.id.startsWith("map-")).map((i) => `${i.id}=${i.label}`)
+    const maps = () =>
+      inputsOf(g, report())
+        .filter((i) => i.id.startsWith("map-"))
+        .map((i) => `${i.id}=${i.label}`)
     expect(maps()).toEqual(["map-1=Map 1"])
     // The product inputs stay where they are declared, ahead of the maps.
     expect(inputsOf(g, report())[0].id).toBe("classes")
     for (let n = 1; n <= PDF_REPORT_MAX_MAPS; n++) {
-      const r = connect(g, link("run-1", n % 2 ? "prediction" : "ndvi", "pdfReport-1", `map-${n}`), runOutputs)
+      const r = connect(
+        g,
+        link("run-1", n % 2 ? "prediction" : "ndvi", "pdfReport-1", `map-${n}`),
+        runOutputs
+      )
       expect(r.ok).toBe(true)
       if (r.ok) g = r.graph
     }
     expect(pdfReportMaps(g, report())).toHaveLength(PDF_REPORT_MAX_MAPS)
     // Full: no empty map is offered, and one past the limit is refused with its reason.
     expect(maps()).toHaveLength(PDF_REPORT_MAX_MAPS)
-    const over = connect(g, link("run-1", "ndvi", "pdfReport-1", `map-${PDF_REPORT_MAX_MAPS + 1}`), runOutputs)
+    const over = connect(
+      g,
+      link("run-1", "ndvi", "pdfReport-1", `map-${PDF_REPORT_MAX_MAPS + 1}`),
+      runOutputs
+    )
     expect(over.ok).toBe(false)
     if (!over.ok) expect(over.reason).toContain(`at most ${PDF_REPORT_MAX_MAPS} maps`)
     g = disconnect(g, "pdfReport-1", "map-1")
@@ -143,7 +174,12 @@ describe("connect", () => {
         { id: "pdfReport-1", kind: "pdfReport", settings: { title: "T" } },
       ],
       links: [
-        { from: "run-1", fromSocket: "prediction", to: "pdfReport-1", toSocket: "map1" },
+        {
+          from: "run-1",
+          fromSocket: "prediction",
+          to: "pdfReport-1",
+          toSocket: "map1",
+        },
         { from: "run-1", fromSocket: "ndvi", to: "pdfReport-1", toSocket: "map2" },
       ],
       places: {},
@@ -162,7 +198,9 @@ describe("connect", () => {
     const r = connect(g, link("run-1", "ndvi", "mask-1", "raster"), runOutputs)
     if (r.ok) g = r.graph
     expect(outputType(g, "mask-1", "raster", runOutputs)).toBe("image")
-    expect(connect(g, link("mask-1", "raster", "majority-1", "classes"), runOutputs).ok).toBe(false)
+    expect(
+      connect(g, link("mask-1", "raster", "majority-1", "classes"), runOutputs).ok
+    ).toBe(false)
   })
 })
 
@@ -174,7 +212,9 @@ describe("editing", () => {
     g = removeNode(g, "viewer-1")
     expect(g.viewer).toBe("viewer-2")
     g = removeNode(g, "majority-1")
-    expect(g.links.some((l) => l.from === "majority-1" || l.to === "majority-1")).toBe(false)
+    expect(g.links.some((l) => l.from === "majority-1" || l.to === "majority-1")).toBe(
+      false
+    )
   })
 
   it("disconnects one input and leaves the others", () => {
@@ -210,7 +250,12 @@ describe("parseGraph", () => {
     })
     expect(g?.nodes.map((n) => n.id)).toEqual(["run-1", "sieve-1", "mix-1", "globe-1"])
     expect(g?.nodes[3]).toEqual({ id: "globe-1", kind: "globe", opacity: 0.85 })
-    expect(g?.nodes[1]).toEqual({ id: "sieve-1", kind: "sieve", minPixels: SIEVE_MIN, connectivity: 8 })
+    expect(g?.nodes[1]).toEqual({
+      id: "sieve-1",
+      kind: "sieve",
+      minPixels: SIEVE_MIN,
+      connectivity: 8,
+    })
     expect(g?.nodes[2]).toEqual({ id: "mix-1", kind: "mix", opacity: 1 })
     expect(g?.links).toEqual([link("run-1", "anything", "sieve-1", "classes")])
     expect(g?.places).toEqual({ "sieve-1": { x: 1, y: 2 } })
@@ -223,7 +268,9 @@ describe("parseGraph", () => {
         { id: "run-1", kind: "run", runId: "r" },
         { id: "globe-1", kind: "globe", opacity: 0.5 },
       ],
-      links: [{ from: "run-1", fromSocket: "prediction", to: "globe-1", toSocket: "image" }],
+      links: [
+        { from: "run-1", fromSocket: "prediction", to: "globe-1", toSocket: "image" },
+      ],
     })
     expect(g?.links).toEqual([link("run-1", "prediction", "globe-1", "layer-1")])
   })

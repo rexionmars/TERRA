@@ -9,7 +9,10 @@
 import type { ZonesAnalysis, ZonesPartition } from "@/lib/types"
 
 /** The partition into `k` zones, or the suggested one where `k` is null or absent. */
-export function chosenPartition(report: ZonesAnalysis | null, k: number | null): ZonesPartition | null {
+export function chosenPartition(
+  report: ZonesAnalysis | null,
+  k: number | null
+): ZonesPartition | null {
   if (!report) return null
   return (
     (k != null ? report.partitions.find((p) => p.k === k) : undefined) ??
@@ -39,7 +42,9 @@ function featuresOf(p: ZonesPartition): Feature[] {
  * its field's name beside its zone: the file a variable-rate prescription is
  * built from, where each field's zones are its own.
  */
-export function zonesGeoJSON(fields: readonly { name: string; partition: ZonesPartition | null }[]): string {
+export function zonesGeoJSON(
+  fields: readonly { name: string; partition: ZonesPartition | null }[]
+): string {
   const features: Feature[] = []
   for (const f of fields) {
     if (!f.partition) continue

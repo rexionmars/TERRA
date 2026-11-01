@@ -199,15 +199,48 @@ const RECOLOUR: Record<string, Record<string, "currentColor" | "cut">> = {
 
 type El = { tag: string; attrs: Record<string, string>; children: El[] }
 
-const SHAPES = new Set(["path", "rect", "circle", "ellipse", "polygon", "polyline", "line"])
+const SHAPES = new Set([
+  "path",
+  "rect",
+  "circle",
+  "ellipse",
+  "polygon",
+  "polyline",
+  "line",
+])
 /** Carried by the sources and meaning nothing once the stylesheet is gone. */
 const SKIPPED = new Set(["defs", "style", "metadata", "title", "desc"])
 const PAINT = ["fill", "stroke"]
 const KEPT = new Set([
-  "d", "x", "y", "width", "height", "rx", "ry", "cx", "cy", "r", "x1", "y1", "x2", "y2",
-  "points", "transform", "opacity", "fill", "fill-opacity", "fill-rule", "clip-rule",
-  "stroke", "stroke-width", "stroke-linecap", "stroke-linejoin", "stroke-miterlimit",
-  "stroke-opacity", "stroke-dasharray", "stroke-dashoffset",
+  "d",
+  "x",
+  "y",
+  "width",
+  "height",
+  "rx",
+  "ry",
+  "cx",
+  "cy",
+  "r",
+  "x1",
+  "y1",
+  "x2",
+  "y2",
+  "points",
+  "transform",
+  "opacity",
+  "fill",
+  "fill-opacity",
+  "fill-rule",
+  "clip-rule",
+  "stroke",
+  "stroke-width",
+  "stroke-linecap",
+  "stroke-linejoin",
+  "stroke-miterlimit",
+  "stroke-opacity",
+  "stroke-dasharray",
+  "stroke-dashoffset",
 ])
 /** A value that says what SVG already assumes. */
 const DEFAULTS: Record<string, string[]> = {
@@ -231,13 +264,16 @@ function parse(source: string, where: string): El {
     .replace(/<!--[\s\S]*?-->/g, "")
   const root: El = { tag: "#root", attrs: {}, children: [] }
   const stack: El[] = [root]
-  const tagRe = /<(\/)?([A-Za-z][\w:.-]*)((?:\s+[\w:.-]+\s*=\s*(?:"[^"]*"|'[^']*'))*)\s*(\/)?>/g
+  const tagRe =
+    /<(\/)?([A-Za-z][\w:.-]*)((?:\s+[\w:.-]+\s*=\s*(?:"[^"]*"|'[^']*'))*)\s*(\/)?>/g
   let last = 0
   for (let m = tagRe.exec(text); m; m = tagRe.exec(text)) {
     const between = text.slice(last, m.index)
     const top = stack[stack.length - 1]
     if (between.trim() && !SKIPPED.has(top.tag)) {
-      throw new Error(`${where}: text outside an element: ${between.trim().slice(0, 40)}`)
+      throw new Error(
+        `${where}: text outside an element: ${between.trim().slice(0, 40)}`
+      )
     }
     last = m.index + m[0].length
     const [, closing, tag, rawAttrs, selfClosing] = m
@@ -255,8 +291,10 @@ function parse(source: string, where: string): El {
     if (!selfClosing) stack.push(el)
   }
   if (text.slice(last).trim()) throw new Error(`${where}: text after the last element`)
-  if (stack.length !== 1) throw new Error(`${where}: <${stack[stack.length - 1].tag}> is never closed`)
-  if (root.children.length !== 1 || root.children[0].tag !== "svg") throw new Error(`${where}: not a single <svg>`)
+  if (stack.length !== 1)
+    throw new Error(`${where}: <${stack[stack.length - 1].tag}> is never closed`)
+  if (root.children.length !== 1 || root.children[0].tag !== "svg")
+    throw new Error(`${where}: not a single <svg>`)
   return root.children[0]
 }
 
@@ -275,7 +313,9 @@ function presentation(el: El, where: string): Record<string, string> {
     // A namespaced attribute is the editor's (inkscape:, sodipodi:, xmlns:).
     if (k.includes(":") || DROPPED.has(k)) continue
     if (!KEPT.has(k)) {
-      throw new Error(`${where}: <${el.tag}> carries ${k}="${v}", which this generator does not know`)
+      throw new Error(
+        `${where}: <${el.tag}> carries ${k}="${v}", which this generator does not know`
+      )
     }
     if (!DEFAULTS[k]?.includes(v)) out[k] = v
   }
@@ -295,8 +335,16 @@ function build(name: string, source: string): Glyph {
     .split(/[\s,]+/)
     .map(Number)
   const box = view[2]
-  if (view.length !== 4 || view[0] !== 0 || view[1] !== 0 || view[3] !== box || (box !== 16 && box !== 22)) {
-    throw new Error(`${where}: viewBox ${svg.attrs.viewBox} is not a 16 or 22 square at the origin`)
+  if (
+    view.length !== 4 ||
+    view[0] !== 0 ||
+    view[1] !== 0 ||
+    view[3] !== box ||
+    (box !== 16 && box !== 22)
+  ) {
+    throw new Error(
+      `${where}: viewBox ${svg.attrs.viewBox} is not a 16 or 22 square at the origin`
+    )
   }
   if (source.split("/")[1] !== String(box)) {
     throw new Error(`${where}: drawn on ${box}, filed under ${source.split("/")[1]}`)
@@ -307,7 +355,10 @@ function build(name: string, source: string): Glyph {
   const paint = (value: string, prop: string): string => {
     if (value === "currentColor" || value === "none") return value
     const to = recolour[value.toLowerCase()]
-    if (!to) throw new Error(`${where}: ${prop} is the literal ${value}, and RECOLOUR does not say what it becomes`)
+    if (!to)
+      throw new Error(
+        `${where}: ${prop} is the literal ${value}, and RECOLOUR does not say what it becomes`
+      )
     used.add(value.toLowerCase())
     return to
   }
@@ -319,8 +370,13 @@ function build(name: string, source: string): Glyph {
    */
   const write = (el: El, fill: string, stroke: string, depth: number): string => {
     if (SKIPPED.has(el.tag) || el.tag.includes(":")) {
-      const live = el.children.filter((c) => !SKIPPED.has(c.tag) && !c.tag.includes(":"))
-      if (live.length) throw new Error(`${where}: <${el.tag}> holds <${live[0].tag}>, which would be lost`)
+      const live = el.children.filter(
+        (c) => !SKIPPED.has(c.tag) && !c.tag.includes(":")
+      )
+      if (live.length)
+        throw new Error(
+          `${where}: <${el.tag}> holds <${live[0].tag}>, which would be lost`
+        )
       return ""
     }
     if (el.tag !== "g" && !SHAPES.has(el.tag)) {
@@ -339,34 +395,48 @@ function build(name: string, source: string): Glyph {
     }
 
     if (ownFill === "cut") {
-      if (depth !== 0 || el.tag === "g") throw new Error(`${where}: a cut mark must be a shape at the top level`)
+      if (depth !== 0 || el.tag === "g")
+        throw new Error(`${where}: a cut mark must be a shape at the top level`)
       cuts.push(tag(el.tag, { ...attrs, fill: "#000" }))
       return ""
     }
 
     if (el.tag === "g") {
-      const inner = el.children.map((c) => write(c, ownFill, ownStroke, depth + 1)).join("")
+      const inner = el.children
+        .map((c) => write(c, ownFill, ownStroke, depth + 1))
+        .join("")
       if (!inner) return ""
       return Object.keys(attrs).length ? `<g${attributes(attrs)}>${inner}</g>` : inner
     }
-    if (el.children.some((c) => !SKIPPED.has(c.tag))) throw new Error(`${where}: <${el.tag}> has children`)
+    if (el.children.some((c) => !SKIPPED.has(c.tag)))
+      throw new Error(`${where}: <${el.tag}> has children`)
     if (ownFill === "none" && ownStroke === "none") return ""
     return tag(el.tag, attrs)
   }
 
   // The root is read as a group: a fill on <svg> is inherited like any other.
-  const rootAttrs = presentation({ ...svg, attrs: without(svg.attrs, ["viewBox", "width", "height", "x", "y"]) }, where)
+  const rootAttrs = presentation(
+    { ...svg, attrs: without(svg.attrs, ["viewBox", "width", "height", "x", "y"]) },
+    where
+  )
   for (const k of Object.keys(rootAttrs)) {
-    if (!PAINT.includes(k)) throw new Error(`${where}: <svg> carries ${k}, which the component's own root would drop`)
+    if (!PAINT.includes(k))
+      throw new Error(
+        `${where}: <svg> carries ${k}, which the component's own root would drop`
+      )
   }
   const rootFill = "fill" in rootAttrs ? paint(rootAttrs.fill, "fill") : "currentColor"
-  if ("stroke" in rootAttrs && rootAttrs.stroke !== "none") throw new Error(`${where}: a stroke on <svg>`)
+  if ("stroke" in rootAttrs && rootAttrs.stroke !== "none")
+    throw new Error(`${where}: a stroke on <svg>`)
   let body = svg.children.map((c) => write(c, rootFill, "none", 0)).join("")
   if (rootFill !== "currentColor") body = `<g fill="${rootFill}">${body}</g>`
 
   if (!body) throw new Error(`${where}: nothing left to draw`)
   for (const literal of Object.keys(recolour)) {
-    if (!used.has(literal)) throw new Error(`${where}: RECOLOUR names ${literal}, which the source does not use`)
+    if (!used.has(literal))
+      throw new Error(
+        `${where}: RECOLOUR names ${literal}, which the source does not use`
+      )
   }
   if (cuts.length) {
     // One id per glyph, not per instance: every copy of a mask on the page is
@@ -379,7 +449,10 @@ function build(name: string, source: string): Glyph {
   return { box, body }
 }
 
-function without(attrs: Record<string, string>, names: string[]): Record<string, string> {
+function without(
+  attrs: Record<string, string>,
+  names: string[]
+): Record<string, string> {
   const out = { ...attrs }
   for (const n of names) delete out[n]
   return out
@@ -387,7 +460,10 @@ function without(attrs: Record<string, string>, names: string[]): Record<string,
 
 function attributes(attrs: Record<string, string>): string {
   return Object.entries(attrs)
-    .map(([k, v]) => ` ${k}="${(k === "d" || k === "points" ? v.replace(/\s+/g, " ") : v).trim()}"`)
+    .map(
+      ([k, v]) =>
+        ` ${k}="${(k === "d" || k === "points" ? v.replace(/\s+/g, " ") : v).trim()}"`
+    )
     .join("")
 }
 
@@ -403,7 +479,8 @@ function emit(): string {
     throw new Error(`ICONS is not in alphabetical order at ${names[at]}`)
   }
   for (const source of Object.keys(RECOLOUR)) {
-    if (!Object.values(ICONS).includes(source)) throw new Error(`RECOLOUR names ${source}, which no icon uses`)
+    if (!Object.values(ICONS).includes(source))
+      throw new Error(`RECOLOUR names ${source}, which no icon uses`)
   }
 
   // Several names can answer to one drawing; the string is written once.
@@ -411,9 +488,12 @@ function emit(): string {
   const lines: string[] = []
   for (const name of names) {
     const source = ICONS[name]
-    if (!/^[A-Z][A-Za-z]*$/.test(name)) throw new Error(`${name} is not a component name`)
+    if (!/^[A-Z][A-Za-z]*$/.test(name))
+      throw new Error(`${name} is not a component name`)
     if (!existsSync(join(VENDOR, `${source}.svg`))) {
-      throw new Error(`${name}: vendor/breeze-icons/icons/${source}.svg is not vendored`)
+      throw new Error(
+        `${name}: vendor/breeze-icons/icons/${source}.svg is not vendored`
+      )
     }
     const twin = first.get(source)
     if (twin) {
@@ -422,7 +502,9 @@ function emit(): string {
     }
     first.set(source, name)
     const { box, body } = build(name, source)
-    lines.push(`/** ${source} */\nexport const ${name} = glyph(${box}, ${JSON.stringify(body)})`)
+    lines.push(
+      `/** ${source} */\nexport const ${name} = glyph(${box}, ${JSON.stringify(body)})`
+    )
   }
 
   return `/*
@@ -481,11 +563,13 @@ if (check) {
   if (onDisk !== generated) {
     console.error(
       `src/components/icons.tsx does not match what scripts/build-icons.ts ` +
-        `produces from vendor/breeze-icons.\nRun: npx tsx scripts/build-icons.ts`,
+        `produces from vendor/breeze-icons.\nRun: npx tsx scripts/build-icons.ts`
     )
     process.exit(1)
   }
-  console.log(`icons: ${count} -- src/components/icons.tsx matches the vendored sources.`)
+  console.log(
+    `icons: ${count} -- src/components/icons.tsx matches the vendored sources.`
+  )
 } else {
   writeFileSync(OUT, generated)
   console.log(`icons: ${count} -> src/components/icons.tsx`)

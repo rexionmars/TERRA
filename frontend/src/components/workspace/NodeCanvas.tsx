@@ -160,13 +160,14 @@ export function nodeRows(
 ): Map<string, NodeRows> {
   const byId = new Map(nodes.map((n) => [n.id, n]))
   const rows = new Map<string, NodeRows>(nodes.map((n) => [n.id, { inputs: [] }]))
-  const colourOf = (e: CanvasEdge) => e.paint ?? byId.get(e.from)?.subject?.band ?? PLAIN
+  const colourOf = (e: CanvasEdge) =>
+    e.paint ?? byId.get(e.from)?.subject?.band ?? PLAIN
   for (const n of nodes) {
     const out = edges.filter((e) => e.from === n.id)
     if (out.length || n.connectable) {
       rows.get(n.id)!.output = {
         label: out.find((e) => e.label)?.label ?? "",
-        colour: out[0] ? colourOf(out[0]) : n.subject?.band ?? PLAIN,
+        colour: out[0] ? colourOf(out[0]) : (n.subject?.band ?? PLAIN),
       }
     }
   }
@@ -177,7 +178,7 @@ export function nodeRows(
       from: e.from,
       label: e.name ?? e.from,
       note: e.note,
-      noteColour: e.state ? NOTE_COLOUR[e.state] ?? undefined : undefined,
+      noteColour: e.state ? (NOTE_COLOUR[e.state] ?? undefined) : undefined,
       colour: colourOf(e),
       hollow: e.state === "missing",
     })
@@ -191,9 +192,16 @@ export function outputY(place: Place, folded: boolean): number {
 }
 
 /** Where a node's input socket is: its row, under the output row when there is one. */
-export function inputY(place: Place, index: number, hasOutput: boolean, folded: boolean): number {
+export function inputY(
+  place: Place,
+  index: number,
+  hasOutput: boolean,
+  folded: boolean
+): number {
   if (folded) return place.y + HEAD_H / 2
-  return place.y + HEAD_H + BODY_PAD + (hasOutput ? ROW_H : 0) + index * ROW_H + ROW_H / 2
+  return (
+    place.y + HEAD_H + BODY_PAD + (hasOutput ? ROW_H : 0) + index * ROW_H + ROW_H / 2
+  )
 }
 
 /** A wire from (x1, y1) to (x2, y2), leaving and arriving level. */
@@ -352,20 +360,23 @@ export function NodeCanvas({
   }
   useEffect(() => () => nodeSizes.current?.disconnect(), [])
 
-  const watch = useCallback((id: string) => (el: HTMLDivElement | null) => {
-    const ro = nodeSizes.current
-    if (!ro) return
-    for (const [node, seen] of watched.current) {
-      if (seen === id && node !== el) {
-        ro.unobserve(node)
-        watched.current.delete(node)
+  const watch = useCallback(
+    (id: string) => (el: HTMLDivElement | null) => {
+      const ro = nodeSizes.current
+      if (!ro) return
+      for (const [node, seen] of watched.current) {
+        if (seen === id && node !== el) {
+          ro.unobserve(node)
+          watched.current.delete(node)
+        }
       }
-    }
-    if (el) {
-      watched.current.set(el, id)
-      ro.observe(el)
-    }
-  }, [])
+      if (el) {
+        watched.current.set(el, id)
+        ro.observe(el)
+      }
+    },
+    []
+  )
 
   /* And once more when the pane itself is resized, until the reader takes over. */
   useEffect(() => {
@@ -436,7 +447,9 @@ export function NodeCanvas({
     The line being pulled, in board coordinates. State where the other two
     gestures use a ref: a link has nothing on screen until this draws it.
   */
-  const [pulling, setPulling] = useState<{ from: string; x: number; y: number } | null>(null)
+  const [pulling, setPulling] = useState<{ from: string; x: number; y: number } | null>(
+    null
+  )
 
   /* The selected wire, as "from>to", and whether the pointer is over the field. */
   const [picked, setPicked] = useState<string | null>(null)
@@ -458,7 +471,12 @@ export function NodeCanvas({
       if (!over.current || e.defaultPrevented || e.repeat) return
       if (e.metaKey || e.ctrlKey || e.altKey || e.shiftKey) return
       if (!(e.code === "KeyX" || e.key === "Delete" || e.key === "Backspace")) return
-      if ((e.target as HTMLElement | null)?.closest?.("input, textarea, select, [contenteditable='true']")) return
+      if (
+        (e.target as HTMLElement | null)?.closest?.(
+          "input, textarea, select, [contenteditable='true']"
+        )
+      )
+        return
       e.preventDefault()
       cut.current()
     }
@@ -506,7 +524,13 @@ export function NodeCanvas({
     lockText()
     setFront(id)
     setLifted(id)
-    drag.current = { kind: "node", id, startX: e.clientX, startY: e.clientY, from: place }
+    drag.current = {
+      kind: "node",
+      id,
+      startX: e.clientX,
+      startY: e.clientY,
+      from: place,
+    }
     ;(e.currentTarget as HTMLElement).setPointerCapture(e.pointerId)
   }
 
@@ -627,7 +651,7 @@ export function NodeCanvas({
       onPointerEnter={() => (over.current = true)}
       onPointerLeave={() => (over.current = false)}
       className={cn(
-        "app-no-drag relative h-full w-full overflow-hidden touch-none select-none",
+        "app-no-drag relative h-full w-full touch-none overflow-hidden select-none",
         gesture && "gesture-lock",
         className
       )}
@@ -637,15 +661,18 @@ export function NodeCanvas({
           A dot grid that travels with the view, which is what makes a pan
           legible: without it the nodes slide against nothing.
         */
-        backgroundImage: "radial-gradient(rgb(var(--p-line) / 0.45) 1px, transparent 1px)",
+        backgroundImage:
+          "radial-gradient(rgb(var(--p-line) / 0.45) 1px, transparent 1px)",
         backgroundSize: `${24 * view.z}px ${24 * view.z}px`,
         backgroundPosition: `${view.x}px ${view.y}px`,
         cursor:
-          drag.current?.kind === "pan" ? "var(--cursor-grabbing)" : "var(--cursor-default)",
+          drag.current?.kind === "pan"
+            ? "var(--cursor-grabbing)"
+            : "var(--cursor-default)",
       }}
     >
       <div
-        className="absolute left-0 top-0 origin-top-left"
+        className="absolute top-0 left-0 origin-top-left"
         style={{ transform: `translate(${view.x}px, ${view.y}px) scale(${view.z})` }}
       >
         {/* The wires, under the nodes and in the same space. */}
@@ -654,78 +681,89 @@ export function NodeCanvas({
           style={{ left: minX, top: minY, width: maxX - minX, height: maxY - minY }}
         >
           <g transform={`translate(${-minX} ${-minY})`}>
-          {edges.map((edge) => {
-            const a = byId.get(edge.from)
-            const b = byId.get(edge.to)
-            const index = rows.get(edge.to)?.inputs.findIndex((r) => r.from === edge.from) ?? -1
-            if (!a || !b || index < 0) return null
-            const x1 = a.place.x + NODE_W
-            const y1 = outputY(a.place, folded.has(a.id))
-            const x2 = b.place.x
-            const y2 = inputY(b.place, index, !!rows.get(b.id)?.output, folded.has(b.id))
-            const d = wirePath(x1, y1, x2, y2)
-            const st = edge.state
-            const selected = picked === `${edge.from}>${edge.to}`
-            const stroke = selected
-              ? "rgb(var(--p-accent))"
-              : st === "failed"
-                ? "var(--p-wire-failed)"
-                : st === "missing"
-                  ? "rgb(var(--p-line-strong))"
-                  : edge.paint ?? a.subject?.band ?? PLAIN
-            return (
-              <g key={`${edge.from}-${edge.to}`}>
-                {/* A dark underlay, so a wire stays a line where it crosses another. */}
-                {st !== "missing" && (
-                  <path d={d} fill="none" stroke="rgb(0 0 0 / 0.45)" strokeWidth={4} />
-                )}
-                <path
-                  d={d}
-                  fill="none"
-                  stroke={stroke}
-                  strokeWidth={selected ? 3 : st === "missing" ? 1.5 : 2}
-                  strokeOpacity={st === "pending" ? 0.5 : st === "missing" ? 0.6 : 1}
-                  strokeDasharray={
-                    st === "missing" ? "3 4" : st === "reading" ? "8 4" : undefined
-                  }
-                  className={st === "reading" ? "wire-flow" : undefined}
-                />
-                {edge.removable && onDisconnect && (
-                  /* What a press lands on: the same curve, wide and invisible. */
+            {edges.map((edge) => {
+              const a = byId.get(edge.from)
+              const b = byId.get(edge.to)
+              const index =
+                rows.get(edge.to)?.inputs.findIndex((r) => r.from === edge.from) ?? -1
+              if (!a || !b || index < 0) return null
+              const x1 = a.place.x + NODE_W
+              const y1 = outputY(a.place, folded.has(a.id))
+              const x2 = b.place.x
+              const y2 = inputY(
+                b.place,
+                index,
+                !!rows.get(b.id)?.output,
+                folded.has(b.id)
+              )
+              const d = wirePath(x1, y1, x2, y2)
+              const st = edge.state
+              const selected = picked === `${edge.from}>${edge.to}`
+              const stroke = selected
+                ? "rgb(var(--p-accent))"
+                : st === "failed"
+                  ? "var(--p-wire-failed)"
+                  : st === "missing"
+                    ? "rgb(var(--p-line-strong))"
+                    : (edge.paint ?? a.subject?.band ?? PLAIN)
+              return (
+                <g key={`${edge.from}-${edge.to}`}>
+                  {/* A dark underlay, so a wire stays a line where it crosses another. */}
+                  {st !== "missing" && (
+                    <path
+                      d={d}
+                      fill="none"
+                      stroke="rgb(0 0 0 / 0.45)"
+                      strokeWidth={4}
+                    />
+                  )}
                   <path
                     d={d}
                     fill="none"
-                    stroke="transparent"
-                    strokeWidth={12}
-                    style={{ pointerEvents: "stroke", cursor: "pointer" }}
-                    onPointerDown={(e) => {
-                      if (e.button !== 0) return
-                      e.stopPropagation()
-                      setPicked(`${edge.from}>${edge.to}`)
-                    }}
-                  >
-                    <title>Press to select; X or Delete cuts it</title>
-                  </path>
-                )}
-              </g>
-            )
-          })}
-          {/*
+                    stroke={stroke}
+                    strokeWidth={selected ? 3 : st === "missing" ? 1.5 : 2}
+                    strokeOpacity={st === "pending" ? 0.5 : st === "missing" ? 0.6 : 1}
+                    strokeDasharray={
+                      st === "missing" ? "3 4" : st === "reading" ? "8 4" : undefined
+                    }
+                    className={st === "reading" ? "wire-flow" : undefined}
+                  />
+                  {edge.removable && onDisconnect && (
+                    /* What a press lands on: the same curve, wide and invisible. */
+                    <path
+                      d={d}
+                      fill="none"
+                      stroke="transparent"
+                      strokeWidth={12}
+                      style={{ pointerEvents: "stroke", cursor: "pointer" }}
+                      onPointerDown={(e) => {
+                        if (e.button !== 0) return
+                        e.stopPropagation()
+                        setPicked(`${edge.from}>${edge.to}`)
+                      }}
+                    >
+                      <title>Press to select; X or Delete cuts it</title>
+                    </path>
+                  )}
+                </g>
+              )
+            })}
+            {/*
             The line being pulled: dashed and thin, which is the vocabulary a
             wire that carries nothing already has -- and it carries nothing
             until it lands.
           */}
-          {pulling && byId.get(pulling.from) && (
-            <line
-              x1={byId.get(pulling.from)!.place.x + NODE_W}
-              y1={outputY(byId.get(pulling.from)!.place, folded.has(pulling.from))}
-              x2={pulling.x}
-              y2={pulling.y}
-              stroke="rgb(var(--p-accent))"
-              strokeWidth={1.5}
-              strokeDasharray="4 4"
-            />
-          )}
+            {pulling && byId.get(pulling.from) && (
+              <line
+                x1={byId.get(pulling.from)!.place.x + NODE_W}
+                y1={outputY(byId.get(pulling.from)!.place, folded.has(pulling.from))}
+                x2={pulling.x}
+                y2={pulling.y}
+                stroke="rgb(var(--p-accent))"
+                strokeWidth={1.5}
+                strokeDasharray="4 4"
+              />
+            )}
           </g>
         </svg>
 
@@ -790,10 +828,14 @@ export function NodeCanvas({
                 onPointerUp={endDrag}
                 onPointerCancel={endDrag}
                 className={cn(
-                  "relative flex cursor-grab items-center gap-1 pl-1 pr-2 text-body active:cursor-grabbing",
+                  "relative flex cursor-grab items-center gap-1 pr-2 pl-1 text-body active:cursor-grabbing",
                   isFolded ? "rounded-md" : "rounded-t-md"
                 )}
-                style={{ height: HEAD_H, background: headOf(n), color: "var(--b-node-ink)" }}
+                style={{
+                  height: HEAD_H,
+                  background: headOf(n),
+                  color: "var(--b-node-ink)",
+                }}
               >
                 <button
                   type="button"
@@ -809,8 +851,12 @@ export function NodeCanvas({
                     <CaretDown className="size-2.5" />
                   )}
                 </button>
-                <span className="flex min-w-0 flex-1 items-center gap-1.5">{n.header}</span>
-                {isFolded && r?.output && <Socket colour={r.output.colour} side="right" />}
+                <span className="flex min-w-0 flex-1 items-center gap-1.5">
+                  {n.header}
+                </span>
+                {isFolded && r?.output && (
+                  <Socket colour={r.output.colour} side="right" />
+                )}
                 {isFolded && !!r?.inputs.length && (
                   <Socket colour={r.inputs[0].colour} side="left" />
                 )}
@@ -823,7 +869,10 @@ export function NodeCanvas({
                       className="relative flex items-center justify-end gap-2 px-2.5 text-meta"
                       style={{ height: ROW_H }}
                     >
-                      <span className="min-w-0 truncate text-foreground" title={r.output.label}>
+                      <span
+                        className="min-w-0 truncate text-foreground"
+                        title={r.output.label}
+                      >
                         {r.output.label}
                       </span>
                       {n.connectable ? (
@@ -863,7 +912,9 @@ export function NodeCanvas({
                       style={{ height: ROW_H }}
                     >
                       <Socket colour={s.colour} side="left" hollow={s.hollow} />
-                      <span className="min-w-0 flex-1 truncate text-foreground">{s.label}</span>
+                      <span className="min-w-0 flex-1 truncate text-foreground">
+                        {s.label}
+                      </span>
                       {s.note && (
                         <span
                           className="shrink-0 text-micro"
@@ -874,7 +925,9 @@ export function NodeCanvas({
                       )}
                     </div>
                   ))}
-                  <div className="flex flex-col gap-1.5 px-2.5 pb-2 pt-1">{n.children}</div>
+                  <div className="flex flex-col gap-1.5 px-2.5 pt-1 pb-2">
+                    {n.children}
+                  </div>
                 </div>
               )}
             </div>
@@ -895,10 +948,10 @@ export function NodeCanvas({
         }}
         title="Fit the graph to the view"
         className={cn(
-          "absolute bottom-2 right-2 flex size-7 items-center justify-center rounded-sm",
+          "absolute right-2 bottom-2 flex size-7 items-center justify-center rounded-sm",
           "bg-selected text-muted-foreground transition-colors",
           "hover:bg-hover hover:text-foreground",
-          "focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+          "focus-visible:ring-1 focus-visible:ring-ring focus-visible:outline-none"
         )}
       >
         <ArrowsOut className="size-3.5" />

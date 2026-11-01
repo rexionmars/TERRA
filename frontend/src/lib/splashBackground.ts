@@ -178,9 +178,7 @@ export function claimSplashSlideForLaunch(
   if (version) {
     try {
       if (localStorage.getItem(SPLASH_SEEN_VERSION_KEY) !== version) {
-        const featured = SPLASH_STILLS.findIndex(
-          (s) => s.name === FEATURED_STILL
-        )
+        const featured = SPLASH_STILLS.findIndex((s) => s.name === FEATURED_STILL)
         if (featured >= 0 && featured < count) {
           localStorage.setItem(SPLASH_SEEN_VERSION_KEY, version)
           // The rotation resumes after it rather than repeating it.

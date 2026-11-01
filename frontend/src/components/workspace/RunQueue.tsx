@@ -31,7 +31,12 @@ import {
   type Icon,
 } from "@/components/icons"
 
-import { CancelAllJobs, CancelJob, ClearJobs, RetryJob } from "../../../wailsjs/go/main/App"
+import {
+  CancelAllJobs,
+  CancelJob,
+  ClearJobs,
+  RetryJob,
+} from "../../../wailsjs/go/main/App"
 import {
   countJobs,
   isFinished,
@@ -100,7 +105,9 @@ export function RunQueue({ kind }: { kind: JobKind }) {
     <div className="flex flex-col gap-0.5 border-t border-border pt-1">
       {jobs.length > 0 && (
         <>
-          <span className="telemetry truncate text-[9px] text-muted-foreground">{summary}</span>
+          <span className="telemetry truncate text-[9px] text-muted-foreground">
+            {summary}
+          </span>
           <div className="flex items-center gap-0.5">
             <QueueAction
               label="Cancel all"
@@ -125,9 +132,17 @@ export function RunQueue({ kind }: { kind: JobKind }) {
               onClick={() => void act("Could not clear the jobs", ClearJobs)}
             />
           </div>
-          <ul aria-label="Jobs" className="panel-scroll flex max-h-[9rem] flex-col overflow-y-auto pr-1">
+          <ul
+            aria-label="Jobs"
+            className="panel-scroll flex max-h-[9rem] flex-col overflow-y-auto pr-1"
+          >
             {jobsInReadingOrder(jobs).map((job) => (
-              <JobRow key={job.id} job={job} now={now} onOpen={openRun ? (j) => openRun(j.run_id) : undefined} />
+              <JobRow
+                key={job.id}
+                job={job}
+                now={now}
+                onOpen={openRun ? (j) => openRun(j.run_id) : undefined}
+              />
             ))}
           </ul>
         </>
@@ -165,7 +180,15 @@ function QueueAction({
   )
 }
 
-function JobRow({ job, now, onOpen }: { job: Job; now: number; onOpen?: (job: Job) => void }) {
+function JobRow({
+  job,
+  now,
+  onOpen,
+}: {
+  job: Job
+  now: number
+  onOpen?: (job: Job) => void
+}) {
   const Glyph = STATE_ICON[job.state]
   const duration = jobDuration(job, now)
   const failed = job.state === "failed"
@@ -180,12 +203,19 @@ function JobRow({ job, now, onOpen }: { job: Job; now: number; onOpen?: (job: Jo
           className={cn(
             "size-3 shrink-0",
             job.state === "running" && "animate-spin text-foreground",
-            failed ? "text-destructive-quiet" : done ? "text-success" : "text-muted-foreground"
+            failed
+              ? "text-destructive-quiet"
+              : done
+                ? "text-success"
+                : "text-muted-foreground"
           )}
           aria-label={job.state}
         />
         <span
-          className={cn("min-w-0 flex-1 truncate text-meta", done ? "text-success" : "text-foreground")}
+          className={cn(
+            "min-w-0 flex-1 truncate text-meta",
+            done ? "text-success" : "text-foreground"
+          )}
           title={job.area_name}
         >
           {job.area_name}
@@ -198,15 +228,23 @@ function JobRow({ job, now, onOpen }: { job: Job; now: number; onOpen?: (job: Jo
         {(job.state === "queued" || job.state === "running") && (
           <RowAction
             icon={X}
-            label={job.state === "running" ? "Cancel this run; its process is stopped" : "Take this job out of the queue"}
-            onClick={() => void act("Could not cancel the job", () => CancelJob(job.id))}
+            label={
+              job.state === "running"
+                ? "Cancel this run; its process is stopped"
+                : "Take this job out of the queue"
+            }
+            onClick={() =>
+              void act("Could not cancel the job", () => CancelJob(job.id))
+            }
           />
         )}
         {(failed || job.state === "cancelled") && (
           <RowAction
             icon={ArrowClockwise}
             label="Queue it again, after the jobs waiting"
-            onClick={() => void act("Could not queue the job again", () => RetryJob(job.id))}
+            onClick={() =>
+              void act("Could not queue the job again", () => RetryJob(job.id))
+            }
           />
         )}
         {done && onOpen && (
@@ -219,14 +257,17 @@ function JobRow({ job, now, onOpen }: { job: Job; now: number; onOpen?: (job: Jo
       </div>
       {job.state === "running" && (
         <div
-          className="ml-[1.125rem] mt-0.5 h-px bg-control"
+          className="mt-0.5 ml-[1.125rem] h-px bg-control"
           role="progressbar"
           aria-valuenow={job.progress}
           aria-valuemin={0}
           aria-valuemax={100}
           aria-label={`${job.area_name} progress`}
         >
-          <div className="h-px bg-accent transition-[width]" style={{ width: `${job.progress}%` }} />
+          <div
+            className="h-px bg-accent transition-[width]"
+            style={{ width: `${job.progress}%` }}
+          />
         </div>
       )}
       {detail && (
@@ -244,7 +285,15 @@ function JobRow({ job, now, onOpen }: { job: Job; now: number; onOpen?: (job: Jo
   )
 }
 
-function RowAction({ icon: Glyph, label, onClick }: { icon: Icon; label: string; onClick: () => void }) {
+function RowAction({
+  icon: Glyph,
+  label,
+  onClick,
+}: {
+  icon: Icon
+  label: string
+  onClick: () => void
+}) {
   return (
     <button
       type="button"

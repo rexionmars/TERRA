@@ -22,9 +22,7 @@ export function stripResearchPackRasters(result: PredictResult) {
     true_color_uri: "",
     reference_uri: "",
     lulc: result.lulc ? { ...result.lulc, map_uri: "", map_png: "" } : result.lulc,
-    water: result.water
-      ? { ...result.water, occurrence_uri: "" }
-      : result.water,
+    water: result.water ? { ...result.water, occurrence_uri: "" } : result.water,
     // Two class maps, one per group, each a PNG data URI.
     mineral: result.mineral
       ? {

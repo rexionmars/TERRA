@@ -29,7 +29,15 @@ export type JobState = "queued" | "running" | "done" | "failed" | "cancelled"
  * The products a job can run. The field delineation is not one: it runs over
  * an area to make its fields, and the queue exists for the fields once made.
  */
-export const JOB_KINDS = ["classify", "water", "mineral", "health", "overlap", "radar", "zones"] as const
+export const JOB_KINDS = [
+  "classify",
+  "water",
+  "mineral",
+  "health",
+  "overlap",
+  "radar",
+  "zones",
+] as const
 export type JobKind = (typeof JOB_KINDS)[number]
 
 export function isJobKind(id: string | null | undefined): id is JobKind {

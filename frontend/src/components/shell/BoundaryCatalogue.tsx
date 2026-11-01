@@ -38,7 +38,9 @@ function Row({
         className="flex w-full items-baseline justify-between gap-3 rounded-sm px-2 py-1.5 text-left text-read text-foreground transition-colors hover:bg-hover disabled:opacity-50"
       >
         <span className="min-w-0 truncate">{label}</span>
-        {note && <span className="shrink-0 text-label text-muted-foreground">{note}</span>}
+        {note && (
+          <span className="shrink-0 text-label text-muted-foreground">{note}</span>
+        )}
       </button>
     </li>
   )
@@ -136,7 +138,9 @@ export function BoundaryCatalogue({
       )}
       {(level === "estados" || state) && (
         <input
-          aria-label={level === "estados" ? "Search states" : `Search in ${state?.name}`}
+          aria-label={
+            level === "estados" ? "Search states" : `Search in ${state?.name}`
+          }
           className="field-input"
           value={query}
           placeholder={level === "estados" ? "Search states" : "Search here"}

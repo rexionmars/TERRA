@@ -9,7 +9,11 @@
  * the area is.
  */
 import type { ClassLegendEntry } from "@/lib/classMask"
-import { sampleClassAtUv, type BrushRadiusPx, type ClassProbeSample } from "@/lib/boardProbe"
+import {
+  sampleClassAtUv,
+  type BrushRadiusPx,
+  type ClassProbeSample,
+} from "@/lib/boardProbe"
 import { cornersOf } from "@/lib/mapLayers"
 import type { Bounds } from "@/lib/types"
 
@@ -18,7 +22,8 @@ export interface MapPoint {
   lat: number
 }
 
-const mercatorY = (lat: number) => Math.log(Math.tan(Math.PI / 4 + (lat * Math.PI) / 360))
+const mercatorY = (lat: number) =>
+  Math.log(Math.tan(Math.PI / 4 + (lat * Math.PI) / 360))
 
 /** Where a point falls on a raster, 0 to 1 from the west and the south, or null outside it. */
 export function lonLatToUv(p: MapPoint, e: Bounds): { u: number; v: number } | null {
@@ -65,7 +70,9 @@ export async function readPoint(
   return Promise.all(
     layers.map(async (l) => {
       const at = lonLatToUv(point, l.extent)
-      const sample = at ? await sampleClassAtUv(l.uri, l.legend, at.u, at.v, radius) : null
+      const sample = at
+        ? await sampleClassAtUv(l.uri, l.legend, at.u, at.v, radius)
+        : null
       return { layerId: l.id, title: l.title, sample: sample?.entry ? sample : null }
     })
   )

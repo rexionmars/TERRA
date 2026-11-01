@@ -59,9 +59,7 @@ export function useRunLog(run: {
     // than it changes stage, and a log of one line said forty times is not one.
     if (!run.running || !text || text === lastText.current) return
     lastText.current = text
-    setEntries((prev) =>
-      [...prev, { at: run.progress, text }].slice(-LIMIT)
-    )
+    setEntries((prev) => [...prev, { at: run.progress, text }].slice(-LIMIT))
   }, [run.running, run.progress, run.message])
 
   return entries

@@ -54,9 +54,7 @@ const LEGEND_PAD = 16
 
 /** What one legend entry occupies, measured rather than counted in glyphs. */
 function legendEntryWidth(name: string): number {
-  return (
-    LEGEND_SAMPLE + LEGEND_GAP + measureText(name, TYPE.meta) + LEGEND_PAD
-  )
+  return LEGEND_SAMPLE + LEGEND_GAP + measureText(name, TYPE.meta) + LEGEND_PAD
 }
 
 /**
@@ -127,8 +125,7 @@ export function SpectraEditor({
     The rover only counts on the run it was taken over: the same class id in
     another run is a different measurement.
   */
-  const linked =
-    rover && run && rover.areaId === run.id ? rover.classId : null
+  const linked = rover && run && rover.areaId === run.id ? rover.classId : null
   const focusClass = hoverClass ?? linked
   const linkedName =
     linked === null
@@ -194,9 +191,8 @@ export function SpectraEditor({
       lastXLabel: bands[bands.length - 1]?.band ?? "",
     })
     const legendRows =
-      Math.max(
-        ...layOutLegend(names, probe.plot.x0, probe.plot.x1).map((l) => l.row)
-      ) + 1
+      Math.max(...layOutLegend(names, probe.plot.x0, probe.plot.x1).map((l) => l.row)) +
+      1
 
     // The band labels stagger onto a second row where two sit too close, so
     // the foot has to know before the plot's height is decided.
@@ -255,8 +251,7 @@ export function SpectraEditor({
       // always inside exactly one band's column.
       columns: bands.map((b, i) => {
         const prev = i > 0 ? (b.nm + bands[i - 1].nm) / 2 : NM_DOMAIN[0]
-        const next =
-          i < bands.length - 1 ? (b.nm + bands[i + 1].nm) / 2 : NM_DOMAIN[1]
+        const next = i < bands.length - 1 ? (b.nm + bands[i + 1].nm) / 2 : NM_DOMAIN[1]
         return { left: x(prev), right: x(next) }
       }),
       minPixels: Math.min(...points.map((p) => p.n_pixels)),
@@ -266,8 +261,7 @@ export function SpectraEditor({
   if (!runs.length) {
     return (
       <p className="flex h-full items-center justify-center px-4 text-center text-meta text-muted-foreground">
-        Pick a plane to read the spectral response of the classes its run
-        predicted.
+        Pick a plane to read the spectral response of the classes its run predicted.
       </p>
     )
   }
@@ -322,9 +316,9 @@ export function SpectraEditor({
       <div className="panel-scroll min-h-0 flex-1 overflow-auto p-2">
         {!spectra || !figure ? (
           <p className="text-meta text-muted-foreground">
-            This run carries no spectral response. Runs saved before the
-            measurement existed do not have one, and neither does a run whose
-            scene could not be re-read for its bands.
+            This run carries no spectral response. Runs saved before the measurement
+            existed do not have one, and neither does a run whose scene could not be
+            re-read for its bands.
           </p>
         ) : (
           /*
@@ -335,191 +329,202 @@ export function SpectraEditor({
             scrolls, rather than drawing five curves in forty pixels.
           */
           <div className="flex h-full min-h-0 flex-col gap-2">
-          <div
-            ref={host}
-            className="relative min-h-0 w-full flex-1"
-            style={{ minHeight: 240 }}
-          >
-            <svg
-              width={figure.layout.width}
-              height={figure.layout.height}
-              viewBox={`0 0 ${figure.layout.width} ${figure.layout.height}`}
-              style={{
-                position: "absolute",
-                inset: 0,
-                display: "block",
-                fontFamily: "var(--font-sans)",
-              }}
-              role="img"
-              aria-label={`Mean surface reflectance per band for ${figure.series.length} predicted classes on ${spectra.scene_date}`}
+            <div
+              ref={host}
+              className="relative min-h-0 w-full flex-1"
+              style={{ minHeight: 240 }}
             >
-              {/*
+              <svg
+                width={figure.layout.width}
+                height={figure.layout.height}
+                viewBox={`0 0 ${figure.layout.width} ${figure.layout.height}`}
+                style={{
+                  position: "absolute",
+                  inset: 0,
+                  display: "block",
+                  fontFamily: "var(--font-sans)",
+                }}
+                role="img"
+                aria-label={`Mean surface reflectance per band for ${figure.series.length} predicted classes on ${spectra.scene_date}`}
+              >
+                {/*
                 The dispersion of ONE class at a time, on hover. Five ribbons
                 drawn at once cover each other and the means they belong to,
                 which is why the first version had no dispersion at all.
               */}
-              {figure.series
-                .filter((s) => s.classId === focusClass)
-                .map((s) => (
-                  <path
-                    key={`ribbon-${s.classId}`}
-                    d={
-                      s.points
-                        .map((p, i) => `${i ? "L" : "M"}${figure.x(p.wavelength_nm)},${figure.y(p.p95)}`)
-                        .join("") +
-                      s.points
-                        .slice()
-                        .reverse()
-                        .map((p) => `L${figure.x(p.wavelength_nm)},${figure.y(p.p05)}`)
-                        .join("") +
-                      "Z"
-                    }
-                    fill={s.stroke}
-                    fillOpacity={0.14}
-                    stroke="none"
-                  />
-                ))}
+                {figure.series
+                  .filter((s) => s.classId === focusClass)
+                  .map((s) => (
+                    <path
+                      key={`ribbon-${s.classId}`}
+                      d={
+                        s.points
+                          .map(
+                            (p, i) =>
+                              `${i ? "L" : "M"}${figure.x(p.wavelength_nm)},${figure.y(p.p95)}`
+                          )
+                          .join("") +
+                        s.points
+                          .slice()
+                          .reverse()
+                          .map(
+                            (p) => `L${figure.x(p.wavelength_nm)},${figure.y(p.p05)}`
+                          )
+                          .join("") +
+                        "Z"
+                      }
+                      fill={s.stroke}
+                      fillOpacity={0.14}
+                      stroke="none"
+                    />
+                  ))}
 
-              {/*
+                {/*
                 A rule per band. Unlike a background grid, these are not
                 decoration: the x positions ARE the measurement, seven samples
                 with a 750 nm hole between B8A and B11, and the rules are what
                 make the sampling visible rather than implied by the dots.
               */}
-              {figure.bands.map((b, i) => (
-                <line
-                  key={`rule-${b.band}`}
-                  x1={figure.x(b.nm)}
-                  x2={figure.x(b.nm)}
-                  y1={figure.plot.y0}
-                  y2={figure.plot.y1}
-                  stroke={i === hoverBand ? "var(--accent-quiet)" : "var(--hairline)"}
-                  strokeWidth={i === hoverBand ? STROKE.axis : STROKE.rule}
-                  strokeDasharray={i === hoverBand ? undefined : "2 4"}
-                />
-              ))}
+                {figure.bands.map((b, i) => (
+                  <line
+                    key={`rule-${b.band}`}
+                    x1={figure.x(b.nm)}
+                    x2={figure.x(b.nm)}
+                    y1={figure.plot.y0}
+                    y2={figure.plot.y1}
+                    stroke={i === hoverBand ? "var(--accent-quiet)" : "var(--hairline)"}
+                    strokeWidth={i === hoverBand ? STROKE.axis : STROKE.rule}
+                    strokeDasharray={i === hoverBand ? undefined : "2 4"}
+                  />
+                ))}
 
-              {/*
+                {/*
                 Zero, where reflectance can fall below it. Without the rule a
                 reader cannot tell a small positive from a small negative on a
                 dispersion band that straddles the two.
               */}
-              {figure.zeroLine !== null && (
-                <line
-                  x1={figure.plot.x0}
-                  x2={figure.plot.x1}
-                  y1={figure.zeroLine}
-                  y2={figure.zeroLine}
+                {figure.zeroLine !== null && (
+                  <line
+                    x1={figure.plot.x0}
+                    x2={figure.plot.x1}
+                    y1={figure.zeroLine}
+                    y2={figure.zeroLine}
+                    stroke="var(--border)"
+                    strokeWidth={STROKE.rule}
+                  />
+                )}
+
+                {/* Two axis lines, no frame: theme_classic, as the R figure. */}
+                <path
+                  d={`M${figure.plot.x0},${figure.plot.y0} L${figure.plot.x0},${figure.plot.y1} L${figure.plot.x1},${figure.plot.y1}`}
+                  fill="none"
                   stroke="var(--border)"
-                  strokeWidth={STROKE.rule}
+                  strokeWidth={STROKE.axis}
                 />
-              )}
 
-              {/* Two axis lines, no frame: theme_classic, as the R figure. */}
-              <path
-                d={`M${figure.plot.x0},${figure.plot.y0} L${figure.plot.x0},${figure.plot.y1} L${figure.plot.x1},${figure.plot.y1}`}
-                fill="none"
-                stroke="var(--border)"
-                strokeWidth={STROKE.axis}
-              />
-
-              {figure.yTicks.map((t) => (
-                <g key={`y-${t}`}>
-                  <line
-                    x1={figure.plot.x0 - 4}
-                    x2={figure.plot.x0}
-                    y1={figure.y(t)}
-                    y2={figure.y(t)}
-                    stroke="var(--border)"
-                    strokeWidth={STROKE.axis}
-                  />
-                  <text
-                    x={figure.plot.x0 - 7}
-                    y={figure.y(t)}
-                    fontSize={TYPE.meta}
-                    fill="var(--muted-foreground)"
-                    textAnchor="end"
-                    dominantBaseline="middle"
-                  >
-                    {t.toFixed(2)}
-                  </text>
-                </g>
-              ))}
-              <text
-                transform={`translate(${TYPE.body + 2},${(figure.plot.y0 + figure.plot.y1) / 2}) rotate(-90)`}
-                fontSize={TYPE.body}
-                fill="var(--muted-foreground)"
-                textAnchor="middle"
-              >
-                Reflectance (dimensionless)
-              </text>
-
-              {/* Band labels, staggered where two bands sit too close to fit. */}
-              {figure.bands.map((b, i) => (
-                <g key={`x-${b.band}`}>
-                  <line
-                    x1={figure.x(b.nm)}
-                    x2={figure.x(b.nm)}
-                    y1={figure.plot.y1}
-                    y2={figure.plot.y1 + 4 + rows[i] * 12}
-                    stroke="var(--border)"
-                    strokeWidth={STROKE.axis}
-                  />
-                  <text
-                    x={figure.x(b.nm)}
-                    y={figure.plot.y1 + 15 + rows[i] * 12}
-                    fontSize={TYPE.meta}
-                    fill={i === hoverBand ? "var(--foreground)" : "var(--muted-foreground)"}
-                    textAnchor="middle"
-                  >
-                    {b.band}
-                  </text>
-                </g>
-              ))}
-              <text
-                x={(figure.plot.x0 + figure.plot.x1) / 2}
-                y={
-                  figure.plot.y1 +
-                  ROW_PX.tick +
-                  figure.labelRows * ROW_PX.label +
-                  TYPE.body
-                }
-                fontSize={TYPE.body}
-                fill="var(--muted-foreground)"
-                textAnchor="middle"
-              >
-                Wavelength (nm), band centres
-              </text>
-
-              {figure.series.map((s) => {
-                const dim = focusClass !== null && focusClass !== s.classId
-                return (
-                  <g key={`s-${s.classId}`} opacity={dim ? 0.25 : 1}>
-                    <polyline
-                      points={s.points
-                        .map((p) => `${figure.x(p.wavelength_nm)},${figure.y(p.mean)}`)
-                        .join(" ")}
-                      fill="none"
-                      stroke={s.stroke}
-                      strokeWidth={STROKE.series}
-                      // A second channel, so colour is never the only one.
-                      strokeDasharray={s.dash}
-                      strokeLinejoin="round"
+                {figure.yTicks.map((t) => (
+                  <g key={`y-${t}`}>
+                    <line
+                      x1={figure.plot.x0 - 4}
+                      x2={figure.plot.x0}
+                      y1={figure.y(t)}
+                      y2={figure.y(t)}
+                      stroke="var(--border)"
+                      strokeWidth={STROKE.axis}
                     />
-                    {s.points.map((p) => (
-                      <circle
-                        key={p.band}
-                        cx={figure.x(p.wavelength_nm)}
-                        cy={figure.y(p.mean)}
-                        r={2.2}
-                        fill={s.stroke}
-                      />
-                    ))}
+                    <text
+                      x={figure.plot.x0 - 7}
+                      y={figure.y(t)}
+                      fontSize={TYPE.meta}
+                      fill="var(--muted-foreground)"
+                      textAnchor="end"
+                      dominantBaseline="middle"
+                    >
+                      {t.toFixed(2)}
+                    </text>
                   </g>
-                )
-              })}
+                ))}
+                <text
+                  transform={`translate(${TYPE.body + 2},${(figure.plot.y0 + figure.plot.y1) / 2}) rotate(-90)`}
+                  fontSize={TYPE.body}
+                  fill="var(--muted-foreground)"
+                  textAnchor="middle"
+                >
+                  Reflectance (dimensionless)
+                </text>
 
-              {/*
+                {/* Band labels, staggered where two bands sit too close to fit. */}
+                {figure.bands.map((b, i) => (
+                  <g key={`x-${b.band}`}>
+                    <line
+                      x1={figure.x(b.nm)}
+                      x2={figure.x(b.nm)}
+                      y1={figure.plot.y1}
+                      y2={figure.plot.y1 + 4 + rows[i] * 12}
+                      stroke="var(--border)"
+                      strokeWidth={STROKE.axis}
+                    />
+                    <text
+                      x={figure.x(b.nm)}
+                      y={figure.plot.y1 + 15 + rows[i] * 12}
+                      fontSize={TYPE.meta}
+                      fill={
+                        i === hoverBand
+                          ? "var(--foreground)"
+                          : "var(--muted-foreground)"
+                      }
+                      textAnchor="middle"
+                    >
+                      {b.band}
+                    </text>
+                  </g>
+                ))}
+                <text
+                  x={(figure.plot.x0 + figure.plot.x1) / 2}
+                  y={
+                    figure.plot.y1 +
+                    ROW_PX.tick +
+                    figure.labelRows * ROW_PX.label +
+                    TYPE.body
+                  }
+                  fontSize={TYPE.body}
+                  fill="var(--muted-foreground)"
+                  textAnchor="middle"
+                >
+                  Wavelength (nm), band centres
+                </text>
+
+                {figure.series.map((s) => {
+                  const dim = focusClass !== null && focusClass !== s.classId
+                  return (
+                    <g key={`s-${s.classId}`} opacity={dim ? 0.25 : 1}>
+                      <polyline
+                        points={s.points
+                          .map(
+                            (p) => `${figure.x(p.wavelength_nm)},${figure.y(p.mean)}`
+                          )
+                          .join(" ")}
+                        fill="none"
+                        stroke={s.stroke}
+                        strokeWidth={STROKE.series}
+                        // A second channel, so colour is never the only one.
+                        strokeDasharray={s.dash}
+                        strokeLinejoin="round"
+                      />
+                      {s.points.map((p) => (
+                        <circle
+                          key={p.band}
+                          cx={figure.x(p.wavelength_nm)}
+                          cy={figure.y(p.mean)}
+                          r={2.2}
+                          fill={s.stroke}
+                        />
+                      ))}
+                    </g>
+                  )
+                })}
+
+                {/*
                 The legend is also the control: pointing at a class is how its
                 dispersion is asked for.
 
@@ -531,56 +536,58 @@ export function SpectraEditor({
                 each name is written in full rather than truncated to fit a
                 column.
               */}
-              {figure.series.map((s) => (
-                <g
-                  key={`legend-${s.classId}`}
-                  transform={`translate(${s.legend.x},${figure.layout.legendTop + s.legend.row * ROW_PX.label + ROW_PX.label / 2})`}
-                  onMouseEnter={() => setHoverClass(s.classId)}
-                  onMouseLeave={() => setHoverClass(null)}
-                >
-                  <rect
-                    x={-4}
-                    y={-ROW_PX.label / 2}
-                    width={legendEntryWidth(s.name) - 8}
-                    height={ROW_PX.label}
-                    rx={2}
-                    fill={focusClass === s.classId ? "var(--accent-dim)" : "transparent"}
-                  />
-                  <line
-                    x1={0}
-                    x2={16}
-                    y1={0}
-                    y2={0}
-                    stroke={s.stroke}
-                    strokeWidth={STROKE.series}
-                    strokeDasharray={s.dash}
-                  />
-                  <text
-                    x={21}
-                    y={0}
-                    fontSize={TYPE.meta}
-                    fill="var(--foreground)"
-                    dominantBaseline="middle"
+                {figure.series.map((s) => (
+                  <g
+                    key={`legend-${s.classId}`}
+                    transform={`translate(${s.legend.x},${figure.layout.legendTop + s.legend.row * ROW_PX.label + ROW_PX.label / 2})`}
+                    onMouseEnter={() => setHoverClass(s.classId)}
+                    onMouseLeave={() => setHoverClass(null)}
                   >
-                    {s.name}
-                  </text>
-                </g>
-              ))}
+                    <rect
+                      x={-4}
+                      y={-ROW_PX.label / 2}
+                      width={legendEntryWidth(s.name) - 8}
+                      height={ROW_PX.label}
+                      rx={2}
+                      fill={
+                        focusClass === s.classId ? "var(--accent-dim)" : "transparent"
+                      }
+                    />
+                    <line
+                      x1={0}
+                      x2={16}
+                      y1={0}
+                      y2={0}
+                      stroke={s.stroke}
+                      strokeWidth={STROKE.series}
+                      strokeDasharray={s.dash}
+                    />
+                    <text
+                      x={21}
+                      y={0}
+                      fontSize={TYPE.meta}
+                      fill="var(--foreground)"
+                      dominantBaseline="middle"
+                    >
+                      {s.name}
+                    </text>
+                  </g>
+                ))}
 
-              {/* Pointer targets, last so nothing else takes the event. */}
-              {figure.columns.map((c, i) => (
-                <rect
-                  key={`hit-${i}`}
-                  x={c.left}
-                  y={figure.plot.y0}
-                  width={Math.max(0, c.right - c.left)}
-                  height={figure.plot.y1 - figure.plot.y0}
-                  fill="transparent"
-                  onMouseEnter={() => setHoverBand(i)}
-                  onMouseLeave={() => setHoverBand(null)}
-                />
-              ))}
-            </svg>
+                {/* Pointer targets, last so nothing else takes the event. */}
+                {figure.columns.map((c, i) => (
+                  <rect
+                    key={`hit-${i}`}
+                    x={c.left}
+                    y={figure.plot.y0}
+                    width={Math.max(0, c.right - c.left)}
+                    height={figure.plot.y1 - figure.plot.y0}
+                    fill="transparent"
+                    onMouseEnter={() => setHoverBand(i)}
+                    onMouseLeave={() => setHoverBand(null)}
+                  />
+                ))}
+              </svg>
             </div>
 
             {/*
@@ -630,14 +637,13 @@ export function SpectraEditor({
                   {hoverClass === null && linkedName ? (
                     <>
                       Following the rover ·{" "}
-                      <span className="text-foreground">{linkedName}</span>.
-                      Point at a band for its values.
+                      <span className="text-foreground">{linkedName}</span>. Point at a
+                      band for its values.
                     </>
                   ) : (
                     <>
-                      Point at a band for its values, or at a class in the
-                      legend for the 5th to 95th percentile spread of that
-                      class.
+                      Point at a band for its values, or at a class in the legend for
+                      the 5th to 95th percentile spread of that class.
                     </>
                   )}
                 </p>
@@ -651,10 +657,9 @@ export function SpectraEditor({
               that the assignment was right.
             */}
             <p className="shrink-0 text-meta text-muted-foreground">
-              Class means over predicted pixels, so this describes what the
-              classifier grouped together rather than whether the grouping is
-              correct. Smallest class n = {figure.minPixels.toLocaleString()}{" "}
-              pixels.
+              Class means over predicted pixels, so this describes what the classifier
+              grouped together rather than whether the grouping is correct. Smallest
+              class n = {figure.minPixels.toLocaleString()} pixels.
             </p>
           </div>
         )}

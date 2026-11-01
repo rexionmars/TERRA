@@ -71,15 +71,27 @@ describe("compositions listed under an area", () => {
   it("keeps a composition saved before the area was carried to the one on the map", () => {
     const legacy = comp("savi")
     const onMap = comp("evi", { areaId: "area-a" })
-    expect(listed({ areaId: "area-a", composition: onMap, compositionGallery: [onMap, legacy] }))
-      .toEqual(["evi"])
-    expect(listed({ areaId: "area-a", composition: legacy, compositionGallery: [onMap, legacy] }))
-      .toEqual(expect.arrayContaining(["evi", "savi"]))
+    expect(
+      listed({
+        areaId: "area-a",
+        composition: onMap,
+        compositionGallery: [onMap, legacy],
+      })
+    ).toEqual(["evi"])
+    expect(
+      listed({
+        areaId: "area-a",
+        composition: legacy,
+        compositionGallery: [onMap, legacy],
+      })
+    ).toEqual(expect.arrayContaining(["evi", "savi"]))
   })
 
   it("lists a composition made under a run, which the scoping has already matched", () => {
     const underRun = comp("ndwi", { runId: "run-1" })
-    expect(listed({ areaId: "area-a", compositionGallery: [underRun] })).toEqual(["ndwi"])
+    expect(listed({ areaId: "area-a", compositionGallery: [underRun] })).toEqual([
+      "ndwi",
+    ])
   })
 
   it("claims nothing when the caller names no area", () => {

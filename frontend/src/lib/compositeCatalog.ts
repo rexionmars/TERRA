@@ -132,13 +132,7 @@ export const RDYLGN_STOPS = [
   "#1a9850",
 ]
 
-export const BLUES_STOPS = [
-  "#f7fbff",
-  "#c6dbef",
-  "#6baed6",
-  "#3182bd",
-  "#08519c",
-]
+export const BLUES_STOPS = ["#f7fbff", "#c6dbef", "#6baed6", "#3182bd", "#08519c"]
 
 export function findRgbPreset(
   bands: [string, string, string]

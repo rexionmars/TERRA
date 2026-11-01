@@ -104,7 +104,10 @@ export function fieldsByParent(areas: readonly Area[]): Map<string, Area[]> {
  * The area whose fields are in view: the area itself, or its parent when it
  * is a field. Null when neither is known.
  */
-export function rootOf(areas: readonly Area[], id: string | null | undefined): Area | null {
+export function rootOf(
+  areas: readonly Area[],
+  id: string | null | undefined
+): Area | null {
   if (!id) return null
   const a = areas.find((x) => x.id === id)
   if (!a) return null

@@ -81,9 +81,7 @@ export function formatHectares(ha: number): string {
   return `${Math.round(ha).toLocaleString()} ha`
 }
 
-export function runSummaryObject(
-  summary?: string | null
-): Record<string, unknown> {
+export function runSummaryObject(summary?: string | null): Record<string, unknown> {
   if (!summary?.trim()) return {}
   try {
     const j = JSON.parse(summary) as unknown
@@ -152,22 +150,21 @@ export function runRowLine(run: {
       const n = typeof j.fields_n === "number" ? `${j.fields_n} fields` : ""
       const a = typeof j.fields_window_a === "string" ? j.fields_window_a : ""
       const b = typeof j.fields_window_b === "string" ? j.fields_window_b : ""
-      return [
-        "Field boundaries",
-        n,
-        a && b ? `${a} and ${b}` : "",
-      ]
+      return ["Field boundaries", n, a && b ? `${a} and ${b}` : ""]
         .filter(Boolean)
         .join(" · ")
     }
     case "health": {
       // The latest departure: what a run list can say of a field in one line.
       const j = runSummaryObject(run.summary)
-      const z = typeof j.health_latest_ndvi_z === "number" ? j.health_latest_ndvi_z : null
+      const z =
+        typeof j.health_latest_ndvi_z === "number" ? j.health_latest_ndvi_z : null
       const d = typeof j.health_latest_date === "string" ? j.health_latest_date : ""
       return [
         "Vegetation health",
-        z != null ? `NDVI ${z >= 0 ? "+" : "\u2212"}${Math.abs(z).toFixed(1)} sd` : "no earlier season to compare",
+        z != null
+          ? `NDVI ${z >= 0 ? "+" : "\u2212"}${Math.abs(z).toFixed(1)} sd`
+          : "no earlier season to compare",
         d,
       ]
         .filter(Boolean)
@@ -179,13 +176,21 @@ export function runRowLine(run: {
         day they were read: a check holds for that day and no other.
       */
       const j = runSummaryObject(run.summary)
-      const ha = j.overlap_ha && typeof j.overlap_ha === "object" ? (j.overlap_ha as Record<string, unknown>) : {}
+      const ha =
+        j.overlap_ha && typeof j.overlap_ha === "object"
+          ? (j.overlap_ha as Record<string, unknown>)
+          : {}
       const status =
-        j.overlap_status && typeof j.overlap_status === "object" ? (j.overlap_status as Record<string, unknown>) : {}
+        j.overlap_status && typeof j.overlap_status === "object"
+          ? (j.overlap_status as Record<string, unknown>)
+          : {}
       // CAR is left out of the count: a field inside a registration is the expected case.
-      const met = Object.entries(ha).filter(([id, v]) => id !== "car" && typeof v === "number" && v > 0).length
+      const met = Object.entries(ha).filter(
+        ([id, v]) => id !== "car" && typeof v === "number" && v > 0
+      ).length
       const failed = Object.values(status).filter((s) => s === "failed").length
-      const read = typeof j.overlap_read_at === "string" ? j.overlap_read_at.slice(0, 10) : ""
+      const read =
+        typeof j.overlap_read_at === "string" ? j.overlap_read_at.slice(0, 10) : ""
       return [
         "Socio-environmental overlap",
         met ? `meets ${met} ${met === 1 ? "register" : "registers"}` : "meets none",
@@ -199,7 +204,8 @@ export function runRowLine(run: {
       // Passes read, and the latest canopy loss: one line of a field's radar.
       const j = runSummaryObject(run.summary)
       const n = typeof j.radar_n_passes === "number" ? j.radar_n_passes : null
-      const from = typeof j.radar_last_loss_from === "string" ? j.radar_last_loss_from : ""
+      const from =
+        typeof j.radar_last_loss_from === "string" ? j.radar_last_loss_from : ""
       const to = typeof j.radar_last_loss_to === "string" ? j.radar_last_loss_to : ""
       return [
         "Sentinel-1 radar",

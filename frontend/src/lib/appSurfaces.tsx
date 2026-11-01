@@ -221,11 +221,7 @@ function About({ onClose }: { onClose: () => void }) {
         onClose={onClose}
       />
       <div className="px-4 py-4">
-        <img
-          src="/terra-logo.png"
-          alt=""
-          className="mb-4 h-12 w-12 object-contain"
-        />
+        <img src="/terra-logo.png" alt="" className="mb-4 h-12 w-12 object-contain" />
         <dl className="grid grid-cols-[auto_1fr] gap-x-4 gap-y-1.5 text-meta">
           <dt className="text-muted-foreground">Version</dt>
           {/*
@@ -233,9 +229,7 @@ function About({ onClose }: { onClose: () => void }) {
             number the frontend keeps is a number that can disagree with the
             application it is describing, which is the whole reason to ask.
           */}
-          <dd className="tabular-nums text-foreground">
-            {version || "unknown"}
-          </dd>
+          <dd className="text-foreground tabular-nums">{version || "unknown"}</dd>
         </dl>
       </div>
     </ModalShell>

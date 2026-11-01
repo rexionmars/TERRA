@@ -26,11 +26,7 @@ import { INDICES } from "@/lib/compositeCatalog"
 import { MAPBIOMAS_CLASS_LEGEND } from "@/lib/classPalette"
 import { predictionSource } from "@/lib/mapLayers"
 import { paletteGradient } from "@/lib/palettes"
-import {
-  confidenceRGB,
-  formulaGradient,
-  ndviMeanRGB,
-} from "@/lib/rampFormulas"
+import { confidenceRGB, formulaGradient, ndviMeanRGB } from "@/lib/rampFormulas"
 import {
   MINERAL_MASKED_COLOR,
   MINERAL_NO_ANSWER_COLOR,
@@ -129,10 +125,7 @@ export interface LegendSources {
  *
  * Ids are lib/mapLayers.ts's, which is also what the board's rows carry.
  */
-export function legendFor(
-  layerId: string,
-  src: LegendSources
-): LayerLegend {
+export function legendFor(layerId: string, src: LegendSources): LayerLegend {
   if (layerId === "prediction") {
     /*
       WHICH of the three maps is drawn decides which legend this is, and that
@@ -289,9 +282,7 @@ export function legendFor(
     */
     const r = src.result
     if (r?.mean_confidence === undefined) return null
-    const rows = [
-      { label: "Mean", value: `${(r.mean_confidence * 100).toFixed(1)}%` },
-    ]
+    const rows = [{ label: "Mean", value: `${(r.mean_confidence * 100).toFixed(1)}%` }]
     if (r.confidence_floor !== undefined) {
       rows.push({
         label: "Floor",
@@ -460,8 +451,17 @@ const rampValue = (r: MineralRamp, v: number): string =>
       ? `${(v * 100).toFixed(0)}%`
       : v.toFixed(2)
 
-const spreadRow = (label: string, s: MineralSpread | null | undefined, fmt: (v: number) => string) =>
-  s ? { label, value: `median ${fmt(s.p50)}, 10-90% ${fmt(s.p10)} to ${fmt(s.p90)} (n=${s.cells})` } : null
+const spreadRow = (
+  label: string,
+  s: MineralSpread | null | undefined,
+  fmt: (v: number) => string
+) =>
+  s
+    ? {
+        label,
+        value: `median ${fmt(s.p50)}, 10-90% ${fmt(s.p10)} to ${fmt(s.p90)} (n=${s.cells})`,
+      }
+    : null
 
 /**
  * The legend of one of the mineral map's derived rasters.
@@ -506,7 +506,11 @@ function mineralDerivedLegend(m: MineralAnalysis, l: MineralLayer): LayerLegend 
     return {
       kind: "classes",
       subject: l.title,
-      entries: l.legend.map((e, i) => ({ name: e.label, color: e.color, areaHa: areas[i] })),
+      entries: l.legend.map((e, i) => ({
+        name: e.label,
+        color: e.color,
+        areaHa: areas[i],
+      })),
       rows: rows.length ? rows : undefined,
     }
   }
@@ -538,7 +542,10 @@ function mineralDerivedLegend(m: MineralAnalysis, l: MineralLayer): LayerLegend 
     if (conf && l.id.startsWith("stability")) {
       const row = spreadRow(`Share of ${conf.draws} draws`, conf.stability, fmt)
       if (row) rows.push(row)
-      rows.push({ label: "Class held in every draw", value: `${conf.stable_cells} cells` })
+      rows.push({
+        label: "Class held in every draw",
+        value: `${conf.stable_cells} cells`,
+      })
     }
     return {
       kind: "stats",
@@ -557,10 +564,22 @@ function mineralDerivedLegend(m: MineralAnalysis, l: MineralLayer): LayerLegend 
     const c = m.cover
     const rows: LegendRow[] = c
       ? [
-          { label: "Red: bare soil, mean", value: `${(c.mean_bare * 100).toFixed(0)}%` },
-          { label: "Green: green vegetation, mean", value: `${(c.mean_pv * 100).toFixed(0)}%` },
-          { label: "Blue: dry vegetation, mean", value: `${(c.mean_npv * 100).toFixed(0)}%` },
-          { label: "Cells with a fraction", value: `${c.cells} (${c.area_ha.toFixed(1)} ha)` },
+          {
+            label: "Red: bare soil, mean",
+            value: `${(c.mean_bare * 100).toFixed(0)}%`,
+          },
+          {
+            label: "Green: green vegetation, mean",
+            value: `${(c.mean_pv * 100).toFixed(0)}%`,
+          },
+          {
+            label: "Blue: dry vegetation, mean",
+            value: `${(c.mean_npv * 100).toFixed(0)}%`,
+          },
+          {
+            label: "Cells with a fraction",
+            value: `${c.cells} (${c.area_ha.toFixed(1)} ha)`,
+          },
         ]
       : []
     return rows.length

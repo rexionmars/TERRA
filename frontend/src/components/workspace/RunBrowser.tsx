@@ -97,10 +97,7 @@ import { useAuth } from "@/lib/auth"
 import { notifyError, notifySuccess } from "@/lib/notify"
 import { runKindLabel, runRowLine } from "@/lib/runSummary"
 import { ConfirmDelete } from "@/components/ui/ConfirmDelete"
-import {
-  ContextMenu,
-  MenuItem,
-} from "@/components/workspace/MenuPopover"
+import { ContextMenu, MenuItem } from "@/components/workspace/MenuPopover"
 import { cn } from "@/lib/utils"
 import type { InferenceRun, Project } from "@/lib/types"
 
@@ -203,11 +200,21 @@ const KINDS = [
   // A plant: the canopy against its own earlier seasons.
   { id: "health", label: "Vegetation health", token: "--p-kind-health", icon: Plant },
   // A stack: the public registers laid over the area.
-  { id: "overlap", label: "Socio-environmental overlap", token: "--p-kind-overlap", icon: Stack },
+  {
+    id: "overlap",
+    label: "Socio-environmental overlap",
+    token: "--p-kind-overlap",
+    icon: Stack,
+  },
   // A broadcast: an active sensor, which sends the signal it measures.
   { id: "radar", label: "Sentinel-1 radar", token: "--p-kind-radar", icon: Broadcast },
   // A square divided: a field cut into parts.
-  { id: "zones", label: "Management zones", token: "--p-kind-zones", icon: SquareSplitHorizontal },
+  {
+    id: "zones",
+    label: "Management zones",
+    token: "--p-kind-zones",
+    icon: SquareSplitHorizontal,
+  },
 ] as const
 
 /** The token as a colour, at an alpha. One place, so the syntax is right once. */
@@ -273,9 +280,7 @@ export function RunBrowser({
     Which folders are open. The root starts open, because a tree whose only
     visible row is its own root shows nothing about the store it indexes.
   */
-  const [expanded, setExpanded] = useState<ReadonlySet<string>>(
-    new Set(["all"])
-  )
+  const [expanded, setExpanded] = useState<ReadonlySet<string>>(new Set(["all"]))
   const [query, setQuery] = useState("")
   const [kinds, setKinds] = useState<ReadonlySet<KindId>>(new Set())
   const [tilesChosen, setTiles] = useState(true)
@@ -296,7 +301,8 @@ export function RunBrowser({
     const el = rootRef.current
     if (!el) return
     const measure = () => {
-      const rootPx = parseFloat(getComputedStyle(document.documentElement).fontSize) || 16
+      const rootPx =
+        parseFloat(getComputedStyle(document.documentElement).fontSize) || 16
       setStacked(el.clientWidth < STACK_BELOW_REM * rootPx)
     }
     measure()
@@ -327,9 +333,7 @@ export function RunBrowser({
     otherwise. A native prompt for the new one would be a second grammar for
     the same act -- and a modal the reader cannot see the list behind.
   */
-  const [naming, setNaming] = useState<{ id: string | null; name: string } | null>(
-    null
-  )
+  const [naming, setNaming] = useState<{ id: string | null; name: string } | null>(null)
 
   /*
     Counts per source, taken once over the whole list.
@@ -449,9 +453,7 @@ export function RunBrowser({
           ? "Unfiled"
           : (projects.find((p) => p.id === source.id)?.name ?? "Project")
     const kind =
-      source.scope !== "all" && source.kind
-        ? KIND_BY_ID.get(source.kind)?.label
-        : null
+      source.scope !== "all" && source.kind ? KIND_BY_ID.get(source.kind)?.label : null
     return kind ? head + " / " + kind : head
   })()
 
@@ -492,9 +494,7 @@ export function RunBrowser({
       }
     } catch (e) {
       notifyError(
-        id === null
-          ? "Could not create the project"
-          : "Could not rename the project",
+        id === null ? "Could not create the project" : "Could not rename the project",
         e
       )
     }
@@ -569,9 +569,9 @@ export function RunBrowser({
             placeholder="Search analyses"
             aria-label="Search analyses"
             className={cn(
-              "h-6 w-full min-w-0 rounded-sm border bg-transparent pl-6 pr-6 text-emphasis",
+              "h-6 w-full min-w-0 rounded-sm border bg-transparent pr-6 pl-6 text-emphasis",
               "placeholder:text-muted-foreground/70",
-              "focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+              "focus-visible:ring-1 focus-visible:ring-ring focus-visible:outline-none"
             )}
             style={{ borderColor: "rgb(var(--p-line) / 0.28)" }}
           />
@@ -598,8 +598,8 @@ export function RunBrowser({
                 aria-pressed={on}
                 title={`Show only ${k.label.toLowerCase()}`}
                 className={cn(
-                  "flex h-6 items-center gap-1 rounded-sm border px-1.5 text-micro uppercase tracking-wider transition-colors",
-                  "focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring",
+                  "flex h-6 items-center gap-1 rounded-sm border px-1.5 text-micro tracking-wider uppercase transition-colors",
+                  "focus-visible:ring-1 focus-visible:ring-ring focus-visible:outline-none",
                   on
                     ? "text-foreground"
                     : "border-transparent text-muted-foreground hover:text-foreground"
@@ -658,7 +658,7 @@ export function RunBrowser({
               aria-label={label}
               className={cn(
                 "flex h-6 w-6 items-center justify-center transition-colors",
-                "focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring",
+                "focus-visible:ring-1 focus-visible:ring-ring focus-visible:outline-none",
                 on
                   ? "bg-selected text-foreground"
                   : "text-muted-foreground hover:text-foreground"
@@ -687,7 +687,7 @@ export function RunBrowser({
             separate from.
           */}
           <div
-            className="flex h-6 shrink-0 items-center gap-1.5 border-b px-2 text-micro uppercase tracking-wider text-muted-foreground/70"
+            className="flex h-6 shrink-0 items-center gap-1.5 border-b px-2 text-micro tracking-wider text-muted-foreground/70 uppercase"
             style={{ borderColor: "rgb(var(--p-line) / 0.22)" }}
           >
             <Folders className="size-3" />
@@ -778,7 +778,7 @@ export function RunBrowser({
                 )}
 
                 {projects.length === 0 && folderCount("unfiled") === 0 && (
-                  <p className="py-1 pl-6 pr-2 text-micro leading-relaxed text-muted-foreground">
+                  <p className="py-1 pr-2 pl-6 text-micro leading-relaxed text-muted-foreground">
                     Nothing filed yet.
                   </p>
                 )}
@@ -802,10 +802,7 @@ export function RunBrowser({
             */}
             {gridFolders.length > 0 && (
               <div
-                className={cn(
-                  "mb-2",
-                  tiles ? "flex flex-wrap gap-2" : "flex flex-col"
-                )}
+                className={cn("mb-2", tiles ? "flex flex-wrap gap-2" : "flex flex-col")}
               >
                 {gridFolders.map((f) => {
                   const enter = () =>
@@ -937,17 +934,12 @@ export function RunBrowser({
           */}
           <MenuItem
             icon={
-              (KIND_BY_ID.get(runKindLabel(runMenu.run.kind) as KindId) ??
-                KINDS[0]).icon
+              (KIND_BY_ID.get(runKindLabel(runMenu.run.kind) as KindId) ?? KINDS[0])
+                .icon
             }
-            label={
-              runMenu.run.overlay_relpath
-                ? "Open on the map"
-                : "Open its reading"
-            }
+            label={runMenu.run.overlay_relpath ? "Open on the map" : "Open its reading"}
             disabled={
-              busy ||
-              (runMenu.run.overlay_relpath ? !onOpenRun : !onOpenReading)
+              busy || (runMenu.run.overlay_relpath ? !onOpenRun : !onOpenReading)
             }
             onSelect={() => {
               if (runMenu.run.overlay_relpath) onOpenRun?.(runMenu.run)
@@ -1015,9 +1007,7 @@ export function RunBrowser({
             icon={Check}
             label="File new runs here"
             checked={projectMenu.project.id === activeProjectId}
-            disabled={
-              !onActivateProject || projectMenu.project.id === activeProjectId
-            }
+            disabled={!onActivateProject || projectMenu.project.id === activeProjectId}
             onSelect={() => {
               onActivateProject?.(projectMenu.project.id)
               setProjectMenu(null)
@@ -1122,7 +1112,7 @@ function NameField({
       }}
       aria-label={label}
       placeholder={label}
-      className="mr-1 h-6 w-[calc(100%-1.5rem)] rounded-sm border bg-transparent px-1.5 text-emphasis placeholder:text-muted-foreground/60 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+      className="mr-1 h-6 w-[calc(100%-1.5rem)] rounded-sm border bg-transparent px-1.5 text-emphasis placeholder:text-muted-foreground/60 focus-visible:ring-1 focus-visible:ring-ring focus-visible:outline-none"
     />
   )
 }
@@ -1177,9 +1167,7 @@ function SourceNode({
       aria-selected={on}
       className={cn(
         "group flex h-6 items-center transition-colors",
-        on
-          ? "bg-selected text-foreground"
-          : "text-muted-foreground hover:bg-hover"
+        on ? "bg-selected text-foreground" : "text-muted-foreground hover:bg-hover"
       )}
       style={{ paddingLeft: `${0.25 + depth * 0.75}rem` }}
     >
@@ -1188,7 +1176,7 @@ function SourceNode({
           type="button"
           onClick={onToggle}
           aria-label={`${open ? "Collapse" : "Expand"} ${label}`}
-          className="flex size-4 shrink-0 items-center justify-center text-muted-foreground hover:text-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+          className="flex size-4 shrink-0 items-center justify-center text-muted-foreground hover:text-foreground focus-visible:ring-1 focus-visible:ring-ring focus-visible:outline-none"
         >
           <CaretRight
             className={cn("size-3 transition-transform", open && "rotate-90")}
@@ -1215,7 +1203,7 @@ function SourceNode({
         title={label}
         className={cn(
           "flex h-full min-w-0 flex-1 items-center gap-1.5 pr-2 text-left text-emphasis",
-          "focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring",
+          "focus-visible:ring-1 focus-visible:ring-ring focus-visible:outline-none",
           !on && "group-hover:text-foreground"
         )}
       >
@@ -1237,10 +1225,7 @@ function SourceNode({
             style={{ color: tint("--p-folder") }}
           />
         ) : (
-          <Folder
-            className="size-3.5 shrink-0"
-            style={{ color: tint("--p-folder") }}
-          />
+          <Folder className="size-3.5 shrink-0" style={{ color: tint("--p-folder") }} />
         )}
         <span className="min-w-0 flex-1 truncate">{label}</span>
         {marked && (
@@ -1249,7 +1234,7 @@ function SourceNode({
             title="New runs are filed here"
           />
         )}
-        <span className="shrink-0 tabular-nums text-micro text-muted-foreground/70">
+        <span className="shrink-0 text-micro text-muted-foreground/70 tabular-nums">
           {count}
         </span>
       </button>
@@ -1389,7 +1374,7 @@ function FolderTile({
       }
       className={cn(
         `flex ${TILE_W} flex-col gap-1 rounded-sm border border-transparent p-1 text-left transition-colors`,
-        "hover:bg-hover focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+        "hover:bg-hover focus-visible:ring-1 focus-visible:ring-ring focus-visible:outline-none"
       )}
     >
       {/*
@@ -1419,7 +1404,7 @@ function FolderTile({
             size; see the note in index.css.
           */}
           <span
-            className="flex flex-1 items-center justify-center rounded-b-[3px] rounded-tr-[3px]"
+            className="flex flex-1 items-center justify-center rounded-tr-[3px] rounded-b-[3px]"
             style={{
               background: tint("--p-folder"),
               boxShadow: `inset 0 1.5px 0 ${tint("--p-folder-seam")}`,
@@ -1434,7 +1419,11 @@ function FolderTile({
                 does, and two things that look alike would be saying different
                 sentences.
               */
-              <Glyph className="size-4" style={{ color: tint("--p-folder-ink") }} aria-hidden />
+              <Glyph
+                className="size-4"
+                style={{ color: tint("--p-folder-ink") }}
+                aria-hidden
+              />
             ) : null}
           </span>
         </span>
@@ -1471,17 +1460,14 @@ function FolderRow({
       className={cn(
         "flex h-8 items-center gap-2 rounded-sm px-1 text-left transition-colors",
         "text-muted-foreground hover:bg-hover hover:text-foreground",
-        "focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+        "focus-visible:ring-1 focus-visible:ring-ring focus-visible:outline-none"
       )}
     >
-      <Folder
-        className="size-4 shrink-0"
-        style={{ color: tint("--p-folder") }}
-      />
+      <Folder className="size-4 shrink-0" style={{ color: tint("--p-folder") }} />
       <span className="min-w-0 flex-1 truncate text-emphasis text-foreground">
         {name}
       </span>
-      <span className="shrink-0 tabular-nums text-micro text-muted-foreground/70">
+      <span className="shrink-0 text-micro text-muted-foreground/70 tabular-nums">
         {count} {count === 1 ? "analysis" : "analyses"}
       </span>
     </button>
@@ -1597,10 +1583,8 @@ function RunTile({
       title={`${runLabel(run)} — ${runRowLine(run)}`}
       className={cn(
         `flex ${TILE_W} flex-col gap-1 rounded-sm border p-1 text-left transition-colors`,
-        "focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring",
-        on
-          ? "border-primary/60 bg-primary/10"
-          : "border-transparent hover:bg-hover"
+        "focus-visible:ring-1 focus-visible:ring-ring focus-visible:outline-none",
+        on ? "border-primary/60 bg-primary/10" : "border-transparent hover:bg-hover"
       )}
     >
       <KindPlate run={run} size="tile" />
@@ -1654,7 +1638,7 @@ function RunRow({
       aria-current={on ? "true" : undefined}
       className={cn(
         "flex h-8 items-center gap-2 rounded-sm px-1 text-left transition-colors",
-        "focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring",
+        "focus-visible:ring-1 focus-visible:ring-ring focus-visible:outline-none",
         on
           ? "bg-primary/10 text-foreground"
           : "text-muted-foreground hover:bg-hover hover:text-foreground"
@@ -1667,7 +1651,7 @@ function RunRow({
       <span className="hidden min-w-0 flex-1 truncate text-micro text-muted-foreground sm:block">
         {runRowLine(run)}
       </span>
-      <span className="shrink-0 tabular-nums text-micro text-muted-foreground/70">
+      <span className="shrink-0 text-micro text-muted-foreground/70 tabular-nums">
         {run.created_at.slice(0, 10)}
       </span>
     </button>

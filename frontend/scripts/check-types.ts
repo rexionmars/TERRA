@@ -149,7 +149,9 @@ function goStructs(): GoStruct[] {
     if (named === "") {
       const field = line.match(/^([A-Za-z_][A-Za-z0-9_]*)\s/)
       if (!field) {
-        throw new Error(`${GO_DIR}:${at}: empty json name and no field name in "${line}"`)
+        throw new Error(
+          `${GO_DIR}:${at}: empty json name and no field name in "${line}"`
+        )
       }
       current.fields.push(field[1])
       continue

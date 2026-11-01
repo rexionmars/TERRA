@@ -118,14 +118,14 @@ function CrashDetail({
 }) {
   return (
     <details className="w-full">
-      <summary className="select-none text-meta text-muted-foreground">
+      <summary className="text-meta text-muted-foreground select-none">
         Error detail
       </summary>
       <p className="mt-1.5 text-body break-words text-foreground">
         {error.message || "The thrown value carried no message."}
       </p>
       {componentStack ? (
-        <pre className="selectable mt-1.5 max-h-40 overflow-auto whitespace-pre-wrap text-micro text-muted-foreground">
+        <pre className="selectable mt-1.5 max-h-40 overflow-auto text-micro whitespace-pre-wrap text-muted-foreground">
           {componentStack.trim()}
         </pre>
       ) : null}
@@ -166,10 +166,10 @@ export function AppErrorFallback({ error, componentStack }: ErrorFallbackProps) 
           A component threw while drawing this window
         </h1>
         <p className="mt-2 text-body text-muted-foreground">
-          React unmounted the tree rather than leave it half drawn. Analyses
-          already saved are on disk and were not touched; anything held only in
-          this session -- a studio arrangement that was never saved, a run
-          that was never stored -- does not survive the reload.
+          React unmounted the tree rather than leave it half drawn. Analyses already
+          saved are on disk and were not touched; anything held only in this session --
+          a studio arrangement that was never saved, a run that was never stored -- does
+          not survive the reload.
         </p>
         <div className="mt-3">
           <CrashDetail error={error} componentStack={componentStack} />
@@ -217,9 +217,9 @@ export function PanelErrorFallback({
         {panel} stopped drawing
       </p>
       <p className="text-body text-muted-foreground">
-        The rest of the board is unaffected. Trying again rebuilds this panel
-        from the state as it stands now, and the area can be retyped or closed
-        from its header either way.
+        The rest of the board is unaffected. Trying again rebuilds this panel from the
+        state as it stands now, and the area can be retyped or closed from its header
+        either way.
       </p>
       <CrashDetail error={error} componentStack={componentStack} />
       <button type="button" className={btnGhostDense} onClick={reset}>

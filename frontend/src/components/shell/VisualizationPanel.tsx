@@ -3,9 +3,19 @@ import { btnGhost, btnPrimaryCommit } from "@/components/ui/buttons"
 import { INDICES, RGB_PRESETS, findRgbPreset } from "@/lib/compositeCatalog"
 import { PRODUCT_NOTES } from "@/lib/productNotes"
 import { exportPng, exportTif, type RunAsset } from "@/lib/runAssets"
-import type { CompositeIndex, CompositeKind, CompositionOverlay, DataCubeScene } from "@/lib/types"
+import type {
+  CompositeIndex,
+  CompositeKind,
+  CompositionOverlay,
+  DataCubeScene,
+} from "@/lib/types"
 import { cn } from "@/lib/utils"
-import { PanelChoices, PanelHeading, PanelLimit, ShellPanel } from "@/components/shell/ShellPanel"
+import {
+  PanelChoices,
+  PanelHeading,
+  PanelLimit,
+  ShellPanel,
+} from "@/components/shell/ShellPanel"
 
 function Field({ label, children }: { label: string; children: React.ReactNode }) {
   return (
@@ -115,10 +125,14 @@ export function VisualizationPanel({
                   style={{ width: `${clamp(progress, 0, 100)}%` }}
                 />
               </div>
-              <p className="mt-1 truncate text-label text-muted-foreground">{progressMsg}</p>
+              <p className="mt-1 truncate text-label text-muted-foreground">
+                {progressMsg}
+              </p>
             </div>
           )}
-          {blocked && !running && <p className="text-label text-muted-foreground">{blocked}</p>}
+          {blocked && !running && (
+            <p className="text-label text-muted-foreground">{blocked}</p>
+          )}
           <button
             type="button"
             disabled={!!blocked || running}
@@ -140,7 +154,11 @@ export function VisualizationPanel({
               type="button"
               disabled={!canList || scenesLoading}
               onClick={onListScenes}
-              title={!canList ? "Needs an area and both dates of the period, under Products." : undefined}
+              title={
+                !canList
+                  ? "Needs an area and both dates of the period, under Products."
+                  : undefined
+              }
               className={cn(btnGhost, "shrink-0")}
             >
               {scenesLoading && <CircleNotch className="size-3.5 animate-spin" />}
@@ -166,7 +184,9 @@ export function VisualizationPanel({
               Period {start} to {end}
             </p>
           )}
-          {scenesError && <p className="text-label text-destructive-quiet">{scenesError}</p>}
+          {scenesError && (
+            <p className="text-label text-destructive-quiet">{scenesError}</p>
+          )}
         </section>
 
         <section className="flex flex-col gap-2">
@@ -198,7 +218,9 @@ export function VisualizationPanel({
                   </option>
                 ))}
               </select>
-              {preset && <p className="text-label text-muted-foreground">{preset.description}</p>}
+              {preset && (
+                <p className="text-label text-muted-foreground">{preset.description}</p>
+              )}
             </>
           ) : (
             <>
@@ -227,7 +249,9 @@ export function VisualizationPanel({
                 max={49}
                 className="field-input"
                 value={stretchLow}
-                onChange={(e) => onStretchChange(clamp(e.target.valueAsNumber, 0, 49), stretchHigh)}
+                onChange={(e) =>
+                  onStretchChange(clamp(e.target.valueAsNumber, 0, 49), stretchHigh)
+                }
               />
             </Field>
             <Field label="Stretch high (%)">
@@ -237,7 +261,9 @@ export function VisualizationPanel({
                 max={100}
                 className="field-input"
                 value={stretchHigh}
-                onChange={(e) => onStretchChange(stretchLow, clamp(e.target.valueAsNumber, 51, 100))}
+                onChange={(e) =>
+                  onStretchChange(stretchLow, clamp(e.target.valueAsNumber, 51, 100))
+                }
               />
             </Field>
           </div>
@@ -247,7 +273,11 @@ export function VisualizationPanel({
           <section className="flex flex-col gap-1">
             <div className="flex items-baseline justify-between">
               <PanelHeading>Compositions of this area</PanelHeading>
-              <button type="button" onClick={onClearAll} className="text-label text-muted-foreground hover:text-foreground">
+              <button
+                type="button"
+                onClick={onClearAll}
+                className="text-label text-muted-foreground hover:text-foreground"
+              >
                 Take all off
               </button>
             </div>
@@ -256,7 +286,10 @@ export function VisualizationPanel({
                 const asset = assets.find((a) => a.selectId === c.id)
                 const on = composition?.id === c.id
                 return (
-                  <li key={c.id} className={cn("rounded-sm px-2 py-1.5", on && "bg-selected")}>
+                  <li
+                    key={c.id}
+                    className={cn("rounded-sm px-2 py-1.5", on && "bg-selected")}
+                  >
                     <div className="flex items-center gap-2">
                       <button
                         type="button"
@@ -265,13 +298,17 @@ export function VisualizationPanel({
                         className="min-w-0 flex-1 text-left"
                       >
                         <span className="flex items-center gap-1.5">
-                          {on && <Eye className="size-3.5 shrink-0 text-muted-foreground" />}
+                          {on && (
+                            <Eye className="size-3.5 shrink-0 text-muted-foreground" />
+                          )}
                           <span className="truncate text-read text-foreground">
                             {c.title || c.label || "Composition"}
                           </span>
                         </span>
                         {c.sceneDate && (
-                          <span className="block text-label text-muted-foreground">{c.sceneDate}</span>
+                          <span className="block text-label text-muted-foreground">
+                            {c.sceneDate}
+                          </span>
                         )}
                       </button>
                       {asset && (

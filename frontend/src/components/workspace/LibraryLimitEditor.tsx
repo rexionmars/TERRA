@@ -82,13 +82,11 @@ function AngleRanking({
     written down, which was right for the five classes that happened to be
     there.
   */
-  const gutter =
-    Math.max(...classes.map((c) => measureText(c.name, TYPE.meta))) + 10
+  const gutter = Math.max(...classes.map((c) => measureText(c.name, TYPE.meta))) + 10
   // The ranking asks for the height its rows need rather than taking what it
   // is given: rows of a fixed height are what makes five classes readable and
   // twelve scrollable, instead of twelve rows squeezed into one panel.
-  const height =
-    classes.length * RANK_ROW + ROW_PX.label + ROW_PX.title + ROW_PX.gap
+  const height = classes.length * RANK_ROW + ROW_PX.label + ROW_PX.title + ROW_PX.gap
   const layout = {
     width: width,
     height,
@@ -104,94 +102,94 @@ function AngleRanking({
 
   return (
     <div ref={host} className="w-full">
-    <svg
-      width={layout.width}
-      height={layout.height}
-      viewBox={`0 0 ${layout.width} ${layout.height}`}
-      style={{ display: "block", fontFamily: "var(--font-sans)" }}
-      role="img"
-      aria-label="Spectral angle from each predicted class to the library reference"
-    >
-      {ticks.map((t) => (
-        <g key={t}>
-          <line
-            x1={x(t)}
-            x2={x(t)}
-            y1={layout.plot.y0}
-            y2={layout.plot.y1}
-            stroke="var(--hairline)"
-            strokeWidth={0.75}
-            strokeDasharray="2 4"
-          />
-          <text
-            x={x(t)}
-            y={layout.plot.y1 + 12}
-            fontSize={TYPE.meta}
-            fill="var(--muted-foreground)"
-            textAnchor="middle"
-          >
-            {t.toFixed(2)}
-          </text>
-        </g>
-      ))}
-      <text
-        x={(layout.plot.x0 + layout.plot.x1) / 2}
-        y={layout.height - 4}
-        fontSize={TYPE.body}
-        fill="var(--muted-foreground)"
-        textAnchor="middle"
+      <svg
+        width={layout.width}
+        height={layout.height}
+        viewBox={`0 0 ${layout.width} ${layout.height}`}
+        style={{ display: "block", fontFamily: "var(--font-sans)" }}
+        role="img"
+        aria-label="Spectral angle from each predicted class to the library reference"
       >
-        Spectral angle to the reference (radians) — smaller is more consistent
-      </text>
-      {classes.map((c, i) => {
-        const y = layout.plot.y0 + i * row + row / 2
-        const stroke = colours.get(c.class_id) ?? "#888888"
-        const dim = focus !== null && focus !== c.class_id
-        return (
-          <g
-            key={c.class_id}
-            opacity={dim ? 0.35 : 1}
-            onMouseEnter={() => onFocus(c.class_id)}
-            onMouseLeave={() => onFocus(null)}
-          >
-            <rect
-              x={0}
-              y={y - row / 2}
-              width={layout.width}
-              height={row}
-              fill={focus === c.class_id ? "var(--accent-dim)" : "transparent"}
+        {ticks.map((t) => (
+          <g key={t}>
+            <line
+              x1={x(t)}
+              x2={x(t)}
+              y1={layout.plot.y0}
+              y2={layout.plot.y1}
+              stroke="var(--hairline)"
+              strokeWidth={0.75}
+              strokeDasharray="2 4"
             />
             <text
-              x={layout.plot.x0 - 8}
-              y={y}
-              fontSize={TYPE.meta}
-              fill="var(--foreground)"
-              textAnchor="end"
-              dominantBaseline="middle"
-            >
-              {c.name}
-            </text>
-            <rect
-              x={layout.plot.x0}
-              y={y - row * 0.22}
-              width={Math.max(0, x(c.angle_rad) - layout.plot.x0)}
-              height={row * 0.44}
-              fill={stroke}
-            />
-            <text
-              x={x(c.angle_rad) + 5}
-              y={y}
+              x={x(t)}
+              y={layout.plot.y1 + 12}
               fontSize={TYPE.meta}
               fill="var(--muted-foreground)"
-              dominantBaseline="middle"
-              className="telemetry"
+              textAnchor="middle"
             >
-              {c.angle_rad.toFixed(3)}
+              {t.toFixed(2)}
             </text>
           </g>
-        )
-      })}
-    </svg>
+        ))}
+        <text
+          x={(layout.plot.x0 + layout.plot.x1) / 2}
+          y={layout.height - 4}
+          fontSize={TYPE.body}
+          fill="var(--muted-foreground)"
+          textAnchor="middle"
+        >
+          Spectral angle to the reference (radians) — smaller is more consistent
+        </text>
+        {classes.map((c, i) => {
+          const y = layout.plot.y0 + i * row + row / 2
+          const stroke = colours.get(c.class_id) ?? "#888888"
+          const dim = focus !== null && focus !== c.class_id
+          return (
+            <g
+              key={c.class_id}
+              opacity={dim ? 0.35 : 1}
+              onMouseEnter={() => onFocus(c.class_id)}
+              onMouseLeave={() => onFocus(null)}
+            >
+              <rect
+                x={0}
+                y={y - row / 2}
+                width={layout.width}
+                height={row}
+                fill={focus === c.class_id ? "var(--accent-dim)" : "transparent"}
+              />
+              <text
+                x={layout.plot.x0 - 8}
+                y={y}
+                fontSize={TYPE.meta}
+                fill="var(--foreground)"
+                textAnchor="end"
+                dominantBaseline="middle"
+              >
+                {c.name}
+              </text>
+              <rect
+                x={layout.plot.x0}
+                y={y - row * 0.22}
+                width={Math.max(0, x(c.angle_rad) - layout.plot.x0)}
+                height={row * 0.44}
+                fill={stroke}
+              />
+              <text
+                x={x(c.angle_rad) + 5}
+                y={y}
+                fontSize={TYPE.meta}
+                fill="var(--muted-foreground)"
+                dominantBaseline="middle"
+                className="telemetry"
+              >
+                {c.angle_rad.toFixed(3)}
+              </text>
+            </g>
+          )
+        })}
+      </svg>
     </div>
   )
 }
@@ -220,8 +218,7 @@ function BandPanel({
     mode === "ratio"
       ? bands.map((b) => b.ratio ?? 0)
       : bands.map((b) => b.unit_canopy ?? 0)
-  const other =
-    mode === "shape" ? bands.map((b) => b.unit_leaf ?? 0) : null
+  const other = mode === "shape" ? bands.map((b) => b.unit_leaf ?? 0) : null
   const lo = Math.min(0, ...values, ...(other ?? []))
   const hi = Math.max(...values, ...(other ?? []))
   const ticks = niceTicks(lo, hi * 1.06, 4)
@@ -235,109 +232,117 @@ function BandPanel({
   const y = linearScale([lo, hi * 1.06], [layout.plot.y1, layout.plot.y0])
 
   return (
-    <div ref={host} className="relative min-h-0 w-full flex-1" style={{ minHeight: 200 }}>
-    <svg
-      width={layout.width}
-      height={layout.height}
-      viewBox={`0 0 ${layout.width} ${layout.height}`}
-      style={{
-        position: "absolute",
-        inset: 0,
-        display: "block",
-        fontFamily: "var(--font-sans)",
-      }}
-      role="img"
-      aria-label={
-        mode === "ratio"
-          ? "Canopy over leaf reflectance, band by band"
-          : "Unit-normalised spectra, which is what the angle compares"
-      }
+    <div
+      ref={host}
+      className="relative min-h-0 w-full flex-1"
+      style={{ minHeight: 200 }}
     >
-      {ticks.map((t) => (
-        <g key={t}>
-          <line
-            x1={layout.plot.x0}
-            x2={layout.plot.x1}
-            y1={y(t)}
-            y2={y(t)}
-            stroke="var(--hairline)"
-            strokeWidth={0.5}
-            strokeDasharray="2 5"
-          />
-          <text
-            x={layout.plot.x0 - 6}
-            y={y(t)}
-            fontSize={TYPE.meta}
-            fill="var(--muted-foreground)"
-            textAnchor="end"
-            dominantBaseline="middle"
-          >
-            {t.toFixed(2)}
-          </text>
-        </g>
-      ))}
-      {/*
+      <svg
+        width={layout.width}
+        height={layout.height}
+        viewBox={`0 0 ${layout.width} ${layout.height}`}
+        style={{
+          position: "absolute",
+          inset: 0,
+          display: "block",
+          fontFamily: "var(--font-sans)",
+        }}
+        role="img"
+        aria-label={
+          mode === "ratio"
+            ? "Canopy over leaf reflectance, band by band"
+            : "Unit-normalised spectra, which is what the angle compares"
+        }
+      >
+        {ticks.map((t) => (
+          <g key={t}>
+            <line
+              x1={layout.plot.x0}
+              x2={layout.plot.x1}
+              y1={y(t)}
+              y2={y(t)}
+              stroke="var(--hairline)"
+              strokeWidth={0.5}
+              strokeDasharray="2 5"
+            />
+            <text
+              x={layout.plot.x0 - 6}
+              y={y(t)}
+              fontSize={TYPE.meta}
+              fill="var(--muted-foreground)"
+              textAnchor="end"
+              dominantBaseline="middle"
+            >
+              {t.toFixed(2)}
+            </text>
+          </g>
+        ))}
+        {/*
         Unity, on the ratio panel. It is the whole argument: a flat line at one
         would mean the canopy is the leaf, a flat line anywhere would mean
         brightness -- which the angle ignores -- and what is drawn is neither.
       */}
-      {mode === "ratio" && lo < 1 && hi > 1 && (
-        <line
-          x1={layout.plot.x0}
-          x2={layout.plot.x1}
-          y1={y(1)}
-          y2={y(1)}
-          stroke="var(--accent-quiet)"
-          strokeWidth={1}
-        />
-      )}
-      <path
-        d={`M${layout.plot.x0},${layout.plot.y0} L${layout.plot.x0},${layout.plot.y1} L${layout.plot.x1},${layout.plot.y1}`}
-        fill="none"
-        stroke="var(--border)"
-        strokeWidth={STROKE.axis}
-      />
-      {other && (
-        <polyline
-          points={bands.map((b, i) => `${x(b.wavelength_nm)},${y(other[i])}`).join(" ")}
+        {mode === "ratio" && lo < 1 && hi > 1 && (
+          <line
+            x1={layout.plot.x0}
+            x2={layout.plot.x1}
+            y1={y(1)}
+            y2={y(1)}
+            stroke="var(--accent-quiet)"
+            strokeWidth={1}
+          />
+        )}
+        <path
+          d={`M${layout.plot.x0},${layout.plot.y0} L${layout.plot.x0},${layout.plot.y1} L${layout.plot.x1},${layout.plot.y1}`}
           fill="none"
-          stroke="var(--muted-foreground)"
-          strokeWidth={STROKE.series}
-          strokeDasharray="5 3"
+          stroke="var(--border)"
+          strokeWidth={STROKE.axis}
         />
-      )}
-      <polyline
-        points={bands.map((b, i) => `${x(b.wavelength_nm)},${y(values[i])}`).join(" ")}
-        fill="none"
-        stroke={stroke}
-        strokeWidth={STROKE.series}
-      />
-      {bands.map((b, i) => (
-        <g key={b.band}>
-          <circle cx={x(b.wavelength_nm)} cy={y(values[i])} r={2.2} fill={stroke} />
-          <text
-            x={x(b.wavelength_nm)}
-            y={layout.plot.y1 + ROW_PX.tick + TYPE.meta}
-            fontSize={TYPE.meta}
-            fill="var(--muted-foreground)"
-            textAnchor="middle"
-          >
-            {b.band}
-          </text>
-        </g>
-      ))}
-      <text
-        x={(layout.plot.x0 + layout.plot.x1) / 2}
-        y={layout.height - 4}
-        fontSize={TYPE.body}
-        fill="var(--muted-foreground)"
-        textAnchor="middle"
-      >
-        {mode === "ratio"
-          ? "Canopy over leaf — flat would be brightness, which the angle ignores"
-          : "Unit-normalised: the two vectors the angle is taken between"}
-      </text>
-    </svg>
+        {other && (
+          <polyline
+            points={bands
+              .map((b, i) => `${x(b.wavelength_nm)},${y(other[i])}`)
+              .join(" ")}
+            fill="none"
+            stroke="var(--muted-foreground)"
+            strokeWidth={STROKE.series}
+            strokeDasharray="5 3"
+          />
+        )}
+        <polyline
+          points={bands
+            .map((b, i) => `${x(b.wavelength_nm)},${y(values[i])}`)
+            .join(" ")}
+          fill="none"
+          stroke={stroke}
+          strokeWidth={STROKE.series}
+        />
+        {bands.map((b, i) => (
+          <g key={b.band}>
+            <circle cx={x(b.wavelength_nm)} cy={y(values[i])} r={2.2} fill={stroke} />
+            <text
+              x={x(b.wavelength_nm)}
+              y={layout.plot.y1 + ROW_PX.tick + TYPE.meta}
+              fontSize={TYPE.meta}
+              fill="var(--muted-foreground)"
+              textAnchor="middle"
+            >
+              {b.band}
+            </text>
+          </g>
+        ))}
+        <text
+          x={(layout.plot.x0 + layout.plot.x1) / 2}
+          y={layout.height - 4}
+          fontSize={TYPE.body}
+          fill="var(--muted-foreground)"
+          textAnchor="middle"
+        >
+          {mode === "ratio"
+            ? "Canopy over leaf — flat would be brightness, which the angle ignores"
+            : "Unit-normalised: the two vectors the angle is taken between"}
+        </text>
+      </svg>
     </div>
   )
 }
@@ -382,8 +387,7 @@ export function LibraryLimitEditor({
     rover is a sweep. The rover only counts on the run it was taken over,
     because the same class id in another run is a different measurement.
   */
-  const linked =
-    rover && run && rover.areaId === run.id ? rover.classId : null
+  const linked = rover && run && rover.areaId === run.id ? rover.classId : null
   const focus = pick ?? linked
 
   const colours = useMemo(() => {
@@ -469,27 +473,25 @@ export function LibraryLimitEditor({
               )}
             >
               <div className="flex flex-col gap-2 p-2 text-meta leading-snug">
-                <p className="eyebrow !text-[9px]">
-                  What a small angle means
-                </p>
+                <p className="eyebrow !text-[9px]">What a small angle means</p>
                 <p className="text-muted-foreground">
-                  It means the class is CONSISTENT with the reference, not that
-                  the material is identified. The reference is{" "}
-                  {limit.reference.level} level and a pixel is canopy, so the
-                  two are not measurements of the same thing.
+                  It means the class is CONSISTENT with the reference, not that the
+                  material is identified. The reference is {limit.reference.level} level
+                  and a pixel is canopy, so the two are not measurements of the same
+                  thing.
                 </p>
                 <p className="eyebrow !text-[9px]">Why the difference survives</p>
                 <p className="text-muted-foreground">
-                  Soil raises the red while gaps and shadow lower the NIR, in
-                  opposite directions. A constant ratio would be brightness
-                  alone and the angle would return zero; the shape is distorted
-                  instead, and normalisation cannot remove it.
+                  Soil raises the red while gaps and shadow lower the NIR, in opposite
+                  directions. A constant ratio would be brightness alone and the angle
+                  would return zero; the shape is distorted instead, and normalisation
+                  cannot remove it.
                 </p>
                 <p className="eyebrow !text-[9px]">The reference</p>
                 <p className="text-muted-foreground">
-                  {limit.reference.note} Package {limit.reference.package_id},
-                  convolved onto the ESA Sentinel-2A response functions.
-                  Measured on the {limit.scene_date} acquisition.
+                  {limit.reference.note} Package {limit.reference.package_id}, convolved
+                  onto the ESA Sentinel-2A response functions. Measured on the{" "}
+                  {limit.scene_date} acquisition.
                 </p>
               </div>
             </MenuPopover>
@@ -500,8 +502,8 @@ export function LibraryLimitEditor({
       <div className="panel-scroll min-h-0 flex-1 overflow-auto p-2">
         {!limit || !limit.classes.length || !shown ? (
           <p className="text-meta text-muted-foreground">
-            This run carries no library comparison. It needs the spectral
-            response, which runs saved before that measurement do not have.
+            This run carries no library comparison. It needs the spectral response,
+            which runs saved before that measurement do not have.
           </p>
         ) : (
           <div className="flex h-full min-w-0 flex-col gap-3">
@@ -544,9 +546,7 @@ export function LibraryLimitEditor({
                           again and there is nothing on screen saying why.
                         */
                         onClick={() =>
-                          setPick((prev) =>
-                            prev === c.class_id ? null : c.class_id
-                          )
+                          setPick((prev) => (prev === c.class_id ? null : c.class_id))
                         }
                         className={cn(
                           "flex items-center gap-1 rounded-sm px-1.5 py-0.5 text-meta transition-colors",
@@ -599,7 +599,6 @@ export function LibraryLimitEditor({
                 </p>
               </div>
             )}
-
           </div>
         )}
       </div>

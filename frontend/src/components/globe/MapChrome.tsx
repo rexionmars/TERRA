@@ -13,30 +13,30 @@
  * control", and a wider one reads as a different kind of control that is also
  * shouting.
  */
-import { useCallback, useEffect, useRef, useState } from "react";
-import { createPortal } from "react-dom";
+import { useCallback, useEffect, useRef, useState } from "react"
+import { createPortal } from "react-dom"
 
-import { cn } from "@/lib/utils";
+import { cn } from "@/lib/utils"
 
 /** One bar of controls: the hairline, the radius and the shadow. */
 export function MapBar({
   children,
   className,
 }: {
-  children: React.ReactNode;
-  className?: string;
+  children: React.ReactNode
+  className?: string
 }) {
   return (
     <div
       className={cn(
         "overflow-hidden rounded-md border border-[rgb(var(--p-line)/0.28)]",
         "shadow-[0_2px_8px_rgb(0_0_0/0.28)]",
-        className,
+        className
       )}
     >
       {children}
     </div>
-  );
+  )
 }
 
 /**
@@ -53,10 +53,10 @@ export function MapButton({
   onClick,
   children,
 }: {
-  label: string;
-  active?: boolean;
-  onClick: () => void;
-  children: React.ReactNode;
+  label: string
+  active?: boolean
+  onClick: () => void
+  children: React.ReactNode
 }) {
   return (
     <button
@@ -69,15 +69,15 @@ export function MapButton({
         "flex size-[2.125rem] items-center justify-center transition-colors",
         "border-b border-[rgb(var(--p-line)/0.22)] last:border-b-0",
         "map-chrome",
-        "focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring",
+        "focus-visible:ring-1 focus-visible:ring-ring focus-visible:outline-none",
         active
           ? "bg-[rgb(var(--p-surface-raised)/0.92)] text-primary"
-          : "text-muted-foreground hover:bg-[rgb(var(--p-surface-raised)/0.92)] hover:text-foreground",
+          : "text-muted-foreground hover:bg-[rgb(var(--p-surface-raised)/0.92)] hover:text-foreground"
       )}
     >
       {children}
     </button>
-  );
+  )
 }
 
 /**
@@ -110,16 +110,16 @@ export function MapMenu<T extends string>({
   onChange,
   children,
 }: {
-  label: string;
-  value: T;
-  options: readonly { id: T; name: string; icon: React.ReactNode }[];
-  onChange: (id: T) => void;
+  label: string
+  value: T
+  options: readonly { id: T; name: string; icon: React.ReactNode }[]
+  onChange: (id: T) => void
   /** The trigger's glyph: the current option's, chosen by the caller. */
-  children: React.ReactNode;
+  children: React.ReactNode
 }) {
-  const [open, setOpen] = useState(false);
-  const host = useRef<HTMLDivElement>(null);
-  const [at, setAt] = useState<{ top: number; right: number } | null>(null);
+  const [open, setOpen] = useState(false)
+  const host = useRef<HTMLDivElement>(null)
+  const [at, setAt] = useState<{ top: number; right: number } | null>(null)
 
   /*
     Where the panel goes, measured rather than assumed. `right` is the distance
@@ -127,10 +127,10 @@ export function MapMenu<T extends string>({
     the same relation the CSS had, in the coordinates a fixed element uses.
   */
   const place = useCallback(() => {
-    const r = host.current?.getBoundingClientRect();
-    if (!r) return;
-    setAt({ top: r.top, right: window.innerWidth - r.left + 6 });
-  }, []);
+    const r = host.current?.getBoundingClientRect()
+    if (!r) return
+    setAt({ top: r.top, right: window.innerWidth - r.left + 6 })
+  }, [])
 
   /*
     Closed by a press anywhere else and by Escape. `pointerdown` rather than
@@ -139,31 +139,31 @@ export function MapMenu<T extends string>({
     anything after opening it.
   */
   useEffect(() => {
-    if (!open) return;
-    place();
+    if (!open) return
+    place()
     const away = (e: PointerEvent) => {
-      const t = e.target as Node;
+      const t = e.target as Node
       if (!host.current?.contains(t) && !panel.current?.contains(t)) {
-        setOpen(false);
+        setOpen(false)
       }
-    };
+    }
     const key = (e: KeyboardEvent) => {
-      if (e.key === "Escape") setOpen(false);
-    };
-    document.addEventListener("pointerdown", away);
-    document.addEventListener("keydown", key);
+      if (e.key === "Escape") setOpen(false)
+    }
+    document.addEventListener("pointerdown", away)
+    document.addEventListener("keydown", key)
     // The rail is anchored to the map's corner, so anything that moves the
     // corner moves the trigger under a panel that is no longer beside it.
-    window.addEventListener("resize", place);
+    window.addEventListener("resize", place)
     return () => {
-      document.removeEventListener("pointerdown", away);
-      document.removeEventListener("keydown", key);
-      window.removeEventListener("resize", place);
-    };
-  }, [open, place]);
+      document.removeEventListener("pointerdown", away)
+      document.removeEventListener("keydown", key)
+      window.removeEventListener("resize", place)
+    }
+  }, [open, place])
 
-  const panel = useRef<HTMLDivElement>(null);
-  const current = options.find((o) => o.id === value);
+  const panel = useRef<HTMLDivElement>(null)
+  const current = options.find((o) => o.id === value)
   return (
     <div ref={host} className="relative">
       <button
@@ -177,10 +177,10 @@ export function MapMenu<T extends string>({
           "flex size-[2.125rem] items-center justify-center transition-colors",
           "border-b border-[rgb(var(--p-line)/0.22)] last:border-b-0",
           "map-chrome",
-          "focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring",
+          "focus-visible:ring-1 focus-visible:ring-ring focus-visible:outline-none",
           open
             ? "bg-[rgb(var(--p-surface-raised)/0.92)] text-primary"
-            : "text-muted-foreground hover:bg-[rgb(var(--p-surface-raised)/0.92)] hover:text-foreground",
+            : "text-muted-foreground hover:bg-[rgb(var(--p-surface-raised)/0.92)] hover:text-foreground"
         )}
       >
         {children}
@@ -196,7 +196,7 @@ export function MapMenu<T extends string>({
               "z-[401] w-44 overflow-hidden",
               "rounded-md border border-[rgb(var(--p-line)/0.28)]",
               "bg-[rgb(var(--p-ink)/0.92)] backdrop-blur-[18px]",
-              "shadow-[0_2px_8px_rgb(0_0_0/0.28)]",
+              "shadow-[0_2px_8px_rgb(0_0_0/0.28)]"
             )}
           >
             {options.map((o) => (
@@ -206,14 +206,14 @@ export function MapMenu<T extends string>({
                 role="menuitemradio"
                 aria-checked={o.id === value}
                 onClick={() => {
-                  onChange(o.id);
-                  setOpen(false);
+                  onChange(o.id)
+                  setOpen(false)
                 }}
                 className={cn(
                   "flex w-full items-center gap-2 px-2.5 py-1.5 text-left text-meta transition-colors",
                   o.id === value
                     ? "bg-[rgb(var(--p-surface-raised)/0.92)] text-foreground"
-                    : "text-muted-foreground hover:bg-[rgb(var(--p-surface-raised)/0.6)] hover:text-foreground",
+                    : "text-muted-foreground hover:bg-[rgb(var(--p-surface-raised)/0.6)] hover:text-foreground"
                 )}
               >
                 <span className={o.id === value ? "text-primary" : undefined}>
@@ -223,8 +223,8 @@ export function MapMenu<T extends string>({
               </button>
             ))}
           </div>,
-          document.body,
+          document.body
         )}
     </div>
-  );
+  )
 }

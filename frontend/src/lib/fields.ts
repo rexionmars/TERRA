@@ -66,7 +66,9 @@ export interface Field {
  * An empty list, not a throw, for text that does not parse: the rest of the
  * result -- the scenes, the class shares -- is still worth reading.
  */
-export function parseFields(result: Pick<FieldsAnalysis, "fields_geojson"> | null | undefined): Field[] {
+export function parseFields(
+  result: Pick<FieldsAnalysis, "fields_geojson"> | null | undefined
+): Field[] {
   const raw = result?.fields_geojson?.trim()
   if (!raw) return []
   try {

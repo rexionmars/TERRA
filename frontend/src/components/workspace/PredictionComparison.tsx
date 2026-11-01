@@ -15,7 +15,6 @@ import type { ClassMapCompare } from "@/lib/boardProbe"
 import type { ModelKind, PredictResult } from "@/lib/types"
 import { modelLabel } from "@/lib/runAssets"
 
-
 function CompactMatrix({
   title = "Confusion matrix",
   rowLabel = "Rows = reference",
@@ -41,7 +40,10 @@ function CompactMatrix({
           {rowLabel} · {colLabel}
         </p>
       </div>
-      <div className="overflow-x-auto rounded-sm border p-1.5" style={{ borderColor: "rgb(var(--p-line) / 0.28)" }}>
+      <div
+        className="overflow-x-auto rounded-sm border p-1.5"
+        style={{ borderColor: "rgb(var(--p-line) / 0.28)" }}
+      >
         <table className="w-full border-separate border-spacing-0.5 text-[9px]">
           <thead>
             <tr>
@@ -74,8 +76,7 @@ function CompactMatrix({
                 </th>
                 {row.map((cell, j) => {
                   const diag =
-                    rowClasses[i]?.id != null &&
-                    rowClasses[i]?.id === colClasses[j]?.id
+                    rowClasses[i]?.id != null && rowClasses[i]?.id === colClasses[j]?.id
                   const t = cell / max
                   return (
                     <td key={j} className="p-0">
@@ -113,7 +114,6 @@ function CompactMatrix({
   )
 }
 
-
 /**
  * What differs between the two runs, and nothing that does not.
  *
@@ -132,13 +132,7 @@ function CompactMatrix({
  * run costs minutes and quota, so re-running one to find out what it used is
  * not a way of asking.
  */
-function WhatDiffers({
-  a,
-  b,
-}: {
-  a: PredictionCompareSide
-  b: PredictionCompareSide
-}) {
+function WhatDiffers({ a, b }: { a: PredictionCompareSide; b: PredictionCompareSide }) {
   const span = (dates: string[] | null | undefined) =>
     dates?.length ? `${dates[0]} – ${dates[dates.length - 1]}` : null
   const reference = (s: PredictionCompareSide) =>
@@ -172,7 +166,10 @@ function WhatDiffers({
             <span className="telemetry text-[9px] text-muted-foreground">
               {f.label}
             </span>
-            <span className="truncate text-[10px] text-foreground" title={`${f.a ?? "—"} → ${f.b ?? "—"}`}>
+            <span
+              className="truncate text-[10px] text-foreground"
+              title={`${f.a ?? "—"} → ${f.b ?? "—"}`}
+            >
               {f.a ?? "—"} <span className="text-muted-foreground">&rarr;</span>{" "}
               {f.b ?? "—"}
             </span>
@@ -457,19 +454,11 @@ function PredictionCompareBody({
       )}
 
       {statsA.length > 0 && statsB.length > 0 && (
-        <div
-          className={cn(
-            "flex flex-col gap-1.5",
-            compact && "w-[12rem] shrink-0"
-          )}
-        >
+        <div className={cn("flex flex-col gap-1.5", compact && "w-[12rem] shrink-0")}>
           <p className="eyebrow !text-[9px]">Share delta (A → B)</p>
           <ul className="flex flex-col gap-1">
             {shareRows.map((r) => (
-              <li
-                key={r.classId}
-                className="flex items-center gap-2 text-[10px]"
-              >
+              <li key={r.classId} className="flex items-center gap-2 text-[10px]">
                 <span
                   className="size-2 shrink-0 rounded-[2px]"
                   style={{ backgroundColor: r.color }}
@@ -521,7 +510,12 @@ export function PredictionComparison({
 }) {
   return (
     <div className="panel-scroll h-full w-full overflow-auto px-2 py-1.5">
-      <PredictionCompareBody sides={sides} compare={compare} compareError={compareError} compact />
+      <PredictionCompareBody
+        sides={sides}
+        compare={compare}
+        compareError={compareError}
+        compact
+      />
     </div>
   )
 }

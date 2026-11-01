@@ -64,7 +64,9 @@ export interface MethodInputs {
 
 /** The cloud ceiling as a phrase, or what is known where the value is not. */
 const cloudCeiling = (i: MethodInputs) =>
-  i.maxCloud == null ? "the scene cloud ceiling set for the run (not recorded with it)" : `${i.maxCloud}% scene cloud`
+  i.maxCloud == null
+    ? "the scene cloud ceiling set for the run (not recorded with it)"
+    : `${i.maxCloud}% scene cloud`
 
 /** MapBiomas legend the three classifiers share, named once. */
 const CLASSES = "5 MapBiomas classes: 3, 21, 25, 39, 41"
@@ -90,15 +92,15 @@ function acquisition(i: MethodInputs): MethodSection {
           : "every scene under the ceiling, no monthly pick",
       "bands read over /vsicurl: only the polygon window, only the bands the model needs",
     ],
-    note: i.monthlyBest !== false
-      ? undefined
-      : "The trained models were fitted on the roughly one-scene-per-month cadence of the training set. Keeping every scene changes the temporal statistics they expect.",
+    note:
+      i.monthlyBest !== false
+        ? undefined
+        : "The trained models were fitted on the roughly one-scene-per-month cadence of the training set. Keeping every scene changes the temporal statistics they expect.",
   }
 }
 
 function classifyBrief(i: MethodInputs): MethodBrief {
-  const label =
-    MODEL_OPTIONS.find((m) => m.id === i.modelKind)?.label ?? i.modelKind
+  const label = MODEL_OPTIONS.find((m) => m.id === i.modelKind)?.label ?? i.modelKind
 
   if (i.modelKind === "spectral") {
     return {
@@ -390,7 +392,8 @@ function healthBrief(i: MethodInputs): MethodBrief {
 
 function overlapBrief(): MethodBrief {
   return {
-    subtitle: "The area against the public registers of clearing, embargo, protection and property",
+    subtitle:
+      "The area against the public registers of clearing, embargo, protection and property",
     source: "sidecar/terra/overlap",
     sections: [
       {
@@ -425,7 +428,8 @@ function overlapBrief(): MethodBrief {
 
 function radarBrief(i: MethodInputs): MethodBrief {
   return {
-    subtitle: "C-band backscatter through the period, by orbit, which cloud does not stop",
+    subtitle:
+      "C-band backscatter through the period, by orbit, which cloud does not stop",
     source: "sidecar/terra/radar",
     sections: [
       {
@@ -460,7 +464,8 @@ function radarBrief(i: MethodInputs): MethodBrief {
 
 function zonesBrief(i: MethodInputs): MethodBrief {
   return {
-    subtitle: "Where a field grew alike over several seasons, after Management Zone Analyst",
+    subtitle:
+      "Where a field grew alike over several seasons, after Management Zone Analyst",
     source: "sidecar/terra/zones",
     sections: [
       {

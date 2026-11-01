@@ -31,7 +31,11 @@ export interface LayerSwitches {
   patchAssetLayer?: (id: string, patch: LayerPatch) => void
 }
 
-export function applyLayerPatch(id: string, patch: LayerPatch, to: LayerSwitches): void {
+export function applyLayerPatch(
+  id: string,
+  patch: LayerPatch,
+  to: LayerSwitches
+): void {
   const send = (visible: (v: boolean) => void, opacity: (v: number) => void) => {
     if (patch.visible !== undefined) visible(patch.visible)
     if (patch.opacity !== undefined) opacity(patch.opacity)

@@ -67,9 +67,7 @@ function AgreementBlock({
       <div className="grid grid-cols-2 gap-2">
         <WaterFigure
           label="Overall"
-          value={
-            block.overall_pct != null ? `${block.overall_pct.toFixed(1)}%` : "—"
-          }
+          value={block.overall_pct != null ? `${block.overall_pct.toFixed(1)}%` : "—"}
         />
         <WaterFigure
           label="Macro F1"
@@ -119,19 +117,19 @@ function AgreementBlock({
                     : `Class at ${c.index}`}
                 </span>
                 <span
-                  className="telemetry w-[2.5rem] shrink-0 text-right text-[9px] tabular-nums text-muted-foreground"
+                  className="telemetry w-[2.5rem] shrink-0 text-right text-[9px] text-muted-foreground tabular-nums"
                   title={`Precision ${fmt(c.precision, 3)}`}
                 >
                   {fmt(c.precision, 2)}
                 </span>
                 <span
-                  className="telemetry w-[2.5rem] shrink-0 text-right text-[9px] tabular-nums text-muted-foreground"
+                  className="telemetry w-[2.5rem] shrink-0 text-right text-[9px] text-muted-foreground tabular-nums"
                   title={`Recall ${fmt(c.recall, 3)}`}
                 >
                   {fmt(c.recall, 2)}
                 </span>
                 <span
-                  className="telemetry w-[2.5rem] shrink-0 text-right text-[9px] tabular-nums text-foreground"
+                  className="telemetry w-[2.5rem] shrink-0 text-right text-[9px] text-foreground tabular-nums"
                   title={`F1 ${fmt(c.f1, 3)}`}
                 >
                   {fmt(c.f1, 2)}
@@ -195,8 +193,7 @@ export function DomainShiftSection({
         .map((seg, i) => (seg !== pb[i] ? i : -1))
         .filter((i) => i >= 0)
       if (differing.length) {
-        const pick = (parts: string[]) =>
-          differing.map((i) => parts[i]).join(" · ")
+        const pick = (parts: string[]) => differing.map((i) => parts[i]).join(" · ")
         return [pick(pa), pick(pb)]
       }
     }
@@ -205,8 +202,7 @@ export function DomainShiftSection({
     return [labelA, labelB]
   })()
 
-  const ready =
-    hasDomainFingerprint(resultA) && hasDomainFingerprint(resultB)
+  const ready = hasDomainFingerprint(resultA) && hasDomainFingerprint(resultB)
   /*
     WHICH side cannot be standardised, and WHY -- because the two causes call
     for different actions and only one of them is worth acting on.
@@ -308,18 +304,16 @@ export function DomainShiftSection({
       <section className={shell}>
         <p className="eyebrow mb-1">Domain shift</p>
         <p className="text-[10px] leading-snug text-muted-foreground">
-          Both runs need a domain fingerprint from classify. Re-run prediction
-          on each AOI to enable KL / CVA / MMD diagnosis.
+          Both runs need a domain fingerprint from classify. Re-run prediction on each
+          AOI to enable KL / CVA / MMD diagnosis.
         </p>
       </section>
     )
   }
 
   const hist = report ? histSeries(report) : []
-  const pointsA =
-    report?.projection?.points.filter((p) => p.domain === "A") ?? []
-  const pointsB =
-    report?.projection?.points.filter((p) => p.domain === "B") ?? []
+  const pointsA = report?.projection?.points.filter((p) => p.domain === "A") ?? []
+  const pointsB = report?.projection?.points.filter((p) => p.domain === "B") ?? []
 
   return (
     <section className={shell}>
@@ -342,10 +336,10 @@ export function DomainShiftSection({
             <>
               <p className="eyebrow !text-foreground">Domain shift</p>
               <p className="mt-1 max-w-xl text-[10px] leading-snug text-muted-foreground">
-                Distance between source ({labelA}) and target ({labelB}) feature
-                domains — KL on NDVI, CVA magnitude, RBF MMD. High values with
-                high confidence usually mean the fixed crop legend is out of
-                domain, not that the map is right.
+                Distance between source ({labelA}) and target ({labelB}) feature domains
+                — KL on NDVI, CVA magnitude, RBF MMD. High values with high confidence
+                usually mean the fixed crop legend is out of domain, not that the map is
+                right.
               </p>
             </>
           )}
@@ -363,18 +357,11 @@ export function DomainShiftSection({
       {loading && (
         <p className="text-[10px] text-muted-foreground">Comparing domains…</p>
       )}
-      {error && (
-        <p className="text-[10px] leading-snug text-amber-500/90">{error}</p>
-      )}
+      {error && <p className="text-[10px] leading-snug text-amber-500/90">{error}</p>}
 
       {report && (
         <>
-          <div
-            className={cn(
-              "grid gap-2",
-              "grid-cols-2 sm:grid-cols-4"
-            )}
-          >
+          <div className={cn("grid gap-2", "grid-cols-2 sm:grid-cols-4")}>
             {/*
               The symmetrised figure leads, and the two directions travel under
               it. KL is not symmetric, and which direction is larger is a
@@ -452,10 +439,10 @@ export function DomainShiftSection({
           */}
           {report.same_space === false ? (
             <p className="mt-2 text-[10px] leading-snug text-amber-500/90">
-              These fingerprints describe different feature spaces
-              ({report.space_a ?? "?"} against {report.space_b ?? "?"}). The
-              distances above are computed from quantities that are not the
-              same, and are not comparable.
+              These fingerprints describe different feature spaces (
+              {report.space_a ?? "?"} against {report.space_b ?? "?"}). The distances
+              above are computed from quantities that are not the same, and are not
+              comparable.
             </p>
           ) : report.standardised === false ? (
             /*
@@ -468,24 +455,23 @@ export function DomainShiftSection({
               causes want opposite advice, so naming the side is not enough.
             */
             <p className="mt-2 text-[10px] leading-snug text-amber-500/90">
-              Not standardised:{" "}
-              {unstandardisable.map((s) => s.label).join(" and ")} carr
-              {unstandardisable.length === 1 ? "ies" : "y"} no training scaler,
-              so the distances are in raw feature units — and on this model the
-              acquisition-index features dominate a raw distance, so the figures
-              above describe acquisition more than ground.{" "}
+              Not standardised: {unstandardisable.map((s) => s.label).join(" and ")}{" "}
+              carr
+              {unstandardisable.length === 1 ? "ies" : "y"} no training scaler, so the
+              distances are in raw feature units — and on this model the
+              acquisition-index features dominate a raw distance, so the figures above
+              describe acquisition more than ground.{" "}
               {staleRuns.length > 0 ? (
                 <>
-                  {staleRuns.map((s) => s.label).join(" and ")} still holds a
-                  spectral fingerprint, so it was classified before the
-                  fingerprint carried the scaler: re-classify it and these
-                  figures populate.
+                  {staleRuns.map((s) => s.label).join(" and ")} still holds a spectral
+                  fingerprint, so it was classified before the fingerprint carried the
+                  scaler: re-classify it and these figures populate.
                 </>
               ) : (
                 <>
-                  Classified without the spectral feature matrix — Prithvi or
-                  the temporal transformer — so there is no scaler to carry and
-                  re-running the same model will not produce one.
+                  Classified without the spectral feature matrix — Prithvi or the
+                  temporal transformer — so there is no scaler to carry and re-running
+                  the same model will not produce one.
                 </>
               )}
             </p>
@@ -494,14 +480,19 @@ export function DomainShiftSection({
           {(report.agreement_a || report.agreement_b) && (
             <div className="mt-3 grid grid-cols-1 gap-2 sm:grid-cols-2">
               {report.agreement_a && (
-                <AgreementBlock title={`${labelA} · vs MapBiomas`} block={report.agreement_a} />
+                <AgreementBlock
+                  title={`${labelA} · vs MapBiomas`}
+                  block={report.agreement_a}
+                />
               )}
               {report.agreement_b && (
-                <AgreementBlock title={`${labelB} · vs MapBiomas`} block={report.agreement_b} />
+                <AgreementBlock
+                  title={`${labelB} · vs MapBiomas`}
+                  block={report.agreement_b}
+                />
               )}
             </div>
           )}
-
 
           {/*
             Where the shift is, not only how large it is.
@@ -545,20 +536,20 @@ export function DomainShiftSection({
                         <td className="telemetry py-1 pr-2 text-foreground">
                           {r.feature}
                         </td>
-                        <td className="telemetry py-1 pr-2 text-right tabular-nums text-muted-foreground">
+                        <td className="telemetry py-1 pr-2 text-right text-muted-foreground tabular-nums">
                           {fmt(r.z_a, 2)}
                         </td>
-                        <td className="telemetry py-1 pr-2 text-right tabular-nums text-muted-foreground">
+                        <td className="telemetry py-1 pr-2 text-right text-muted-foreground tabular-nums">
                           {fmt(r.z_b, 2)}
                         </td>
-                        <td className="telemetry py-1 pr-2 text-right tabular-nums text-foreground">
+                        <td className="telemetry py-1 pr-2 text-right text-foreground tabular-nums">
                           {r.gap_sd > 0 ? "+" : ""}
                           {fmt(r.gap_sd, 2)}
                         </td>
-                        <td className="telemetry py-1 pr-2 text-right tabular-nums text-muted-foreground">
+                        <td className="telemetry py-1 pr-2 text-right text-muted-foreground tabular-nums">
                           {r.importance == null ? "\u2014" : fmt(r.importance, 4)}
                         </td>
-                        <td className="telemetry py-1 text-right tabular-nums text-foreground">
+                        <td className="telemetry py-1 text-right text-foreground tabular-nums">
                           {fmt(r.weighted, 4)}
                         </td>
                       </tr>
@@ -574,7 +565,10 @@ export function DomainShiftSection({
               <p className="eyebrow mb-2">NDVI histogram · A vs B</p>
               <div className="h-40 w-full">
                 <ResponsiveContainer width="100%" height="100%">
-                  <LineChart data={hist} margin={{ top: 4, right: 8, left: 0, bottom: 0 }}>
+                  <LineChart
+                    data={hist}
+                    margin={{ top: 4, right: 8, left: 0, bottom: 0 }}
+                  >
                     {/*
                       Horizontal rules only, and no dashes. The reading is the
                       height of two curves against a share axis; vertical
@@ -725,12 +719,7 @@ export function DomainShiftSection({
                       fill="rgb(var(--p-accent))"
                       fillOpacity={0.4}
                       shape={(props: { cx?: number; cy?: number; fill?: string }) => (
-                        <circle
-                          cx={props.cx}
-                          cy={props.cy}
-                          r={2.4}
-                          fill={props.fill}
-                        />
+                        <circle cx={props.cx} cy={props.cy} r={2.4} fill={props.fill} />
                       )}
                     />
                     <Scatter
@@ -739,12 +728,7 @@ export function DomainShiftSection({
                       fill="rgb(var(--p-line-strong))"
                       fillOpacity={0.4}
                       shape={(props: { cx?: number; cy?: number; fill?: string }) => (
-                        <circle
-                          cx={props.cx}
-                          cy={props.cy}
-                          r={2.4}
-                          fill={props.fill}
-                        />
+                        <circle cx={props.cx} cy={props.cy} r={2.4} fill={props.fill} />
                       )}
                     />
                   </ScatterChart>

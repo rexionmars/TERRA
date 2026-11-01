@@ -72,9 +72,7 @@ export function Stat({ label, value }: { label: string; value: string }) {
       <span className="min-w-[8rem] flex-1 text-meta text-muted-foreground">
         {label}
       </span>
-      <span className="telemetry shrink-0 text-body text-foreground">
-        {value}
-      </span>
+      <span className="telemetry shrink-0 text-body text-foreground">{value}</span>
     </div>
   )
 }
@@ -107,7 +105,7 @@ export function Chip({
        the one checked at 4.5. */
     <span
       className={cn(
-        "telemetry shrink-0 rounded-[2px] border px-1 py-px text-micro uppercase tracking-wider",
+        "telemetry shrink-0 rounded-[2px] border px-1 py-px text-micro tracking-wider uppercase",
         tone === "accent" ? "text-accent-quiet" : "text-muted-foreground"
       )}
     >

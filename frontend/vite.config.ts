@@ -2,12 +2,12 @@
 // `test` key below added to its type. Imported from vite, that key fails tsc,
 // and the usual way out of that error is the second config file the comment on
 // `test` explains this repository does not want.
-import { defineConfig } from 'vitest/config'
-import { type Plugin } from 'vite'
-import react from '@vitejs/plugin-react'
-import tailwindcss from '@tailwindcss/vite'
-import fs from 'fs'
-import path from 'path'
+import { defineConfig } from "vitest/config"
+import { type Plugin } from "vite"
+import react from "@vitejs/plugin-react"
+import tailwindcss from "@tailwindcss/vite"
+import fs from "fs"
+import path from "path"
 
 /**
  * Give index.html the values it cannot import: the splash image list and the
@@ -28,11 +28,11 @@ import path from 'path'
  */
 function htmlConstants(): Plugin {
   return {
-    name: 'terra-html-constants',
+    name: "terra-html-constants",
     transformIndexHtml(input) {
       let html = input
-      const source = path.resolve(__dirname, 'src/lib/splashBackground.ts')
-      const text = fs.readFileSync(source, 'utf8')
+      const source = path.resolve(__dirname, "src/lib/splashBackground.ts")
+      const text = fs.readFileSync(source, "utf8")
 
       // Read off the manifest's fields rather than a plain array, since each
       // still carries a code name and its provenance beside its path. The
@@ -43,8 +43,8 @@ function htmlConstants(): Plugin {
       )
       if (!block) {
         throw new Error(
-          'SPLASH_STILLS not found in splashBackground.ts; the splash HTML ' +
-            'cannot be given its image list'
+          "SPLASH_STILLS not found in splashBackground.ts; the splash HTML " +
+            "cannot be given its image list"
         )
       }
       const field = (entry: string, name: string) =>
@@ -52,38 +52,38 @@ function htmlConstants(): Plugin {
       const stills = block[1]
         .split(/\n  \{/)
         .map((entry) => ({
-          path: field(entry, 'path'),
-          scrim: field(entry, 'scrim') ?? 'bright',
-          inset: field(entry, 'inset') ?? null,
-          origin: field(entry, 'origin') ?? null,
+          path: field(entry, "path"),
+          scrim: field(entry, "scrim") ?? "bright",
+          inset: field(entry, "inset") ?? null,
+          origin: field(entry, "origin") ?? null,
         }))
         .filter((s): s is typeof s & { path: string } => !!s.path)
       if (stills.length === 0) {
-        throw new Error('SPLASH_STILLS declares no paths')
+        throw new Error("SPLASH_STILLS declares no paths")
       }
       const images = stills.map((s) => s.path)
 
       // The subtitle, from the module that owns it. Hard-coded here it was one
       // more copy nobody would remember to change -- and the line it replaced
       // had already outlived the product it described.
-      const brandSource = path.resolve(__dirname, 'src/lib/brand.ts')
+      const brandSource = path.resolve(__dirname, "src/lib/brand.ts")
       const brand = fs
-        .readFileSync(brandSource, 'utf8')
+        .readFileSync(brandSource, "utf8")
         .match(/export const BRAND_TAGLINE = "([^"]+)"/)
       if (!brand) {
-        throw new Error('BRAND_TAGLINE not found in brand.ts')
+        throw new Error("BRAND_TAGLINE not found in brand.ts")
       }
-      html = html.replace('__BRAND_TAGLINE__', brand[1])
+      html = html.replace("__BRAND_TAGLINE__", brand[1])
 
       // Every path must exist, or the splash paints nothing and the only
       // symptom is a dark window at launch.
       for (const img of images) {
-        const file = path.resolve(__dirname, 'public', img.replace(/^\//, ''))
+        const file = path.resolve(__dirname, "public", img.replace(/^\//, ""))
         if (!fs.existsSync(file)) {
           throw new Error(`splash image missing: ${img}`)
         }
       }
-      return html.replace('__SPLASH_STILLS__', JSON.stringify(stills))
+      return html.replace("__SPLASH_STILLS__", JSON.stringify(stills))
     },
   }
 }
@@ -93,7 +93,7 @@ export default defineConfig({
   plugins: [react(), tailwindcss(), htmlConstants()],
   resolve: {
     alias: {
-      '@': path.resolve(__dirname, './src'),
+      "@": path.resolve(__dirname, "./src"),
       /*
         The spectral reference, read from where the sidecar keeps it.
 
@@ -104,14 +104,14 @@ export default defineConfig({
         the one the numbers were computed from, which is the failure this
         repository has already had with a palette and a set of table columns.
       */
-      '@reference': path.resolve(__dirname, '../sidecar/reference'),
+      "@reference": path.resolve(__dirname, "../sidecar/reference"),
     },
   },
   server: {
     fs: {
       // The alias above points outside the project root, which the dev server
       // refuses to serve without being told.
-      allow: [path.resolve(__dirname, '..')],
+      allow: [path.resolve(__dirname, "..")],
     },
   },
   /*
@@ -135,7 +135,7 @@ export default defineConfig({
       same edit; until someone has a reason to, the runner stays as light as
       the tests are.
     */
-    environment: 'node',
+    environment: "node",
   },
   build: {
     rollupOptions: {
@@ -149,7 +149,7 @@ export default defineConfig({
         // chunk is already well over it, and that warning is the only thing
         // saying so.
         manualChunks: (id) =>
-          id.includes('node_modules/three/') ? 'three' : undefined,
+          id.includes("node_modules/three/") ? "three" : undefined,
       },
     },
   },

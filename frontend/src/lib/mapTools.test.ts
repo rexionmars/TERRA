@@ -16,7 +16,13 @@
  */
 import { describe, expect, it } from "vitest"
 
-import { BOARD_TOOLS, MAP_TOOLS, STUDIO_GROUPS, isMapTool, type BoardToolId } from "./mapTools"
+import {
+  BOARD_TOOLS,
+  MAP_TOOLS,
+  STUDIO_GROUPS,
+  isMapTool,
+  type BoardToolId,
+} from "./mapTools"
 
 describe("MAP_TOOLS", () => {
   it("is exactly the three a stored panel selection may name", () => {
@@ -34,9 +40,7 @@ describe("MAP_TOOLS", () => {
   it("agrees with isMapTool about every product the board offers", () => {
     // The predicate reads the id list and MAP_TOOLS is filtered by it, so this
     // is what says the two have not been changed apart.
-    const byPredicate = BOARD_TOOLS.filter((t) => isMapTool(t.id)).map(
-      (t) => t.id
-    )
+    const byPredicate = BOARD_TOOLS.filter((t) => isMapTool(t.id)).map((t) => t.id)
     expect(byPredicate).toEqual(MAP_TOOLS.map((t) => t.id))
   })
 

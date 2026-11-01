@@ -2,8 +2,14 @@ import { useEffect, useState } from "react"
 
 import { Package } from "@/components/icons"
 import { ResearchPackModal } from "@/components/ResearchPackModal"
-import { ClassAccuracyChart, DisagreementBar } from "@/components/workspace/AgreementCharts"
-import { LibraryLimitEditor, type LibraryLimitMode } from "@/components/workspace/LibraryLimitEditor"
+import {
+  ClassAccuracyChart,
+  DisagreementBar,
+} from "@/components/workspace/AgreementCharts"
+import {
+  LibraryLimitEditor,
+  type LibraryLimitMode,
+} from "@/components/workspace/LibraryLimitEditor"
 import { SeparabilityEditor } from "@/components/workspace/SeparabilityEditor"
 import { SpectraEditor } from "@/components/workspace/SpectraEditor"
 import { RunTables } from "@/components/workspace/RunTables"
@@ -35,11 +41,19 @@ import {
   ShellPanel,
 } from "@/components/shell/ShellPanel"
 
-function Figure({ label, value, wide = false }: { label: string; value: string; wide?: boolean }) {
+function Figure({
+  label,
+  value,
+  wide = false,
+}: {
+  label: string
+  value: string
+  wide?: boolean
+}) {
   return (
     <div className={cn("min-w-0", wide && "col-span-2")}>
       <dt className="text-label text-muted-foreground">{label}</dt>
-      <dd className="text-read tabular-nums text-foreground">{value}</dd>
+      <dd className="text-read text-foreground tabular-nums">{value}</dd>
     </div>
   )
 }
@@ -68,7 +82,10 @@ function ClassificationResult({ result }: { result: PredictResult }) {
       <Figures>
         <Figure label="Period read" value={period(result.date_range)} wide />
         <Figure label="Scenes" value={String(result.n_dates)} />
-        <Figure label="Classified area" value={formatHectares(classifiedAreaHa(stats))} />
+        <Figure
+          label="Classified area"
+          value={formatHectares(classifiedAreaHa(stats))}
+        />
         <Figure
           label="Mean vote share"
           value={
@@ -85,9 +102,15 @@ function ClassificationResult({ result }: { result: PredictResult }) {
           <table className="w-full text-read">
             <thead>
               <tr className="border-b border-border text-left text-label text-muted-foreground">
-                <th scope="col" className="py-1.5 font-normal">Class</th>
-                <th scope="col" className="py-1.5 text-right font-normal">Area (ha)</th>
-                <th scope="col" className="py-1.5 text-right font-normal">Share (%)</th>
+                <th scope="col" className="py-1.5 font-normal">
+                  Class
+                </th>
+                <th scope="col" className="py-1.5 text-right font-normal">
+                  Area (ha)
+                </th>
+                <th scope="col" className="py-1.5 text-right font-normal">
+                  Share (%)
+                </th>
               </tr>
             </thead>
             <tbody>
@@ -103,10 +126,10 @@ function ClassificationResult({ result }: { result: PredictResult }) {
                       <span className="truncate text-foreground">{s.name}</span>
                     </span>
                   </td>
-                  <td className="py-1.5 text-right tabular-nums text-foreground">
+                  <td className="py-1.5 text-right text-foreground tabular-nums">
                     {s.area_ha.toFixed(1)}
                   </td>
-                  <td className="py-1.5 text-right tabular-nums text-foreground">
+                  <td className="py-1.5 text-right text-foreground tabular-nums">
                     {s.pct.toFixed(1)}
                   </td>
                 </tr>
@@ -140,10 +163,19 @@ function WaterResult({ water }: { water: WaterAnalysis }) {
         <Figure label="Dates read" value={String(water.n_dates)} />
         <Figure label="Period read" value={period(water.date_range)} wide />
         <Figure label="Area of interest" value={formatHectares(water.aoi_area_ha)} />
-        <Figure label="Persistent water" value={formatHectares(water.persistent_area_ha)} />
-        <Figure label="Ephemeral water" value={formatHectares(water.ephemeral_area_ha)} />
+        <Figure
+          label="Persistent water"
+          value={formatHectares(water.persistent_area_ha)}
+        />
+        <Figure
+          label="Ephemeral water"
+          value={formatHectares(water.ephemeral_area_ha)}
+        />
         <Figure label="Peak date" value={water.peak_date || "n/a"} />
-        <Figure label="Peak water share" value={`${water.peak_water_fraction_pct.toFixed(1)} %`} />
+        <Figure
+          label="Peak water share"
+          value={`${water.peak_water_fraction_pct.toFixed(1)} %`}
+        />
       </Figures>
       <PanelLimit>{PRODUCT_NOTES.water.limit}</PanelLimit>
     </div>
@@ -152,14 +184,7 @@ function WaterResult({ water }: { water: WaterAnalysis }) {
 
 /** A product a reading can be of. */
 export type ResultProduct =
-  | "classify"
-  | "water"
-  | "mineral"
-  | "fields"
-  | "health"
-  | "overlap"
-  | "radar"
-  | "zones"
+  "classify" | "water" | "mineral" | "fields" | "health" | "overlap" | "radar" | "zones"
 
 const PRODUCT_LABEL: Record<ResultProduct, string> = {
   classify: "Classification",
@@ -176,14 +201,27 @@ const PRODUCT_LABEL: Record<ResultProduct, string> = {
  * What the classification is read through. The figures fit the column; the rest
  * are figures with a width of their own, so the panel widens for them.
  */
-export type ClassificationView = "summary" | "spectra" | "separability" | "library" | "tables"
+export type ClassificationView =
+  "summary" | "spectra" | "separability" | "library" | "tables"
 
 const VIEWS: readonly { id: ClassificationView; label: string; title: string }[] = [
   { id: "summary", label: "Summary", title: "Figures, classes and agreement" },
-  { id: "spectra", label: "Spectra", title: "What each predicted class reflects, band by band" },
-  { id: "separability", label: "Separability", title: "How far apart two classes are, band by band" },
+  {
+    id: "spectra",
+    label: "Spectra",
+    title: "What each predicted class reflects, band by band",
+  },
+  {
+    id: "separability",
+    label: "Separability",
+    title: "How far apart two classes are, band by band",
+  },
   { id: "library", label: "Library", title: "Each class against a spectral library" },
-  { id: "tables", label: "Tables", title: "The run's own tables, as the research pack exports them" },
+  {
+    id: "tables",
+    label: "Tables",
+    title: "The run's own tables, as the research pack exports them",
+  },
 ]
 
 export interface ResultPanelProps {
@@ -203,7 +241,12 @@ export interface ResultPanelProps {
   /** For the research pack's manifest. */
   modelKind?: string
   polygonGeoJSON?: string
-  onAdoptFields?: (runId: string, minHa: number, minCropland: number, replace: boolean) => Promise<boolean>
+  onAdoptFields?: (
+    runId: string,
+    minHa: number,
+    minCropland: number,
+    replace: boolean
+  ) => Promise<boolean>
   onPickZones: (k: number) => void
   onRemove: (product: ResultProduct) => void
   onClose: () => void
@@ -230,7 +273,11 @@ export function ResultPanel({
   onClose,
 }: ResultPanelProps) {
   // Go marshals a nil slice as null, and a run with nothing to read leaves these nil.
-  const hasClassification = !!(result?.class_stats?.length || result?.lulc || result?.overlay_uri)
+  const hasClassification = !!(
+    result?.class_stats?.length ||
+    result?.lulc ||
+    result?.overlay_uri
+  )
   const present: ResultProduct[] = [
     ...(job?.health ? (["health"] as const) : []),
     ...(job?.overlap ? (["overlap"] as const) : []),
@@ -253,7 +300,9 @@ export function ResultPanel({
   const [packOpen, setPackOpen] = useState(false)
   const label = product ? PRODUCT_LABEL[product] : "No result"
   const figure = product === "classify" && view !== "summary"
-  const runs = result ? [{ id: result.run_id ?? "current", label: runLabel, result }] : []
+  const runs = result
+    ? [{ id: result.run_id ?? "current", label: runLabel, result }]
+    : []
 
   const choices = present.length > 1 && (
     <PanelChoices
@@ -264,7 +313,12 @@ export function ResultPanel({
     />
   )
   const views = product === "classify" && result && (
-    <PanelChoices label="Reading" value={view} options={VIEWS} onChange={onViewChange} />
+    <PanelChoices
+      label="Reading"
+      value={view}
+      options={VIEWS}
+      onChange={onViewChange}
+    />
   )
   const remove = product && (
     <button
@@ -334,10 +388,17 @@ export function ResultPanel({
           {product === "water" && water && <WaterResult water={water} />}
           {product === "mineral" && mineral && <MineralResult mineral={mineral} />}
           {product === "fields" && fields && (
-            <FieldsResult fields={fields} areas={areas} projectId={projectId} onAdopt={onAdoptFields} />
+            <FieldsResult
+              fields={fields}
+              areas={areas}
+              projectId={projectId}
+              onAdopt={onAdoptFields}
+            />
           )}
           {product === "health" && job?.health && <HealthResult report={job.health} />}
-          {product === "overlap" && job?.overlap && <OverlapResult report={job.overlap} />}
+          {product === "overlap" && job?.overlap && (
+            <OverlapResult report={job.overlap} />
+          )}
           {product === "radar" && job?.radar && <RadarResult report={job.radar} />}
           {product === "zones" && job?.zones && (
             <ZonesResult report={job.zones} name={job.label} onPick={onPickZones} />

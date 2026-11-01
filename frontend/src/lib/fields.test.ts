@@ -39,7 +39,15 @@ describe("fieldWindows", () => {
 
 const square = {
   type: "Polygon",
-  coordinates: [[[0, 0], [0, 1], [1, 1], [1, 0], [0, 0]]],
+  coordinates: [
+    [
+      [0, 0],
+      [0, 1],
+      [1, 1],
+      [1, 0],
+      [0, 0],
+    ],
+  ],
 }
 
 describe("parseFields", () => {
@@ -47,8 +55,27 @@ describe("parseFields", () => {
     const fc = {
       type: "FeatureCollection",
       features: [
-        { type: "Feature", properties: { field: 1, area_ha: 12.5, perimeter_m: 1500, mean_interior_prob: 0.99, cropland_share: 0.8 }, geometry: square },
-        { type: "Feature", properties: { field: 2, area_ha: 0.3, perimeter_m: 230, mean_interior_prob: 0.9 }, geometry: square },
+        {
+          type: "Feature",
+          properties: {
+            field: 1,
+            area_ha: 12.5,
+            perimeter_m: 1500,
+            mean_interior_prob: 0.99,
+            cropland_share: 0.8,
+          },
+          geometry: square,
+        },
+        {
+          type: "Feature",
+          properties: {
+            field: 2,
+            area_ha: 0.3,
+            perimeter_m: 230,
+            mean_interior_prob: 0.9,
+          },
+          geometry: square,
+        },
       ],
     }
     const fields = parseFields({ fields_geojson: JSON.stringify(fc) })

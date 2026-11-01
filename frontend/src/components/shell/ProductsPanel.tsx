@@ -100,7 +100,9 @@ export function ProductsPanel({
               >
                 <Plate tool={t.id} />
                 <span className="min-w-0 flex-1">
-                  <span className="block text-read font-medium text-foreground">{t.label}</span>
+                  <span className="block text-read font-medium text-foreground">
+                    {t.label}
+                  </span>
                   <span className="block text-label text-muted-foreground">
                     {PRODUCT_NOTES[t.id].hint}
                   </span>
@@ -144,7 +146,9 @@ export function ProductsPanel({
                   style={{ width: `${clamp(run.progress, 0, 100)}%` }}
                 />
               </div>
-              <p className="mt-1 truncate text-label text-muted-foreground">{run.progressMsg}</p>
+              <p className="mt-1 truncate text-label text-muted-foreground">
+                {run.progressMsg}
+              </p>
             </div>
           )}
           {run.blocked && !run.running && (
@@ -225,7 +229,9 @@ export function ProductsPanel({
                 max={100}
                 className="field-input"
                 value={p.maxCloud}
-                onChange={(e) => p.onMaxCloudChange(clamp(e.target.valueAsNumber, 0, 100))}
+                onChange={(e) =>
+                  p.onMaxCloudChange(clamp(e.target.valueAsNumber, 0, 100))
+                }
               />
             </Field>
             <label className="flex h-8 flex-1 items-center gap-2 text-read text-foreground">
@@ -262,10 +268,16 @@ export function ProductsPanel({
               <select
                 className="field-input"
                 value={p.mode}
-                onChange={(e) => p.onModeChange(e.target.value as "single" | "temporal")}
+                onChange={(e) =>
+                  p.onModeChange(e.target.value as "single" | "temporal")
+                }
               >
                 {MODE_OPTIONS.map((o) => (
-                  <option key={o.id} value={o.id} disabled={!!modeBlockedBy(o.id, p.modelKind)}>
+                  <option
+                    key={o.id}
+                    value={o.id}
+                    disabled={!!modeBlockedBy(o.id, p.modelKind)}
+                  >
                     {o.label} · {o.detail}
                   </option>
                 ))}
@@ -276,7 +288,9 @@ export function ProductsPanel({
                 <select
                   className="field-input"
                   value={p.prithviMode}
-                  onChange={(e) => p.onPrithviModeChange(e.target.value as "pixel" | "patch")}
+                  onChange={(e) =>
+                    p.onPrithviModeChange(e.target.value as "pixel" | "patch")
+                  }
                 >
                   <option value="pixel">Per pixel</option>
                   <option value="patch">Per patch</option>

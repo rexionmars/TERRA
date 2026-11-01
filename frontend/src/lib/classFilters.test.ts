@@ -68,7 +68,13 @@ function randomGrid(w: number, h: number, classes: number, seed: number): ClassG
 describe("majorityFilter", () => {
   it("replaces an isolated pixel with the surrounding class", () => {
     const g = grid(["aaaaa", "aaaaa", "aabaa", "aaaaa", "aaaaa"])
-    expect(rows(majorityFilter(g, 3, 2))).toEqual(["aaaaa", "aaaaa", "aaaaa", "aaaaa", "aaaaa"])
+    expect(rows(majorityFilter(g, 3, 2))).toEqual([
+      "aaaaa",
+      "aaaaa",
+      "aaaaa",
+      "aaaaa",
+      "aaaaa",
+    ])
   })
 
   it("keeps the centre where it ties for the most frequent", () => {
@@ -145,8 +151,22 @@ describe("sieveFilter", () => {
           const a = label[y * w + x]
           if (a < 0 || size[a] >= minPixels) continue
           for (const [dx, dy] of connectivity === 8
-            ? [[1, 0], [-1, 0], [0, 1], [0, -1], [1, 1], [1, -1], [-1, 1], [-1, -1]]
-            : [[1, 0], [-1, 0], [0, 1], [0, -1]]) {
+            ? [
+                [1, 0],
+                [-1, 0],
+                [0, 1],
+                [0, -1],
+                [1, 1],
+                [1, -1],
+                [-1, 1],
+                [-1, -1],
+              ]
+            : [
+                [1, 0],
+                [-1, 0],
+                [0, 1],
+                [0, -1],
+              ]) {
             const nx = x + dx
             const ny = y + dy
             if (nx < 0 || ny < 0 || nx >= w || ny >= h) continue
@@ -161,7 +181,8 @@ describe("sieveFilter", () => {
       const before = labelPatches(input, connectivity)
       for (let p = 0; p < input.index.length; p++) {
         const l = before.label[p]
-        if (l >= 0 && before.size[l] >= minPixels) expect(out.index[p]).toBe(input.index[p])
+        if (l >= 0 && before.size[l] >= minPixels)
+          expect(out.index[p]).toBe(input.index[p])
       }
       // NO_CLASS is where it was.
       for (let p = 0; p < input.index.length; p++) {

@@ -29,12 +29,28 @@ const season: Season = {
 }
 
 const health = {
-  latest: { date: "2025-12-20", ndvi: 0.62, ndre: 0.3, baseline_n: 5, ndvi_mean: 0.8, ndvi_sd: 0.05, ndvi_z: -3.6, ndre_mean: 0.4, ndre_sd: 0.04, ndre_z: -2.5 },
+  latest: {
+    date: "2025-12-20",
+    ndvi: 0.62,
+    ndre: 0.3,
+    baseline_n: 5,
+    ndvi_mean: 0.8,
+    ndvi_sd: 0.05,
+    ndvi_z: -3.6,
+    ndre_mean: 0.4,
+    ndre_sd: 0.04,
+    ndre_z: -2.5,
+  },
 } as unknown as HealthAnalysis
 
 describe("a field's row", () => {
   it("takes the classes, the season and the departure from what reached the node", () => {
-    const row = fieldRow("field 3", classes([0, 0, 0, 1]), { season, meanConfidence: 0.91 }, health)
+    const row = fieldRow(
+      "field 3",
+      classes([0, 0, 0, 1]),
+      { season, meanConfidence: 0.91 },
+      health
+    )
     expect(row.classes?.map((c) => [c.name, Number(c.amount.toFixed(4))])).toEqual([
       ["Soybean", 0.03],
       ["Forest, native", 0.01],
@@ -55,13 +71,25 @@ describe("a field's row", () => {
 describe("the table as CSV", () => {
   it("writes one column per class across rows, quoting what needs it", () => {
     const csv = fieldTableCsv([
-      fieldRow("field 3", classes([0, 0, 0, 1]), { season, meanConfidence: 0.91 }, health),
+      fieldRow(
+        "field 3",
+        classes([0, 0, 0, 1]),
+        { season, meanConfidence: 0.91 },
+        health
+      ),
       fieldRow("field 4", classes([1, 1]), null, null),
     ])
     const [header, a, b] = csv.trim().split("\n")
-    expect(header.split(",").slice(0, 4)).toEqual(["field", "classified_ha", "Soybean_ha", '"Forest'])
+    expect(header.split(",").slice(0, 4)).toEqual([
+      "field",
+      "classified_ha",
+      "Soybean_ha",
+      '"Forest',
+    ])
     expect(header).toContain('"Forest, native_ha"')
-    expect(a).toContain("field 3,0.04,0.03,0.01,Soybean,0.75,2025-10-27,2025-10-10,2025-11-04")
+    expect(a).toContain(
+      "field 3,0.04,0.03,0.01,Soybean,0.75,2025-10-27,2025-10-10,2025-11-04"
+    )
     // The departures, then the eleven overlap, six radar and four zones columns, empty with none linked.
     expect(a.endsWith(",-3.6,-2.5" + ",".repeat(21))).toBe(true)
     expect(b.startsWith('field 4,0.02,0,0.02,"Forest, native",1,')).toBe(true)

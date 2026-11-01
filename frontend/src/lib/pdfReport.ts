@@ -89,7 +89,12 @@ export interface PdfReportDocument {
   scope: string
   summary: string[]
   provenance: { label: string; value: string }[]
-  method: { product: string; subtitle: string; source: string; sections: { title: string; lines: string[]; note: string }[] }[]
+  method: {
+    product: string
+    subtitle: string
+    source: string
+    sections: { title: string; lines: string[]; note: string }[]
+  }[]
   figures: {
     title: string
     caption: string
@@ -114,7 +119,12 @@ export interface PdfReportDocument {
     points: { x: number; y: number }[]
     marks: { x: number; label: string }[]
   }[]
-  tables: { title: string; caption: string; columns: { label: string; align?: "right" }[]; rows: string[][] }[]
+  tables: {
+    title: string
+    caption: string
+    columns: { label: string; align?: "right" }[]
+    rows: string[][]
+  }[]
   limitations: { label: string; text: string }[]
   runs: { id: string; kind: string; period: string; created: string }[]
   references: string[]
@@ -129,10 +139,15 @@ const ha = (v: number | null | undefined) => fixed(v, 1)
 const pct = (share: number | null | undefined, digits = 1) =>
   share == null || !Number.isFinite(share) ? DASH : `${(share * 100).toFixed(digits)}%`
 const signed = (v: number | null | undefined) =>
-  v == null || !Number.isFinite(v) ? DASH : `${v > 0 ? "+" : v < 0 ? "−" : ""}${Math.abs(v).toFixed(2)}`
-const plural = (n: number, one: string, many = `${one}s`) => `${n} ${n === 1 ? one : many}`
+  v == null || !Number.isFinite(v)
+    ? DASH
+    : `${v > 0 ? "+" : v < 0 ? "−" : ""}${Math.abs(v).toFixed(2)}`
+const plural = (n: number, one: string, many = `${one}s`) =>
+  `${n} ${n === 1 ? one : many}`
 const listed = (xs: readonly string[]) =>
-  xs.length <= 1 ? (xs[0] ?? "") : `${xs.slice(0, -1).join(", ")} and ${xs[xs.length - 1]}`
+  xs.length <= 1
+    ? (xs[0] ?? "")
+    : `${xs.slice(0, -1).join(", ")} and ${xs[xs.length - 1]}`
 
 /** A season mark with the observations it lies between: "2025-11-02 (10-28–11-06)". */
 function markCell(m: SeasonMark | null): string {
@@ -142,7 +157,20 @@ function markCell(m: SeasonMark | null): string {
 
 const DAY = 86_400_000
 const at = (d: string) => Date.parse(`${d}T00:00:00Z`)
-const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"]
+const MONTHS = [
+  "Jan",
+  "Feb",
+  "Mar",
+  "Apr",
+  "May",
+  "Jun",
+  "Jul",
+  "Aug",
+  "Sep",
+  "Oct",
+  "Nov",
+  "Dec",
+]
 
 const isoDay = (t: Date) => t.toISOString().slice(0, 10)
 const isoMinute = (t: Date) => t.toISOString().slice(0, 16).replace("T", " ")
@@ -227,7 +255,10 @@ const M_PER_DEG = 111_320
  * `ground_width_m`, the frame's east-west length on the ground).
  */
 export interface MapSheet {
-  graticule: { lon: { at: number; label: string }[]; lat: { at: number; label: string }[] }
+  graticule: {
+    lon: { at: number; label: string }[]
+    lat: { at: number; label: string }[]
+  }
   ground_width_m: number
   /** A quarter of the frame or less; `ticks` label 0, half and the whole bar, the last with its unit. */
   scale_bar: { fraction: number; ticks: string[] }
@@ -272,7 +303,9 @@ export function scaleBar(
 }
 
 // Graticule intervals, in seconds of arc: the steps a topographic sheet uses.
-const GRATICULE_S = [1, 2, 5, 10, 15, 30, 60, 120, 300, 600, 900, 1800, 3600, 7200, 18000, 36000]
+const GRATICULE_S = [
+  1, 2, 5, 10, 15, 30, 60, 120, 300, 600, 900, 1800, 3600, 7200, 18000, 36000,
+]
 
 /** A coordinate in degrees, minutes and seconds, to the precision its interval needs. */
 export function dms(v: number, axis: "lon" | "lat", stepS: number): string {
@@ -293,7 +326,11 @@ export function dms(v: number, axis: "lon" | "lat", stepS: number): string {
  * where its label would meet the other side's. In whole seconds, so the ticks
  * do not drift off their round values.
  */
-export function graticule(min: number, max: number, axis: "lon" | "lat"): { at: number; label: string }[] {
+export function graticule(
+  min: number,
+  max: number,
+  axis: "lon" | "lat"
+): { at: number; label: string }[] {
   const span = max - min
   if (!(span > 0)) return []
   const inside = (stepS: number) => {
@@ -304,7 +341,9 @@ export function graticule(min: number, max: number, axis: "lon" | "lat"): { at: 
     }
     return out
   }
-  const step = GRATICULE_S.find((s) => inside(s).length <= 4) ?? GRATICULE_S[GRATICULE_S.length - 1]
+  const step =
+    GRATICULE_S.find((s) => inside(s).length <= 4) ??
+    GRATICULE_S[GRATICULE_S.length - 1]
   return inside(step).map((t) => {
     const v = t / 3600
     const f = (v - min) / span
@@ -332,7 +371,8 @@ export function mapSource(runs: readonly PdfReportRun[]): string {
   return runs
     .map((r) => {
       const kind = r.kind || "classification"
-      const period = r.periodStart && r.periodEnd ? `, ${r.periodStart} to ${r.periodEnd}` : ""
+      const period =
+        r.periodStart && r.periodEnd ? `, ${r.periodStart} to ${r.periodEnd}` : ""
       return `${SENSOR_OF_KIND[kind] ?? kind}${period} (run ${r.id.slice(0, 8)})`
     })
     .join("; ")
@@ -361,7 +401,12 @@ function figureOf(f: PdfReportFigure): PdfReportDocument["figures"][number] {
     title: f.title,
     caption: `${f.caption}${integrity}`.trim(),
     uri: f.uri,
-    aspect: map && f.extent ? groundAspect(f.extent) : f.width > 0 && f.height > 0 ? f.width / f.height : 1,
+    aspect:
+      map && f.extent
+        ? groundAspect(f.extent)
+        : f.width > 0 && f.height > 0
+          ? f.width / f.height
+          : 1,
     legend: f.legend,
     pixelated: f.pixelated,
     source: f.source,
@@ -370,7 +415,10 @@ function figureOf(f: PdfReportFigure): PdfReportDocument["figures"][number] {
 }
 
 /** The season's clear observations as a chart, days from the first, with its three marks. */
-export function seasonSeries(field: string, s: Season): PdfReportDocument["series"][number] | null {
+export function seasonSeries(
+  field: string,
+  s: Season
+): PdfReportDocument["series"][number] | null {
   const obs = s.observations
   if (obs.length < 2) return null
   const t0 = at(obs[0].date)
@@ -381,11 +429,16 @@ export function seasonSeries(field: string, s: Season): PdfReportDocument["serie
   const y0 = Math.min(0, Math.floor(Math.min(...values) * 5) / 5)
   const y1 = Math.max(1, Math.ceil(Math.max(...values) * 5) / 5)
   const yTicks: { at: number; label: string }[] = []
-  for (let v = y0; v <= y1 + 1e-9; v += 0.2) yTicks.push({ at: Number(v.toFixed(1)), label: v.toFixed(1) })
+  for (let v = y0; v <= y1 + 1e-9; v += 0.2)
+    yTicks.push({ at: Number(v.toFixed(1)), label: v.toFixed(1) })
   // First of each month inside the range; every other month past six.
   const first = new Date(t0)
   const months: number[] = []
-  for (let m = new Date(Date.UTC(first.getUTCFullYear(), first.getUTCMonth() + 1, 1)); (m.getTime() - t0) / DAY <= x1; m.setUTCMonth(m.getUTCMonth() + 1)) {
+  for (
+    let m = new Date(Date.UTC(first.getUTCFullYear(), first.getUTCMonth() + 1, 1));
+    (m.getTime() - t0) / DAY <= x1;
+    m.setUTCMonth(m.getUTCMonth() + 1)
+  ) {
     months.push(m.getTime())
   }
   const every = months.length > 6 ? 2 : 1
@@ -393,7 +446,10 @@ export function seasonSeries(field: string, s: Season): PdfReportDocument["serie
     .filter((_, i) => i % every === 0)
     .map((t) => {
       const d = new Date(t)
-      const label = d.getUTCMonth() === 0 || t === months[0] ? `${MONTHS[d.getUTCMonth()]} ${d.getUTCFullYear()}` : MONTHS[d.getUTCMonth()]
+      const label =
+        d.getUTCMonth() === 0 || t === months[0]
+          ? `${MONTHS[d.getUTCMonth()]} ${d.getUTCFullYear()}`
+          : MONTHS[d.getUTCMonth()]
       return { at: (t - t0) / DAY, label }
     })
   const marks = (
@@ -425,7 +481,10 @@ export function seasonSeries(field: string, s: Season): PdfReportDocument["serie
 
 const R = { align: "right" as const }
 
-function tablesOf(rows: readonly FieldRow[], products: readonly Product[]): PdfReportDocument["tables"] {
+function tablesOf(
+  rows: readonly FieldRow[],
+  products: readonly Product[]
+): PdfReportDocument["tables"] {
   const out: PdfReportDocument["tables"] = []
   const n = rows.length
   if (products.includes("classes")) {
@@ -433,11 +492,21 @@ function tablesOf(rows: readonly FieldRow[], products: readonly Product[]): PdfR
     out.push({
       title: "Land cover by field.",
       caption: `Area classified and its largest class, after the filters the compositor graph applies (n = ${plural(n, "field")}).`,
-      columns: [{ label: "Field" }, { label: `Classified (${unit})`, ...R }, { label: "Largest class" }, { label: "Share", ...R }],
+      columns: [
+        { label: "Field" },
+        { label: `Classified (${unit})`, ...R },
+        { label: "Largest class" },
+        { label: "Share", ...R },
+      ],
       rows: rows.map((r) => {
         const d = dominant(r)
         const total = classifiedTotal(r)
-        return [r.field, unit === "ha" ? ha(total) : fixed(total, 0), d?.name ?? DASH, pct(d?.share)]
+        return [
+          r.field,
+          unit === "ha" ? ha(total) : fixed(total, 0),
+          d?.name ?? DASH,
+          pct(d?.share),
+        ]
       }),
     })
   }
@@ -492,7 +561,9 @@ function tablesOf(rows: readonly FieldRow[], products: readonly Product[]): PdfR
     })
   }
   if (products.includes("overlap")) {
-    const readAt = [...new Set(rows.map((r) => r.overlap?.readAt).filter((x): x is string => !!x))]
+    const readAt = [
+      ...new Set(rows.map((r) => r.overlap?.readAt).filter((x): x is string => !!x)),
+    ]
     out.push({
       title: "Public registers under each field, in hectares.",
       caption:
@@ -547,7 +618,9 @@ function tablesOf(rows: readonly FieldRow[], products: readonly Product[]): PdfR
           r.field,
           fixed(s?.passes, 0),
           fixed(s?.losses, 0),
-          s?.lastLossFrom && s.lastLossTo ? `${s.lastLossFrom} and ${s.lastLossTo}` : DASH,
+          s?.lastLossFrom && s.lastLossTo
+            ? `${s.lastLossFrom} and ${s.lastLossTo}`
+            : DASH,
           s?.latestDate ?? DASH,
           pct(s?.latestWater),
         ]
@@ -605,7 +678,10 @@ function summaryOf(rows: readonly FieldRow[], products: readonly Product[]): str
     }
   }
   if (products.includes("season")) {
-    const peaks = rows.map((r) => r.season?.peak?.date).filter((d): d is string => !!d).sort()
+    const peaks = rows
+      .map((r) => r.season?.peak?.date)
+      .filter((d): d is string => !!d)
+      .sort()
     if (peaks.length) {
       out.push(
         peaks.length === 1
@@ -629,7 +705,15 @@ function summaryOf(rows: readonly FieldRow[], products: readonly Product[]): str
   }
   if (products.includes("overlap")) {
     const regs: [string, (r: FieldRow) => number | null | undefined][] = [
-      ["PRODES clearing after 22 Jul 2008", (r) => sum([r.overlap?.prodes2009to2020, r.overlap?.prodes2021, r.overlap?.prodesFrom2022])],
+      [
+        "PRODES clearing after 22 Jul 2008",
+        (r) =>
+          sum([
+            r.overlap?.prodes2009to2020,
+            r.overlap?.prodes2021,
+            r.overlap?.prodesFrom2022,
+          ]),
+      ],
       ["DETER alerts", (r) => r.overlap?.deter],
       ["IBAMA embargoes", (r) => r.overlap?.embargoIbama],
       ["ICMBio embargoes", (r) => r.overlap?.embargoIcmbio],
@@ -637,13 +721,22 @@ function summaryOf(rows: readonly FieldRow[], products: readonly Product[]): str
       ["conservation units", (r) => r.overlap?.conservation],
     ]
     const met = regs
-      .map(([label, get]) => ({ label, fields: rows.filter((r) => (get(r) ?? 0) > 0), total: rows.reduce((s, r) => s + (get(r) ?? 0), 0) }))
+      .map(([label, get]) => ({
+        label,
+        fields: rows.filter((r) => (get(r) ?? 0) > 0),
+        total: rows.reduce((s, r) => s + (get(r) ?? 0), 0),
+      }))
       .filter((x) => x.fields.length)
     const unread = [...new Set(rows.flatMap((r) => r.overlap?.unread ?? []))]
     out.push(
       (met.length
         ? `Public registers other than CAR meet ${plural(new Set(met.flatMap((m) => m.fields.map((f) => f.field))).size, "field")}: ` +
-          met.map((m) => `${m.label}, ${ha(m.total)} ha over ${plural(m.fields.length, "field")}`).join("; ") +
+          met
+            .map(
+              (m) =>
+                `${m.label}, ${ha(m.total)} ha over ${plural(m.fields.length, "field")}`
+            )
+            .join("; ") +
           "."
         : "No field meets PRODES clearing after 22 Jul 2008, DETER, an embargo, an indigenous land or a conservation unit among the registers read.") +
         (unread.length ? ` Not read: ${listed(unread)}.` : "")
@@ -652,13 +745,21 @@ function summaryOf(rows: readonly FieldRow[], products: readonly Product[]): str
   if (products.includes("radar")) {
     const withLoss = rows.filter((r) => (r.radar?.losses ?? 0) > 0)
     const read = rows.filter((r) => r.radar)
-    out.push(`The Sentinel-1 series records at least one canopy loss in ${withLoss.length} of ${read.length} fields.`)
+    out.push(
+      `The Sentinel-1 series records at least one canopy loss in ${withLoss.length} of ${read.length} fields.`
+    )
   }
   if (products.includes("zones")) {
-    const ks = rows.map((r) => r.zones?.suggestedK).filter((k): k is number => k != null)
-    const counts = [3, 4, 5].map((k) => [k, ks.filter((x) => x === k).length] as const).filter(([, c]) => c > 0)
+    const ks = rows
+      .map((r) => r.zones?.suggestedK)
+      .filter((k): k is number => k != null)
+    const counts = [3, 4, 5]
+      .map((k) => [k, ks.filter((x) => x === k).length] as const)
+      .filter(([, c]) => c > 0)
     if (ks.length) {
-      out.push(`The suggested number of management zones is ${counts.map(([k, c]) => `${k} in ${plural(c, "field")}`).join(", ")}.`)
+      out.push(
+        `The suggested number of management zones is ${counts.map(([k, c]) => `${k} in ${plural(c, "field")}`).join(", ")}.`
+      )
     }
   }
   return out
@@ -675,7 +776,10 @@ function limitationsOf(products: readonly Product[]): PdfReportDocument["limitat
   const out: PdfReportDocument["limitations"] = []
   if (products.includes("classes")) {
     out.push(
-      { label: "Resolution", text: "Sentinel-2 cells are 10 m (0.01 ha). A field's edge cells mix the field with what surrounds it." },
+      {
+        label: "Resolution",
+        text: "Sentinel-2 cells are 10 m (0.01 ha). A field's edge cells mix the field with what surrounds it.",
+      },
       {
         label: "Confidence",
         text: "Confidence is the probability the classifier gave its chosen class. A confidence of 0.67 does not mean 67% of such pixels are correct.",
@@ -705,8 +809,7 @@ function limitationsOf(products: readonly Product[]): PdfReportDocument["limitat
   if (products.includes("radar")) {
     out.push({
       label: "Radar thresholds",
-      text:
-        "The canopy-loss rule (VH drop of 3 dB, cross-ratio drop of 1 dB) and the water rule (VH below −23 dB and VV below −13 dB) are fixed, and were not calibrated against harvest records.",
+      text: "The canopy-loss rule (VH drop of 3 dB, cross-ratio drop of 1 dB) and the water rule (VH below −23 dB and VV below −13 dB) are fixed, and were not calibrated against harvest records.",
     })
   }
   if (products.includes("zones")) {
@@ -715,7 +818,10 @@ function limitationsOf(products: readonly Product[]): PdfReportDocument["limitat
       text: "The zones show where the canopy differed across seasons, not why: soil, drainage, compaction or a past management line draw the same boundary.",
     })
   }
-  out.push({ label: "Field verification", text: "No figure in this report was verified on the ground by TERRA." })
+  out.push({
+    label: "Field verification",
+    text: "No figure in this report was verified on the ground by TERRA.",
+  })
   return out
 }
 
@@ -753,7 +859,11 @@ export function buildPdfReport(input: PdfReportInput): PdfReportDocument {
     ? `${plural(n, "field")} of ${input.areaName}`
     : (rows[0]?.field ?? input.runs[0]?.title ?? "one run")
   const periods = [
-    ...new Set(input.runs.filter((r) => r.periodStart && r.periodEnd).map((r) => `${r.periodStart} to ${r.periodEnd}`)),
+    ...new Set(
+      input.runs
+        .filter((r) => r.periodStart && r.periodEnd)
+        .map((r) => `${r.periodStart} to ${r.periodEnd}`)
+    ),
   ]
 
   // One method entry per run kind, from the first run of that kind.
@@ -769,11 +879,17 @@ export function buildPdfReport(input: PdfReportInput): PdfReportDocument {
       product: PRODUCT_TITLE[kind] ?? kind,
       subtitle: brief.subtitle,
       source: brief.source,
-      sections: brief.sections.map((x) => ({ title: x.title, lines: x.lines, note: x.note ?? "" })),
+      sections: brief.sections.map((x) => ({
+        title: x.title,
+        lines: x.lines,
+        note: x.note ?? "",
+      })),
     })
   }
 
-  const series = input.season ? seasonSeries(input.season.field, input.season.season) : null
+  const series = input.season
+    ? seasonSeries(input.season.field, input.season.season)
+    : null
 
   return {
     schema: PDF_REPORT_SCHEMA,
@@ -781,7 +897,8 @@ export function buildPdfReport(input: PdfReportInput): PdfReportDocument {
       // The products are listed under Provenance; a title that listed them
       // too ran to three lines with six of them.
       title: s.title.trim() || `Report on ${subject}`,
-      subtitle: s.subtitle.trim() || (periods.length ? `Imagery ${listed(periods)}` : ""),
+      subtitle:
+        s.subtitle.trim() || (periods.length ? `Imagery ${listed(periods)}` : ""),
       number: s.number.trim(),
       revision: s.revision.trim(),
       issued: isoDay(input.now),
@@ -797,10 +914,19 @@ export function buildPdfReport(input: PdfReportInput): PdfReportDocument {
     scope: s.scope.trim(),
     summary: summaryOf(rows, products),
     provenance: [
-      { label: input.areaName ? "Area" : "Run", value: input.areaName ? `${input.areaName}, ${plural(n, "field")}` : subject },
-      { label: "Products", value: products.map((p) => PRODUCT_NAME[p]).join(", ") || DASH },
+      {
+        label: input.areaName ? "Area" : "Run",
+        value: input.areaName ? `${input.areaName}, ${plural(n, "field")}` : subject,
+      },
+      {
+        label: "Products",
+        value: products.map((p) => PRODUCT_NAME[p]).join(", ") || DASH,
+      },
       ...(periods.length ? [{ label: "Periods", value: listed(periods) }] : []),
-      { label: "Runs", value: `${plural(input.runs.length, "run")}, listed under Reproducibility` },
+      {
+        label: "Runs",
+        value: `${plural(input.runs.length, "run")}, listed under Reproducibility`,
+      },
       { label: "Software", value: `TERRA ${input.appVersion}` },
     ],
     method,

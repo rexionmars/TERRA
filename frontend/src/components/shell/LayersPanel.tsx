@@ -31,7 +31,11 @@ function Switch({
 }) {
   return (
     <label className="ml-9 flex items-center gap-2 text-label text-muted-foreground">
-      <input type="checkbox" checked={checked} onChange={(e) => onChange(e.target.checked)} />
+      <input
+        type="checkbox"
+        checked={checked}
+        onChange={(e) => onChange(e.target.checked)}
+      />
       {label}
     </label>
   )
@@ -63,7 +67,9 @@ export function LayersPanel({
   return (
     <ShellPanel crumbs={[{ label: "Layers" }]} onClose={onClose}>
       {rows.length === 0 ? (
-        <PanelEmpty title="Nothing drawn yet">A finished run adds its rasters here.</PanelEmpty>
+        <PanelEmpty title="Nothing drawn yet">
+          A finished run adds its rasters here.
+        </PanelEmpty>
       ) : (
         <ul className="flex flex-col gap-3">
           {rows.map((l) => {
@@ -79,7 +85,11 @@ export function LayersPanel({
                     onClick={() => onChange(l.id, { visible: !l.visible })}
                     className="flex size-7 shrink-0 items-center justify-center rounded-sm text-muted-foreground transition-colors hover:bg-hover hover:text-foreground"
                   >
-                    {l.visible ? <Eye className="size-4" /> : <EyeSlash className="size-4" />}
+                    {l.visible ? (
+                      <Eye className="size-4" />
+                    ) : (
+                      <EyeSlash className="size-4" />
+                    )}
                   </button>
                   <span
                     title={asset?.params || l.title}
@@ -90,7 +100,7 @@ export function LayersPanel({
                   >
                     {l.title}
                   </span>
-                  <span className="w-10 shrink-0 text-right text-label tabular-nums text-muted-foreground">
+                  <span className="w-10 shrink-0 text-right text-label text-muted-foreground tabular-nums">
                     {Math.round(l.opacity * 100)} %
                   </span>
                 </div>
@@ -122,7 +132,9 @@ export function LayersPanel({
                 {asset && (
                   <div className="ml-8 flex items-center gap-1">
                     <SaveAs label="PNG" onClick={() => void exportPng(asset)} />
-                    {asset.exportTif && <SaveAs label="GeoTIFF" onClick={() => void exportTif(asset)} />}
+                    {asset.exportTif && (
+                      <SaveAs label="GeoTIFF" onClick={() => void exportTif(asset)} />
+                    )}
                   </div>
                 )}
               </li>

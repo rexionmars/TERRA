@@ -64,7 +64,9 @@ describe("the job list", () => {
     const started = job("1", { started_at: "2026-01-01T10:00:00Z" })
     expect(jobDuration(job("1"))).toBeNull()
     expect(jobDuration(started, Date.parse("2026-01-01T10:00:42Z"))).toBe("42 s")
-    expect(jobDuration({ ...started, finished_at: "2026-01-01T10:02:05Z" })).toBe("2 m 5 s")
+    expect(jobDuration({ ...started, finished_at: "2026-01-01T10:02:05Z" })).toBe(
+      "2 m 5 s"
+    )
     expect(jobDuration(started, Date.parse("2026-01-01T11:30:00Z"))).toBe("1 h 30 m")
   })
 
@@ -80,15 +82,28 @@ describe("the job list", () => {
 
 describe("finding the results again", () => {
   const runs = [
-    { id: "r1", created_at: "2026-09-24T10:00:00Z", area_id: "f1", kind: "classification" },
-    { id: "r2", created_at: "2026-09-25T10:00:00Z", area_id: "f1", kind: "classification" },
+    {
+      id: "r1",
+      created_at: "2026-09-24T10:00:00Z",
+      area_id: "f1",
+      kind: "classification",
+    },
+    {
+      id: "r2",
+      created_at: "2026-09-25T10:00:00Z",
+      area_id: "f1",
+      kind: "classification",
+    },
     { id: "r3", created_at: "2026-09-25T11:00:00Z", area_id: "f1", kind: "water" },
     // Written before the kind column: a classification.
     { id: "r4", created_at: "2026-09-20T10:00:00Z", area_id: "f2", kind: "" },
   ]
 
   it("takes the latest run of the product over each area, and counts the areas with none", () => {
-    expect(latestRuns(runs, ["f1", "f2", "f3"], "classify")).toEqual({ ids: ["r2", "r4"], missing: 1 })
+    expect(latestRuns(runs, ["f1", "f2", "f3"], "classify")).toEqual({
+      ids: ["r2", "r4"],
+      missing: 1,
+    })
     expect(latestRuns(runs, ["f1", "f2"], "water")).toEqual({ ids: ["r3"], missing: 1 })
   })
 
@@ -107,7 +122,15 @@ describe("finding the results again", () => {
 
 const square = {
   type: "Polygon",
-  coordinates: [[[0, 0], [0, 1], [1, 1], [1, 0], [0, 0]]],
+  coordinates: [
+    [
+      [0, 0],
+      [0, 1],
+      [1, 1],
+      [1, 0],
+      [0, 0],
+    ],
+  ],
 } as Area["geometry"]
 
 function area(id: string, parent = ""): Area {
@@ -124,7 +147,13 @@ function area(id: string, parent = ""): Area {
 }
 
 describe("the selection a job is queued over", () => {
-  const areas = [area("aoi"), area("f1", "aoi"), area("f2", "aoi"), area("f3", "aoi"), area("other")]
+  const areas = [
+    area("aoi"),
+    area("f1", "aoi"),
+    area("f2", "aoi"),
+    area("f3", "aoi"),
+    area("other"),
+  ]
 
   it("starts from the field in use when a second field is shift-pressed", () => {
     expect(extendSelection([], ["f2"], areas, "f1", "toggle")).toEqual(["f1", "f2"])
@@ -146,11 +175,16 @@ describe("the selection a job is queued over", () => {
   })
 
   it("only adds for a box, once each", () => {
-    expect(extendSelection(["f1"], ["f1", "f2", "f2"], areas, null, "add")).toEqual(["f1", "f2"])
+    expect(extendSelection(["f1"], ["f1", "f2", "f2"], areas, null, "add")).toEqual([
+      "f1",
+      "f2",
+    ])
   })
 
   it("drops what is no longer an area", () => {
-    expect(extendSelection(["gone", "f1"], ["f2", "missing"], areas, null, "add")).toEqual(["f1", "f2"])
+    expect(
+      extendSelection(["gone", "f1"], ["f2", "missing"], areas, null, "add")
+    ).toEqual(["f1", "f2"])
     expect(extendSelection(["gone"], ["missing"], areas, null, "toggle")).toEqual([])
   })
 })

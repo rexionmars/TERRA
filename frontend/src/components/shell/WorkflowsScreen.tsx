@@ -1,7 +1,10 @@
 import { useState } from "react"
 
 import { CaretDown, FloppyDisk, Graph, Plus } from "@/components/icons"
-import { CompositorEditor, type CompositorGlobeOverlay } from "@/components/workspace/CompositorEditor"
+import {
+  CompositorEditor,
+  type CompositorGlobeOverlay,
+} from "@/components/workspace/CompositorEditor"
 import { RunPicker } from "@/components/workspace/RunPicker"
 import { AreaHeaderMenusHost } from "@/components/workspace/areaHeader"
 import {
@@ -19,7 +22,12 @@ import type { PdfReportRun } from "@/lib/pdfReport"
 import { loadedRunAssets, type AssetRun, type RunAsset } from "@/lib/runAssets"
 import type { SessionRun } from "@/lib/sessionRuns"
 import type { Studio } from "@/lib/studios"
-import type { FieldsAnalysis, InferenceRun, MineralAnalysis, PredictResult } from "@/lib/types"
+import type {
+  FieldsAnalysis,
+  InferenceRun,
+  MineralAnalysis,
+  PredictResult,
+} from "@/lib/types"
 import { cn } from "@/lib/utils"
 
 /**
@@ -64,7 +72,12 @@ export function WorkflowsScreen({
   onGlobe: (overlays: CompositorGlobeOverlay[]) => void
   fieldSets: readonly FieldSet[]
   fieldsTargetOf: (runId: string) => FieldsTarget | null
-  onAdoptFields?: (runId: string, minHa: number, minCropland: number, replace: boolean) => Promise<boolean>
+  onAdoptFields?: (
+    runId: string,
+    minHa: number,
+    minCropland: number,
+    replace: boolean
+  ) => Promise<boolean>
   onNeedRuns: (ids: string[]) => void
   runRecordOf: (runId: string) => PdfReportRun | null
   saved: boolean
@@ -91,15 +104,20 @@ export function WorkflowsScreen({
     deletable: false,
     assets: r.live ? [...liveAssets] : loadedRunAssets(r.result),
   }))
-  const resultOf = (id: string): PredictResult | null => runs.find((r) => r.id === id)?.result ?? null
-  const mineralOf = (id: string): MineralAnalysis | null => resultOf(id)?.mineral ?? null
+  const resultOf = (id: string): PredictResult | null =>
+    runs.find((r) => r.id === id)?.result ?? null
+  const mineralOf = (id: string): MineralAnalysis | null =>
+    resultOf(id)?.mineral ?? null
   const fieldsOf = (id: string): FieldsAnalysis | null => resultOf(id)?.fields ?? null
 
   return (
     <div
       ref={setSurface}
       hidden={hidden}
-      className={cn("app-no-drag absolute inset-0 z-[480] flex-col bg-app", hidden ? "hidden" : "flex")}
+      className={cn(
+        "app-no-drag absolute inset-0 z-[480] flex-col bg-app",
+        hidden ? "hidden" : "flex"
+      )}
     >
       <header className="flex h-12 shrink-0 items-center gap-2 border-b border-border px-4">
         <Graph aria-hidden className="size-4 text-muted-foreground" />
@@ -119,7 +137,11 @@ export function WorkflowsScreen({
             >
               <span className="truncate">{savedName ?? "Unsaved workflow"}</span>
               {dirty && (
-                <span aria-label="Unsaved changes" title="Unsaved changes" className="size-1.5 shrink-0 rounded-full bg-primary" />
+                <span
+                  aria-label="Unsaved changes"
+                  title="Unsaved changes"
+                  className="size-1.5 shrink-0 rounded-full bg-primary"
+                />
               )}
               <CaretDown className="size-3 shrink-0 text-muted-foreground" />
             </button>
@@ -185,7 +207,9 @@ export function WorkflowsScreen({
           ) : (
             <button
               type="button"
-              onClick={() => (saved && savedName ? onConfirmName(savedName) : onNamingChange(""))}
+              onClick={() =>
+                saved && savedName ? onConfirmName(savedName) : onNamingChange("")
+              }
               className={btnGhost}
             >
               <FloppyDisk className="size-3.5" />

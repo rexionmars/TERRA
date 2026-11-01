@@ -632,8 +632,6 @@ export interface Preferences {
   extras_json?: string
 }
 
-
-
 export interface InferenceRun {
   id: string
   user_id: string

@@ -182,8 +182,7 @@ export function renameBoardArea(from: string, to: string): void {
   const names = kept.get("names") as Record<string, string> | undefined
   if (names) kept.set("names", r.map(names, r.byRow))
   const extraState = kept.get("extraState") as
-    | Record<string, { opacity: number; visible: boolean }>
-    | undefined
+    Record<string, { opacity: number; visible: boolean }> | undefined
   if (extraState) kept.set("extraState", r.map(extraState, r.byScene))
   for (const [key, rename] of [
     ["places", r.byArea],
@@ -299,7 +298,7 @@ function renameArea(from: string, to: string) {
     }
     return k
   }
-  const map = <T,>(o: Record<string, T>, f: (k: string) => string) =>
+  const map = <T>(o: Record<string, T>, f: (k: string) => string) =>
     Object.fromEntries(Object.entries(o).map(([k, v]) => [f(k), v]))
   const list = (a: readonly string[], f: (k: string) => string) => a.map(f)
   return { byArea, byScene, byRow, map, list }
@@ -344,18 +343,13 @@ export function snapshotBoard(
       [...readBoardMemory<ReadonlySet<string>>("flat", new Set())],
       r.byScene
     ),
-    order: r.map(
-      readBoardMemory<Record<string, string[]>>("order", {}),
-      r.byArea
-    ),
-    names: r.map(
-      readBoardMemory<Record<string, string>>("names", {}),
-      r.byRow
-    ),
+    order: r.map(readBoardMemory<Record<string, string[]>>("order", {}), r.byArea),
+    names: r.map(readBoardMemory<Record<string, string>>("names", {}), r.byRow),
     extraState: r.map(
-      readBoardMemory<
-        Record<string, { opacity: number; visible: boolean }>
-      >("extraState", {}),
+      readBoardMemory<Record<string, { opacity: number; visible: boolean }>>(
+        "extraState",
+        {}
+      ),
       r.byScene
     ),
     places: r.map(
@@ -363,10 +357,7 @@ export function snapshotBoard(
       r.byArea
     ),
     planePlaces: r.map(
-      keptObject<Record<string, { x: number; z: number }>>(
-        "planePlaces",
-        () => ({})
-      ),
+      keptObject<Record<string, { x: number; z: number }>>("planePlaces", () => ({})),
       r.byScene
     ),
     gap: readBoardMemory("gap", 0.1),
@@ -409,10 +400,7 @@ export function restoreBoard(snap: BoardSnapshot): void {
     snap.places
   )
   Object.assign(
-    keptObject<Record<string, { x: number; z: number }>>(
-      "planePlaces",
-      () => ({})
-    ),
+    keptObject<Record<string, { x: number; z: number }>>("planePlaces", () => ({})),
     snap.planePlaces
   )
 }

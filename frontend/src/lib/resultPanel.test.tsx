@@ -16,8 +16,22 @@ function classification(over: Partial<PredictResult> = {}): PredictResult {
     n_dates: 9,
     date_range: ["2026-01-05", "2026-03-20"],
     class_stats: [
-      { class_id: 39, name: "Soybean", color: "#c59ff4", pixels: 100, pct: 60.5, area_ha: 12.5 },
-      { class_id: 3, name: "Forest formation", color: "#1f8d49", pixels: 50, pct: 39.5, area_ha: 8.25 },
+      {
+        class_id: 39,
+        name: "Soybean",
+        color: "#c59ff4",
+        pixels: 100,
+        pct: 60.5,
+        area_ha: 12.5,
+      },
+      {
+        class_id: 3,
+        name: "Forest formation",
+        color: "#1f8d49",
+        pixels: 50,
+        pct: 39.5,
+        area_ha: 8.25,
+      },
     ],
     ...over,
   } as PredictResult
@@ -137,13 +151,21 @@ describe("ResultPanel", () => {
   })
 
   it("offers the choice only where more than one result is on the map", () => {
-    const water = { index: "MNDWI", n_dates: 1, peak_water_fraction_pct: 1 } as WaterAnalysis
+    const water = {
+      index: "MNDWI",
+      n_dates: 1,
+      peak_water_fraction_pct: 1,
+    } as WaterAnalysis
     expect(render({ result: classification() })).not.toContain('aria-label="Result"')
     expect(render({ result: classification(), water })).toContain('aria-label="Result"')
   })
 
   it("opens first on the product it was told to", () => {
-    const water = { index: "MNDWI", n_dates: 1, peak_water_fraction_pct: 1 } as WaterAnalysis
+    const water = {
+      index: "MNDWI",
+      n_dates: 1,
+      peak_water_fraction_pct: 1,
+    } as WaterAnalysis
     const html = render({ result: classification(), water, focus: "classify" })
     expect(html).toContain("Soybean")
     expect(html).not.toContain("Persistent water")

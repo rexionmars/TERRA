@@ -94,18 +94,16 @@ describe("parseRunSummary", () => {
   it("reads no classes when class_stats is missing or is not an array", () => {
     expect(parseRunSummary("{}").classStats).toEqual([])
     expect(parseRunSummary('{"class_stats":null}').classStats).toEqual([])
-    expect(parseRunSummary('{"class_stats":{"0":{"name":"a","color":"#b"}}}')
-      .classStats).toEqual([])
+    expect(
+      parseRunSummary('{"class_stats":{"0":{"name":"a","color":"#b"}}}').classStats
+    ).toEqual([])
   })
 
   it("reads a date range only when both ends are non-empty strings", () => {
     const range = (v: unknown) =>
       parseRunSummary(JSON.stringify({ date_range: v })).dateRange
 
-    expect(range(["2024-01-05", "2024-03-28"])).toEqual([
-      "2024-01-05",
-      "2024-03-28",
-    ])
+    expect(range(["2024-01-05", "2024-03-28"])).toEqual(["2024-01-05", "2024-03-28"])
     // A one-sided range is not a range: half of it would render as "2024-01-05
     // → undefined". Same for the empty string a writer leaves when the search
     // returned no scenes.

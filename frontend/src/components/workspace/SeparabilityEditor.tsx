@@ -74,7 +74,8 @@ const BANDS: { from: number; to: number; label: string }[] = [
 const fmtJM = (jm: number) => jm.toFixed(3)
 
 /** Signed, and in percentage points of reflectance, which is how it is read. */
-const fmtShift = (d: number) => `${d >= 0 ? "+" : "−"}${Math.abs(d * 100).toFixed(1)} pp`
+const fmtShift = (d: number) =>
+  `${d >= 0 ? "+" : "−"}${Math.abs(d * 100).toFixed(1)} pp`
 
 export function SeparabilityEditor({
   runs,
@@ -100,11 +101,9 @@ export function SeparabilityEditor({
   const [host, box] = useFigureHost()
 
   const run = runs.length ? runs[Math.min(runIdx, runs.length - 1)] : undefined
-  const other =
-    runs.length > 1 ? runs[Math.min(otherIdx, runs.length - 1)] : undefined
+  const other = runs.length > 1 ? runs[Math.min(otherIdx, runs.length - 1)] : undefined
   const spectra: ClassSpectra | null = run?.result.class_spectra ?? null
-  const otherSpectra: ClassSpectra | null =
-    other?.result.class_spectra ?? null
+  const otherSpectra: ClassSpectra | null = other?.result.class_spectra ?? null
 
   const ground = useMemo(() => chartGround(theme), [theme])
 
@@ -153,8 +152,7 @@ export function SeparabilityEditor({
     })
   }, [rows, reading])
 
-  const selected =
-    ordered.find((r) => r.key === pick) ?? ordered[0] ?? null
+  const selected = ordered.find((r) => r.key === pick) ?? ordered[0] ?? null
 
   /** The selected row's bands, in wavelength order, for the chart. */
   const chartBands = useMemo(
@@ -194,8 +192,8 @@ export function SeparabilityEditor({
   if (!runs.length) {
     return (
       <p className="flex h-full items-center justify-center px-4 text-center text-meta text-muted-foreground">
-        Pick a plane to read how far apart the classes its run predicted are,
-        band by band.
+        Pick a plane to read how far apart the classes its run predicted are, band by
+        band.
       </p>
     )
   }
@@ -261,15 +259,14 @@ export function SeparabilityEditor({
       <div className="panel-scroll min-h-0 flex-1 overflow-auto p-2">
         {needsSecond ? (
           <p className="text-meta text-muted-foreground">
-            Drift compares one class between two runs. Select a second plane and
-            it is measured against this one.
+            Drift compares one class between two runs. Select a second plane and it is
+            measured against this one.
           </p>
         ) : !spectra || (reading === "drift" && !otherSpectra) ? (
           <p className="text-meta text-muted-foreground">
-            This reading needs the per-class spectral response, and one of these
-            runs carries none. Runs saved before the measurement existed do not
-            have one, and neither does a run whose scene could not be re-read
-            for its bands.
+            This reading needs the per-class spectral response, and one of these runs
+            carries none. Runs saved before the measurement existed do not have one, and
+            neither does a run whose scene could not be re-read for its bands.
           </p>
         ) : !ordered.length ? (
           <p className="text-meta text-muted-foreground">
@@ -355,9 +352,7 @@ export function SeparabilityEditor({
               className="rounded-sm border p-1.5"
               style={{ borderColor: "rgb(var(--p-line) / 0.22)" }}
             >
-              <p className="eyebrow !text-[9px]">
-                {selected?.title ?? ""} · per band
-              </p>
+              <p className="eyebrow !text-[9px]">{selected?.title ?? ""} · per band</p>
               <div
                 ref={host}
                 className="relative min-h-0 w-full flex-1"
@@ -387,7 +382,13 @@ export function SeparabilityEditor({
                           width={figure.layout.plot.x1 - figure.layout.plot.x0}
                           height={Math.max(0, figure.y(b.from) - figure.y(b.to))}
                           fill="var(--foreground)"
-                          fillOpacity={b.label === "separable" ? 0.05 : b.label === "partial" ? 0.03 : 0}
+                          fillOpacity={
+                            b.label === "separable"
+                              ? 0.05
+                              : b.label === "partial"
+                                ? 0.03
+                                : 0
+                          }
                         />
                         <text
                           x={figure.layout.plot.x1 - 3}
@@ -442,8 +443,7 @@ export function SeparabilityEditor({
                     </text>
 
                     {chartBands.map((b, i) => {
-                      const cx =
-                        figure.layout.plot.x0 + figure.slot * (i + 0.5)
+                      const cx = figure.layout.plot.x0 + figure.slot * (i + 0.5)
                       return (
                         <g key={b.band}>
                           {b.jm === null ? (
@@ -482,11 +482,7 @@ export function SeparabilityEditor({
                           )}
                           <text
                             x={cx}
-                            y={
-                              figure.layout.plot.y1 +
-                              ROW_PX.tick +
-                              ROW_PX.label / 2
-                            }
+                            y={figure.layout.plot.y1 + ROW_PX.tick + ROW_PX.label / 2}
                             fontSize={TYPE.meta}
                             fill="var(--muted-foreground)"
                             textAnchor="middle"
@@ -532,9 +528,7 @@ function RunTabs({
 }) {
   return (
     <span className="flex min-w-0 items-center gap-1">
-      {prefix && (
-        <span className="eyebrow shrink-0 !text-[9px]">{prefix}</span>
-      )}
+      {prefix && <span className="eyebrow shrink-0 !text-[9px]">{prefix}</span>}
       {runs.map((r, i) => (
         <button
           key={r.id}
@@ -614,10 +608,7 @@ function ShiftRow({
         {bands.map((b) => {
           const d = byBand.get(b.band)
           return (
-            <span
-              key={b.band}
-              className="telemetry text-[10px] text-muted-foreground"
-            >
+            <span key={b.band} className="telemetry text-[10px] text-muted-foreground">
               {b.band}{" "}
               <span className={d == null ? undefined : "text-foreground"}>
                 {d == null ? "n/a" : fmtShift(d)}
@@ -654,16 +645,13 @@ function Note({ reading }: { reading: Reading }) {
       {reading === "surround"
         ? "Jeffries-Matusita distance between each pair of predicted classes, one band at a time, from the mean and spread of a single acquisition under a normal assumption."
         : "Jeffries-Matusita distance for the same class measured in two runs, one band at a time, from the mean and spread of a single acquisition each under a normal assumption."}{" "}
-      Per band because the payload carries a marginal for each band and no
-      covariance between them.{" "}
-      <span className="text-foreground">
-        These are a floor and not a ceiling.
-      </span>{" "}
-      A classifier reads the bands together and can separate classes that no
-      single band separates, so a column of short bars is not a finding that
-      these classes are indistinguishable. It says only that no one band
-      distinguishes them here — not that a model could not, and not that a
-      correction is available.
+      Per band because the payload carries a marginal for each band and no covariance
+      between them.{" "}
+      <span className="text-foreground">These are a floor and not a ceiling.</span> A
+      classifier reads the bands together and can separate classes that no single band
+      separates, so a column of short bars is not a finding that these classes are
+      indistinguishable. It says only that no one band distinguishes them here — not
+      that a model could not, and not that a correction is available.
     </p>
   )
 }

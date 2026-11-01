@@ -48,9 +48,7 @@ export function DomainShiftEditor({
   const [loading, setLoading] = useState(false)
 
   const source = available.find((s) => s.areaId === sourceId) ?? null
-  const targets = source
-    ? available.filter((s) => s.areaId !== source.areaId)
-    : []
+  const targets = source ? available.filter((s) => s.areaId !== source.areaId) : []
   // Identity of the request, so a re-render that changes nothing does not
   // re-spawn the sidecar. The board areas and the source are what the answer
   // depends on.
@@ -108,8 +106,8 @@ export function DomainShiftEditor({
           </p>
         ) : !targets.length ? (
           <p className="flex h-full items-center justify-center px-4 text-center text-meta text-muted-foreground">
-            {source.label} is the only prediction on the board, so there is
-            nothing to measure against it.
+            {source.label} is the only prediction on the board, so there is nothing to
+            measure against it.
           </p>
         ) : loading && !cohort ? (
           <p className="text-meta text-muted-foreground">
@@ -119,11 +117,7 @@ export function DomainShiftEditor({
         ) : error ? (
           <p className="text-meta text-amber-500/90">{error}</p>
         ) : cohort ? (
-          <DomainCohort
-            cohort={cohort}
-            skipped={skipped}
-            onPick={onPickTarget}
-          />
+          <DomainCohort cohort={cohort} skipped={skipped} onPick={onPickTarget} />
         ) : null}
       </div>
     )

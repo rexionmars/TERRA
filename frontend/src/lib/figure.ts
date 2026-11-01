@@ -126,7 +126,9 @@ export function linearScale(
   domain: readonly [number, number],
   range: readonly [number, number]
 ): ScaleLinear<number, number> {
-  return scaleLinear().domain([...domain]).range([...range])
+  return scaleLinear()
+    .domain([...domain])
+    .range([...range])
 }
 
 /**
@@ -196,8 +198,7 @@ export function measureText(text: string, fontPx: number, family?: string): numb
   const resolved =
     family ??
     (typeof getComputedStyle === "function"
-      ? getComputedStyle(document.body).getPropertyValue("--font-sans") ||
-        "sans-serif"
+      ? getComputedStyle(document.body).getPropertyValue("--font-sans") || "sans-serif"
       : "sans-serif")
   measuringContext.font = `${fontPx}px ${resolved}`
   return measuringContext.measureText(text).width
@@ -277,8 +278,7 @@ export function layoutFigure(request: FigureRequest): FigureLayout {
     (w, label) => Math.max(w, measureText(label, TYPE.meta)),
     0
   )
-  const left =
-    (yTitle ? ROW.title : 0) + widestY + ROW.tick + ROW.gap
+  const left = (yTitle ? ROW.title : 0) + widestY + ROW.tick + ROW.gap
   // Half the last label overhangs its tick, so the gutter holds that half.
   const right = Math.max(8, measureText(lastXLabel, TYPE.meta) / 2 + 4)
   const top = ROW.gap + TYPE.meta / 2

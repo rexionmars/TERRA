@@ -89,7 +89,8 @@ function OperatorSearch({ onClose }: { onClose: () => void }) {
           aria-activedescendant={results[index] ? `op-${results[index]}` : undefined}
           spellCheck={false}
           onKeyDown={(e) => {
-            if (e.key === "ArrowDown") setIndex((i) => Math.min(results.length - 1, i + 1))
+            if (e.key === "ArrowDown")
+              setIndex((i) => Math.min(results.length - 1, i + 1))
             else if (e.key === "ArrowUp") setIndex((i) => Math.max(0, i - 1))
             else if (e.key === "Enter") run(index)
             else return

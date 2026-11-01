@@ -71,10 +71,12 @@ import type {
   ZonesRequest,
 } from "@/lib/types"
 import { fieldWindows, MIN_PERIOD_DAYS } from "@/lib/fields"
+import { parsePreferenceExtras } from "@/lib/preferenceExtras"
 import {
-  parsePreferenceExtras,
-} from "@/lib/preferenceExtras"
-import { makeRunLabel, resolveAoiDisplayLabel, aoiLabelFromRunSummary } from "@/lib/aoiLabel"
+  makeRunLabel,
+  resolveAoiDisplayLabel,
+  aoiLabelFromRunSummary,
+} from "@/lib/aoiLabel"
 import {
   projectOverlayToComposition,
   scopeCompositionsToView,
@@ -93,7 +95,11 @@ import { ProjectFileHost } from "@/components/ProjectFileHost"
 import { SplashScreen } from "@/components/SplashScreen"
 import { WhatsNewGate } from "@/components/WhatsNewGate"
 import { MapShell } from "@/pages/MapShell"
-import { DEFAULT_MINERAL_RUN_OPTIONS, mineralPassesUsed, type MineralRunOptions } from "@/lib/mineral"
+import {
+  DEFAULT_MINERAL_RUN_OPTIONS,
+  mineralPassesUsed,
+  type MineralRunOptions,
+} from "@/lib/mineral"
 import { AuthPage } from "@/pages/AuthPage"
 import { ProfilePage } from "@/pages/ProfilePage"
 
@@ -168,7 +174,8 @@ function parseRunPolygon(raw: string): GeoJSONGeometry | null {
       if (geom?.type === "Polygon" || geom?.type === "MultiPolygon") return geom
     }
     if (parsed.type === "FeatureCollection") {
-      const features = (parsed as { features?: { geometry?: GeoJSONGeometry }[] }).features
+      const features = (parsed as { features?: { geometry?: GeoJSONGeometry }[] })
+        .features
       const geom = features?.find(
         (f) => f.geometry?.type === "Polygon" || f.geometry?.type === "MultiPolygon"
       )?.geometry
@@ -260,26 +267,27 @@ function App() {
     )
   }, [])
 
-  const retainRun = useCallback((
-    outgoing: PredictResult | null,
-    /**
-     * The board's own id for the ground this run was over.
-     *
-     * THREE IDENTITIES HAD TO BE MADE ONE. The board keys its live area by the
-     * GROUND -- `liveAreaId` returns the area id whenever it knows it -- while
-     * `runId` reaching it is `result.run_id || "current"`, which every product
-     * but the classification then left on the sentinel, and this function
-     * keyed what it kept by the run. Three names for one area, so the retained
-     * entry and the area it came from could never find each other: the entry appeared in the data
-     * tree as a run to add by hand, and the planes that had been on the board
-     * were not carried over to it.
-     *
-     * Given rather than derived, because only the caller knows which ground is
-     * being left. Falls back to the run row, then to an unsaved counter.
-     */
-    areaId?: string | null
-  ) => {
-    /*
+  const retainRun = useCallback(
+    (
+      outgoing: PredictResult | null,
+      /**
+       * The board's own id for the ground this run was over.
+       *
+       * THREE IDENTITIES HAD TO BE MADE ONE. The board keys its live area by the
+       * GROUND -- `liveAreaId` returns the area id whenever it knows it -- while
+       * `runId` reaching it is `result.run_id || "current"`, which every product
+       * but the classification then left on the sentinel, and this function
+       * keyed what it kept by the run. Three names for one area, so the retained
+       * entry and the area it came from could never find each other: the entry appeared in the data
+       * tree as a run to add by hand, and the planes that had been on the board
+       * were not carried over to it.
+       *
+       * Given rather than derived, because only the caller knows which ground is
+       * being left. Falls back to the run row, then to an unsaved counter.
+       */
+      areaId?: string | null
+    ) => {
+      /*
       ANY PRODUCT IS WORTH KEEPING, not only a classification.
 
       This used to read: "a result with no classification is a standalone
@@ -299,19 +307,19 @@ function App() {
       none of these is an empty shell from a run that never finished, and that
       is the only case worth dropping.
     */
-    const carries =
-      !!outgoing &&
-      (!!outgoing.class_stats?.length ||
-        !!outgoing.overlay_uri ||
-        !!outgoing.water ||
-        !!outgoing.mineral ||
-        !!outgoing.fields)
-    if (!outgoing || !carries) {
-      return
-    }
-    const work = runWorkKey(outgoing)
-    setRetainedRuns((prev) => {
-      /*
+      const carries =
+        !!outgoing &&
+        (!!outgoing.class_stats?.length ||
+          !!outgoing.overlay_uri ||
+          !!outgoing.water ||
+          !!outgoing.mineral ||
+          !!outgoing.fields)
+      if (!outgoing || !carries) {
+        return
+      }
+      const work = runWorkKey(outgoing)
+      setRetainedRuns((prev) => {
+        /*
         THE RECORDED ROW, WHEREVER IT WAS RECORDED.
 
         `run_id` on the result is the classification's. A run that produced
@@ -324,14 +332,14 @@ function App() {
         withdraws its claim to have saved by returning nothing". Reading it
         here gives a retained water run its name and its outline back.
       */
-      const id =
-        areaId?.trim() ||
-        outgoing.run_id ||
-        outgoing.water?.run_id ||
-        outgoing.mineral?.run_id ||
-        outgoing.fields?.run_id ||
-        `unsaved:${prev.length + 1}`
-      /*
+        const id =
+          areaId?.trim() ||
+          outgoing.run_id ||
+          outgoing.water?.run_id ||
+          outgoing.mineral?.run_id ||
+          outgoing.fields?.run_id ||
+          `unsaved:${prev.length + 1}`
+        /*
         ONE ENTRY PER RUN, WHATEVER IT WAS FILED UNDER.
 
         Retention happens from the effect that watches the ground and from
@@ -345,26 +353,26 @@ function App() {
         under -- `liveAreaId` answers with it -- so an entry keyed by the run
         is re-keyed rather than left to shadow the one that can be found.
       */
-      const same = work
-        ? prev.findIndex((r) => runWorkKey(r.result) === work)
-        : -1
-      if (same >= 0) {
-        if (prev[same].id === id || !areaId?.trim()) return prev
-        const rekeyed = [...prev]
-        rekeyed[same] = { id, result: outgoing }
-        return rekeyed
-      }
-      if (prev.some((r) => r.id === id)) return prev
-      const next = [{ id, result: outgoing }, ...prev]
-      if (next.length <= 3) return next
-      // Drop the oldest RECOVERABLE one; an unsaved run has nowhere to return
-      // from, so it outlives a saved neighbour.
-      for (let i = next.length - 1; i >= 0; i--) {
-        if (!next[i].id.startsWith("unsaved:")) return next.filter((_, j) => j !== i)
-      }
-      return next.slice(0, 3)
-    })
-  }, [runWorkKey])
+        const same = work ? prev.findIndex((r) => runWorkKey(r.result) === work) : -1
+        if (same >= 0) {
+          if (prev[same].id === id || !areaId?.trim()) return prev
+          const rekeyed = [...prev]
+          rekeyed[same] = { id, result: outgoing }
+          return rekeyed
+        }
+        if (prev.some((r) => r.id === id)) return prev
+        const next = [{ id, result: outgoing }, ...prev]
+        if (next.length <= 3) return next
+        // Drop the oldest RECOVERABLE one; an unsaved run has nowhere to return
+        // from, so it outlives a saved neighbour.
+        for (let i = next.length - 1; i >= 0; i--) {
+          if (!next[i].id.startsWith("unsaved:")) return next.filter((_, j) => j !== i)
+        }
+        return next.slice(0, 3)
+      })
+    },
+    [runWorkKey]
+  )
   /**
    * Let go of a retained run, which the board could list and not remove.
    *
@@ -795,7 +803,9 @@ function AppBody(props: {
             ? `Missing: ${missing
                 .slice(0, 3)
                 .map((p) => p.distribution)
-                .join(", ")}${missing.length > 3 ? ` and ${missing.length - 3} more` : ""}.`
+                .join(
+                  ", "
+                )}${missing.length > 3 ? ` and ${missing.length - 3} more` : ""}.`
             : "The selected interpreter cannot run the analysis sidecar."
 
         notifyError(
@@ -866,9 +876,7 @@ function AppBody(props: {
 
   const [composition, setComposition] = useState<CompositionOverlay | null>(null)
   /** Session gallery of applied compositions (newest first); map shows `composition`. */
-  const [compositionGallery, setCompositionGallery] = useState<
-    CompositionOverlay[]
-  >([])
+  const [compositionGallery, setCompositionGallery] = useState<CompositionOverlay[]>([])
   /*
     The compositions that belong with what is on screen.
 
@@ -966,9 +974,7 @@ function AppBody(props: {
    * Live map position, so returning to the map screen resumes exactly where it
    * was left rather than at whatever the debounced write last committed.
    */
-  const liveViewRef = useRef<{ lat: number; lon: number; zoom: number } | null>(
-    null
-  )
+  const liveViewRef = useRef<{ lat: number; lon: number; zoom: number } | null>(null)
   const persistMapView = useCallback(
     (v: { lat: number; lon: number; zoom: number }) => {
       if (viewSaveTimer.current) window.clearTimeout(viewSaveTimer.current)
@@ -1089,10 +1095,7 @@ function AppBody(props: {
   }, [props.setResult])
 
   const activateProject = useCallback(
-    async (
-      id: string | null,
-      opts?: { userInitiated?: boolean }
-    ) => {
+    async (id: string | null, opts?: { userInitiated?: boolean }) => {
       // Opening a project is an explicit action and draws its AOI and most
       // recent composition on the map. Restoring one at startup is not, and
       // must not: a session that begins with an AOI outline and an overlay the
@@ -1161,8 +1164,7 @@ function AppBody(props: {
         */
         const rows = await ListAreas(id)
         const opened = toAreas(rows)
-        const resume =
-          opened.find((a) => a.id === p.last_area_id) ?? opened[0] ?? null
+        const resume = opened.find((a) => a.id === p.last_area_id) ?? opened[0] ?? null
         if (userInitiated && resume) {
           props.setActiveAreaId(resume.id)
           props.setCustomPolygon(resume.geometry)
@@ -1211,7 +1213,7 @@ function AppBody(props: {
               lat_max: openedAoi.latMax,
             })
           : gallery
-        setComposition(userInitiated ? inView[0] ?? null : null)
+        setComposition(userInitiated ? (inView[0] ?? null) : null)
         setShowCompositionOverlay(userInitiated && !!inView[0])
       } catch (e) {
         notifyError("Could not open project", e)
@@ -1677,12 +1679,18 @@ function AppBody(props: {
       health runs from the band as a job even over one area, and a job needs a
       saved area to be filed under.
     */
-    const ids = liveSelection.length ? liveSelection : props.activeAreaId ? [props.activeAreaId] : []
+    const ids = liveSelection.length
+      ? liveSelection
+      : props.activeAreaId
+        ? [props.activeAreaId]
+        : []
     const targets = ids
       .map((id) => props.areas.find((a) => a.id === id))
       .filter((a): a is Area => !!a)
     if (!targets.length) {
-      notifyError("Select the areas to run over: shift-press them on the globe or under Areas.")
+      notifyError(
+        "Select the areas to run over: shift-press them on the globe or under Areas."
+      )
       return
     }
     // The overlap reads registers, not imagery, and so has no period.
@@ -1875,7 +1883,9 @@ function AppBody(props: {
     }
     const active = props.areas.find((a) => a.id === props.activeAreaId)
     if (active?.parent_id) {
-      notifyError("Choose the area the field belongs to: fields are delineated over an area, not over one field.")
+      notifyError(
+        "Choose the area the field belongs to: fields are delineated over an area, not over one field."
+      )
       return
     }
     fieldsSeenRef.current = { progress: 0, message: "starting" }
@@ -1950,7 +1960,6 @@ function AppBody(props: {
       return false
     }
   }
-
 
   const handleRun = async () => {
     if (!props.start || !props.end) {
@@ -2061,11 +2070,13 @@ function AppBody(props: {
       }
       // Keep prior classification if any; otherwise expose LULC as the map overlay.
       const prev = props.result
-      const keepClassification = !!prev && ((prev.n_dates ?? 0) > 0 || !!prev.overlay_uri)
+      const keepClassification =
+        !!prev && ((prev.n_dates ?? 0) > 0 || !!prev.overlay_uri)
       props.setShowPredictionOverlay(true)
       props.setResult({
         extent: keepClassification && prev ? prev.extent : extent,
-        overlay_uri: keepClassification && prev?.overlay_uri ? prev.overlay_uri : mapUri,
+        overlay_uri:
+          keepClassification && prev?.overlay_uri ? prev.overlay_uri : mapUri,
         confidence_uri: prev?.confidence_uri ?? "",
         ndvi_mean_uri: prev?.ndvi_mean_uri ?? "",
         true_color_uri: prev?.true_color_uri ?? "",
@@ -2203,8 +2214,6 @@ function AppBody(props: {
       props.setActiveAreaId,
     ]
   )
-
-
 
   /**
    * Open a saved studio.
@@ -2435,9 +2444,7 @@ function AppBody(props: {
   )
 
   const initialMapView =
-    liveViewRef.current ??
-    parsePreferenceExtras(prefs?.extras_json).map_view ??
-    null
+    liveViewRef.current ?? parsePreferenceExtras(prefs?.extras_json).map_view ?? null
 
   /*
     The open project's grounds, re-read from the store.
@@ -2502,7 +2509,11 @@ function AppBody(props: {
         return null
       }
       try {
-        const row = await CreateArea(activeProjectId, nameHint?.trim() ?? "", JSON.stringify(geom))
+        const row = await CreateArea(
+          activeProjectId,
+          nameHint?.trim() ?? "",
+          JSON.stringify(geom)
+        )
         const entry = toArea(row)
         if (!entry) {
           notifyError("The area was saved but its shape could not be read back.")
@@ -2783,7 +2794,6 @@ function AppBody(props: {
     ]
   )
 
-
   const renameArea = useCallback(
     async (id: string, name: string) => {
       const next = name.trim()
@@ -2817,7 +2827,6 @@ function AppBody(props: {
       activeProjectId,
     ]
   )
-
 
   const deleteArea = useCallback(
     async (id: string) => {
@@ -2863,23 +2872,22 @@ function AppBody(props: {
    * than written into the classification result: either can be produced first,
    * and neither must overwrite the other.
    */
-  const resultWithWater = useMemo(
-    () => {
-      // Every standalone product counts. A run that carries only one of them
-      // no longer sets a classification result, so leaving any out here would
-      // hand the analysis screen nothing to show for it.
-      //
-      // THE SAME LIST APPEARS IN clearAnalysisResults, WHICH CLEARS IT. A
-      // product added to one and not the other is a defect that has shipped
-      // once: this counted a loaded result, the clearing did not remove it, and
-      // the detail view rebuilt itself from what the clearing left behind.
-      // Adding a product here means adding it there.
-      if (!props.result && !water && !mineral && !fields) {
-        return null
-      }
-      return {
-        ...(props.result ?? EMPTY_RESULT),
-        /*
+  const resultWithWater = useMemo(() => {
+    // Every standalone product counts. A run that carries only one of them
+    // no longer sets a classification result, so leaving any out here would
+    // hand the analysis screen nothing to show for it.
+    //
+    // THE SAME LIST APPEARS IN clearAnalysisResults, WHICH CLEARS IT. A
+    // product added to one and not the other is a defect that has shipped
+    // once: this counted a loaded result, the clearing did not remove it, and
+    // the detail view rebuilt itself from what the clearing left behind.
+    // Adding a product here means adding it there.
+    if (!props.result && !water && !mineral && !fields) {
+      return null
+    }
+    return {
+      ...(props.result ?? EMPTY_RESULT),
+      /*
           Whatever produced this state, not only a classification.
 
           The spread above supplies `run_id` from `props.result`, which a
@@ -2889,14 +2897,12 @@ function AppBody(props: {
           every handler that records a run and by opening a saved run, so it
           answers for each.
         */
-        run_id: currentRunId ?? "",
-        water,
-        mineral,
-        fields,
-      }
-    },
-    [props.result, water, mineral, fields, currentRunId]
-  )
+      run_id: currentRunId ?? "",
+      water,
+      mineral,
+      fields,
+    }
+  }, [props.result, water, mineral, fields, currentRunId])
 
   /**
    * The merged result, readable from callbacks declared above this memo.
@@ -2939,8 +2945,6 @@ function AppBody(props: {
     props.retainRun(leaving.result, leaving.id)
   }, [props.activeAreaId, resultWithWater, props.retainRun])
 
-
-
   const analysisPolygonGeoJSON = useMemo(
     () => (props.customPolygon ? JSON.stringify(props.customPolygon) : ""),
     [props.customPolygon]
@@ -2948,9 +2952,7 @@ function AppBody(props: {
 
   return (
     <div className="flex h-screen w-screen flex-col overflow-hidden bg-app text-foreground">
-      {screen !== "map" && (
-        <TitleBar />
-      )}
+      {screen !== "map" && <TitleBar />}
       {/* The keymap and the operator search, on every screen. */}
       <OperatorHost />
       {/* Project files: opening, saving, and what the Finder hands over. */}
@@ -3036,9 +3038,7 @@ function AppBody(props: {
                   showPredictionOverlay={props.showPredictionOverlay}
                   showCompositionOverlay={showCompositionOverlay}
                   composition={
-                    composition
-                      ? { ...composition, opacity: composeOpacity }
-                      : null
+                    composition ? { ...composition, opacity: composeOpacity } : null
                   }
                   areaLabel={areaLabel}
                   hasArea={props.hasArea}

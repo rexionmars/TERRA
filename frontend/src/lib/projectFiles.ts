@@ -15,12 +15,21 @@
 export const MAX_RECENT_PROJECT_FILES = 10
 
 /** A path with this one first and no duplicate of it, bounded. */
-export function withRecent(list: readonly string[] | undefined, path: string): string[] {
-  return [path, ...(list ?? []).filter((p) => p !== path)].slice(0, MAX_RECENT_PROJECT_FILES)
+export function withRecent(
+  list: readonly string[] | undefined,
+  path: string
+): string[] {
+  return [path, ...(list ?? []).filter((p) => p !== path)].slice(
+    0,
+    MAX_RECENT_PROJECT_FILES
+  )
 }
 
 /** A list without this path, for a file that is no longer there. */
-export function withoutRecent(list: readonly string[] | undefined, path: string): string[] {
+export function withoutRecent(
+  list: readonly string[] | undefined,
+  path: string
+): string[] {
   return (list ?? []).filter((p) => p !== path)
 }
 
