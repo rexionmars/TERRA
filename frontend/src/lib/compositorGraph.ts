@@ -895,7 +895,7 @@ export function defaultGraph(runId: string, classOutput: string): CompositorGrap
       "run-1": { x: 0, y: 0 },
       "majority-1": { x: 280, y: 0 },
       "viewer-1": { x: 540, y: -40 },
-      "areas-1": { x: 540, y: 150 },
+      "areas-1": { x: 540, y: 350 },
       "change-1": { x: 880, y: 60 },
     },
     viewer: "viewer-1",
