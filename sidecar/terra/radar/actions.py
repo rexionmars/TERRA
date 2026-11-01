@@ -106,7 +106,13 @@ def radar(req: protocol.Request, work_dir: Path) -> None:
 
     lon_min, lat_min, lon_max, lat_max = transform_bounds(grid.crs, 'EPSG:4326', *grid.bounds, densify_pts=21)
     result = {
-        'extent': {'lon_min': lon_min, 'lat_min': lat_min, 'lon_max': lon_max, 'lat_max': lat_max},
+        'extent': {
+            'lon_min': lon_min,
+            'lat_min': lat_min,
+            'lon_max': lon_max,
+            'lat_max': lat_max,
+            'corners': grid.corners(),
+        },
         'orbits': series.orbits(obs),
         'series': [o.point() for o in obs],
         'losses': found,

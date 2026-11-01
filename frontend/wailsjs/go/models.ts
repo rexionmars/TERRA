@@ -5,6 +5,7 @@ export namespace analysis {
 	    lat_min: number;
 	    lon_max: number;
 	    lat_max: number;
+	    corners?: number[][];
 	
 	    static createFrom(source: any = {}) {
 	        return new Bounds(source);
@@ -16,6 +17,7 @@ export namespace analysis {
 	        this.lat_min = source["lat_min"];
 	        this.lon_max = source["lon_max"];
 	        this.lat_max = source["lat_max"];
+	        this.corners = source["corners"];
 	    }
 	}
 	export class ClassSpectrumPoint {

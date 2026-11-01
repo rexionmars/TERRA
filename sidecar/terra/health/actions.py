@@ -167,6 +167,7 @@ def health(req: protocol.Request, work_dir: Path) -> None:
             'lat_min': lat_min,
             'lon_max': lon_max,
             'lat_max': lat_max,
+            'corners': grid.corners(),
         },
         'window_days': window,
         'baseline_years': sorted(read_years),

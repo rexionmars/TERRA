@@ -207,7 +207,13 @@ def zones(req: protocol.Request, work_dir: Path) -> None:
         )
 
     result = {
-        'extent': {'lon_min': lon_min, 'lat_min': lat_min, 'lon_max': lon_max, 'lat_max': lat_max},
+        'extent': {
+            'lon_min': lon_min,
+            'lat_min': lat_min,
+            'lon_max': lon_max,
+            'lat_max': lat_max,
+            'corners': grid.corners(),
+        },
         'seasons': season_rows,
         'n_cells': int(valid.sum()),
         'field_cells': n_inside,

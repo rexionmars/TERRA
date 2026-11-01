@@ -79,6 +79,23 @@ export function isZeroExtent(e: Bounds | null | undefined): boolean {
   )
 }
 
+/**
+ * Where a raster's corners are, clockwise from the top left.
+ *
+ * The ones the sidecar reported, since a UTM grid does not run along the meridians
+ * and a box draws it turned. A raster in degrees reports none and is that box, as
+ * is a run saved before they were reported.
+ */
+export function cornersOf(e: Bounds): number[][] {
+  if (e.corners?.length === 4) return e.corners
+  return [
+    [e.lon_min, e.lat_max],
+    [e.lon_max, e.lat_max],
+    [e.lon_max, e.lat_min],
+    [e.lon_min, e.lat_min],
+  ]
+}
+
 /** `Bounds` as Leaflet wants them, or null where there is nothing to draw. */
 export function boundsToLatLng(
   e: Bounds | null | undefined
