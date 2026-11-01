@@ -1,14 +1,8 @@
-import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react"
+import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { SCREEN } from "@/lib/motion"
 import type { Dispatch, SetStateAction } from "react"
 import { AnimatePresence, motion } from "motion/react"
-import {
-  TELEMETRY_DEFAULT,
-  setStudioTelemetry,
-} from "@/lib/studioTelemetry"
-import { setStudioGutter } from "@/lib/studioGutter"
 import { notifyError, notifyInfo, notifySuccess } from "@/lib/notify"
-import type { EditorId } from "@/lib/studioEditors"
 import type { Studio } from "@/lib/studios"
 import { listStudios, openStudio, saveStudio } from "@/lib/studios"
 import {
@@ -18,7 +12,7 @@ import {
   restoreBoard,
   snapshotBoard,
   writeBoardMemory,
-} from "@/components/studio/boardMemory"
+} from "@/components/workspace/boardMemory"
 import { useTheme } from "next-themes"
 import {
   LoadAnalysis,
@@ -85,15 +79,8 @@ import {
   projectOverlayToComposition,
   scopeCompositionsToView,
 } from "@/lib/projectOverlays"
-import {
-  geometryBounds,
-  geometryCentroid,
-} from "@/lib/geometry"
+import { geometryBounds } from "@/lib/geometry"
 import { resolveCompositionMeta } from "@/lib/compositeCatalog"
-import {
-  DEFAULT_AOI_CONTOUR_SCHEME,
-  type AoiContourSchemeId,
-} from "@/lib/aoiStyle"
 import { AuthProvider, useAuth } from "@/lib/auth"
 import { extendSelection, toArea, toAreas, type Area } from "@/lib/areas"
 import { importedPolygon } from "@/lib/importedPolygon"
@@ -105,11 +92,8 @@ import { OperatorHost } from "@/components/OperatorHost"
 import { ProjectFileHost } from "@/components/ProjectFileHost"
 import { SplashScreen } from "@/components/SplashScreen"
 import { WhatsNewGate } from "@/components/WhatsNewGate"
-import { StudioScreen } from "@/pages/StudioScreen"
 import { MapShell } from "@/pages/MapShell"
-import { shellChoice, subscribeShellChoice } from "@/lib/shellChoice"
 import { DEFAULT_MINERAL_RUN_OPTIONS, mineralPassesUsed, type MineralRunOptions } from "@/lib/mineral"
-import type { BasemapKind } from "@/lib/basemaps"
 import { AuthPage } from "@/pages/AuthPage"
 import { ProfilePage } from "@/pages/ProfilePage"
 
@@ -201,7 +185,6 @@ function App() {
   const [customPolygon, setCustomPolygon] = useState<GeoJSONGeometry | null>(null)
   const [areas, setAreas] = useState<Area[]>([])
   const [activeAreaId, setActiveAreaId] = useState<string | undefined>()
-  const [flyTo, setFlyTo] = useState<{ lat: number; lon: number; key: number } | null>(null)
   const [view, setView] = useState<{ lat: number; lon: number; zoom: number }>({
     lat: -14.5,
     lon: -52,
@@ -219,10 +202,6 @@ function App() {
   const [confidenceOnTop, setConfidenceOnTop] = useState(true)
   const [smoothOverlay, setSmoothOverlay] = useState(false)
   const [showPredictionOverlay, setShowPredictionOverlay] = useState(true)
-  const [swipeCompare, setSwipeCompare] = useState(false)
-  const [swipeRatio, setSwipeRatio] = useState(0.5)
-  const [aoiContourScheme, setAoiContourScheme] =
-    useState<AoiContourSchemeId>(DEFAULT_AOI_CONTOUR_SCHEME)
   const [running, setRunning] = useState<boolean>(false)
   const [progress, setProgress] = useState<number>(0)
   const [progressMsg, setProgressMsg] = useState<string>("")
@@ -430,17 +409,6 @@ function App() {
       if (p.theme === "dark" || p.theme === "light" || p.theme === "system") {
         setTheme(p.theme)
       }
-      const extras = parsePreferenceExtras(p.extras_json)
-      /*
-        Into a module rather than into state: the readers are the studio's
-        status bar and the scene, and the scene is not React. Seeded here
-        because this is where preferences arrive, and absent means none --
-        which is what a reader who has never opened the setting should get.
-      */
-      setStudioTelemetry(extras.studio_telemetry ?? TELEMETRY_DEFAULT)
-      // Same reason, and the same shape: the readers are the area tree, the
-      // areas themselves and a keydown handler outside React.
-      setStudioGutter(extras.studio_panel_gap)
     },
     [setTheme]
   )
@@ -531,7 +499,6 @@ function App() {
             customPolygon={customPolygon}
             areas={areas}
             activeAreaId={activeAreaId}
-            flyTo={flyTo}
             view={view}
             start={start}
             end={end}
@@ -545,9 +512,6 @@ function App() {
             confidenceOnTop={confidenceOnTop}
             smoothOverlay={smoothOverlay}
             showPredictionOverlay={showPredictionOverlay}
-            swipeCompare={swipeCompare}
-            swipeRatio={swipeRatio}
-            aoiContourScheme={aoiContourScheme}
             running={running}
             progress={progress}
             progressMsg={progressMsg}
@@ -558,7 +522,6 @@ function App() {
             setCustomPolygon={setCustomPolygon}
             setAreas={setAreas}
             setActiveAreaId={setActiveAreaId}
-            setFlyTo={setFlyTo}
             setStart={setStart}
             setEnd={setEnd}
             setMaxCloud={setMaxCloud}
@@ -571,9 +534,6 @@ function App() {
             setConfidenceOnTop={setConfidenceOnTop}
             setSmoothOverlay={setSmoothOverlay}
             setShowPredictionOverlay={setShowPredictionOverlay}
-            setSwipeCompare={setSwipeCompare}
-            setSwipeRatio={setSwipeRatio}
-            setAoiContourScheme={setAoiContourScheme}
             setRunning={setRunning}
             setProgress={setProgress}
             setProgressMsg={setProgressMsg}
@@ -597,7 +557,6 @@ function AppBody(props: {
   customPolygon: GeoJSONGeometry | null
   areas: Area[]
   activeAreaId?: string
-  flyTo: { lat: number; lon: number; key: number } | null
   view: { lat: number; lon: number; zoom: number }
   start: string
   end: string
@@ -611,9 +570,6 @@ function AppBody(props: {
   confidenceOnTop: boolean
   smoothOverlay: boolean
   showPredictionOverlay: boolean
-  swipeCompare: boolean
-  swipeRatio: number
-  aoiContourScheme: AoiContourSchemeId
   running: boolean
   progress: number
   progressMsg: string
@@ -624,7 +580,6 @@ function AppBody(props: {
   setCustomPolygon: (g: GeoJSONGeometry | null) => void
   setAreas: Dispatch<SetStateAction<Area[]>>
   setActiveAreaId: (id: string | undefined) => void
-  setFlyTo: (v: { lat: number; lon: number; key: number } | null) => void
   setStart: (v: string) => void
   setEnd: (v: string) => void
   setMaxCloud: (v: number) => void
@@ -637,9 +592,6 @@ function AppBody(props: {
   setConfidenceOnTop: (v: boolean) => void
   setSmoothOverlay: (v: boolean) => void
   setShowPredictionOverlay: (v: boolean) => void
-  setSwipeCompare: (v: boolean) => void
-  setSwipeRatio: (v: number) => void
-  setAoiContourScheme: (id: AoiContourSchemeId) => void
   setRunning: (v: boolean) => void
   setProgress: (v: number) => void
   setProgressMsg: (v: string) => void
@@ -660,7 +612,7 @@ function AppBody(props: {
     refreshRuns,
     refreshProjects,
     screen,
-    goStudio,
+    goMap,
     goProfile,
     projects,
     prefs,
@@ -695,14 +647,6 @@ function AppBody(props: {
     keep in step. Its progress has a channel of its own below, so a mineral
     run's messages do not land under the classification's button.
   */
-  /*
-    The editor a just-finished run needs on screen, consumed once.
-
-    A request rather than a command: the board owns its tree and decides
-    whether this is already satisfied. Cleared as soon as it is honoured, so a
-    run cannot rearrange a board long after it finished.
-  */
-  const [reveal, setReveal] = useState<EditorId | null>(null)
   const [mineral, setMineral] = useState<MineralAnalysis | null>(null)
   const [mineralRun, setMineralRun] = useState({
     active: false,
@@ -723,49 +667,7 @@ function AppBody(props: {
     progress: 0,
     message: "",
   })
-  /*
-    THE OUTCOME OF THE LAST RUN, AND THE VALUES IT WAS MADE FROM.
 
-    Every handler below already knows how its run ended -- it says so in a
-    toast -- and until this existed the toast was the only place that answer
-    went. A toast is gone in seconds and the raster it was about stays on the
-    map, so nothing on screen could say WHICH of the values the board is
-    holding that raster is an answer about. The board's wires say it now, and
-    this is what they read.
-
-    ONE OUTCOME FOR THE APPLICATION, because there is one run: the sidecar
-    takes a single analysis at a time and every branch that starts one enforces
-    it. What tells two runs apart is not a key but the inputs recorded beside
-    the outcome -- change the product, or the period, and the wire carrying
-    that value falls back to pending on its own, because the value it carries
-    is one of the values compared.
-
-    DECLARED HERE, ahead of every handler that settles it, rather than beside
-    the run state further down: a handler defined above a `const` can call it
-    at run time, and this file has already been bitten once by reading a
-    binding in its temporal dead zone. See `retainableRef` for that note.
-  */
-  const boardInputs = useRef<Record<string, string>>({})
-  const [lastBoardRun, setLastBoardRun] = useState<{
-    ok: boolean
-    inputs: Record<string, string>
-  } | null>(null)
-  const settleRun = useCallback((ok: boolean) => {
-    setLastBoardRun({ ok, inputs: boardInputs.current })
-  }, [])
-  /* What the board's cards supply, kept current so a settle can record it. */
-  const onBoardInputs = useCallback((inputs: Record<string, string>) => {
-    boardInputs.current = inputs
-  }, [])
-
-  /*
-    Whether the studio's board is up, mirrored here for the title bar.
-
-    It is always true while the studio screen is mounted -- the board is the
-    screen now -- and false everywhere else, which is what the bar reads to
-    decide whether the map's own telemetry has anything to describe.
-  */
-  const [boardOpen, setBoardOpen] = useState(false)
   const [activeProjectId, setActiveProjectId] = useState<string | null>(null)
 
   /*
@@ -817,10 +719,10 @@ function AppBody(props: {
     (runIds: readonly string[], workspace?: string) => {
       writeBoardMemory("pendingRunIds", [...runIds])
       if (workspace) writeBoardMemory("pendingWorkspace", workspace)
-      goStudio()
+      goMap()
       setOpenBoardNonce((n) => n + 1)
     },
-    [goStudio]
+    [goMap]
   )
 
   /**
@@ -932,20 +834,7 @@ function AppBody(props: {
    * the first render, so an initialiser would read null and pin every session
    * to docked.
    */
-  /**
-   * Which basemap the map is showing, for the credit line in the title bar.
-   *
-   * Held here rather than in either screen because both draw a map and the bar
-   * is above both: a credit owned by one screen would be blank on the other.
-   */
-  const [credit, setCredit] = useState<{
-    kind: BasemapKind
-    date: string | null
-    /** Relief on: a second provider is on screen and is credited with it. */
-    terrain?: boolean
-  }>({ kind: "esri", date: null })
-  /**
-   * Title of the run whose result is on screen, for the title bar.
+
   /*
     The saved run on screen, by id.
 
@@ -974,10 +863,6 @@ function AppBody(props: {
     (aoiHint?: string | null): string => makeRunLabel(aoiHint),
     []
   )
-  const [dataCubeOpen, setDataCubeOpen] = useState(false)
-  const [dataCubeLoading, setDataCubeLoading] = useState(false)
-  const [dataCubeError, setDataCubeError] = useState<string | null>(null)
-  const [dataCubeResult, setDataCubeResult] = useState<DataCubeResult | null>(null)
 
   const [composition, setComposition] = useState<CompositionOverlay | null>(null)
   /** Session gallery of applied compositions (newest first); map shows `composition`. */
@@ -1283,14 +1168,6 @@ function AppBody(props: {
           props.setCustomPolygon(resume.geometry)
           props.setAnalysisLabel(resume.name)
           void persistAoiLabel(resume.name)
-          const centroid = geometryCentroid(resume.geometry)
-          if (centroid) {
-            props.setFlyTo({
-              lat: centroid[1],
-              lon: centroid[0],
-              key: Date.now(),
-            })
-          }
         } else if (userInitiated) {
           /*
             A PROJECT WITH NO GROUND YET OPENS ON NO GROUND.
@@ -1349,7 +1226,6 @@ function AppBody(props: {
       props.setActiveAreaId,
       props.setCustomPolygon,
       props.setAnalysisLabel,
-      props.setFlyTo,
     ]
   )
 
@@ -1514,9 +1390,7 @@ function AppBody(props: {
         }
       }
       notifySuccess("Composition applied to map.")
-      settleRun(true)
     } catch (e) {
-      settleRun(false)
       notifyError("Composition error", e)
     } finally {
       setComposeRunning(false)
@@ -1808,7 +1682,7 @@ function AppBody(props: {
       .map((id) => props.areas.find((a) => a.id === id))
       .filter((a): a is Area => !!a)
     if (!targets.length) {
-      notifyError("Select the areas to run over: shift-press them on the globe or in the outliner.")
+      notifyError("Select the areas to run over: shift-press them on the globe or under Areas.")
       return
     }
     // The overlap reads registers, not imagery, and so has no period.
@@ -1890,9 +1764,7 @@ function AppBody(props: {
       )
       void refreshRuns()
       void refreshProjects()
-      settleRun(true)
     } catch (e) {
-      settleRun(false)
       notifyError("Surface water error", e)
     } finally {
       setWaterRunning(false)
@@ -1967,9 +1839,7 @@ function AppBody(props: {
       )
       void refreshRuns()
       void refreshProjects()
-      settleRun(true)
     } catch (e) {
-      settleRun(false)
       notifyError("Mineral map error", e)
     } finally {
       setMineralRun({ active: false, progress: 0, message: "" })
@@ -2046,9 +1916,7 @@ function AppBody(props: {
       )
       void refreshRuns()
       void refreshProjects()
-      settleRun(true)
     } catch (e) {
-      settleRun(false)
       notifyError("Field boundaries error", e)
     } finally {
       setFieldsRun({ active: false, progress: 0, message: "" })
@@ -2074,7 +1942,7 @@ function AppBody(props: {
       await refreshAreas(activeProjectId)
       const parent = props.areas.find((a) => a.id === made[0]?.parent_id)
       notifySuccess(
-        `${made.length} fields made areas of ${parent?.name ?? "the area"}; choose one in the outliner or on the globe to run over it.`
+        `${made.length} fields made areas of ${parent?.name ?? "the area"}; choose one under Areas or on the globe to run over it.`
       )
       return true
     } catch (e) {
@@ -2083,38 +1951,6 @@ function AppBody(props: {
     }
   }
 
-  const handleViewDataCube = async () => {
-    if (!props.start || !props.end) {
-      notifyError("Set the acquisition period.")
-      return
-    }
-    if (!props.customPolygon) {
-      notifyError("Draw an area on the map first.")
-      return
-    }
-    const req: DataCubeRequest = {
-      polygon_geojson: props.customPolygon,
-      start: props.start,
-      end: props.end,
-      max_cloud: props.maxCloud,
-      monthly_best: props.monthlyBest,
-      tiles: [],
-    }
-    setDataCubeOpen(true)
-    setDataCubeLoading(true)
-    setDataCubeError(null)
-    setDataCubeResult(null)
-    try {
-      const res = (await ListDataCube(req as never)) as unknown as DataCubeResult
-      setDataCubeResult(res)
-    } catch (e) {
-      const msg = e instanceof Error ? e.message : String(e)
-      setDataCubeError(msg)
-      notifyError("Data cube error", msg)
-    } finally {
-      setDataCubeLoading(false)
-    }
-  }
 
   const handleRun = async () => {
     if (!props.start || !props.end) {
@@ -2176,9 +2012,7 @@ function AppBody(props: {
       )
       void refreshRuns()
       void refreshProjects()
-      settleRun(true)
     } catch (e) {
-      settleRun(false)
       notifyError("Inference error", e)
     } finally {
       props.setRunning(false)
@@ -2251,7 +2085,7 @@ function AppBody(props: {
         lulc,
       })
       notifySuccess("Land cover / land use ready on map.")
-      goStudio()
+      goMap()
     } catch (e) {
       notifyError("LULC analysis error", e)
     } finally {
@@ -2334,21 +2168,13 @@ function AppBody(props: {
         } else {
           setFields(null)
         }
-        const centroid = geometryCentroid(polygon)
-        if (centroid) {
-          props.setFlyTo({
-            lat: centroid[1],
-            lon: centroid[0],
-            key: Date.now(),
-          })
-        }
         /*
           One destination. This once chose between several screens, one per
           product, because each product was read where it was run. Everything
           is read in the studio now, the rasters as planes, so `run.kind` no
           longer chooses a screen.
         */
-        goStudio()
+        goMap()
         notifySuccess("Analysis restored.")
         // The queued products have no state here; the map shell holds their reading.
         return res
@@ -2362,13 +2188,12 @@ function AppBody(props: {
     // props setters are stable from useState in parent
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [
-      goStudio,
+      goMap,
       props.analysisLabel,
       props.setResult,
       props.setModelKind,
       props.setAnalysisLabel,
       props.setCustomPolygon,
-      props.setFlyTo,
       persistAoiLabel,
       prefs?.extras_json,
       projects,
@@ -2380,37 +2205,6 @@ function AppBody(props: {
   )
 
 
-  /**
-   * Starts a run of any product, from wherever the user is.
-   *
-   * The hub offered New classification and nothing else, while the application
-   * produces three run kinds and a composition. A user in a project could reach
-   * a classification in one click and everything else by navigating and
-   * remembering which screen holds it.
-   *
-   * The three map products clear the session the same way -- the previous
-   * result, overlay and AOI all belong to the run being replaced -- so they
-   * share startNewClassification and differ only in the panel they open.
-   */
-  const startNewClassification = useCallback(() => {
-    props.retainRun(props.result)
-    clearAnalysisResults()
-    props.setShowPredictionOverlay(true)
-    props.setSwipeCompare(false)
-    props.setSwipeRatio(0.5)
-    // Starting over drops the AOI, so the session composition must go with it:
-    // otherwise the previous AOI's overlay stays painted over the empty map.
-    // Saved compositions are reloaded from the project on reopen.
-    clearAreaAndComposition()
-    goStudio()
-  }, [
-    goStudio,
-    clearAreaAndComposition,
-    props.setResult,
-    props.setShowPredictionOverlay,
-    props.setSwipeCompare,
-    props.setSwipeRatio,
-  ])
 
   /**
    * Open a saved studio.
@@ -2429,7 +2223,7 @@ function AppBody(props: {
         const opened = await openStudio(board.id)
         if (!opened.snapshot) {
           notifyError(
-            "Could not read this studio",
+            "Could not read this workflow",
             new Error("its arrangement is unreadable")
           )
           return
@@ -2507,7 +2301,7 @@ function AppBody(props: {
         writeBoardMemory("savedName", board.name)
         if (opened.missingRunIds.length) {
           notifyInfo(
-            `${opened.missingRunIds.length} run(s) in this studio no longer exist.`
+            `${opened.missingRunIds.length} run(s) in this workflow no longer exist.`
           )
         }
         /*
@@ -2517,7 +2311,7 @@ function AppBody(props: {
         */
         openInStudio(wanted)
       } catch (e) {
-        notifyError("Could not open this studio", e)
+        notifyError("Could not open this workflow", e)
       }
     },
     [
@@ -2574,8 +2368,6 @@ function AppBody(props: {
       clearAnalysisResults()
       clearAreaAndComposition()
       props.setShowPredictionOverlay(true)
-      props.setSwipeCompare(false)
-      props.setSwipeRatio(0.5)
       /*
         WRITTEN NOW, EMPTY, RATHER THAN AT THE FIRST SAVE.
 
@@ -2606,7 +2398,7 @@ function AppBody(props: {
         writeBoardMemory("savedName", board.name)
         void refreshStudios()
       } catch (e) {
-        notifyError("Could not start the studio", e)
+        notifyError("Could not start the workflow", e)
       }
       openInStudio([])
     },
@@ -2618,8 +2410,6 @@ function AppBody(props: {
       refreshStudios,
       props.clearRetainedRuns,
       props.setShowPredictionOverlay,
-      props.setSwipeCompare,
-      props.setSwipeRatio,
     ]
   )
 
@@ -2766,13 +2556,9 @@ function AppBody(props: {
     async (name: string, geometry: GeoJSONGeometry) => {
       const entry = await createArea(geometry, name)
       if (!entry) return
-      const centroid = geometryCentroid(geometry)
-      if (centroid) {
-        props.setFlyTo({ lat: centroid[1], lon: centroid[0], key: Date.now() })
-      }
       notifySuccess(`\u201c${entry.name}\u201d is the area now.`)
     },
-    [createArea, props.setFlyTo]
+    [createArea]
   )
 
   /**
@@ -2997,26 +2783,6 @@ function AppBody(props: {
     ]
   )
 
-  /** Put a run's stored polygon on the map without adding a catalog entry. */
-  const adoptAreaGeometry = useCallback(
-    (geom: GeoJSONGeometry | null) => {
-      if (!geom) {
-        props.setCustomPolygon(null)
-        props.setActiveAreaId(undefined)
-        props.setAnalysisLabel(undefined)
-        return
-      }
-      props.setCustomPolygon(geom)
-      props.setActiveAreaId(undefined)
-      setComposition(null)
-      setShowCompositionOverlay(true)
-    },
-    [
-      props.setCustomPolygon,
-      props.setActiveAreaId,
-      props.setAnalysisLabel,
-    ]
-  )
 
   const renameArea = useCallback(
     async (id: string, name: string) => {
@@ -3052,29 +2818,6 @@ function AppBody(props: {
     ]
   )
 
-  /*
-    Renaming what is on the map renames the AREA it is.
-
-    It used to write the new name onto the PROJECT, as projects.label, because
-    that is where a name for the map's shape lived. A project working several
-    fields then carried one of their names, and renaming a second field
-    overwrote the first. The name belongs to the ground, and the ground is a
-    row that can hold it.
-
-    With nothing catalogued on the map -- a geometry adopted from an opened run
-    -- there is no row to rename, so the label stays a session-local display
-    name. That is what it was for every shape before areas existed.
-  */
-  const applyAoiRename = useCallback(
-    async (label: string) => {
-      const next = label.trim()
-      if (!next) return
-      props.setAnalysisLabel(next)
-      void persistAoiLabel(next)
-      if (props.activeAreaId) await renameArea(props.activeAreaId, next)
-    },
-    [props.activeAreaId, persistAoiLabel, props.setAnalysisLabel, renameArea]
-  )
 
   const deleteArea = useCallback(
     async (id: string) => {
@@ -3203,29 +2946,10 @@ function AppBody(props: {
     [props.customPolygon]
   )
 
-  /*
-    Which interface draws the surface. Both take the same props: they are the
-    whole contract between this file and whatever draws its state, so the choice
-    is made here at one word rather than across every handler.
-  */
-  const shell = useSyncExternalStore(subscribeShellChoice, shellChoice)
-  const Surface = shell === "map" ? MapShell : StudioScreen
-
   return (
     <div className="flex h-screen w-screen flex-col overflow-hidden bg-app text-foreground">
-      {!(screen === "studio" && shell === "map") && (
-        <TitleBar
-          view={props.view}
-          /*
-            Handed back so the map screen can portal its studio toggle up
-            here. What App holds is WHERE the button goes; whether the board is
-            open stays in the screen, which is the only place it can stay without
-            surviving a trip to another screen.
-          */
-          boardOpen={boardOpen}
-          result={props.result}
-          credit={credit}
-        />
+      {screen !== "map" && (
+        <TitleBar />
       )}
       {/* The keymap and the operator search, on every screen. */}
       <OperatorHost />
@@ -3263,7 +2987,7 @@ function AppBody(props: {
             screen starts building at the moment it is asked for.
           */}
           <AnimatePresence initial={false}>
-            {screen === "studio" && (
+            {screen === "map" && (
               <motion.div
                 key="screen-map"
                 className="absolute inset-0 min-h-0"
@@ -3272,7 +2996,7 @@ function AppBody(props: {
                 exit={{ opacity: 0, x: -10 }}
                 transition={SCREEN}
               >
-                <Surface
+                <MapShell
                   onOpenReading={openSavedAnalysis}
                   onPickBoundary={handlePickBoundary}
                   activeProjectId={activeProjectId}
@@ -3281,10 +3005,6 @@ function AppBody(props: {
                   }
                   retainedRuns={props.retainedRuns}
                   onDropRetainedRun={props.onDropRetainedRun}
-                  onCreditChange={setCredit}
-                  onBoardOpenChange={setBoardOpen}
-                  lastRun={lastBoardRun}
-                  onBoardInputs={onBoardInputs}
                   onActivateProject={(id) => void activateProject(id)}
                   polygonGeoJSON={analysisPolygonGeoJSON}
                   mineral={mineral}
@@ -3306,11 +3026,8 @@ function AppBody(props: {
                   onSelectAreas={selectAreas}
                   onClearSelection={clearSelection}
                   onQueueJobs={(kind) => void handleQueueJobs(kind)}
-                  reveal={reveal}
-                  onRevealed={() => setReveal(null)}
                   initialView={initialMapView}
                   customPolygon={props.customPolygon}
-                  flyTo={props.flyTo}
                   result={props.result}
                   overlayOpacity={props.overlayOpacity}
                   showConfidence={props.showConfidence}
@@ -3323,14 +3040,7 @@ function AppBody(props: {
                       ? { ...composition, opacity: composeOpacity }
                       : null
                   }
-                  swipeCompare={props.swipeCompare}
-                  swipeRatio={props.swipeRatio}
                   areaLabel={areaLabel}
-                  onAreaLabelChange={(label) => {
-                    void applyAoiRename(label)
-                  }}
-                  aoiContourScheme={props.aoiContourScheme}
-                  onAoiContourSchemeChange={props.setAoiContourScheme}
                   hasArea={props.hasArea}
                   start={props.start}
                   end={props.end}
@@ -3357,15 +3067,11 @@ function AppBody(props: {
                   composeOpacity={composeOpacity}
                   onViewChange={handleViewChange}
                   onPolygonDrawn={handlePolygonDrawn}
-                  onAdoptAreaGeometry={adoptAreaGeometry}
                   areas={props.areas}
                   activeAreaId={props.activeAreaId}
                   onActivateArea={activateArea}
                   onRenameArea={renameArea}
                   onDeleteArea={deleteArea}
-                  onLocationSelect={(lat, lon) =>
-                    props.setFlyTo({ lat, lon, key: Date.now() })
-                  }
                   onClearArea={clearAreaAndComposition}
                   onImportPolygon={handleImportPolygon}
                   onStartChange={props.setStart}
@@ -3414,8 +3120,6 @@ function AppBody(props: {
                       return next
                     })
                   }}
-                  onSwipeCompareChange={props.setSwipeCompare}
-                  onSwipeRatioChange={props.setSwipeRatio}
                   onRun={handleRun}
                   onAnalyzeLULC={handleAnalyzeLULC}
                   lulcRunning={props.lulcRunning}
@@ -3436,18 +3140,6 @@ function AppBody(props: {
                     props.setResult(null)
                     props.setShowPredictionOverlay(true)
                     props.setAnalysisLabel(undefined)
-                    props.setSwipeCompare(false)
-                    props.setSwipeRatio(0.5)
-                  }}
-                  onNewClassification={startNewClassification}
-                  onViewDataCube={() => void handleViewDataCube()}
-                  dataCubeLoading={dataCubeLoading}
-                  dataCubeOpen={dataCubeOpen}
-                  dataCubeError={dataCubeError}
-                  dataCubeResult={dataCubeResult}
-                  onCloseDataCube={() => {
-                    setDataCubeOpen(false)
-                    setDataCubeError(null)
                   }}
                   water={water}
                   waterIndex={waterIndex}

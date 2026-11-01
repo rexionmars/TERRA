@@ -47,7 +47,7 @@ type App struct {
 	// What the splash's status reads; see setBootState.
 	bootState string
 
-	// Whether the board holds changes no saved studio does. Reported by the
+	// Whether the workflow holds changes that were never saved. Reported by the
 	// interface through SetBoardDirty, read by beforeClose; see app_studios.go.
 	boardDirty atomic.Bool
 

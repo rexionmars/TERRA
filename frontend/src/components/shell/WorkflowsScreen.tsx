@@ -1,15 +1,15 @@
 import { useState } from "react"
 
 import { CaretDown, FloppyDisk, Graph, Plus } from "@/components/icons"
-import { CompositorEditor, type CompositorGlobeOverlay } from "@/components/studio/CompositorEditor"
-import { RunPicker } from "@/components/studio/RunPicker"
-import { AreaHeaderMenusHost } from "@/components/studio/StudioArea"
+import { CompositorEditor, type CompositorGlobeOverlay } from "@/components/workspace/CompositorEditor"
+import { RunPicker } from "@/components/workspace/RunPicker"
+import { AreaHeaderMenusHost } from "@/components/workspace/areaHeader"
 import {
   OperatorMenuItem,
-  StudioMenuItem,
-  StudioMenuRule,
-  StudioPopover,
-} from "@/components/studio/StudioPopover"
+  MenuItem,
+  MenuRule,
+  MenuPopover,
+} from "@/components/workspace/MenuPopover"
 import { btnGhost } from "@/components/ui/buttons"
 import { useAuth } from "@/lib/auth"
 import type { CompositorGraph } from "@/lib/compositorGraph"
@@ -103,7 +103,7 @@ export function WorkflowsScreen({
     >
       <header className="flex h-12 shrink-0 items-center gap-2 border-b border-border px-4">
         <Graph aria-hidden className="size-4 text-muted-foreground" />
-        <StudioPopover
+        <MenuPopover
           open={menu}
           onOpenChange={setMenu}
           surface={surface}
@@ -125,12 +125,12 @@ export function WorkflowsScreen({
             </button>
           )}
         >
-          <OperatorMenuItem id="STUDIO_NEW" onDone={() => setMenu(false)} />
-          <OperatorMenuItem id="STUDIO_RENAME" onDone={() => setMenu(false)} />
-          <OperatorMenuItem id="STUDIO_MANAGE" onDone={() => setMenu(false)} />
-          {studios.length > 0 && <StudioMenuRule />}
+          <OperatorMenuItem id="WORKFLOW_NEW" onDone={() => setMenu(false)} />
+          <OperatorMenuItem id="WORKFLOW_RENAME" onDone={() => setMenu(false)} />
+          <OperatorMenuItem id="WORKFLOW_MANAGE" onDone={() => setMenu(false)} />
+          {studios.length > 0 && <MenuRule />}
           {studios.map((b) => (
-            <StudioMenuItem
+            <MenuItem
               key={b.id}
               label={b.name}
               checked={b.name === savedName}
@@ -141,7 +141,7 @@ export function WorkflowsScreen({
               }}
             />
           ))}
-        </StudioPopover>
+        </MenuPopover>
 
         {/* View, Add and Node, which the compositor writes here from its own state. */}
         <div ref={setMenusHost} className="flex items-center gap-0.5" />
@@ -156,7 +156,6 @@ export function WorkflowsScreen({
             excludeRunIds={new Set(runs.map((r) => r.id))}
             busy={loading}
             surface={surface}
-            plain
             onPick={onAddRun}
           />
           {naming !== null ? (

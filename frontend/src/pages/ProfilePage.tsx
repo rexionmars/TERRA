@@ -1,5 +1,5 @@
 import { REPO_URL } from "@/lib/brand"
-import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react"
+import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import {
   ArrowLeft,
   Camera,
@@ -31,19 +31,6 @@ import { btnGhost, btnPrimary } from "@/components/ui/buttons"
 import { EnvironmentPanel } from "@/components/EnvironmentPanel"
 import { KeymapTable } from "@/components/KeymapTable"
 import { StorageModal } from "@/components/StorageModal"
-import {
-  setStudioGutter,
-  studioGutterOn,
-  subscribeStudioGutter,
-} from "@/lib/studioGutter"
-import {
-  TELEMETRY_FIGURES,
-  setStudioTelemetry,
-  studioTelemetry,
-  subscribeStudioTelemetry,
-  type StudioTelemetry,
-  type TelemetryKey,
-} from "@/lib/studioTelemetry"
 import { cn } from "@/lib/utils"
 import type {
   InferenceRun,
@@ -60,7 +47,7 @@ import { runRowLine } from "@/lib/runSummary"
 
 const MAX_AVATAR_BYTES = 2_000_000
 
-type SettingsSectionId = "account" | "telemetry" | "system" | "keymap"
+type SettingsSectionId = "account" | "system" | "keymap"
 
 /**
  * The pages of settings, grouped by subject.
@@ -103,7 +90,6 @@ const SECTIONS: {
     Counted, unlike System: this page IS a list of controls, and the number says
     how long the list is.
   */
-  { id: "telemetry", label: "Telemetry", count: TELEMETRY_FIGURES.length },
   { id: "system", label: "System" },
   // No count: it is a reference, not a list of settings.
   { id: "keymap", label: "Keymap" },
@@ -182,18 +168,6 @@ export function ProfilePage({
     consumeSettingsPage()
   }, [settingsPage, consumeSettingsPage])
   const [focusedSetting, setFocusedSetting] = useState<string | null>(null)
-  /*
-    Read from the module the studio reads, not from a copy held here.
-
-    The scene and the status bar subscribe to the same store, so a switch flipped
-    here takes effect on an open studio rather than on the next one -- including
-    the one figure whose cost is the work it does, which stops when it is
-    switched off.
-  */
-  const telemetry = useSyncExternalStore(
-    subscribeStudioTelemetry,
-    studioTelemetry
-  )
   const fileRef = useRef<HTMLInputElement>(null)
   const prefsReady = useRef(false)
   const savePrefsTimer = useRef<number | null>(null)
@@ -251,53 +225,6 @@ export function ProfilePage({
     write a zero opacity and an empty model over whatever is stored. Passing
     the stored value through keeps a theme change to being a theme change.
   */
-  /*
-    The store first and the preferences after, deliberately.
-
-    Writing preferences means a round trip through the bridge and the database,
-    and a switch that waited for it would feel like it had not registered. The
-    store is what the studio reads, so flipping it first makes the change
-    immediate; the save is how it survives a restart.
-  */
-  const persistTelemetry = useCallback(
-    async (key: TelemetryKey, on: boolean) => {
-      const next: StudioTelemetry = { ...studioTelemetry(), [key]: on }
-      setStudioTelemetry(next)
-      if (!user) return
-      await savePrefs({
-        user_id: user.id,
-        default_model: prefs?.default_model || "spectral",
-        overlay_opacity: prefs?.overlay_opacity ?? 0.75,
-        theme: prefs?.theme || "dark",
-        extras_json: mergePreferenceExtras(prefs?.extras_json, {
-          studio_telemetry: next,
-        }),
-      })
-    },
-    [user, prefs?.default_model, prefs?.overlay_opacity, prefs?.theme, prefs?.extras_json, savePrefs]
-  )
-
-  /*
-    The store first and the preferences after, for the reason persistTelemetry
-    states above it: a switch that waited for the round trip would feel like it
-    had not registered, and the store is what the studio reads.
-  */
-  const persistPanelGap = useCallback(
-    async (on: boolean) => {
-      setStudioGutter(on)
-      if (!user) return
-      await savePrefs({
-        user_id: user.id,
-        default_model: prefs?.default_model || "spectral",
-        overlay_opacity: prefs?.overlay_opacity ?? 0.75,
-        theme: prefs?.theme || "dark",
-        extras_json: mergePreferenceExtras(prefs?.extras_json, {
-          studio_panel_gap: on,
-        }),
-      })
-    },
-    [user, prefs?.default_model, prefs?.overlay_opacity, prefs?.theme, prefs?.extras_json, savePrefs]
-  )
 
   const persistPreferences = useCallback(
     async (next: {
@@ -348,7 +275,6 @@ export function ProfilePage({
     sign-in; reading the blob again here would be a second parse of the same
     value that can disagree with it while a save is in flight.
   */
-  const panelGap = useSyncExternalStore(subscribeStudioGutter, studioGutterOn)
 
   /*
     Named from the destination itself. This read a navigation table, so that
@@ -356,7 +282,7 @@ export function ProfilePage({
     now, and one destination is work. Settings can still be reached from
     sign-in, which is the case the neutral word covers.
   */
-  const returnLabel = settingsReturnTo === "studio" ? "Studio" : "the studio"
+  const returnLabel = settingsReturnTo === "map" ? "the map" : "where you were"
 
   const schedulePrefsSave = useCallback(
     (
@@ -945,36 +871,6 @@ export function ProfilePage({
                 </div>
               </SettingRow>
 
-              {/*
-                After the two that decide what a session opens with and
-                through, because this decides what it LOOKS like once open --
-                and it is the only setting here the reader can watch take
-                effect, since the studio is behind this page.
-              */}
-              <SettingRow
-                id="account.panelgap"
-                title="Space between panels"
-                description="The studio separates its panels with a gap of the window's own ground. Closed, they meet flush and a hairline border tells them apart instead."
-                focused={focusedSetting === "account.panelgap"}
-                onFocus={() => setFocusedSetting("account.panelgap")}
-              >
-                <div className="flex max-w-md flex-col gap-2">
-                  <select
-                    className="field-input max-w-xs focus-visible:ring-1 focus-visible:ring-ring"
-                    value={panelGap ? "gap" : "flush"}
-                    onChange={(e) => void persistPanelGap(e.target.value === "gap")}
-                  >
-                    <option value="gap">A gap</option>
-                    <option value="flush">Flush, with a border</option>
-                  </select>
-                  <p className="text-meta leading-relaxed text-muted-foreground">
-                    {panelGap
-                      ? "Five pixels, and the same at the window's edge. The division still runs down the middle of it, so the gap is what a drag grabs to resize two panels."
-                      : "Every panel gains five pixels in each direction, which is a row of a table or a line of a reading. The border that returns is a boundary to resolve where the gap was one to see."}
-                  </p>
-                </div>
-              </SettingRow>
-
               {/* Sign out belongs to the account, not to the bottom of a
                   column. It sat in the aside footer, as far from the identity
                   it ends as the layout allowed. */}
@@ -994,65 +890,6 @@ export function ProfilePage({
                   Sign out
                 </button>
               </SettingRow>
-            </Section>
-          )}
-
-          {/* Not wrapped in a SettingRow. A row is a labelled field with a
-              description beside it, which is right for a name or a slider and
-              wrong for this: wrapped, the page showed its title twice and
-              indented the whole thing as though it were one control's value. */}
-          {activeSection === "telemetry" && (
-            <Section>
-              {/*
-                All off until asked for. A status bar reporting its own
-                performance to a reader who did not ask is chrome spent on a
-                question they are not holding -- and one of these is not free,
-                so it must not be running for anyone who has not read what it
-                costs.
-
-                Each row says what the figure means and which question it
-                answers, because a reader switching these on is diagnosing
-                something and the useful thing to know is which figure speaks
-                to which symptom.
-              */}
-              <p className="px-4 pb-1 pt-3 text-body leading-relaxed text-muted-foreground">
-                Figures the studio&rsquo;s status bar reports, beside the pointer
-                bindings. Off by default; switch on what a symptom calls for.
-              </p>
-              {TELEMETRY_FIGURES.map((figure) => (
-                <SettingRow
-                  key={figure.key}
-                  id={`telemetry.${figure.key}`}
-                  title={figure.label}
-                  description={figure.what}
-                  focused={focusedSetting === `telemetry.${figure.key}`}
-                  onFocus={() => setFocusedSetting(`telemetry.${figure.key}`)}
-                >
-                  <label className="flex items-start gap-2.5">
-                    <input
-                      type="checkbox"
-                      className={cn("mt-0.5 shrink-0", focusRing)}
-                      checked={telemetry[figure.key] === true}
-                      onChange={(e) =>
-                        void persistTelemetry(figure.key, e.target.checked)
-                      }
-                    />
-                    <span className="min-w-0 text-body leading-relaxed text-muted-foreground">
-                      {figure.when}
-                      {figure.cost && (
-                        <>
-                          {" "}
-                          {/* The one figure that is not free says so where the
-                              switch is, not in a note somewhere else. */}
-                          <span className="text-destructive-quiet">
-                            Costs: {figure.cost}
-                          </span>
-                        </>
-                      )}
-                    </span>
-                  </label>
-                </SettingRow>
-              ))}
             </Section>
           )}
 

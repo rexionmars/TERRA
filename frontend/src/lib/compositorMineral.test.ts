@@ -19,7 +19,7 @@ import {
   type MineralParts,
 } from "./compositorGraph"
 import { evaluate, socketKey } from "./compositorEval"
-import { mineralNodeTitle } from "@/components/studio/mineralNodes"
+import { mineralNodeTitle } from "@/components/workspace/mineralNodes"
 import type { MineralAnalysis } from "./types"
 
 const runOutputs = (runId: string | null) =>

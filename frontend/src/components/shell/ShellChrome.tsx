@@ -10,7 +10,6 @@ import {
   ChatCentered,
   Columns,
   Compass,
-  Cube,
   Folders,
   Graph,
   Lifebuoy,
@@ -21,10 +20,10 @@ import {
 } from "@/components/icons"
 import {
   OperatorMenuItem,
-  StudioMenuItem,
-  StudioMenuRule,
-  StudioPopover,
-} from "@/components/studio/StudioPopover"
+  MenuItem,
+  MenuRule,
+  MenuPopover,
+} from "@/components/workspace/MenuPopover"
 import { WindowControls } from "@/components/TitleBar"
 import { btnGhostDense } from "@/components/ui/buttons"
 import type { AppSurfaces } from "@/lib/appSurfaces"
@@ -88,7 +87,7 @@ function Crumb({
   children: React.ReactNode
 }) {
   return (
-    <StudioPopover
+    <MenuPopover
       open={open}
       onOpenChange={onOpenChange}
       surface={document.body}
@@ -111,7 +110,7 @@ function Crumb({
       )}
     >
       {children}
-    </StudioPopover>
+    </MenuPopover>
   )
 }
 
@@ -175,7 +174,6 @@ export function ShellTopBar({
   onToggleRail,
   app,
   recentFiles,
-  onOpenStudio,
 }: {
   projectName: string
   projects: readonly { id: string; name: string }[]
@@ -190,13 +188,12 @@ export function ShellTopBar({
   app: AppSurfaces
   /** Project files opened lately, newest first. */
   recentFiles: readonly string[]
-  onOpenStudio: () => void
 }) {
   const [menu, setMenu] = useState<"project" | "area" | "options" | null>(null)
   const open = (m: "project" | "area" | "options") => (next: boolean) => setMenu(next ? m : null)
   const roots = areas.filter((a) => !a.parent_id)
   const appItem = (i: AppSurfaces["items"][keyof AppSurfaces["items"]]) => (
-    <StudioMenuItem
+    <MenuItem
       label={i.label}
       disabled={i.disabled}
       onSelect={() => {
@@ -225,7 +222,7 @@ export function ShellTopBar({
       <nav aria-label="Project and area" className="flex min-w-0 flex-1 items-center gap-0.5">
         <Crumb label={projectName} title="Project" open={menu === "project"} onOpenChange={open("project")}>
           {projects.map((pr) => (
-            <StudioMenuItem
+            <MenuItem
               key={pr.id}
               label={pr.name}
               checked={pr.id === activeProjectId}
@@ -246,7 +243,7 @@ export function ShellTopBar({
         <Crumb label={areaName} title="Area" current open={menu === "area"} onOpenChange={open("area")}>
           {roots.length ? (
             roots.map((a) => (
-              <StudioMenuItem
+              <MenuItem
                 key={a.id}
                 label={a.name}
                 checked={a.id === activeAreaId}
@@ -264,7 +261,7 @@ export function ShellTopBar({
         </Crumb>
       </nav>
 
-      <StudioPopover
+      <MenuPopover
         open={menu === "options"}
         onOpenChange={open("options")}
         surface={document.body}
@@ -289,7 +286,7 @@ export function ShellTopBar({
         <OperatorMenuItem id="PROJECT_SAVE_AS" onDone={() => setMenu(null)} />
         <OperatorMenuItem id="PROJECT_REVEAL" onDone={() => setMenu(null)} />
         {recentFiles.slice(0, 5).map((path) => (
-          <StudioMenuItem
+          <MenuItem
             key={path}
             indented
             label={projectFileName(path)}
@@ -300,21 +297,13 @@ export function ShellTopBar({
             }}
           />
         ))}
-        <StudioMenuRule />
+        <MenuRule />
         {appItem(app.items.environment)}
         {appItem(app.items.storage)}
         {appItem(app.items.releaseNotes)}
         {appItem(app.items.splash)}
         {appItem(app.items.about)}
-        <StudioMenuItem
-          icon={Cube}
-          label="Open the classic studio"
-          onSelect={() => {
-            setMenu(null)
-            onOpenStudio()
-          }}
-        />
-      </StudioPopover>
+      </MenuPopover>
       <WindowControls />
     </header>
   )
@@ -383,9 +372,7 @@ function initials(name: string): string {
 /**
  * Where a reader can go, as against what they can do where they are.
  *
- * The full height of the window, with the mark at its head. Every entry does what
- * it says today. Compare and Workflows open the classic studio on the workspace for
- * that work, and say so, until each is a destination of its own here.
+ * The full height of the window, with the mark at its head.
  */
 export function ShellRail({
   place,

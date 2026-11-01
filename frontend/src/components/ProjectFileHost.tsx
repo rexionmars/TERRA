@@ -80,7 +80,7 @@ export function ProjectFileHost({
         notifySuccess(
           `Opened ${projectFileName(sum.path)}`,
           [
-            `${sum.runs} ${sum.runs === 1 ? "run" : "runs"}, ${sum.studios} ${sum.studios === 1 ? "studio" : "studios"}`,
+            `${sum.runs} ${sum.runs === 1 ? "run" : "runs"}, ${sum.studios} ${sum.studios === 1 ? "workflow" : "workflows"}`,
             sum.missing_assets
               ? `${sum.missing_assets} ${sum.missing_assets === 1 ? "file was" : "files were"} not in its data folder`
               : "",

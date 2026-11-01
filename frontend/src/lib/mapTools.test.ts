@@ -16,8 +16,7 @@
  */
 import { describe, expect, it } from "vitest"
 
-import { STUDIO_GROUPS } from "./studioEditors"
-import { BOARD_TOOLS, MAP_TOOLS, isMapTool, type BoardToolId } from "./mapTools"
+import { BOARD_TOOLS, MAP_TOOLS, STUDIO_GROUPS, isMapTool, type BoardToolId } from "./mapTools"
 
 describe("MAP_TOOLS", () => {
   it("is exactly the three a stored panel selection may name", () => {

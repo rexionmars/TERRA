@@ -1,17 +1,17 @@
 import { useEffect, useMemo, useState } from "react"
 
 import { Copy, X } from "@/components/icons"
-import { ConfusionMatrix } from "@/components/studio/AgreementCharts"
+import { ConfusionMatrix } from "@/components/workspace/AgreementCharts"
 import {
-  BoardPredictionDetail,
+  PredictionComparison,
   type PredictionCompareSide,
-} from "@/components/studio/BoardPredictionDetail"
-import { DomainShiftEditor } from "@/components/studio/DomainShiftEditor"
-import { LibraryLimitEditor, type LibraryLimitMode } from "@/components/studio/LibraryLimitEditor"
-import { RunPicker } from "@/components/studio/RunPicker"
-import { SeparabilityEditor } from "@/components/studio/SeparabilityEditor"
-import { SpectraEditor } from "@/components/studio/SpectraEditor"
-import { StudioTables } from "@/components/studio/StudioTables"
+} from "@/components/workspace/PredictionComparison"
+import { DomainShiftEditor } from "@/components/workspace/DomainShiftEditor"
+import { LibraryLimitEditor, type LibraryLimitMode } from "@/components/workspace/LibraryLimitEditor"
+import { RunPicker } from "@/components/workspace/RunPicker"
+import { SeparabilityEditor } from "@/components/workspace/SeparabilityEditor"
+import { SpectraEditor } from "@/components/workspace/SpectraEditor"
+import { RunTables } from "@/components/workspace/RunTables"
 import { btnGhost } from "@/components/ui/buttons"
 import { tableToCSV } from "@/lib/analysisTables"
 import { useAuth } from "@/lib/auth"
@@ -276,7 +276,6 @@ export function CompareScreen({
             excludeRunIds={new Set(gridRuns.map((r) => r.id))}
             busy={loading}
             surface={surface}
-            plain
             onPick={onAddRun}
           />
         </div>
@@ -361,10 +360,8 @@ export function CompareScreen({
           <div className="min-h-0 flex-1 overflow-auto">
             {tab === "differences" &&
               (compared ? (
-                <BoardPredictionDetail
-                  focus="prediction"
-                  placement="area"
-                  compareSides={compared}
+                <PredictionComparison
+                  sides={compared}
                   compare={pairCompare?.compare ?? null}
                   compareError={pairCompare?.error ?? null}
                 />
@@ -407,7 +404,7 @@ export function CompareScreen({
                 empty("Needs a classification on the grid.")
               ))}
             {tab === "tables" &&
-              (readRuns.length ? <StudioTables runs={readRuns} /> : empty("Needs a classification on the grid."))}
+              (readRuns.length ? <RunTables runs={readRuns} /> : empty("Needs a classification on the grid."))}
           </div>
         </aside>
       </div>

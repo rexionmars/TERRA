@@ -3,9 +3,8 @@
  *
  * lib/mapLayers.ts lists what the application's state draws: the classification,
  * the water, the mineral maps. A vegetation health map or a set of management
- * zones has no switch up there, because the studio draws those as planes of its
- * own. On a map they are rasters like the others, so they are listed here from
- * lib/runAssets.ts, which already knows every raster a run can produce and where
+ * zones has no switch up there, and on a map they are rasters like the others, so
+ * they are listed here from lib/runAssets.ts, which already knows every raster a run can produce and where
  * each one sits on the ground.
  *
  * An asset already in the layer table is left to it: two rows for one raster

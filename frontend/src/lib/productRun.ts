@@ -4,13 +4,11 @@
  * The enabling rules genuinely differ between products: a classification needs
  * both dates, a delineation needs a period long enough to cut into two windows
  * and an area that is not itself a field, the register overlap reads no imagery
- * at all. They are the rules the studio's run band applies, written once more
- * here because the band folds them into a chain that also answers which tool is
- * showing, and it goes with the studio.
+ * at all.
  *
- * WHAT IS NEW IS `blocked`. The band greys its button out and leaves the reader
- * to work out which of several conditions failed. The shell's product list is
- * where someone arrives before knowing what a product asks for, so it says.
+ * `blocked` says which. A button greyed out leaves the reader to work out which of
+ * several conditions failed, and the product list is where someone arrives before
+ * knowing what a product asks for.
  */
 import { MIN_PERIOD_DAYS, fieldWindows } from "@/lib/fields"
 import { isJobKind, type JobKind } from "@/lib/jobs"

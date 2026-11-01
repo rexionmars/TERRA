@@ -2,11 +2,11 @@ import { useEffect, useState } from "react"
 
 import { Package } from "@/components/icons"
 import { ResearchPackModal } from "@/components/ResearchPackModal"
-import { ClassAccuracyChart, DisagreementBar } from "@/components/studio/AgreementCharts"
-import { LibraryLimitEditor, type LibraryLimitMode } from "@/components/studio/LibraryLimitEditor"
-import { SeparabilityEditor } from "@/components/studio/SeparabilityEditor"
-import { SpectraEditor } from "@/components/studio/SpectraEditor"
-import { StudioTables } from "@/components/studio/StudioTables"
+import { ClassAccuracyChart, DisagreementBar } from "@/components/workspace/AgreementCharts"
+import { LibraryLimitEditor, type LibraryLimitMode } from "@/components/workspace/LibraryLimitEditor"
+import { SeparabilityEditor } from "@/components/workspace/SeparabilityEditor"
+import { SpectraEditor } from "@/components/workspace/SpectraEditor"
+import { RunTables } from "@/components/workspace/RunTables"
 import { btnGhost } from "@/components/ui/buttons"
 import type { Area } from "@/lib/areas"
 import { PRODUCT_NOTES } from "@/lib/productNotes"
@@ -312,7 +312,7 @@ export function ResultPanel({
             {view === "library" && (
               <LibraryLimitEditor runs={runs} mode={libraryMode} surface={surface} />
             )}
-            {view === "tables" && <StudioTables runs={runs} />}
+            {view === "tables" && <RunTables runs={runs} />}
           </div>
         </div>
       ) : (

@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from "react"
 
 import { Crosshair, Trash } from "@/components/icons"
-import { Swatch } from "@/components/studio/nodeParts"
+import { Swatch } from "@/components/workspace/nodeParts"
 import { btnGhost } from "@/components/ui/buttons"
 import { FALLBACK_PIXEL_SIZE_M, brushFootprint, type BrushRadiusPx } from "@/lib/boardProbe"
 import { readPoint, type ClassLayer, type MapPoint, type PointReading } from "@/lib/mapProbe"
