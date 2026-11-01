@@ -41,6 +41,7 @@ import {
 } from "@/components/icons"
 import {
   Map as MapLibreMap,
+  Marker,
   type ExpressionSpecification,
   type GeoJSONSource,
   type MapMouseEvent,
@@ -366,6 +367,8 @@ export function GlobeSurface({
   leadingTools,
   frame = null,
   rightInsetPx = 60,
+  pins,
+  onPlacePin,
   className,
 }: {
   /**
@@ -497,12 +500,22 @@ export function GlobeSurface({
    * this surface frames lands in what is left rather than behind a panel.
    */
   rightInsetPx?: number
+  /** Named points on the ground, which the caller reads something at. */
+  pins?: readonly { id: string; label: string; lon: number; lat: number }[]
+  /**
+   * While set, the next press on the map says where it was rather than choosing
+   * what is under it: the reader has asked to place something, and an area under
+   * the pointer is not what they are pressing.
+   */
+  onPlacePin?: ((lon: number, lat: number) => void) | null
   className?: string
 }) {
   const hostRef = useRef<HTMLDivElement>(null)
   const mapRef = useRef<MapLibreMap | null>(null)
   const viewChangeRef = useRef(onViewChange)
   viewChangeRef.current = onViewChange
+  const placePinRef = useRef(onPlacePin)
+  placePinRef.current = onPlacePin
   const [failure, setFailure] = useState<string | null>(null)
   const [ready, setReady] = useState(false)
   /*
@@ -1110,7 +1123,13 @@ export function GlobeSurface({
       })
     )
     subs.push(
+      map.on("click", (e: MapMouseEvent) => {
+        placePinRef.current?.(e.lngLat.lng, e.lngLat.lat)
+      })
+    )
+    subs.push(
       map.on("click", AREA_FILL, (e: MapMouseEvent & { features?: unknown[] }) => {
+        if (placePinRef.current) return
         /*
           A press inside a field is also a press inside its area, and the
           order MapLibre returns the two in is a rendering detail. The field
@@ -1224,12 +1243,12 @@ export function GlobeSurface({
     */
     subs.push(
       map.on("mouseenter", AREA_FILL, () => {
-        map.getCanvas().style.cursor = "var(--cursor-pointer)"
+        if (!placePinRef.current) map.getCanvas().style.cursor = "var(--cursor-pointer)"
       })
     )
     subs.push(
       map.on("mouseleave", AREA_FILL, () => {
-        map.getCanvas().style.cursor = ""
+        if (!placePinRef.current) map.getCanvas().style.cursor = ""
       })
     )
 
@@ -1331,6 +1350,34 @@ export function GlobeSurface({
       }
     }
   }, [raisedRasters, ready, styleNonce])
+
+  /*
+    The pins. Markers rather than a layer, because a letter has to stay readable
+    at every zoom and over every raster, and a DOM element does that for nothing.
+    The dark ring is the same casing the area outlines carry: orange alone measures
+    under 3 on red soil.
+  */
+  useEffect(() => {
+    const map = mapRef.current
+    if (!map || !ready || !pins?.length) return
+    const markers = pins.map((p) => {
+      const el = document.createElement("div")
+      el.className =
+        "flex size-6 items-center justify-center rounded-full bg-primary text-label font-semibold text-primary-foreground shadow-[0_0_0_2px_#141414]"
+      el.textContent = p.label
+      el.setAttribute("role", "img")
+      el.setAttribute("aria-label", `Point ${p.label}, ${p.lat.toFixed(5)}, ${p.lon.toFixed(5)}`)
+      return new Marker({ element: el }).setLngLat([p.lon, p.lat]).addTo(map)
+    })
+    return () => markers.forEach((m) => m.remove())
+  }, [pins, ready])
+
+  const placing = !!onPlacePin
+  useEffect(() => {
+    const map = mapRef.current
+    if (!map || !ready) return
+    map.getCanvas().style.cursor = placing ? "var(--cursor-crosshair)" : ""
+  }, [placing, ready])
 
   /*
     And the camera comes to what is drawn, when the SET changes.

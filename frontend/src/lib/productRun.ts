@@ -41,6 +41,7 @@ export interface ProductRunProps {
   fieldsProgressMsg?: string
   onRunFields?: () => void
   onQueueJobs?: (kind: JobKind) => void
+  lulcRunning?: boolean
 }
 
 export interface ProductRun {
@@ -175,7 +176,19 @@ export function productRun(tool: BoardToolId, p: ProductRunProps): ProductRun {
 
 /** Every run the surface is making at the moment, for a strip that outlives the panel. */
 export function activeRuns(p: ProductRunProps): ProductRun[] {
-  return (["classify", "water", "mineral", "fields"] as const)
+  const runs = (["classify", "water", "mineral", "fields"] as const)
     .map((t) => productRun(t, { ...p, selectedAreaIds: [] }))
     .filter((r) => r.running)
+  // Land cover reports through the classification's progress, and is not a product.
+  if (p.lulcRunning) {
+    runs.push({
+      running: true,
+      progress: p.progress,
+      progressMsg: p.progressMsg,
+      label: "Reading land cover",
+      blocked: null,
+      onRun: () => {},
+    })
+  }
+  return runs
 }

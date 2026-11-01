@@ -1,12 +1,15 @@
-import { CaretRight, Play } from "@/components/icons"
+import { CaretRight, CircleNotch, Play } from "@/components/icons"
+import { MethodPanel } from "@/components/studio/MethodPanel"
 import { RunQueue } from "@/components/studio/RunQueue"
-import { btnPrimaryCommit } from "@/components/ui/buttons"
+import { btnGhost, btnPrimaryCommit } from "@/components/ui/buttons"
 import { MODE_OPTIONS, MODEL_OPTIONS, modeBlockedBy } from "@/lib/classifyOptions"
 import { isJobKind } from "@/lib/jobs"
 import { BOARD_TOOLS, type BoardToolId } from "@/lib/mapTools"
+import { methodBrief } from "@/lib/methodBrief"
 import { MAX_DRAWS, MAX_PASSES } from "@/lib/mineral"
 import { PRODUCT_NOTES } from "@/lib/productNotes"
 import { productOffered, productRun, type ProductRunProps } from "@/lib/productRun"
+import type { RunLogEntry } from "@/lib/runLog"
 import type { ModelKind, WaterIndex } from "@/lib/types"
 import { cn } from "@/lib/utils"
 import { WATER_INDICES } from "@/lib/waterOptions"
@@ -27,6 +30,10 @@ export interface ProductsPanelProps extends ProductRunProps {
   prithviMode: "pixel" | "patch"
   waterIndex: WaterIndex
   mineralOptions?: MineralRunOptions
+  /** What the run in progress has said, for the trace in the method panel. */
+  runLog?: RunLogEntry[]
+  onAnalyzeLULC?: () => void
+  lulcRunning?: boolean
   onStartChange: (v: string) => void
   onEndChange: (v: string) => void
   onMaxCloudChange: (v: number) => void
@@ -153,6 +160,33 @@ export function ProductsPanel({
             <Play className="size-3.5" />
             {run.label}
           </button>
+          <div className="flex items-center gap-2">
+            {/* Not disabled while running: that is when its trace is being written. */}
+            <MethodPanel
+              brief={methodBrief({
+                tool: product,
+                modelKind: p.modelKind,
+                start: p.start,
+                end: p.end,
+                maxCloud: p.maxCloud,
+                monthlyBest: p.monthlyBest,
+              })}
+              runLog={p.runLog ?? []}
+              running={run.running}
+            />
+            {product === "classify" && p.onAnalyzeLULC && (
+              <button
+                type="button"
+                onClick={p.onAnalyzeLULC}
+                disabled={run.running || !p.hasArea || p.lulcRunning}
+                title="MapBiomas over the area, without running a model"
+                className={cn(btnGhost, "ml-auto")}
+              >
+                {p.lulcRunning && <CircleNotch className="size-3.5 animate-spin" />}
+                Land cover
+              </button>
+            )}
+          </div>
         </div>
       }
     >

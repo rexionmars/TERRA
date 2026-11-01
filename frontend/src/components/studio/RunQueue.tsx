@@ -55,6 +55,8 @@ import { cn } from "@/lib/utils"
 export interface RunsOnBoard {
   show: (runIds: string[]) => void
   showLatest: (kind: JobKind) => void
+  /** A map reads one run at a time, so there is no "all" to put on it. */
+  oneAtATime?: boolean
 }
 
 export const RunsOnBoardContext = createContext<RunsOnBoard | null>(null)
@@ -112,7 +114,7 @@ export function RunQueue({ kind }: { kind: JobKind }) {
         <>
           <span className="telemetry truncate text-[9px] text-muted-foreground">{summary}</span>
           <div className="flex items-center gap-0.5">
-            {board && (
+            {board && !board.oneAtATime && (
               <QueueAction
                 label="Show all"
                 title="Put every finished run on the board, its answer on the globe over its area"
@@ -145,7 +147,17 @@ export function RunQueue({ kind }: { kind: JobKind }) {
           </div>
           <ul aria-label="Jobs" className="panel-scroll flex max-h-[9rem] flex-col overflow-y-auto pr-1">
             {jobsInReadingOrder(jobs).map((job) => (
-              <JobRow key={job.id} job={job} now={now} onOpen={board ? (j) => board.show([j.run_id]) : undefined} />
+              <JobRow
+                key={job.id}
+                job={job}
+                now={now}
+                openLabel={
+                  board?.oneAtATime
+                    ? "Open the run on the map"
+                    : "Put the run on the board, its answer on the globe over its area"
+                }
+                onOpen={board ? (j) => board.show([j.run_id]) : undefined}
+              />
             ))}
           </ul>
         </>
@@ -183,7 +195,17 @@ function QueueAction({
   )
 }
 
-function JobRow({ job, now, onOpen }: { job: Job; now: number; onOpen?: (job: Job) => void }) {
+function JobRow({
+  job,
+  now,
+  openLabel,
+  onOpen,
+}: {
+  job: Job
+  now: number
+  openLabel: string
+  onOpen?: (job: Job) => void
+}) {
   const Glyph = STATE_ICON[job.state]
   const duration = jobDuration(job, now)
   const failed = job.state === "failed"
@@ -230,7 +252,7 @@ function JobRow({ job, now, onOpen }: { job: Job; now: number; onOpen?: (job: Jo
         {done && onOpen && (
           <RowAction
             icon={ArrowSquareOut}
-            label="Put the run on the board, its answer on the globe over its area"
+            label={openLabel}
             onClick={() => onOpen(job)}
           />
         )}

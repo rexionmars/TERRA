@@ -78,7 +78,7 @@ function OrbitChart({
   )
 }
 
-function RadarReading({ report }: { report: RadarAnalysis | null }) {
+export function RadarReading({ report }: { report: RadarAnalysis | null }) {
   if (!report) return null
   const orbits = byOrbit(report)
   const latest = latestPass(report)
