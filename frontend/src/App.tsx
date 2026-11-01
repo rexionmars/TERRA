@@ -2303,6 +2303,8 @@ function AppBody(props: {
         if (displayLabel) void persistAoiLabel(displayLabel)
         const polygon = parseRunPolygon(run.polygon_geojson)
         props.setCustomPolygon(polygon)
+        // Its ground is the area in hand, so the next run made here is filed under it.
+        props.setActiveAreaId(runArea?.id)
         // A water run carries its raster in the same field a live run
         // uses, so opening one puts the overlay back on the map. The AOI it was
         // measured on is recorded first, otherwise the invalidation effect sees
@@ -2368,6 +2370,9 @@ function AppBody(props: {
       prefs?.extras_json,
       projects,
       activeProjectId,
+      // Which area the run is of is read from these, and they load after this is made.
+      props.areas,
+      props.setActiveAreaId,
     ]
   )
 
