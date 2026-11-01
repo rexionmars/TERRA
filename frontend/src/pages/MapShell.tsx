@@ -83,24 +83,17 @@ import { pollOperator, runOperator, useOperators } from "@/lib/operators"
 import { loadedRunAssets, runAssets } from "@/lib/runAssets"
 import { jobReadingOf, withAssetLayers, type JobReading } from "@/lib/shellLayers"
 import type { BoardToolId } from "@/lib/mapTools"
-import type { MineralRunOptions } from "@/lib/mineral"
+import type { AreaProps } from "@/session/areas"
+import type { ClassificationProps } from "@/session/classification"
+import type { CompositionProps } from "@/session/composition"
+import type { FieldDelineationProps } from "@/session/fieldDelineation"
+import type { MineralMapProps } from "@/session/mineralMap"
+import type { OverlayDisplayProps, RunParameterProps } from "@/session/runParameters"
+import type { SurfaceWaterProps } from "@/session/surfaceWater"
+import type { WorkflowProps } from "@/session/workflows"
 import { DEFAULT_MINERAL_RUN_OPTIONS } from "@/lib/mineral"
 import { activeRuns } from "@/lib/productRun"
-import type {
-  Bounds,
-  CompositeIndex,
-  CompositeKind,
-  CompositionOverlay,
-  DataCubeScene,
-  FieldsAnalysis,
-  GeoJSONGeometry,
-  InferenceRun,
-  MineralAnalysis,
-  ModelKind,
-  PredictResult,
-  WaterAnalysis,
-  WaterIndex,
-} from "@/lib/types"
+import type { Bounds, InferenceRun, PredictResult } from "@/lib/types"
 import { ListProjectRuns, LoadAnalysis } from "../../wailsjs/go/main/App"
 
 /*
@@ -128,170 +121,33 @@ type ShellPanelId =
 
 /**
  * The whole contract between App and the surface it draws: App owns the parameters,
- * the handlers and the results, and this says what is handed over.
+ * the handlers and the results, and each hook of `session/` says what it hands over.
  */
-export interface MapShellProps {
+export interface MapShellProps
+  extends
+    RunParameterProps,
+    OverlayDisplayProps,
+    AreaProps,
+    ClassificationProps,
+    CompositionProps,
+    SurfaceWaterProps,
+    MineralMapProps,
+    FieldDelineationProps,
+    WorkflowProps {
   /** Where the map was left last session; null starts at the default view. */
   initialView?: { lat: number; lon: number; zoom: number } | null
-  customPolygon: GeoJSONGeometry | null
-  result: PredictResult | null
+  onViewChange: (v: { lat: number; lon: number; zoom: number }) => void
   /** Results the map finished with, still in hand for Compare and Workflows. */
   retainedRuns: readonly { id: string; result: PredictResult }[]
   /** Let go of one. */
   onDropRetainedRun?: (id: string) => void
-  overlayOpacity: number
-  showConfidence: boolean
-  confidenceOnTop: boolean
-  smoothOverlay: boolean
-  showPredictionOverlay: boolean
-  showCompositionOverlay: boolean
-  composition: CompositionOverlay | null
-  /** Session gallery of applied compositions (newest first). */
-  compositionGallery?: CompositionOverlay[]
-  onSelectComposition?: (id: string) => void
-  onRemoveComposition?: (id: string) => void
-  areaLabel?: string
-  hasArea: boolean
-  start: string
-  end: string
-  maxCloud: number
-  monthlyBest: boolean
-  mode: "single" | "temporal"
-  modelKind: ModelKind
-  prithviMode: "pixel" | "patch"
-  running: boolean
-  progress: number
-  progressMsg: string
-  composeRunning: boolean
-  composeProgress: number
-  composeProgressMsg: string
-  composeScenes: DataCubeScene[]
-  composeScenesLoading: boolean
-  composeScenesError: string | null
-  selectedSceneId: string
-  composeKind: CompositeKind
-  composeBands: [string, string, string]
-  composeIndex: CompositeIndex
-  composeStretchLow: number
-  composeStretchHigh: number
-  composeOpacity: number
-  onViewChange: (v: { lat: number; lon: number; zoom: number }) => void
-  onPolygonDrawn: (geom: GeoJSONGeometry | null) => void
-  /** Catalog of drawn/imported AOIs kept beside the active shape. */
-  areas?: import("@/lib/areas").Area[]
-  activeAreaId?: string
   activeProjectId?: string | null
   /** File new runs under another project, offered by the browser per project. */
   onActivateProject?: (id: string) => void
   activeProjectName?: string | null
-  onActivateArea?: (id: string) => void
-  onRenameArea?: (id: string, name: string) => void
-  onDeleteArea?: (id: string) => Promise<void>
-  onClearArea: () => void
-  onImportPolygon: () => void
-  onStartChange: (v: string) => void
-  onEndChange: (v: string) => void
-  onMaxCloudChange: (v: number) => void
-  onMonthlyBestChange: (v: boolean) => void
-  onModeChange: (m: "single" | "temporal") => void
-  onModelKindChange: (m: ModelKind) => void
-  onPrithviModeChange: (m: "pixel" | "patch") => void
-  onOpacityChange: (v: number) => void
-  onShowConfidenceChange: (v: boolean) => void
-  onConfidenceOnTopChange: (v: boolean) => void
-  onSmoothOverlayChange: (v: boolean) => void
-  onShowPredictionOverlayChange: (v: boolean) => void
-  onShowCompositionOverlayChange: (v: boolean) => void
-  onSelectScene: (id: string) => void
-  onComposeKindChange: (k: CompositeKind) => void
-  onComposeBandsChange: (b: [string, string, string]) => void
-  onComposeIndexChange: (i: CompositeIndex) => void
-  onComposeStretchChange: (low: number, high: number) => void
-  onComposeOpacityChange: (v: number) => void
-  onListComposeScenes: () => void
-  onApplyComposition: () => void
-  onClearComposition: () => void
-  onRun: () => void
-  onAnalyzeLULC: () => void
-  lulcRunning?: boolean
-  onCloseResult: () => void
-  /**
-   * A request to open the board, bumped each time one arrives.
-   *
-   * A nonce rather than a boolean: the board's open state is this screen's, and
-   * a flag would fire only on its first change -- opening the same studio
-   * twice in a row has to work.
-   */
-  openBoardNonce?: number
-  /** Saved workflows, which the store keeps as studios. */
-  studios?: Studio[]
-  onOpenStudio?: (board: Studio) => void
-  onNewStudio?: (name: string) => void
   /** Load a saved run as the live one, and hand it back. */
   onOpenReading?: (run: InferenceRun) => void | Promise<PredictResult | null>
-  /** A published boundary chosen in the catalogue card, to become an area. */
-  onPickBoundary?: (name: string, geometry: GeoJSONGeometry) => void
-  /** Called when the list of workflows is about to be read, to refresh it. */
-  /*
-    Returns its promise, so a caller that needs the list BEFORE it draws again
-    can wait for it. The menu that opens on hover does not and ignores it; the
-    manage dialog does, since it shows the result of its own rename or delete.
-  */
-  onStudiosMenu?: () => Promise<void>
-  water?: WaterAnalysis | null
-  /** The AOI as GeoJSON text, for the research pack's manifest. */
-  polygonGeoJSON?: string
-  /**
-   * The mineral map: its result, its run and its progress. The runner is
-   * absent where the product cannot be started, and the band then does not
-   * offer it.
-   */
-  mineral?: MineralAnalysis | null
-  onRunMinerals?: () => void
-  /** The mineral map's passes compared and uncertainty draws; see the Passes card. */
-  mineralOptions?: MineralRunOptions
-  onMineralOptionsChange?: (o: MineralRunOptions) => void
-  mineralBusy?: boolean
-  mineralProgress?: number
-  mineralProgressMsg?: string
-  onClearMineral?: () => void
-  onClearFields?: () => void
-  /**
-   * The field delineation, as the mineral map's props are: absent runner, no
-   * band entry. Adoption is asked for by the compositor's Make fields node,
-   * with the run and the thresholds that reached it.
-   */
-  fields?: FieldsAnalysis | null
-  onRunFields?: () => void
-  fieldsBusy?: boolean
-  fieldsProgress?: number
-  fieldsProgressMsg?: string
-  onAdoptFields?: (
-    runId: string,
-    minHa: number,
-    minCropland: number,
-    replace: boolean
-  ) => Promise<boolean>
-  /**
-   * The areas the next jobs are queued over (App.tsx, selectAreas), and the
-   * queueing itself. While any is selected the band queues its product over
-   * them rather than running it over the area in hand.
-   */
-  selectedAreaIds?: string[]
-  onSelectAreas?: (ids: string[], mode: "toggle" | "add") => void
-  onClearSelection?: () => void
   onQueueJobs?: (kind: JobKind) => void
-  waterIndex: WaterIndex
-  waterRunning: boolean
-  waterProgress: number
-  waterProgressMsg: string
-  showWaterOverlay: boolean
-  onWaterIndexChange: (i: WaterIndex) => void
-  onRunWater: () => void
-  onClearWater: () => void
-  onShowWaterOverlayChange: (v: boolean) => void
-  waterOpacity: number
-  onWaterOpacityChange: (v: number) => void
 }
 
 /** The list with this run in it, once. */
