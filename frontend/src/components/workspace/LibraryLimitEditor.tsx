@@ -473,21 +473,21 @@ export function LibraryLimitEditor({
               )}
             >
               <div className="flex flex-col gap-2 p-2 text-meta leading-snug">
-                <p className="eyebrow !text-[9px]">What a small angle means</p>
+                <p className="eyebrow !text-micro">What a small angle means</p>
                 <p className="text-muted-foreground">
                   It means the class is CONSISTENT with the reference, not that the
                   material is identified. The reference is {limit.reference.level} level
                   and a pixel is canopy, so the two are not measurements of the same
                   thing.
                 </p>
-                <p className="eyebrow !text-[9px]">Why the difference survives</p>
+                <p className="eyebrow !text-micro">Why the difference survives</p>
                 <p className="text-muted-foreground">
                   Soil raises the red while gaps and shadow lower the NIR, in opposite
                   directions. A constant ratio would be brightness alone and the angle
                   would return zero; the shape is distorted instead, and normalisation
                   cannot remove it.
                 </p>
-                <p className="eyebrow !text-[9px]">The reference</p>
+                <p className="eyebrow !text-micro">The reference</p>
                 <p className="text-muted-foreground">
                   {limit.reference.note} Package {limit.reference.package_id}, convolved
                   onto the ESA Sentinel-2A response functions. Measured on the{" "}
@@ -556,7 +556,7 @@ export function LibraryLimitEditor({
                         )}
                       >
                         <span
-                          className="size-2 shrink-0 rounded-[2px]"
+                          className="size-2 shrink-0 rounded-xs"
                           style={{ backgroundColor: colours.get(c.class_id) }}
                         />
                         {c.name}

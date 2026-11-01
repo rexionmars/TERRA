@@ -210,7 +210,7 @@ export function ShellTopBar({
   return (
     <header
       className={cn(
-        "app-draggable relative z-[500] flex h-11 shrink-0 items-center gap-1.5 border-b border-border bg-[rgb(var(--p-ink))] pr-2",
+        "app-draggable relative z-500 flex h-11 shrink-0 items-center gap-1.5 border-b border-border bg-[rgb(var(--p-ink))] pr-2",
         RESERVES_TRAFFIC_LIGHTS && !railOpen ? "pl-[1.125rem]" : "pl-2"
       )}
     >
@@ -420,7 +420,7 @@ export function ShellRail({
     <nav
       aria-label="Application"
       className={cn(
-        "app-no-drag relative z-[500] flex h-full shrink-0 flex-col bg-[rgb(var(--p-ink))] transition-[width] duration-150",
+        "app-no-drag relative z-500 flex h-full shrink-0 flex-col bg-[rgb(var(--p-ink))] transition-[width] duration-150",
         open ? "w-52" : "w-[3.25rem]"
       )}
     >
@@ -440,7 +440,7 @@ export function ShellRail({
             className="size-7 shrink-0 rounded-md object-contain"
           />
           {open && (
-            <span className="font-display text-sm font-semibold tracking-[0.14em] text-foreground">
+            <span className="font-display text-heading font-semibold tracking-[0.14em] text-foreground">
               TERRA
             </span>
           )}

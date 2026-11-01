@@ -615,7 +615,7 @@ export function SpectraEditor({
                           className="flex items-center gap-1.5 text-meta"
                         >
                           <span
-                            className="size-2 shrink-0 rounded-[2px]"
+                            className="size-2 shrink-0 rounded-xs"
                             style={{ backgroundColor: s.stroke }}
                           />
                           <span className="truncate">{s.name}</span>

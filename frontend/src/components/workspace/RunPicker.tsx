@@ -172,7 +172,7 @@ export function RunPicker({
                     without saying where.
                   */}
                   <p
-                    className="eyebrow sticky top-0 z-10 px-2 py-1 !text-[9px]"
+                    className="eyebrow sticky top-0 z-10 px-2 py-1 !text-micro"
                     // The popover's own plate, so a heading scrolled under does
                     // not show the rows through a differently coloured band.
                     style={{ background: "var(--s-selected)" }}
@@ -199,7 +199,7 @@ export function RunPicker({
                         -- it is `run-<area>-<timestamp>` -- so this is the
                         line being read.
                       */}
-                      <span className="telemetry w-full truncate text-[9px] text-muted-foreground">
+                      <span className="telemetry w-full truncate text-micro text-muted-foreground">
                         {datesByMonth(runRowLine(r))}
                       </span>
                     </button>

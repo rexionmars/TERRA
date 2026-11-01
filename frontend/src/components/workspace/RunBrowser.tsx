@@ -623,7 +623,7 @@ export function RunBrowser({
                   look at rather than a thing you press.
                 */}
                 <span
-                  className="size-1.5 rounded-[1px]"
+                  className="size-1.5 rounded-xs"
                   style={
                     on
                       ? { background: tint(k.token) }
@@ -1209,7 +1209,7 @@ function SourceNode({
       >
         {swatch ? (
           <span
-            className="size-2 shrink-0 rounded-[1px]"
+            className="size-2 shrink-0 rounded-xs"
             style={{ background: tint(swatch) }}
           />
         ) : Icon ? (
@@ -1395,7 +1395,7 @@ function FolderTile({
         <span className="flex h-[3.25rem] w-[4.25rem] flex-col">
           {/* The tab, a little over a third of the width: the back of the folder. */}
           <span
-            className="h-[0.5rem] w-[42%] rounded-t-[3px]"
+            className="h-[0.5rem] w-[42%] rounded-t-xs"
             style={{ background: tint("--p-folder") }}
           />
           {/*
@@ -1404,7 +1404,7 @@ function FolderTile({
             size; see the note in index.css.
           */}
           <span
-            className="flex flex-1 items-center justify-center rounded-tr-[3px] rounded-b-[3px]"
+            className="flex flex-1 items-center justify-center rounded-tr-xs rounded-b-xs"
             style={{
               background: tint("--p-folder"),
               boxShadow: `inset 0 1.5px 0 ${tint("--p-folder-seam")}`,

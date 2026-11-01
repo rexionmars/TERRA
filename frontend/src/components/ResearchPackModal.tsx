@@ -192,7 +192,7 @@ export function ResearchPackModal({
           destinations, and the dialog is already bounded. */}
       <aside className="flex w-[15rem] shrink-0 flex-col border-r border-border">
         <div className="shrink-0 px-3.5 pt-4 pb-2">
-          <p className="font-display text-sm font-semibold tracking-wide text-foreground">
+          <p className="font-display text-heading font-semibold tracking-wide text-foreground">
             Research pack
           </p>
           <p className="telemetry mt-0.5 text-meta text-muted-foreground">
@@ -228,10 +228,10 @@ export function ResearchPackModal({
         <header className="flex shrink-0 flex-wrap items-start justify-between gap-3 border-b border-border px-4 py-3">
           <div className="min-w-0">
             <p className="telemetry text-meta text-primary">DATA</p>
-            <h1 className="mt-0.5 truncate font-display text-xl font-semibold tracking-wide">
+            <h1 className="mt-0.5 truncate font-display text-display font-semibold tracking-wide">
               {active?.name ?? "Research pack"}
             </h1>
-            <p className="mt-0.5 text-xs text-muted-foreground">
+            <p className="mt-0.5 text-label text-muted-foreground">
               {areaLabel ? `${areaLabel} · ` : ""}
               Exactly what the research pack export writes to disk.
             </p>

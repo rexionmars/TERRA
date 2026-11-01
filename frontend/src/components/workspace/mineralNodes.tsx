@@ -323,7 +323,7 @@ export function Positions({ m, band }: { m: MineralAnalysis; band: MineralBand }
     <>
       <div className="flex flex-col gap-0.5">
         <span
-          className="h-2 rounded-[2px]"
+          className="h-2 rounded-xs"
           style={{ background: mineralRampGradient(p.ramp.colors) }}
         />
         <div className="flex justify-between text-micro text-muted-foreground">
@@ -435,7 +435,7 @@ export function Agreement({ m, group }: { m: MineralAnalysis; group: MineralGrou
   return (
     <>
       <div className="flex items-baseline gap-2">
-        <span className="telemetry text-[18px] leading-none text-foreground">
+        <span className="telemetry text-display leading-none text-foreground">
           {a.agree_fraction_of_both !== null ? pct(a.agree_fraction_of_both) : "–"}
         </span>
         <span className="text-meta text-muted-foreground">

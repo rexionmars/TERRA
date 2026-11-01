@@ -78,7 +78,7 @@ function Row({
     >
       {checked ? (
         <span className="flex size-4 shrink-0 items-center justify-center">
-          <span className="size-1.5 rounded-[1px] bg-accent" aria-hidden />
+          <span className="size-1.5 rounded-xs bg-accent" aria-hidden />
         </span>
       ) : Glyph ? (
         <Glyph className="size-4 shrink-0 text-muted-foreground transition-colors group-hover:text-foreground" />
@@ -174,7 +174,7 @@ export function StartScreen({
 
   return (
     <div
-      className="absolute inset-0 z-[495] flex items-center justify-center p-4"
+      className="absolute inset-0 z-495 flex items-center justify-center p-4"
       onPointerDown={(e) => e.target === e.currentTarget && onClose()}
     >
       <div
@@ -220,7 +220,7 @@ export function StartScreen({
           <div className="absolute top-4 left-5 flex items-center gap-2.5">
             <img src="/terra-logo.png" alt="" className="size-6" draggable={false} />
             <span
-              className="telemetry w-min border-l pl-2.5 text-[9px] leading-tight tracking-[0.14em] uppercase"
+              className="telemetry w-min border-l pl-2.5 text-micro leading-tight tracking-[0.14em] uppercase"
               style={{
                 color: "rgb(236 232 223 / 0.92)",
                 borderColor: "rgb(236 232 223 / 0.3)",
@@ -231,7 +231,7 @@ export function StartScreen({
           </div>
           {version && (
             <span
-              className="telemetry absolute top-4 right-4 text-[10px] tracking-[0.12em] uppercase"
+              className="telemetry absolute top-4 right-4 text-meta tracking-[0.12em] uppercase"
               style={{ color: "rgb(236 232 223 / 0.92)" }}
             >
               v{version}
@@ -246,7 +246,7 @@ export function StartScreen({
             draggable={false}
           />
           <span
-            className="absolute right-4 bottom-3.5 text-[10px]"
+            className="absolute right-4 bottom-3.5 text-meta"
             style={{ color: "rgb(236 232 223 / 0.7)" }}
             title={still.source}
           >

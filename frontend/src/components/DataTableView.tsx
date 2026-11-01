@@ -70,7 +70,7 @@ export function DataTableView({
   return (
     <div className="flex min-w-0 flex-col gap-2">
       <div className="flex flex-wrap items-center justify-between gap-2">
-        <p className="telemetry text-[10px] text-muted-foreground">
+        <p className="telemetry text-meta text-muted-foreground">
           {table.rows.length} {table.rows.length === 1 ? "row" : "rows"}
           {" · "}
           {table.csvName}
@@ -106,7 +106,7 @@ export function DataTableView({
 
       {/* Wide tables scroll inside the section rather than widening the page. */}
       <div className="max-h-[22rem] overflow-auto rounded-sm border border-border bg-sunk">
-        <table className="selectable w-full min-w-max text-left text-[11px]">
+        <table className="selectable w-full min-w-max text-left text-body">
           <thead className="sticky top-0 z-10">
             <tr
               className="border-b"
@@ -134,7 +134,7 @@ export function DataTableView({
                       type="button"
                       onClick={() => toggleSort(i)}
                       className={cn(
-                        "telemetry flex w-full items-center gap-1 px-2.5 py-1.5 text-[10px] hover:text-foreground",
+                        "telemetry flex w-full items-center gap-1 px-2.5 py-1.5 text-meta hover:text-foreground",
                         c.numeric ? "justify-end" : "justify-start",
                         active ? "text-foreground" : "text-muted-foreground"
                       )}
@@ -176,7 +176,7 @@ export function DataTableView({
                       {col.swatch && text ? (
                         <span className="flex items-center gap-1.5">
                           <span
-                            className="size-2.5 shrink-0 rounded-[2px]"
+                            className="size-2.5 shrink-0 rounded-xs"
                             style={{ backgroundColor: text }}
                           />
                           <span className="telemetry">{text}</span>

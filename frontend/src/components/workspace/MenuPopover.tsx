@@ -204,7 +204,7 @@ export function MenuPopover({
             onKeyDown={onMenuKeys}
             className={cn(
               "rounded-sm border py-1 shadow-[0_8px_24px_rgba(0,0,0,0.55)]",
-              detached ? "fixed z-[1200]" : "absolute z-[60]"
+              detached ? "fixed z-1200" : "absolute z-60"
             )}
             style={{
               left: pos?.x ?? -9999,
@@ -271,14 +271,14 @@ export function MenuItem({
           mixed menu still line up. */}
       <span className="flex size-3 shrink-0 items-center justify-center">
         {checked ? (
-          <span className="size-1.5 rounded-[1px] bg-accent" aria-hidden />
+          <span className="size-1.5 rounded-xs bg-accent" aria-hidden />
         ) : Icon ? (
           <Icon className="size-3 text-muted-foreground" />
         ) : null}
       </span>
       <span className="min-w-0 flex-1 truncate">{label}</span>
       {note && (
-        <span className="telemetry shrink-0 text-[9px] text-muted-foreground">
+        <span className="telemetry shrink-0 text-micro text-muted-foreground">
           {note}
         </span>
       )}
@@ -336,7 +336,7 @@ export function MenuGroup({
 }) {
   return (
     <div className="py-0.5">
-      <p className="eyebrow px-2 pb-0.5 !text-[9px]">{label}</p>
+      <p className="eyebrow px-2 pb-0.5 !text-micro">{label}</p>
       {children}
     </div>
   )
@@ -426,7 +426,7 @@ export function ContextMenu({
       ref={panelRef}
       role="menu"
       onKeyDown={onMenuKeys}
-      className="absolute z-[70] w-[14rem] rounded-sm border py-1 shadow-[0_8px_24px_rgba(0,0,0,0.55)]"
+      className="absolute z-70 w-[14rem] rounded-sm border py-1 shadow-[0_8px_24px_rgba(0,0,0,0.55)]"
       style={{
         left: pos?.x ?? -9999,
         top: pos?.y ?? -9999,
@@ -435,7 +435,7 @@ export function ContextMenu({
         visibility: pos ? "visible" : "hidden",
       }}
     >
-      <p className="truncate px-2 pt-0.5 pb-1 text-[10px] text-muted-foreground">
+      <p className="truncate px-2 pt-0.5 pb-1 text-meta text-muted-foreground">
         {title}
       </p>
       <MenuRule />

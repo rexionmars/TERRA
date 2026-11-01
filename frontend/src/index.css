@@ -1015,13 +1015,11 @@
   --color-accent-quiet-raw: rgb(var(--p-accent-quiet));
 
   /*
-    Two container radii, not four. The app used rounded-md for glass panels,
-    rounded-sm for workspace surfaces and rounded-lg for the search bar, with
-    Leaflet chrome overridden to a fourth value -- four answers to one question.
-    sm is the control radius, md the container radius; lg and xl are kept as
-    aliases so existing utilities keep compiling while the screens are passed
-    over in the next round.
+    Three radii: xs for a mark (a swatch, a chip, a cell of a matrix), sm for a
+    control, md for a container. lg and xl are aliases of md, so a stray utility
+    cannot introduce a fourth.
   */
+  --radius-xs: 2px;
   --radius-sm: 5px;
   --radius-md: 9px;
   --radius-lg: 9px;
@@ -1060,6 +1058,8 @@
   --text-read--line-height: 1.5;
   --text-title: 15px;
   --text-title--line-height: 1.35;
+  --text-display: 18px;
+  --text-display--line-height: 1.25;
 
   --font-sans: var(--font-sans);
   --font-mono: var(--font-telemetry);

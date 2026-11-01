@@ -144,7 +144,7 @@ function SplashReplay({ onDone }: { onDone: () => void }) {
   }, [onDone])
 
   return createPortal(
-    <div className="fixed inset-0 z-[500]">
+    <div className="fixed inset-0 z-500">
       <SplashScreen live={false} />
     </div>,
     document.body

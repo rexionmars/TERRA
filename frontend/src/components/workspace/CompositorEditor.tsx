@@ -524,7 +524,7 @@ function ChangeReadingView({
   return (
     <div className="flex flex-col gap-2">
       <div className="flex items-baseline gap-2">
-        <span className="telemetry text-[18px] leading-none text-foreground">
+        <span className="telemetry text-display leading-none text-foreground">
           {share(reading.changed, reading.shared)}
         </span>
         <span className="text-meta text-muted-foreground">
@@ -2157,14 +2157,14 @@ export function CompositorEditor({
                       >
                         <span
                           aria-hidden
-                          className="grid size-2.5 shrink-0 place-items-center rounded-[2px]"
+                          className="grid size-2.5 shrink-0 place-items-center rounded-xs"
                           style={{
                             boxShadow: "inset 0 0 0 1px rgb(var(--p-line-strong))",
                           }}
                         >
                           {on && (
                             <span
-                              className="size-1.5 rounded-[1px]"
+                              className="size-1.5 rounded-xs"
                               style={{ background: "var(--b-lit)" }}
                             />
                           )}

@@ -1379,7 +1379,7 @@ export function MapShell(props: MapShellProps) {
           />
 
           {coords && (
-            <span className="telemetry pointer-events-none absolute right-[3.5rem] bottom-3 z-[410] rounded-sm bg-[rgb(var(--p-ink)/0.82)] px-2 py-1 text-label text-foreground tabular-nums">
+            <span className="telemetry pointer-events-none absolute right-[3.5rem] bottom-3 z-410 rounded-sm bg-[rgb(var(--p-ink)/0.82)] px-2 py-1 text-label text-foreground tabular-nums">
               {coords.lat.toFixed(5)}, {coords.lon.toFixed(5)}
             </span>
           )}
@@ -1392,7 +1392,7 @@ export function MapShell(props: MapShellProps) {
           {busy && panel !== "products" && (
             <div
               role="status"
-              className="map-chrome app-no-drag absolute bottom-10 left-1/2 z-[440] w-[24rem] max-w-[60%] -translate-x-1/2 rounded-md border border-[rgb(var(--p-line)/0.28)] px-3 py-2 shadow-[0_2px_8px_rgb(0_0_0/0.28)]"
+              className="map-chrome app-no-drag absolute bottom-10 left-1/2 z-440 w-[24rem] max-w-[60%] -translate-x-1/2 rounded-md border border-[rgb(var(--p-line)/0.28)] px-3 py-2 shadow-[0_2px_8px_rgb(0_0_0/0.28)]"
             >
               {running.map((r) => (
                 <div key={r.label}>
@@ -1532,7 +1532,7 @@ export function MapShell(props: MapShellProps) {
             <div
               ref={pageRef}
               className={cn(
-                "app-no-drag absolute inset-0 z-[480] flex-col bg-app",
+                "app-no-drag absolute inset-0 z-480 flex-col bg-app",
                 destination === "analyses" ? "flex" : "hidden"
               )}
             >

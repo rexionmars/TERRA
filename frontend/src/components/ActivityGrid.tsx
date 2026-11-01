@@ -231,7 +231,7 @@ export function ActivityGrid() {
                       key={cell.iso}
                       title={`${cell.iso} — ${n} ${n === 1 ? "run" : "runs"}`}
                       className={cn(
-                        "aspect-square w-full rounded-[2px]",
+                        "aspect-square w-full rounded-xs",
                         LEVEL_CLASS[level(n)]
                       )}
                     />
@@ -246,7 +246,7 @@ export function ActivityGrid() {
       <div className="flex items-center gap-1.5">
         <span className="telemetry text-micro text-muted-foreground">Less</span>
         {LEVEL_CLASS.map((c) => (
-          <span key={c} className={cn("size-[9px] rounded-[2px]", c)} />
+          <span key={c} className={cn("size-[9px] rounded-xs", c)} />
         ))}
         <span className="telemetry text-micro text-muted-foreground">More</span>
       </div>

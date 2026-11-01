@@ -105,7 +105,7 @@ export function RunQueue({ kind }: { kind: JobKind }) {
     <div className="flex flex-col gap-0.5 border-t border-border pt-1">
       {jobs.length > 0 && (
         <>
-          <span className="telemetry truncate text-[9px] text-muted-foreground">
+          <span className="telemetry truncate text-micro text-muted-foreground">
             {summary}
           </span>
           <div className="flex items-center gap-0.5">
@@ -148,7 +148,7 @@ export function RunQueue({ kind }: { kind: JobKind }) {
         </>
       )}
       {others > 0 && (
-        <span className="text-[9px] text-muted-foreground">
+        <span className="text-meta text-muted-foreground">
           {others} {others === 1 ? "job" : "jobs"} of other products in the queue
         </span>
       )}
@@ -173,7 +173,7 @@ function QueueAction({
       onClick={onClick}
       disabled={disabled}
       title={title}
-      className="rounded-sm px-1 py-0.5 text-[9px] text-muted-foreground transition-colors hover:bg-hover hover:text-foreground disabled:cursor-not-allowed disabled:opacity-40"
+      className="rounded-sm px-1 py-0.5 text-meta text-muted-foreground transition-colors hover:bg-hover hover:text-foreground disabled:cursor-not-allowed disabled:opacity-40"
     >
       {label}
     </button>
@@ -220,7 +220,7 @@ function JobRow({
         >
           {job.area_name}
         </span>
-        <span className="telemetry shrink-0 text-[9px] text-muted-foreground">
+        <span className="telemetry shrink-0 text-micro text-muted-foreground">
           {job.state === "running" ? `${job.progress}%` : null}
           {job.state === "running" && duration ? " · " : null}
           {job.state !== "queued" ? duration : null}
@@ -273,7 +273,7 @@ function JobRow({
       {detail && (
         <span
           className={cn(
-            "ml-[1.125rem] truncate text-[9px]",
+            "ml-[1.125rem] truncate text-meta",
             failed ? "text-destructive-quiet" : "telemetry text-muted-foreground"
           )}
           title={detail}
