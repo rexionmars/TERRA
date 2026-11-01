@@ -128,7 +128,7 @@ export function AreaHeaderOptions({
  * editor whose menus act on state only it holds, as AreaHeaderOptions is for
  * its options.
  */
-const AreaHeaderMenusHost = createContext<HTMLElement | null>(null)
+export const AreaHeaderMenusHost = createContext<HTMLElement | null>(null)
 
 export function AreaHeaderMenus({ children }: { children: React.ReactNode }) {
   const host = useContext(AreaHeaderMenusHost)

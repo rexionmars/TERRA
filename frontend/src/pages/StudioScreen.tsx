@@ -218,7 +218,7 @@ export interface StudioScreenProps {
   onOpenStudio?: (board: import("@/lib/studios").Studio) => void;
   onNewStudio?: (name: string) => void;
   /** Load a saved run as the live one. See BoardSurface.onOpenReading. */
-  onOpenReading?: (run: InferenceRun) => void;
+  onOpenReading?: (run: InferenceRun) => void | Promise<PredictResult | null>;
   /** A published boundary chosen in the catalogue card, to become an area. */
   onPickBoundary?: (name: string, geometry: GeoJSONGeometry) => void;
   /** Called when the studio's board menu opens, to refresh the list. */
@@ -262,6 +262,7 @@ export interface StudioScreenProps {
   mineralProgress?: number;
   mineralProgressMsg?: string;
   onClearMineral?: () => void;
+  onClearFields?: () => void;
   /**
    * The field delineation, as the mineral map's props are: absent runner, no
    * band entry. Adoption is asked for by the compositor's Make fields node,

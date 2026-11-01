@@ -821,6 +821,26 @@ export function runAssets(i: RunAssetInput): RunAsset[] {
   return out
 }
 
+/** Every raster a saved run holds, none of which any surface is drawing yet. */
+export function loadedRunAssets(result: PredictResult): RunAsset[] {
+  return runAssets({
+    result,
+    composition: null,
+    compositionGallery: [],
+    water: result.water,
+    mineral: result.mineral,
+    fields: result.fields,
+    health: result.health,
+    overlap: result.overlap,
+    radar: result.radar,
+    zones: result.zones,
+    showCompositionOverlay: false,
+    showWaterOverlay: false,
+    composeOpacity: 1,
+    waterOpacity: 1,
+  })
+}
+
 /**
  * Writes an asset out, and reports what happened.
  *

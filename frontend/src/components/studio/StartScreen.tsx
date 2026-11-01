@@ -172,7 +172,7 @@ export function StartScreen({
 
   return (
     <div
-      className="absolute inset-0 z-[100] flex items-center justify-center p-4"
+      className="absolute inset-0 z-[495] flex items-center justify-center p-4"
       onPointerDown={(e) => e.target === e.currentTarget && onClose()}
     >
       <div

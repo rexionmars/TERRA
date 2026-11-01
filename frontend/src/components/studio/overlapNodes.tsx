@@ -63,7 +63,7 @@ function FeatureList({ layer }: { layer: OverlapLayer }) {
   )
 }
 
-function OverlapReading({ report }: { report: OverlapAnalysis | null }) {
+export function OverlapReading({ report }: { report: OverlapAnalysis | null }) {
   const [open, setOpen] = useState<string | null>(null)
   if (!report) return null
   const list = registers(report)

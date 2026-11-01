@@ -104,7 +104,7 @@ function Named({ color, label }: { color?: string; label: string }) {
   )
 }
 
-function GroupPick({ value, onPick }: { value: MineralGroupId; onPick: (g: MineralGroupId) => void }) {
+export function GroupPick({ value, onPick }: { value: MineralGroupId; onPick: (g: MineralGroupId) => void }) {
   return (
     <div className="flex items-center gap-1">
       {([1, 2] as const).map((g) => (
@@ -117,7 +117,7 @@ function GroupPick({ value, onPick }: { value: MineralGroupId; onPick: (g: Miner
 const spreadText = (s: MineralSpread | null | undefined, fmt: (v: number) => string) =>
   s ? `${fmt(s.p50)} (${fmt(s.p10)} to ${fmt(s.p90)})` : "–"
 
-function Coverage({ m }: { m: MineralAnalysis }) {
+export function Coverage({ m }: { m: MineralAnalysis }) {
   const cellHa = mineralCellAreaHa(m)
   const used = m.selection ? `${m.selection.contributing_passes} of ${m.selection.compared_passes}` : String(m.scenes.length)
   return (
@@ -148,7 +148,7 @@ function Coverage({ m }: { m: MineralAnalysis }) {
   )
 }
 
-function Classes({ m, group }: { m: MineralAnalysis; group: MineralGroupId }) {
+export function Classes({ m, group }: { m: MineralAnalysis; group: MineralGroupId }) {
   const g = m.groups.find((x) => x.group === group)
   if (!g) return <Note>This run has no {GROUP_SHORT[group]} group.</Note>
   const cellHa = mineralCellAreaHa(m)
@@ -179,7 +179,7 @@ function Classes({ m, group }: { m: MineralAnalysis; group: MineralGroupId }) {
   )
 }
 
-function References({ m, group }: { m: MineralAnalysis; group: MineralGroupId }) {
+export function References({ m, group }: { m: MineralAnalysis; group: MineralGroupId }) {
   const g = m.groups.find((x) => x.group === group)
   if (!g?.entries.length) return <Note>No reference won a cell in this group.</Note>
   return (
@@ -195,7 +195,7 @@ function References({ m, group }: { m: MineralAnalysis; group: MineralGroupId })
   )
 }
 
-function Passes({ m }: { m: MineralAnalysis }) {
+export function Passes({ m }: { m: MineralAnalysis }) {
   if (!m.scenes.length) return <Note>No pass contributed cells.</Note>
   return (
     <>
@@ -223,7 +223,7 @@ function Passes({ m }: { m: MineralAnalysis }) {
   )
 }
 
-function Cover({ m }: { m: MineralAnalysis }) {
+export function Cover({ m }: { m: MineralAnalysis }) {
   const c = m.cover
   if (!c) return <Note>No EMIT L2B fractional cover exists for the passes used.</Note>
   return (
@@ -240,7 +240,7 @@ function Cover({ m }: { m: MineralAnalysis }) {
   )
 }
 
-function Positions({ m, band }: { m: MineralAnalysis; band: MineralBand }) {
+export function Positions({ m, band }: { m: MineralAnalysis; band: MineralBand }) {
   const p = m.positions?.find((x) => x.key === band)
   if (!p) {
     return (
@@ -284,7 +284,7 @@ function Positions({ m, band }: { m: MineralAnalysis; band: MineralBand }) {
   )
 }
 
-function Acid({ m }: { m: MineralAnalysis }) {
+export function Acid({ m }: { m: MineralAnalysis }) {
   const rows = m.acid_sulfate ?? []
   if (!rows.length) return <Note>No acid-sulfate mineral was identified.</Note>
   return (
@@ -306,7 +306,7 @@ function Acid({ m }: { m: MineralAnalysis }) {
   )
 }
 
-function Confidence({ m }: { m: MineralAnalysis }) {
+export function Confidence({ m }: { m: MineralAnalysis }) {
   const rows = m.confidence ?? []
   if (!rows.length) return <Note>This run carries no fit margins.</Note>
   const draws = rows.find((r) => r.draws > 0)?.draws ?? 0
@@ -336,7 +336,7 @@ function Confidence({ m }: { m: MineralAnalysis }) {
   )
 }
 
-function Agreement({ m, group }: { m: MineralAnalysis; group: MineralGroupId }) {
+export function Agreement({ m, group }: { m: MineralAnalysis; group: MineralGroupId }) {
   const a = m.agreement?.find((x) => x.group === group)
   if (!a) return <Note>No EMIT L2B granule exists for the passes used in this group.</Note>
   return (
@@ -369,7 +369,7 @@ function Agreement({ m, group }: { m: MineralAnalysis; group: MineralGroupId }) 
   )
 }
 
-function Save({ m }: { m: MineralAnalysis }) {
+export function Save({ m }: { m: MineralAnalysis }) {
   const go = async () => {
     try {
       const dest = await ExportOverlayFile(m.geotiff, "terra_mineral_map.tif")

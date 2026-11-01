@@ -244,7 +244,7 @@ function HealthChart({ report }: { report: HealthValue["report"] }) {
   )
 }
 
-function HealthReading({ report }: { report: HealthValue["report"] | null }) {
+export function HealthReading({ report }: { report: HealthValue["report"] | null }) {
   if (!report) return null
   const l = report.latest
   const years = report.baseline_years.length ? report.baseline_years.join(", ") : "none returned a clear date"

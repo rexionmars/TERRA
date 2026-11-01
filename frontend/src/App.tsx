@@ -2271,7 +2271,7 @@ function AppBody(props: {
      * run on the map. Passed rather than corrected afterwards -- navigating to
      * one screen and then to another shows the first one on the way past.
      */
-    async (run: InferenceRun) => {
+    async (run: InferenceRun): Promise<PredictResult | null> => {
       setLoadingRun(true)
       try {
         const res = (await LoadAnalysis(run.id)) as unknown as PredictResult
@@ -2350,8 +2350,11 @@ function AppBody(props: {
         */
         goStudio()
         notifySuccess("Analysis restored.")
+        // The queued products have no state here; the map shell holds their reading.
+        return res
       } catch (e) {
         notifyError("Could not load analysis", e)
+        return null
       } finally {
         setLoadingRun(false)
       }
@@ -3292,6 +3295,7 @@ function AppBody(props: {
                   mineralProgress={mineralRun.progress}
                   mineralProgressMsg={mineralRun.message}
                   onClearMineral={() => setMineral(null)}
+                  onClearFields={() => setFields(null)}
                   fields={fields}
                   onRunFields={() => void handleRunFields()}
                   fieldsBusy={fieldsRun.active}

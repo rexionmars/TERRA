@@ -19,7 +19,12 @@ import {
   User,
   type Icon,
 } from "@/components/icons"
-import { StudioMenuItem, StudioPopover } from "@/components/studio/StudioPopover"
+import {
+  OperatorMenuItem,
+  StudioMenuItem,
+  StudioMenuRule,
+  StudioPopover,
+} from "@/components/studio/StudioPopover"
 import { WindowControls } from "@/components/TitleBar"
 import { btnGhostDense } from "@/components/ui/buttons"
 import type { AppSurfaces } from "@/lib/appSurfaces"
@@ -27,10 +32,11 @@ import type { Area } from "@/lib/areas"
 import { useAuth } from "@/lib/auth"
 import { REPO_URL } from "@/lib/brand"
 import { notifyError } from "@/lib/notify"
+import { openProjectFile, projectFileName } from "@/lib/projectFiles"
 import { cn } from "@/lib/utils"
 
 /** What the rail can show as current. */
-export type RailPlace = "explore" | "areas" | "analyses" | "activity"
+export type RailPlace = "explore" | "areas" | "analyses" | "compare" | "workflows" | "activity"
 
 /*
   THE RAIL IS NARROWER THAN THE TRAFFIC LIGHTS ARE WIDE. They end about 61px in and
@@ -168,6 +174,7 @@ export function ShellTopBar({
   railOpen,
   onToggleRail,
   app,
+  recentFiles,
   onOpenStudio,
 }: {
   projectName: string
@@ -181,6 +188,8 @@ export function ShellTopBar({
   railOpen: boolean
   onToggleRail: () => void
   app: AppSurfaces
+  /** Project files opened lately, newest first. */
+  recentFiles: readonly string[]
   onOpenStudio: () => void
 }) {
   const [menu, setMenu] = useState<"project" | "area" | "options" | null>(null)
@@ -275,9 +284,27 @@ export function ShellTopBar({
           </button>
         )}
       >
+        <OperatorMenuItem id="PROJECT_OPEN" onDone={() => setMenu(null)} />
+        <OperatorMenuItem id="PROJECT_SAVE" onDone={() => setMenu(null)} />
+        <OperatorMenuItem id="PROJECT_SAVE_AS" onDone={() => setMenu(null)} />
+        <OperatorMenuItem id="PROJECT_REVEAL" onDone={() => setMenu(null)} />
+        {recentFiles.slice(0, 5).map((path) => (
+          <StudioMenuItem
+            key={path}
+            indented
+            label={projectFileName(path)}
+            title={path}
+            onSelect={() => {
+              setMenu(null)
+              openProjectFile(path)
+            }}
+          />
+        ))}
+        <StudioMenuRule />
         {appItem(app.items.environment)}
         {appItem(app.items.storage)}
         {appItem(app.items.releaseNotes)}
+        {appItem(app.items.splash)}
         {appItem(app.items.about)}
         <StudioMenuItem
           icon={Cube}
@@ -421,15 +448,15 @@ export function ShellRail({
           <RailButton
             icon={Columns}
             label="Compare"
-            title="Compare, in the classic studio"
             open={open}
+            active={place === "compare"}
             onClick={onCompare}
           />
           <RailButton
             icon={Graph}
             label="Workflows"
-            title="Workflows, in the classic studio"
             open={open}
+            active={place === "workflows"}
             onClick={onWorkflows}
           />
           <hr className={cn("my-1.5 border-border", open ? "mx-1.5" : "w-7")} />

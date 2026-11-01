@@ -27,6 +27,8 @@ export interface LayerSwitches {
   setOverlayOpacity: (v: number) => void
   patchFieldLayer: (id: string, patch: LayerPatch) => void
   patchMineralLayer: (id: string, patch: LayerPatch) => void
+  /** Any other raster of a run, where the surface draws those at all. */
+  patchAssetLayer?: (id: string, patch: LayerPatch) => void
 }
 
 export function applyLayerPatch(id: string, patch: LayerPatch, to: LayerSwitches): void {
@@ -40,6 +42,7 @@ export function applyLayerPatch(id: string, patch: LayerPatch, to: LayerSwitches
   else if (isMineralLayer(id)) to.patchMineralLayer(id, patch)
   else if (id === "confidence") send(to.setConfidenceVisible, to.setOverlayOpacity)
   else if (id === "prediction") send(to.setPredictionVisible, to.setOverlayOpacity)
+  else to.patchAssetLayer?.(id, patch)
 }
 
 /** One entry per layer, merged so a patch naming only the opacity leaves the switch alone. */

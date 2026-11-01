@@ -25,8 +25,20 @@ function classification(over: Partial<PredictResult> = {}): PredictResult {
 
 const render = (props: Partial<Parameters<typeof ResultPanel>[0]>) =>
   renderToStaticMarkup(
-    <ResultPanel result={null} onOpenStudio={() => {}} onClose={() => {}} {...props} />
+    <ResultPanel
+      result={null}
+      view="summary"
+      onViewChange={() => {}}
+      areas={[]}
+      runLabel="Test area"
+      onPickZones={() => {}}
+      onRemove={() => {}}
+      onClose={() => {}}
+      {...props}
+    />
   )
+
+const BOX = { lon_min: -54, lat_min: -25, lon_max: -53, lat_max: -24 }
 
 describe("ResultPanel", () => {
   it("says what would put something there when there is nothing", () => {
@@ -72,9 +84,68 @@ describe("ResultPanel", () => {
     expect(html).toContain("11.3 %")
   })
 
-  it("says where the products it does not read yet are read", () => {
-    const html = render({ mineral: {} as never })
-    expect(html).toContain("the mineral map")
-    expect(html).toContain("classic studio")
+  it("reads a mineral map and keeps its limit beside it", () => {
+    const mineral = {
+      extent: BOX,
+      observed_area_ha: 40,
+      aoi_area_ha: 100,
+      masked_cells: 0,
+      scenes: [],
+      groups: [],
+      legend: [],
+      notes: [],
+    } as never
+    const html = render({ mineral })
+    expect(html).toContain("Mineral map")
+    expect(html).toContain("Band depth is not abundance")
+    expect(html).toContain("40.0 ha")
+  })
+
+  it("reads a field delineation and refuses to adopt one with no saved area", () => {
+    const fields = {
+      extent: BOX,
+      checkpoint: { name: "c", title: "FTW", license: "CC" },
+      window_a: { date: "2026-01-05", items: [], cloud_cover: 3, clear_fraction: 1 },
+      window_b: { date: "2026-03-05", items: [], cloud_cover: 4, clear_fraction: 1 },
+      area_ha: 90,
+      masked_fraction: 0.1,
+      n_fields: 0,
+      field_area_ha: null,
+      fields_geojson: "",
+    } as never
+    const html = render({ fields })
+    expect(html).toContain("Field boundaries")
+    expect(html).toContain("Only a saved delineation")
+    expect(html).toContain("Not measured on Paraná fields")
+  })
+
+  it("reads a queued product from the run that was opened", () => {
+    const job = {
+      runId: "r1",
+      label: "Field 7",
+      radar: {
+        extent: BOX,
+        series: [],
+        losses: [],
+        map_date: "2026-01-05",
+        map_orbit: 1,
+      },
+    } as never
+    const html = render({ job })
+    expect(html).toContain("Radar")
+    expect(html).toContain("not calibrated against harvest records")
+  })
+
+  it("offers the choice only where more than one result is on the map", () => {
+    const water = { index: "MNDWI", n_dates: 1, peak_water_fraction_pct: 1 } as WaterAnalysis
+    expect(render({ result: classification() })).not.toContain('aria-label="Result"')
+    expect(render({ result: classification(), water })).toContain('aria-label="Result"')
+  })
+
+  it("opens first on the product it was told to", () => {
+    const water = { index: "MNDWI", n_dates: 1, peak_water_fraction_pct: 1 } as WaterAnalysis
+    const html = render({ result: classification(), water, focus: "classify" })
+    expect(html).toContain("Soybean")
+    expect(html).not.toContain("Persistent water")
   })
 })

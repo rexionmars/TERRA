@@ -45,6 +45,7 @@ export function RunPicker({
   excludeRunIds,
   busy,
   surface,
+  plain = false,
   onPick,
 }: {
   runs: InferenceRun[]
@@ -53,6 +54,8 @@ export function RunPicker({
   busy?: boolean
   /** The studio surface the list is portalled into and clamped inside. */
   surface: HTMLElement | null
+  /** Outside an area's header, where nothing withdraws its label for it. */
+  plain?: boolean
   onPick: (run: InferenceRun) => void
 }) {
   const [open, setOpen] = useState(false)
@@ -110,9 +113,11 @@ export function RunPicker({
           disabled={busy}
           aria-expanded={p["aria-expanded"]}
           aria-haspopup={p["aria-haspopup"]}
-          title="Bring a stored run onto this area"
+          title={plain ? "Bring in a saved run" : "Bring a stored run onto this area"}
           className={cn(
-            "flex h-5 shrink-0 items-center gap-1 rounded-sm px-1.5 text-meta transition-colors",
+            plain
+              ? "flex h-8 shrink-0 items-center gap-1.5 rounded-sm border border-border px-2 text-label transition-colors"
+              : "flex h-5 shrink-0 items-center gap-1 rounded-sm px-1.5 text-meta transition-colors",
             "focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring",
             "disabled:cursor-not-allowed disabled:opacity-50",
             open
@@ -134,7 +139,7 @@ export function RunPicker({
           {busy ? (
             "Loading…"
           ) : (
-            <span className="header-label">Add a run</span>
+            <span className={plain ? undefined : "header-label"}>Add a run</span>
           )}
         </button>
       )}
@@ -177,7 +182,9 @@ export function RunPicker({
                   ? "No run matches that."
                   : runs.length === 0
                     ? "No saved runs yet."
-                    : "Every saved run is already in the studio."}
+                    : plain
+                      ? "Every saved run is already here."
+                      : "Every saved run is already in the studio."}
               </p>
             ) : (
               groups.map((g) => (

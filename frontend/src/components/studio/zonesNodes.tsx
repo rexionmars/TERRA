@@ -17,7 +17,7 @@ import type { ZonesAnalysis } from "@/lib/types"
 
 const COUNTS = [3, 4, 5] as const
 
-function ZonesReading({ report, k }: { report: ZonesAnalysis | null; k: number | null }) {
+export function ZonesReading({ report, k }: { report: ZonesAnalysis | null; k: number | null }) {
   const p = chosenPartition(report, k)
   if (!report || !p) return null
   const used = report.seasons.filter((s) => s.used)

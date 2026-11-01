@@ -117,7 +117,7 @@ export function ProfilePage({
   onOpenRun,
 }: {
   loadingRun?: boolean
-  onOpenRun: (run: InferenceRun) => Promise<void>
+  onOpenRun: (run: InferenceRun) => Promise<unknown>
 }) {
   const {
     user,
