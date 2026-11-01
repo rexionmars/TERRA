@@ -38,6 +38,7 @@ from rasterio.windows import Window, from_bounds
 from shapely.ops import transform as shp_transform
 
 from terra import stac
+from terra.imagery.grid import map_corners
 
 COLLECTION = 'sentinel-2-l2a'
 PIXEL_M = 10.0
@@ -59,6 +60,10 @@ class Grid:
     def bounds(self) -> tuple[float, float, float, float]:
         left, top = self.transform.c, self.transform.f
         return (left, top - self.height * PIXEL_M, left + self.width * PIXEL_M, top)
+
+    def corners(self) -> list[list[float]]:
+        """Where the grid's corners are in lon/lat; see grid.map_corners."""
+        return map_corners(self.crs, *self.bounds)
 
     def profile(self) -> dict[str, Any]:
         return {

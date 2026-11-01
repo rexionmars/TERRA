@@ -41,6 +41,7 @@ class Survey:
     anomaly: np.ndarray
     aoi_pixels: int
     extent: tuple[float, float, float, float]
+    corners: list[list[float]] | None = None
 
     def to_payload(self, work_dir) -> dict:
         """The `water` object the shell reads, and the PNG it points at."""
@@ -76,6 +77,7 @@ class Survey:
             'extent': {
                 'lon_min': lon_min, 'lat_min': lat_min,
                 'lon_max': lon_max, 'lat_max': lat_max,
+                'corners': self.corners,
             },
         }
 
@@ -174,4 +176,5 @@ def run(products, polygon, index_name, progress=None, skipped=None) -> Survey:
         ),
         aoi_pixels=int(aoi_valid.sum()),
         extent=ref_grid.get_map_extent(ref_profile),
+        corners=ref_grid.profile_corners(ref_profile),
     )

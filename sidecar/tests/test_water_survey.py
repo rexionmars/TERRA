@@ -68,6 +68,8 @@ def readable(monkeypatch):
     monkeypatch.setattr(sentinel2, 'to_reflectance', lambda dn, product: dn)
     monkeypatch.setattr(survey.ref_grid, 'get_map_extent',
                         lambda profile: (-53.5, -53.4, -25.1, -25.0))
+    monkeypatch.setattr(survey.ref_grid, 'profile_corners',
+                        lambda profile: [[-53.5, -25.0], [-53.4, -25.0], [-53.4, -25.1], [-53.5, -25.1]])
     return table
 
 

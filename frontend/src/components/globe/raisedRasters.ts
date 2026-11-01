@@ -74,6 +74,7 @@ import type {
   Map as MapLibreMap,
 } from "maplibre-gl"
 
+import { cornersOf } from "@/lib/mapLayers"
 import type { Bounds } from "@/lib/types"
 
 export interface RaisedRaster {
@@ -122,10 +123,7 @@ function quad(b: Bounds): Float32Array {
     zig-zag, and the readable order here is the one the extent is written in.
     Six vertices is nothing, and the arithmetic below stays legible.
   */
-  const tl = MercatorCoordinate.fromLngLat({ lng: b.lon_min, lat: b.lat_max })
-  const tr = MercatorCoordinate.fromLngLat({ lng: b.lon_max, lat: b.lat_max })
-  const br = MercatorCoordinate.fromLngLat({ lng: b.lon_max, lat: b.lat_min })
-  const bl = MercatorCoordinate.fromLngLat({ lng: b.lon_min, lat: b.lat_min })
+  const [tl, tr, br, bl] = cornersOf(b).map(([lng, lat]) => MercatorCoordinate.fromLngLat({ lng, lat }))
   // position.xy, uv.xy per vertex.
   return new Float32Array([
     tl.x, tl.y, 0, 0,

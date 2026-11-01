@@ -211,6 +211,7 @@ def delineate(req: protocol.Request, work_dir: Path) -> None:
         'extent': {
             'lon_min': float(lon_min), 'lon_max': float(lon_max),
             'lat_min': float(lat_min), 'lat_max': float(lat_max),
+            'corners': grid.corners(),
         },
         'checkpoint': {
             'name': checkpoint.name,

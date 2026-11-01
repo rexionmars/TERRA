@@ -6,6 +6,11 @@ type Bounds struct {
 	LatMin float64 `json:"lat_min"`
 	LonMax float64 `json:"lon_max"`
 	LatMax float64 `json:"lat_max"`
+	// Corners are a projected raster's four corners as [lon, lat], clockwise from
+	// the top left. A UTM grid does not run along the meridians, so the box alone
+	// draws it turned. Absent on a raster in degrees and on a run saved before
+	// they were reported, which are drawn by the box.
+	Corners [][]float64 `json:"corners,omitempty"`
 }
 
 // GeoJSONGeometry is a minimal GeoJSON geometry (Polygon) passed to the sidecar.

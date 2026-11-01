@@ -12,6 +12,11 @@ export interface Bounds {
   lat_min: number
   lon_max: number
   lat_max: number
+  /**
+   * A projected raster's four corners as [lon, lat], clockwise from the top left.
+   * Absent on a raster in degrees, and on a run saved before they were reported.
+   */
+  corners?: number[][] | null
 }
 
 export interface GeoJSONGeometry {

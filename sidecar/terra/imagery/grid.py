@@ -67,6 +67,32 @@ def reference_pixel_size_m(profile):
     return side
 
 
+def map_corners(crs, left, bottom, right, top):
+    """
+    A raster's four corners in lon/lat, clockwise from the top left.
+
+    A UTM grid does not run along the meridians: away from its central meridian
+    grid north differs from true north, by about a degree at Cascavel. A lon/lat
+    box cannot say that, so a raster stretched across one is drawn turned, by more
+    the larger the area. These are what it has to be pinned to. Its pixels are
+    untouched: this is about where they are drawn, not what they measure.
+    """
+    to_lonlat = Transformer.from_crs(crs, 'EPSG:4326', always_xy=True)
+    return [
+        [float(v) for v in to_lonlat.transform(x, y)]
+        for x, y in ((left, top), (right, top), (right, bottom), (left, bottom))
+    ]
+
+
+def profile_corners(profile):
+    """`map_corners` of a rasterio-like profile."""
+    t = profile['transform']
+    left, top = t.c, t.f
+    right = left + profile['width'] * t.a
+    bottom = top + profile['height'] * t.e
+    return map_corners(profile['crs'], left, bottom, right, top)
+
+
 def get_map_extent(profile):
     """Compute the EPSG:4326 lat/lon extent from a raster profile (from notebooks)."""
     t = profile['transform']

@@ -273,6 +273,8 @@ def extent_from_profile(profile: dict) -> dict:
     from pyproj import Transformer
     from rasterio.transform import array_bounds
 
+    from terra.imagery.grid import map_corners
+
     transform = profile["transform"]
     h = profile["height"]
     w = profile["width"]
@@ -293,4 +295,5 @@ def extent_from_profile(profile: dict) -> dict:
         "lat_min": float(min(lat_a, lat_b)),
         "lon_max": float(max(lon_a, lon_b)),
         "lat_max": float(max(lat_a, lat_b)),
+        "corners": map_corners(crs, left, bottom, right, top),
     }

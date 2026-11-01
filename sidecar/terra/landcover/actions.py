@@ -359,6 +359,7 @@ def predict(req, work_dir):
         'extent': {
             'lon_min': float(lon_min), 'lon_max': float(lon_max),
             'lat_min': float(lat_min), 'lat_max': float(lat_max),
+            'corners': ref_grid.profile_corners(ref_profile),
         },
         'overlay_png': str(overlay_png),
         'raster_tif': str(raster_tif),
