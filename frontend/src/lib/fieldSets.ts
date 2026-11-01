@@ -63,8 +63,9 @@ export function fieldSets(areas: readonly Area[], runs: readonly RunRow[]): Fiel
     if (kind === "fields") continue
     const k = `${field.id}\u0000${kind}`
     const prev = latest.get(k)
-    if (!prev || r.created_at > prev.run.created_at)
+    if (!prev || r.created_at > prev.run.created_at) {
       latest.set(k, { field, kind, run: r })
+    }
   }
   const sets = new Map<string, FieldSet>()
   for (const { field, kind, run } of latest.values()) {
@@ -83,8 +84,9 @@ export function fieldSets(areas: readonly Area[], runs: readonly RunRow[]): Fiel
     set.members.push({ fieldId: field.id, fieldName: field.name, runId: run.id })
   }
   const out = [...sets.values()]
-  for (const s of out)
+  for (const s of out) {
     s.members.sort((a, b) => byName.compare(a.fieldName, b.fieldName))
+  }
   return out.sort(
     (a, b) =>
       byName.compare(a.areaName, b.areaName) || a.runKind.localeCompare(b.runKind)
@@ -166,8 +168,9 @@ export function perField(
   const fields = new Map<string, FieldMember>()
   for (const n of graph.nodes) {
     if (!isEach(n) || n.each.areaId !== lead.areaId) continue
-    for (const m of setOf(sets, n)?.members ?? [])
+    for (const m of setOf(sets, n)?.members ?? []) {
       if (!fields.has(m.fieldId)) fields.set(m.fieldId, m)
+    }
   }
   const members = [...fields.values()].sort((a, b) =>
     byName.compare(a.fieldName, b.fieldName)

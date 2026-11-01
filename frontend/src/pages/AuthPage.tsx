@@ -62,7 +62,7 @@ export function AuthPage() {
         </div>
 
         <form
-          onSubmit={submit}
+          onSubmit={(e) => void submit(e)}
           className="flex flex-col gap-3 rounded-sm border border-border bg-secondary/50 p-4"
         >
           {mode === "register" && (

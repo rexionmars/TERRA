@@ -429,8 +429,9 @@ export function seasonSeries(
   const y0 = Math.min(0, Math.floor(Math.min(...values) * 5) / 5)
   const y1 = Math.max(1, Math.ceil(Math.max(...values) * 5) / 5)
   const yTicks: { at: number; label: string }[] = []
-  for (let v = y0; v <= y1 + 1e-9; v += 0.2)
+  for (let v = y0; v <= y1 + 1e-9; v += 0.2) {
     yTicks.push({ at: Number(v.toFixed(1)), label: v.toFixed(1) })
+  }
   // First of each month inside the range; every other month past six.
   const first = new Date(t0)
   const months: number[] = []
@@ -673,7 +674,7 @@ function summaryOf(rows: readonly FieldRow[], products: readonly Product[]): str
     if (name != null && all > 0) {
       const size = unit === "ha" ? `${ha(all)} ha` : `${fixed(all, 0)} pixels`
       out.push(
-        `${scope}, ${size} were classified into ${plural(totals.size, "class", "classes")}; the largest, ${name}, covers ${pct(amount! / all)} of it.`
+        `${scope}, ${size} were classified into ${plural(totals.size, "class", "classes")}; the largest, ${name}, covers ${pct(amount / all)} of it.`
       )
     }
   }

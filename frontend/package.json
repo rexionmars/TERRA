@@ -10,6 +10,7 @@
     "test": "vitest run",
     "format": "prettier --write src scripts vite.config.ts",
     "check:format": "prettier --check src scripts vite.config.ts",
+    "lint": "eslint src scripts",
     "check:contrast": "tsx scripts/check-contrast.ts",
     "check:types": "tsx scripts/check-types.ts",
     "check:version": "tsx scripts/check-version.ts",
@@ -42,12 +43,15 @@
     "@types/react": "^19.2.0",
     "@types/react-dom": "^19.2.0",
     "@vitejs/plugin-react": "^5.1.0",
+    "eslint": "^10.14.0",
+    "eslint-plugin-react-hooks": "^7.1.1",
     "prettier": "^3.9.10",
     "prettier-plugin-tailwindcss": "^0.8.1",
     "tailwindcss": "^4.1.0",
     "tsx": "^4.23.11",
     "tw-animate-css": "^1.4.0",
     "typescript": "^5.9.0",
+    "typescript-eslint": "^8.72.1",
     "vite": "^7.3.0",
     "vitest": "^4.1.11"
   }

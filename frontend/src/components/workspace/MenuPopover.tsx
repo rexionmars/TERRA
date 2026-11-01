@@ -43,8 +43,9 @@ function onMenuKeys(e: React.KeyboardEvent<HTMLDivElement>) {
   if (!["ArrowDown", "ArrowUp", "Home", "End"].includes(e.key)) return
   if (e.defaultPrevented) return
   const from = document.activeElement as HTMLElement | null
-  if (from && from !== e.currentTarget && from.getAttribute("role") !== "menuitem")
+  if (from && from !== e.currentTarget && from.getAttribute("role") !== "menuitem") {
     return
+  }
   const items = Array.from(e.currentTarget.querySelectorAll<HTMLElement>(MENU_ITEM))
   if (!items.length) return
   e.preventDefault()

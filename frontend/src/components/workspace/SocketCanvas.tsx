@@ -454,8 +454,9 @@ export function SocketCanvas({
         const isFolded = folded.has(n.id)
         n.inputs.forEach((s, i) => {
           const dist = Math.hypot(at.x - n.place.x, at.y - inputSocketY(n, i, isFolded))
-          if (dist <= SOCKET_REACH && (!best || dist < best.d))
+          if (dist <= SOCKET_REACH && (!best || dist < best.d)) {
             best = { node: n.id, socket: s.id, d: dist }
+          }
         })
       }
       const hit = best as { node: string; socket: string } | null
@@ -630,8 +631,9 @@ export function SocketCanvas({
               key={n.id}
               ref={watch(n.id)}
               onPointerDownCapture={(e) => {
-                if (e.button === 0)
+                if (e.button === 0) {
                   onSelect(n.id, { ctrl: e.ctrlKey || e.metaKey, shift: e.shiftKey })
+                }
               }}
               className="pointer-events-auto absolute rounded-md"
               style={{

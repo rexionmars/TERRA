@@ -321,8 +321,9 @@ function step(node: GraphNode, v: ClassValue, key: string): ClassValue | string 
         return sieveFilter(v.grid, node.minPixels, node.connectivity)
       case "morphology": {
         const ordinal = v.info.legend.findIndex((e) => e.id === node.classId)
-        if (node.classId == null || ordinal < 0)
+        if (node.classId == null || ordinal < 0) {
           return "Choose the class to open or close."
+        }
         return node.op === "open"
           ? openClass(v.grid, ordinal, node.size, classes)
           : closeClass(v.grid, ordinal, node.size)
@@ -437,8 +438,9 @@ export function evaluate(graph: CompositorGraph, ctx: EvalContext): Evaluation {
       case "select": {
         const up = input(node, "classes", trail)
         if (up.status !== "ready") return notReady(up)
-        if (up.value.type !== "classes")
+        if (up.value.type !== "classes") {
           return { status: "failed", note: "Needs a class map." }
+        }
         const v = up.value
         const made = cached(`${paramsKey(node)}(${v.key})`, () =>
           step(node, v, `${paramsKey(node)}(${v.key})`)
@@ -453,10 +455,12 @@ export function evaluate(graph: CompositorGraph, ctx: EvalContext): Evaluation {
         if (raster.status !== "ready") return notReady(raster)
         const mask = input(node, "mask", trail)
         if (mask.status !== "ready") return notReady(mask)
-        if (mask.value.type !== "classes")
+        if (mask.value.type !== "classes") {
           return { status: "failed", note: "The mask needs a class map." }
-        if (!isRaster(raster.value))
+        }
+        if (!isRaster(raster.value)) {
           return { status: "failed", note: "The raster input takes a raster." }
+        }
         const v = raster.value
         const m = mask.value
         const made = cached(`mask(${v.key},${m.key})`, (): RasterValue | string => {
@@ -476,8 +480,9 @@ export function evaluate(graph: CompositorGraph, ctx: EvalContext): Evaluation {
             return { ...v, key, grid: { ...v.grid, index } }
           }
           const rgba = v.rgba.slice()
-          for (let p = 0, o = 3; p < v.width * v.height; p++, o += 4)
+          for (let p = 0, o = 3; p < v.width * v.height; p++, o += 4) {
             if (!inside(p)) rgba[o] = 0
+          }
           return { ...v, key, rgba }
         })
         return typeof made === "string"
@@ -491,12 +496,14 @@ export function evaluate(graph: CompositorGraph, ctx: EvalContext): Evaluation {
         const top = input(node, "overlay", trail)
         if (top.status === "busy") return top
         if (top.status === "failed") return { status: "failed", note: top.note }
-        if (!isRaster(base.value))
+        if (!isRaster(base.value)) {
           return { status: "failed", note: "The base takes a raster." }
+        }
         const b = painted(base.value)
         if (top.status === "none") return { status: "ready", value: b }
-        if (!isRaster(top.value))
+        if (!isRaster(top.value)) {
           return { status: "failed", note: "The overlay takes a raster." }
+        }
         const t = painted(top.value)
         const key = `${paramsKey(node)}(${b.key},${t.key})`
         const made = cached(key, (): ImageValue | string => {
@@ -530,8 +537,9 @@ export function evaluate(graph: CompositorGraph, ctx: EvalContext): Evaluation {
       case "fieldFilter": {
         const up = input(node, "fields", trail)
         if (up.status !== "ready") return notReady(up)
-        if (up.value.type !== "fields")
+        if (up.value.type !== "fields") {
           return { status: "failed", note: "Needs the fields a delineation drew." }
+        }
         return {
           status: "ready",
           value: filterFields(up.value, node.minHa, node.minCropland),
@@ -548,8 +556,9 @@ export function evaluate(graph: CompositorGraph, ctx: EvalContext): Evaluation {
     // A node's own outputs even where nothing reads them, since the node
     // reports on what it made. Not a Run node's: those are decoded rasters,
     // and only the ones something reads are worth decoding.
-    if (node.kind !== "run")
+    if (node.kind !== "run") {
       for (const o of kindMeta(node.kind).outputs) output(node.id, o.id, new Set())
+    }
   }
   for (const l of graph.links) output(l.from, l.fromSocket, new Set())
   return { outputs, inputs, used }

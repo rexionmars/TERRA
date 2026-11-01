@@ -259,7 +259,7 @@ export function ZonesCard({
       )}
       {exportAll ? (
         <ZonesTable
-          rows={fields!.map((f) => ({ name: f.name, report: f.zones?.report ?? null }))}
+          rows={fields.map((f) => ({ name: f.name, report: f.zones?.report ?? null }))}
           k={k}
         />
       ) : (

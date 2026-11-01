@@ -23,8 +23,9 @@ export interface SessionRun {
 
 function periodOf(r: PredictResult, record?: InferenceRun | null): string | null {
   const d = r.date_range
-  if (d?.length)
+  if (d?.length) {
     return d[0] === d[d.length - 1] ? d[0] : `${d[0]} to ${d[d.length - 1]}`
+  }
   return record?.period_start ? `${record.period_start} to ${record.period_end}` : null
 }
 

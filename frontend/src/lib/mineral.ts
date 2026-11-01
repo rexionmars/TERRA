@@ -46,8 +46,9 @@ export function mineralDerivedLayer(
   m: MineralAnalysis | null | undefined,
   layerId: string
 ): MineralLayer | null {
-  if (!m || !isMineralLayer(layerId) || mineralGroupOfLayer(layerId) !== null)
+  if (!m || !isMineralLayer(layerId) || mineralGroupOfLayer(layerId) !== null) {
     return null
+  }
   const id = layerId.slice(MINERAL_LAYER_PREFIX.length)
   return m.layers?.find((l) => l.id === id) ?? null
 }

@@ -120,8 +120,9 @@ function paths(xml: string, file: string): string[] {
 function toSvg(drawable: string, file: string, variant: Variant): string {
   const palette = PALETTES[variant] as unknown as Record<string, string>
   const vector = drawable.match(/<vector\b[\s\S]*?>/)
-  if (!vector)
+  if (!vector) {
     throw new Error(`${file}: no <vector> root (animation lists are unsupported)`)
+  }
   const vw = attr(vector[0], "viewportWidth")
   const vh = attr(vector[0], "viewportHeight")
   if (vw !== String(VIEWPORT) || vh !== String(VIEWPORT)) {
@@ -172,8 +173,9 @@ function read(): Pointer[] {
     if (!tag) throw new Error(`${iconFile}: no <pointer-icon>`)
     const hx = Number(attr(tag[0], "hotSpotX")!.replace("dp", ""))
     const hy = Number(attr(tag[0], "hotSpotY")!.replace("dp", ""))
-    if (!Number.isFinite(hx) || !Number.isFinite(hy))
+    if (!Number.isFinite(hx) || !Number.isFinite(hy)) {
       throw new Error(`${iconFile}: bad hotspot`)
+    }
 
     const drawableName = attr(tag[0], "bitmap")!.split("/").pop()!
     const drawableFile = join(VENDOR, "drawable", `${drawableName}.xml`)

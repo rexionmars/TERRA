@@ -170,8 +170,9 @@ export function PointsPanel({
     for (const slot of ["A", "B"] as const) {
       const id = readings[slot]?.find((r) => r.layerId === "prediction")?.sample?.entry
         ?.id
-      if (typeof id === "number" && !out.some((c) => c.classId === id))
+      if (typeof id === "number" && !out.some((c) => c.classId === id)) {
         out.push({ slot, classId: id })
+      }
     }
     return out
   }, [readings])

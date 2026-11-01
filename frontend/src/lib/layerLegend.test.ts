@@ -60,8 +60,9 @@ const viPoint = (date: string, ndvi_mean: number): VISeriesPoint =>
   of naming the variant that actually came back.
 */
 const asClasses = (l: LayerLegend) => {
-  if (l?.kind !== "classes")
+  if (l?.kind !== "classes") {
     throw new Error(`expected classes, got ${l?.kind ?? "null"}`)
+  }
   return l
 }
 const asRamp = (l: LayerLegend) => {

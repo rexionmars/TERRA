@@ -113,8 +113,9 @@ describe("a mineral map's figures in the graph", () => {
     })
     const got = e.inputs.get(socketKey("mineralClasses-1", "report"))
     expect(got?.status).toBe("ready")
-    if (got?.status === "ready")
+    if (got?.status === "ready") {
       expect(got.value.type === "mineral" && got.value.analysis).toBe(ANALYSIS)
+    }
   })
 })
 

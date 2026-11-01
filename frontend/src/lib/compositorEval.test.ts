@@ -36,8 +36,9 @@ function classes(rows: string[], extent = EXTENT): ClassValue {
   const width = rows[0].length
   const index = new Uint8Array(width * height)
   rows.forEach((r, y) => {
-    for (let x = 0; x < width; x++)
+    for (let x = 0; x < width; x++) {
       index[y * width + x] = r[x] === "." ? NO_CLASS : r.charCodeAt(x) - 97
+    }
   })
   return {
     type: "classes",
