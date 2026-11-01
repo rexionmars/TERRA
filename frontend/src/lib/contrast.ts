@@ -540,6 +540,60 @@ export const RULES: readonly ContrastRule[] = [
   },
 ]
 
+/**
+ * What floats over the map, and how bright the ground behind it can get.
+ *
+ * A TOKEN'S RATIO DOES NOT DESCRIBE THIS SURFACE. The tool column and the panel are
+ * ink at an alpha, so what their text is read on is partly the imagery, and the
+ * rules above measure the solid token. This repeats index.css (--map-chrome-*), and
+ * the script compares the two.
+ *
+ * `brightest` is the brightest channel left after the filter: white through
+ * brightness(0.7) is 178.5.
+ */
+export const MAP_CHROME: Record<ThemeName, { alpha: number; brightest: number }> = {
+  dark: { alpha: 0.82, brightest: 178.5 },
+  light: { alpha: 0.94, brightest: 255 },
+}
+
+/** What a panel over the map draws, at the floors the same tokens hold elsewhere. */
+const ON_MAP_CHROME: readonly { fg: TokenName; min: number }[] = [
+  { fg: "text", min: 4.5 },
+  { fg: "muted", min: 4.5 },
+  { fg: "accentQuiet", min: 4.5 },
+  { fg: "destructiveQuiet", min: 4.5 },
+  { fg: "success", min: 3 },
+  { fg: "accent", min: 3 },
+  { fg: "lineStrong", min: 3 },
+]
+
+export interface MapChromeResult {
+  theme: ThemeName
+  fg: TokenName
+  /** The lower of the two ratios, over black ground and over the brightest. */
+  ratio: number
+  min: number
+  passes: boolean
+}
+
+/** Each token on the chrome composited over both extremes of the ground, the worse kept. */
+export function checkMapChrome(
+  chrome: Record<ThemeName, { alpha: number; brightest: number }> = MAP_CHROME
+): MapChromeResult[] {
+  const out: MapChromeResult[] = []
+  for (const theme of Object.keys(TOKENS) as ThemeName[]) {
+    const t = TOKENS[theme]
+    const { alpha, brightest } = chrome[theme]
+    const over = (ground: number) =>
+      t.ink.map((c) => c * alpha + ground * (1 - alpha)) as unknown as Channels
+    for (const { fg, min } of ON_MAP_CHROME) {
+      const ratio = Math.min(contrast(t[fg], over(0)), contrast(t[fg], over(brightest)))
+      out.push({ theme, fg, ratio: Math.round(ratio * 100) / 100, min, passes: ratio >= min })
+    }
+  }
+  return out
+}
+
 export interface ContrastResult {
   theme: ThemeName
   fg: TokenName

@@ -18,10 +18,12 @@ import {
   ACCEPTED,
   apca,
   checkContrast,
+  checkMapChrome,
   contrast,
   luminance,
   RULES,
   TOKENS,
+  type MapChromeResult,
   type ThemeName,
 } from "./contrast"
 
@@ -232,5 +234,37 @@ describe("apca", () => {
     const { line, ink } = TOKENS.dark
     expect(contrast(line, ink)).toBeGreaterThan(1.5)
     expect(Math.abs(apca(line, ink))).toBeLessThan(25)
+  })
+})
+
+describe("checkMapChrome", () => {
+  const results = checkMapChrome()
+  const ratio = (r: readonly MapChromeResult[], theme: ThemeName, fg: string) =>
+    r.find((x) => x.theme === theme && x.fg === fg)?.ratio
+
+  it("holds every floor over the worst ground, in both themes", () => {
+    expect(results.filter((r) => !r.passes)).toEqual([])
+  })
+
+  it("reports what the formula gives over that ground", () => {
+    // Worked by hand from the WCAG definition, compositing ink over the ground.
+    expect(ratio(results, "dark", "muted")).toBe(4.71)
+    expect(ratio(results, "dark", "accentQuiet")).toBe(4.73)
+    expect(ratio(results, "light", "muted")).toBe(5.33)
+    expect(ratio(results, "light", "accentQuiet")).toBe(4.71)
+  })
+
+  it("would fail without what index.css does about it", () => {
+    /*
+      Why neither theme is simply the tool column's ink at 0.82 behind a blur. Plain
+      in the dark theme, bright ground takes secondary text under its floor; in the
+      light one, dark ground takes the accent as text under its own.
+    */
+    const plain = checkMapChrome({
+      dark: { alpha: 0.82, brightest: 255 },
+      light: { alpha: 0.82, brightest: 255 },
+    })
+    expect(ratio(plain, "dark", "muted")).toBe(3.83)
+    expect(ratio(plain, "light", "accentQuiet")).toBe(3.56)
   })
 })

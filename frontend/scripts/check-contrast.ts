@@ -15,6 +15,8 @@ import { dirname, join } from "node:path"
 import {
   ACCEPTED,
   checkContrast,
+  checkMapChrome,
+  MAP_CHROME,
   TOKENS,
   type Channels,
   type ThemeName,
@@ -203,6 +205,38 @@ for (const theme of Object.keys(TOKENS) as ThemeName[]) {
       )
       failed++
     }
+  }
+}
+
+/*
+  What floats over the map is measured over the ground, not as a token, and these
+  two lines of the stylesheet are what that measurement assumes.
+*/
+{
+  const css = withoutComments(readFileSync(CSS, "utf8"))
+  const lightAt = css.indexOf(':root[data-theme="light"] {\n  --destructive')
+  for (const theme of Object.keys(TOKENS) as ThemeName[]) {
+    const scope = theme === "light" ? css.slice(lightAt) : css.slice(0, lightAt)
+    const alpha = scope.match(/--map-chrome-alpha:\s*([\d.]+)\s*;/)?.[1]
+    const filter = scope.match(/--map-chrome-filter:\s*([^;]+);/)?.[1]
+    if (!alpha || !filter) throw new Error(`--map-chrome-* not declared for the ${theme} theme`)
+    const brightness = filter.match(/brightness\(([\d.]+)\)/)?.[1]
+    const brightest = 255 * (brightness ? Number(brightness) : 1)
+    const declared = MAP_CHROME[theme]
+    if (Number(alpha) !== declared.alpha || Math.abs(brightest - declared.brightest) > 0.01) {
+      console.error(
+        `DRIFT  ${theme} map chrome: contrast.ts has alpha ${declared.alpha}, brightest ${declared.brightest}; ` +
+          `index.css has alpha ${alpha}, brightest ${brightest}`
+      )
+      failed++
+    }
+  }
+  console.log("\nover the map")
+  for (const r of checkMapChrome()) {
+    console.log(
+      `  ${r.passes ? "ok  " : "FAIL"} ${r.theme.padEnd(5)} ${r.fg.padEnd(18)} ${r.ratio.toFixed(2).padStart(5)}  (min ${r.min})`
+    )
+    if (!r.passes) failed++
   }
 }
 

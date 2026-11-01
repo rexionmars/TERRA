@@ -1295,7 +1295,7 @@ export function MapShell(props: MapShellProps) {
           {busy && panel !== "products" && (
             <div
               role="status"
-              className="panel app-no-drag absolute bottom-10 left-1/2 z-[440] w-[24rem] max-w-[60%] -translate-x-1/2 rounded-md px-3 py-2"
+              className="map-chrome app-no-drag absolute bottom-10 left-1/2 z-[440] w-[24rem] max-w-[60%] -translate-x-1/2 rounded-md border border-[rgb(var(--p-line)/0.28)] px-3 py-2 shadow-[0_2px_8px_rgb(0_0_0/0.28)]"
             >
               {running.map((r) => (
                 <div key={r.label}>

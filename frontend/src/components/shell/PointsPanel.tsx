@@ -30,7 +30,7 @@ function PointCard({
   onClear: () => void
 }) {
   return (
-    <section className="rounded-sm border border-border bg-[rgb(var(--p-control))] p-3">
+    <section className="rounded-sm border border-border p-3">
       <div className="flex items-center gap-2">
         <span
           aria-hidden

@@ -113,6 +113,14 @@ red soil and 2.25 on grass, under the 3.0 a boundary needs. So an area's outline
 a dark line under it (`AREA_CASING` in `GlobeSurface.tsx`), and a pin carries a dark
 ring. The accent marks controls; a raster's colours come from its legend.
 
+**5. What floats over the map is measured over the ground.** The tool column and the
+panel share one material, `.map-chrome`: ink at an alpha behind a blur. Its text is
+read on the imagery as well, so a token's ratio does not describe it. Plain ink at
+0.82 takes secondary text to 3.83 over bright ground in the dark theme, so the ground
+is dimmed to 0.7 first (4.71), and takes the accent as text to 3.56 over dark ground in
+the light theme, so the alpha there is 0.94 (4.71). `check:contrast` measures this over
+both extremes of the ground and fails if `--map-chrome-*` drift from what it assumes.
+
 ### Destructive splits the same way
 
 One value cannot be both a fill and a text colour, and the single value that used
