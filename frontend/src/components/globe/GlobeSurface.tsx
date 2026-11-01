@@ -1153,8 +1153,9 @@ export function GlobeSurface({
         const down = rightDown
         rightDown = null
         if (!open || modeRef.current !== "idle") return
-        if (down && Math.hypot(ev.clientX - down.x, ev.clientY - down.y) > PRESS_PX)
+        if (down && Math.hypot(ev.clientX - down.x, ev.clientY - down.y) > PRESS_PX) {
           return
+        }
         const { lng, lat } = e.lngLat
         const hits = rastersAt(raisedListRef.current, lng, lat)
         if (!hits.length) return
@@ -1511,7 +1512,7 @@ export function GlobeSurface({
         setEsriHere({ date: null, maxLevel: null, magnified: false })
         return
       }
-      timer = setTimeout(async () => {
+      const readHere = async () => {
         abort?.abort()
         abort = new AbortController()
         const c = map.getCenter()
@@ -1533,7 +1534,8 @@ export function GlobeSurface({
           // date nor the ceiling is a part the licence asks for.
           if (!cancelled) setEsriHere({ date: null, maxLevel: null, magnified: false })
         }
-      }, 350)
+      }
+      timer = setTimeout(() => void readHere(), 350)
     }
     refresh()
     const a = map.on("moveend", refresh)

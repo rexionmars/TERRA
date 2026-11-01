@@ -95,7 +95,7 @@ function Crumb({
       widthRem={18}
       trigger={(p) => (
         <button
-          ref={p.ref as React.Ref<HTMLButtonElement>}
+          ref={p.ref}
           type="button"
           onClick={p.onClick}
           aria-expanded={p["aria-expanded"]}
@@ -142,7 +142,7 @@ function NewProject({ onCreated }: { onCreated: (id: string) => void }) {
   }
   return (
     <form
-      onSubmit={create}
+      onSubmit={(e) => void create(e)}
       className="flex items-center gap-1 border-t border-border p-1.5"
     >
       <input
@@ -288,7 +288,7 @@ export function ShellTopBar({
         widthRem={15}
         trigger={(p) => (
           <button
-            ref={p.ref as React.Ref<HTMLButtonElement>}
+            ref={p.ref}
             type="button"
             onClick={p.onClick}
             aria-expanded={p["aria-expanded"]}

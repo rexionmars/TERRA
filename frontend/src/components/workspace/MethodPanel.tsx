@@ -155,7 +155,7 @@ export function MethodPanel({
       trigger={(t) => (
         <button
           type="button"
-          ref={t.ref as (el: HTMLButtonElement | null) => void}
+          ref={t.ref}
           onClick={t.onClick}
           aria-expanded={t["aria-expanded"]}
           aria-haspopup={t["aria-haspopup"]}

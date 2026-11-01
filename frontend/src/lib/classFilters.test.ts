@@ -179,8 +179,9 @@ describe("sieveFilter", () => {
       const before = labelPatches(input, connectivity)
       for (let p = 0; p < input.index.length; p++) {
         const l = before.label[p]
-        if (l >= 0 && before.size[l] >= minPixels)
+        if (l >= 0 && before.size[l] >= minPixels) {
           expect(out.index[p]).toBe(input.index[p])
+        }
       }
       // NO_CLASS is where it was.
       for (let p = 0; p < input.index.length; p++) {

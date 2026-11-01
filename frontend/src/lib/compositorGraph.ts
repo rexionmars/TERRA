@@ -585,8 +585,9 @@ function growing(
  * number of sockets would allow.
  */
 export function inputsOf(graph: CompositorGraph, node: GraphNode): readonly InputDef[] {
-  if (node.kind === "globe")
+  if (node.kind === "globe") {
     return growing(graph, node, LAYER, "layer", "Layer", Infinity)
+  }
   if (node.kind === "pdfReport") {
     return [
       ...kindMeta(node.kind).inputs,
@@ -783,11 +784,12 @@ export function connect(
         accepts: ANY,
       })
     : undefined
-  if (!input)
+  if (!input) {
     return {
       ok: false,
       reason: `${kindMeta(b.kind).label} has no input called ${link.toSocket}.`,
     }
+  }
   if (
     b.kind === "pdfReport" &&
     MAP.test(link.toSocket) &&
@@ -1109,7 +1111,7 @@ const str = (v: unknown): string | null => (typeof v === "string" && v ? v : nul
 function parsePdfReportSettings(raw: unknown): PdfReportSettings {
   const o = raw && typeof raw === "object" ? (raw as Record<string, unknown>) : {}
   const text = (k: keyof PdfReportSettings) =>
-    typeof o[k] === "string" ? (o[k] as string) : (PDF_REPORT_DEFAULT[k] as string)
+    typeof o[k] === "string" ? o[k] : (PDF_REPORT_DEFAULT[k] as string)
   return {
     title: text("title"),
     subtitle: text("subtitle"),
@@ -1299,8 +1301,9 @@ export function parseGraph(raw: unknown): CompositorGraph | null {
     // The Globe took one input, `image`, before it took layers.
     if (to.kind === "globe" && link.toSocket === "image") link.toSocket = "layer-1"
     // The PDF report took two fixed maps, map1 and map2, before its maps grew.
-    if (to.kind === "pdfReport" && /^map[12]$/.test(link.toSocket))
+    if (to.kind === "pdfReport" && /^map[12]$/.test(link.toSocket)) {
       link.toSocket = `map-${link.toSocket.slice(3)}`
+    }
     if (linkInto(graph, link.to, link.toSocket)) continue
     if (!canHaveInput(to, link.toSocket)) continue
     // Structure only. A Run node's outputs, and so the types, are not known
@@ -1308,8 +1311,9 @@ export function parseGraph(raw: unknown): CompositorGraph | null {
     if (
       from.kind !== "run" &&
       !kindMeta(from.kind).outputs.some((x) => x.id === link.fromSocket)
-    )
+    ) {
       continue
+    }
     if (feeds(graph, to.id, from.id)) continue
     graph = { ...graph, links: [...graph.links, link as GraphLink] }
   }
@@ -1320,8 +1324,9 @@ export function parseGraph(raw: unknown): CompositorGraph | null {
   const places: Record<string, Place> = {}
   for (const id of ids) {
     const p = rawPlaces[id] as { x?: unknown; y?: unknown } | undefined
-    if (p && Number.isFinite(p.x) && Number.isFinite(p.y))
+    if (p && Number.isFinite(p.x) && Number.isFinite(p.y)) {
       places[id] = { x: p.x as number, y: p.y as number }
+    }
   }
   const viewer = str(o.viewer)
   return {

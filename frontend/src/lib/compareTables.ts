@@ -51,8 +51,9 @@ export function compareAccuracyDeltaTable(
   const byIdA = new Map(a.per_class.map((c) => [c.class_id, c]))
   const byIdB = new Map(b.per_class.map((c) => [c.class_id, c]))
   const ids: number[] = []
-  for (const c of [...a.per_class, ...b.per_class])
+  for (const c of [...a.per_class, ...b.per_class]) {
     if (!ids.includes(c.class_id)) ids.push(c.class_id)
+  }
 
   return table(
     "compare_accuracy_delta",
@@ -101,8 +102,9 @@ export function compareShareDeltaTable(
   const byIdA = new Map(statsA.map((c) => [c.class_id, c]))
   const byIdB = new Map(statsB.map((c) => [c.class_id, c]))
   const ids: number[] = []
-  for (const c of [...statsA, ...statsB])
+  for (const c of [...statsA, ...statsB]) {
     if (!ids.includes(c.class_id)) ids.push(c.class_id)
+  }
 
   return table(
     "compare_share_delta",

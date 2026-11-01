@@ -25,29 +25,30 @@ import {
 } from "./separability"
 import type { ClassSpectra, ClassSpectrumPoint } from "./types"
 
-const point = (fields: Partial<ClassSpectrumPoint>): ClassSpectrumPoint =>
-  ({
-    class_id: 1,
-    name: "Class 1",
-    color: "#111111",
-    band: "B02",
-    wavelength_nm: 492.4,
-    n_pixels: 500,
-    mean: 0.1,
-    sd: 0.02,
-    p05: 0.07,
-    p95: 0.13,
-    ...fields,
-  }) as ClassSpectrumPoint
+const point = (fields: Partial<ClassSpectrumPoint>): ClassSpectrumPoint => ({
+  class_id: 1,
+  name: "Class 1",
+  color: "#111111",
+  band: "B02",
+  wavelength_nm: 492.4,
+  n_pixels: 500,
+  mean: 0.1,
+  sd: 0.02,
+  p05: 0.07,
+  p95: 0.13,
+  ...fields,
+})
 
-const spectra = (points: ClassSpectrumPoint[], bands = ["B02", "B08"]): ClassSpectra =>
-  ({
-    scene_date: "2021-01-15",
-    n_scenes: 12,
-    convention: "BOA reflectance, baseline 04.00 offset applied",
-    bands,
-    points,
-  }) as ClassSpectra
+const spectra = (
+  points: ClassSpectrumPoint[],
+  bands = ["B02", "B08"]
+): ClassSpectra => ({
+  scene_date: "2021-01-15",
+  n_scenes: 12,
+  convention: "BOA reflectance, baseline 04.00 offset applied",
+  bands,
+  points,
+})
 
 describe("bhattacharyyaGaussian", () => {
   it("is zero for two identical distributions", () => {

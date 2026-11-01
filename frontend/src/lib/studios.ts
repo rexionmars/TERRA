@@ -38,7 +38,7 @@ export type Studio = store.Studio
  * project, and hiding them would be indistinguishable from having lost them.
  */
 export async function listStudios(projectId?: string | null): Promise<Studio[]> {
-  return (await ListStudios(projectId ?? "")) as unknown as Studio[]
+  return await ListStudios(projectId ?? "")
 }
 
 /**
@@ -106,7 +106,7 @@ export async function saveStudio(
       position: i,
     })),
   }
-  return (await SaveStudio(payload as never)) as unknown as Studio
+  return await SaveStudio(payload as never)
 }
 
 export interface OpenedStudio {
@@ -124,7 +124,7 @@ export interface OpenedStudio {
  * a two-area board into a one-area board with nothing saying so.
  */
 export async function openStudio(id: string): Promise<OpenedStudio> {
-  const board = (await GetStudio(id)) as unknown as Studio
+  const board = await GetStudio(id)
   return {
     board,
     snapshot: parseSnapshot(board.view_json),

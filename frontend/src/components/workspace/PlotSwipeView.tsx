@@ -16,8 +16,9 @@ function shortLabel(title: string): string {
   if (title.startsWith("MapBiomas")) return "MapBiomas"
   if (title.startsWith("NDVI")) return "NDVI"
   if (title.startsWith("Confidence")) return "Confidence"
-  if (title.startsWith("Satellite") || title.startsWith("True color"))
+  if (title.startsWith("Satellite") || title.startsWith("True color")) {
     return "Satellite"
+  }
   return title
 }
 

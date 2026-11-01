@@ -186,7 +186,7 @@ export interface MapShellProps {
   activeProjectName?: string | null
   onActivateArea?: (id: string) => void
   onRenameArea?: (id: string, name: string) => void
-  onDeleteArea?: (id: string) => void
+  onDeleteArea?: (id: string) => Promise<void>
   onClearArea: () => void
   onImportPolygon: () => void
   onStartChange: (v: string) => void
@@ -237,7 +237,7 @@ export interface MapShellProps {
     can wait for it. The menu that opens on hover does not and ignores it; the
     manage dialog does, since it shows the result of its own rename or delete.
   */
-  onStudiosMenu?: () => void | Promise<void>
+  onStudiosMenu?: () => Promise<void>
   water?: WaterAnalysis | null
   /** The AOI as GeoJSON text, for the research pack's manifest. */
   polygonGeoJSON?: string
@@ -445,7 +445,7 @@ export function MapShell(props: MapShellProps) {
     try {
       const runs = await ListProjectRuns(props.activeProjectId, 1000)
       const run = runs.find((r) => r.id === id)
-      if (run) await openRun(run as InferenceRun)
+      if (run) await openRun(run)
     } catch (e) {
       notifyError("Could not open the run", e)
     }
@@ -1143,9 +1143,9 @@ export function MapShell(props: MapShellProps) {
               areas={globeAreas}
               onPickArea={(id, extend) => {
                 const picked = id.slice(id.indexOf(":") + 1)
-                if (extend && props.onSelectAreas)
+                if (extend && props.onSelectAreas) {
                   props.onSelectAreas([picked], "toggle")
-                else props.onActivateArea?.(picked)
+                } else props.onActivateArea?.(picked)
               }}
               onBoxArea={
                 props.onSelectAreas

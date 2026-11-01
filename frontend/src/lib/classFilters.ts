@@ -305,7 +305,7 @@ export function sieveFilter(
     const sets: Set<number>[] = []
     if (adj[target]) sets.push(adj[target]!)
     for (const b of members) {
-      if (adj[b]) sets.push(adj[b]!)
+      if (adj[b]) sets.push(adj[b])
       const keep = size[root] >= size[b] ? root : b
       const gone = keep === root ? b : root
       parent[gone] = keep
@@ -428,8 +428,9 @@ export function openClass(
         }
       }
       let best = -1
-      for (let k = 0; k < classes; k++)
+      for (let k = 0; k < classes; k++) {
         if (hist[k] > 0 && (best < 0 || hist[k] > hist[best])) best = k
+      }
       if (best >= 0) out[p] = best
     }
   }

@@ -112,8 +112,9 @@ describe("fields in the graph", () => {
       runOutputs
     )
     expect(rasterIntoFilter.ok).toBe(false)
-    if (!rasterIntoFilter.ok)
+    if (!rasterIntoFilter.ok) {
       expect(rasterIntoFilter.reason).toMatch(/fields a delineation drew/)
+    }
   })
 
   it("are filtered by area and cropland, and a field with no share is kept", () => {
@@ -127,8 +128,9 @@ describe("fields in the graph", () => {
     g = r.graph
     const e = evaluate(g, { source, cache: new Map() })
     const out = e.outputs.get(socketKey("fieldFilter-1", "fields"))
-    if (out?.status !== "ready" || out.value.type !== "fields")
+    if (out?.status !== "ready" || out.value.type !== "fields") {
       throw new Error("not ready")
+    }
     // Defaults: 0.5 ha, no cropland floor.
     expect(out.value.fields.map((f) => f.properties.field)).toEqual([1, 2, 4])
     expect(out.value.total).toBe(4)

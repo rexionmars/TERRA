@@ -43,7 +43,7 @@ export function HeaderMenu({
   return (
     <button
       type="button"
-      ref={ref as React.Ref<HTMLButtonElement>}
+      ref={ref}
       {...rest}
       className={cn(
         BASE,

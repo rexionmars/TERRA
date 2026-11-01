@@ -128,7 +128,7 @@ export function WorkflowsScreen({
           widthRem={18}
           trigger={(p) => (
             <button
-              ref={p.ref as React.Ref<HTMLButtonElement>}
+              ref={p.ref}
               type="button"
               onClick={p.onClick}
               aria-expanded={p["aria-expanded"]}

@@ -768,8 +768,9 @@ export function ReferenceConfusionPair({
     do not line up cannot be compared by eye at all.
   */
   const ids: number[] = []
-  for (const id of [...a.matrix_classes, ...b.matrix_classes])
+  for (const id of [...a.matrix_classes, ...b.matrix_classes]) {
     if (!ids.includes(id)) ids.push(id)
+  }
   const axis = ids.map((id) => ({
     id,
     name: namesA.get(id)?.name ?? namesB.get(id)?.name ?? `Class ${id}`,

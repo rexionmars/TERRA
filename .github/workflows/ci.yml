@@ -46,12 +46,24 @@ jobs:
         working-directory: frontend
         run: npm ci
 
-      # The three checks below run before the build because each finishes in
-      # under a second while the build takes several, and because a drifted
-      # contract should be reported by name rather than as a bundling failure.
+      # The checks below run before the build because each finishes quicker than
+      # it does, and because a drifted contract should be reported by name rather
+      # than as a bundling failure.
       - name: Frontend tests
         working-directory: frontend
         run: npm test
+
+      # The options are measured from the code in prettier.config.mjs. A file out of
+      # format is a diff somebody else has to read past later.
+      - name: Check the frontend's formatting
+        working-directory: frontend
+        run: npm run check:format
+
+      # The check set is chosen in eslint.config.mjs, where each entry names the defect
+      # it stops from coming back, as .golangci.yml does for Go.
+      - name: ESLint
+        working-directory: frontend
+        run: npm run lint
 
       # Compares the JSON field names in internal/analysis/types*.go against the
       # interfaces src/lib/types.ts mirrors by hand. Nothing compared them

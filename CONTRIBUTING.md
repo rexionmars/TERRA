@@ -46,7 +46,12 @@ wails dev
 ```bash
 go test ./...
 pytest sidecar/tests -q
+(cd frontend && npm test && npm run lint && npm run check:format)
 ```
+
+`npm run format` writes what `check:format` compares against. A commit that only
+reformats goes in `.git-blame-ignore-revs`, and `git config blame.ignoreRevsFile
+.git-blame-ignore-revs` makes a local blame skip it as GitHub's does.
 
 4. Describe the motivation and how you verified the change.
 5. Prefer small, reviewable commits with imperative messages

@@ -103,7 +103,7 @@ export function RunPicker({
       trigger={(p) => (
         <button
           type="button"
-          ref={p.ref as React.Ref<HTMLButtonElement>}
+          ref={p.ref}
           onClick={p.onClick}
           disabled={busy}
           aria-expanded={p["aria-expanded"]}

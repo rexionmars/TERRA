@@ -64,7 +64,7 @@ export function SearchBar({
           value={query}
           onChange={(e) => setQuery(e.target.value)}
           onKeyDown={(e) => {
-            if (e.key === "Enter") runSearch()
+            if (e.key === "Enter") void runSearch()
           }}
           placeholder="Search location..."
           className="w-full bg-transparent text-sm outline-none placeholder:text-muted-foreground"
@@ -73,7 +73,7 @@ export function SearchBar({
           <CircleNotch className="size-3.5 shrink-0 animate-spin text-muted-foreground" />
         ) : (
           <button
-            onClick={runSearch}
+            onClick={() => void runSearch()}
             className="shrink-0 rounded-md px-2 py-0.5 text-[11px] text-muted-foreground hover:bg-secondary hover:text-foreground"
           >
             Search

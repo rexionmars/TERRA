@@ -111,7 +111,7 @@ export function AuthProvider({
   const loadPrefsAndRuns = useCallback(
     async (u: User) => {
       try {
-        const p = (await GetPreferences()) as unknown as Preferences
+        const p = await GetPreferences()
         setPrefs(p)
         onPrefsApplied?.(p)
       } catch {
@@ -132,7 +132,7 @@ export function AuthProvider({
         if (next) await loadPrefsAndRuns(next)
         else {
           try {
-            const p = (await GetPreferences()) as unknown as Preferences
+            const p = await GetPreferences()
             setPrefs(p)
             onPrefsApplied?.(p)
           } catch {
@@ -150,7 +150,7 @@ export function AuthProvider({
 
   const login = useCallback(
     async (email: string, password: string) => {
-      const u = (await Login(email, password)) as unknown as User
+      const u = await Login(email, password)
       setUser(u)
       await loadPrefsAndRuns(u)
       setScreen("map")
@@ -161,7 +161,7 @@ export function AuthProvider({
 
   const register = useCallback(
     async (email: string, password: string, displayName: string) => {
-      const u = (await Register(email, password, displayName)) as unknown as User
+      const u = await Register(email, password, displayName)
       setUser(u)
       await loadPrefsAndRuns(u)
       setScreen("map")
@@ -180,19 +180,19 @@ export function AuthProvider({
   }, [refreshRuns, refreshProjects])
 
   const updateProfile = useCallback(async (displayName: string) => {
-    const u = (await UpdateProfile(displayName)) as unknown as User
+    const u = await UpdateProfile(displayName)
     setUser(u)
     notifySuccess("Profile updated.")
   }, [])
 
   const setAvatar = useCallback(async (dataURI: string) => {
-    const u = (await SetAvatar(dataURI)) as unknown as User
+    const u = await SetAvatar(dataURI)
     setUser(u)
     notifySuccess("Photo updated.")
   }, [])
 
   const clearAvatar = useCallback(async () => {
-    const u = (await ClearAvatar()) as unknown as User
+    const u = await ClearAvatar()
     setUser(u)
     notifySuccess("Photo removed.")
   }, [])
@@ -223,7 +223,7 @@ export function AuthProvider({
     wrote, and Settings applies the theme itself rather than waiting to be told.
   */
   const savePrefs = useCallback(async (p: Preferences, opts?: { silent?: boolean }) => {
-    await SavePreferences(p as never)
+    await SavePreferences(p)
     setPrefs(p)
     if (!opts?.silent) notifySuccess("Preferences saved.")
   }, [])

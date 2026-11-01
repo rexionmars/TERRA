@@ -237,6 +237,8 @@ const paint = (c: NodeCategory) => ({
   An output whose type is not known yet -- a Mask with nothing on its input --
   is grey.
 */
+type RunOutput = { id: string; label: string; type: SocketType }
+
 const TYPE_COLOUR: Record<SocketType, string> = {
   classes: "var(--b-source-head)",
   image: "var(--b-when-head)",
@@ -830,11 +832,11 @@ export function CompositorEditor({
       !!r && !r.health && (r.vi_series?.length ?? 0) > 0 && r.phenology?.pos_doy != null
     )
   }
-  const runOutputs = (runId: string | null) => [
-    ...(runOf(runId)?.assets ?? []).map((a) => ({
+  const runOutputs = (runId: string | null): RunOutput[] => [
+    ...(runOf(runId)?.assets ?? []).map((a): RunOutput => ({
       id: a.id,
       label: a.title,
-      type: (a.classes ? "classes" : "image") as SocketType,
+      type: a.classes ? "classes" : "image",
     })),
     // A delineation's polygons, beside its rasters.
     ...(runOf(runId) && fieldsOfRun(runId)?.fields_geojson
@@ -976,8 +978,9 @@ export function CompositorEditor({
               // A copy: the decoded map is classMask's cached object, shared.
               index = map.index.slice()
               const drop = new Set(info.excluded)
-              for (let p = 0; p < index.length; p++)
+              for (let p = 0; p < index.length; p++) {
                 if (drop.has(index[p])) index[p] = NO_CLASS
+              }
             }
             settle({
               status: "ready",
@@ -1049,8 +1052,9 @@ export function CompositorEditor({
         }
         if (assetId === SEASON_SOCKET) {
           const r = resultOfRun(runId)
-          if (!r || !hasSeason(runId))
+          if (!r || !hasSeason(runId)) {
             return { status: "none", note: "That run carries no season series." }
+          }
           return {
             status: "ready",
             value: {
@@ -1064,8 +1068,9 @@ export function CompositorEditor({
         }
         if (assetId === HEALTH_SOCKET) {
           const h = resultOfRun(runId)?.health
-          if (!h)
+          if (!h) {
             return { status: "none", note: "That run is not a vegetation health run." }
+          }
           return {
             status: "ready",
             value: {
@@ -1078,8 +1083,9 @@ export function CompositorEditor({
         }
         if (assetId === ZONES_SOCKET) {
           const mz = resultOfRun(runId)?.zones
-          if (!mz)
+          if (!mz) {
             return { status: "none", note: "That run is not a management zones run." }
+          }
           return {
             status: "ready",
             value: {
@@ -1092,8 +1098,9 @@ export function CompositorEditor({
         }
         if (assetId === RADAR_SOCKET) {
           const s1 = resultOfRun(runId)?.radar
-          if (!s1)
+          if (!s1) {
             return { status: "none", note: "That run is not a Sentinel-1 radar run." }
+          }
           return {
             status: "ready",
             value: {
@@ -1106,11 +1113,12 @@ export function CompositorEditor({
         }
         if (assetId === OVERLAP_SOCKET) {
           const o = resultOfRun(runId)?.overlap
-          if (!o)
+          if (!o) {
             return {
               status: "none",
               note: "That run is not a socio-environmental overlap run.",
             }
+          }
           return {
             status: "ready",
             value: {
@@ -1223,8 +1231,9 @@ export function CompositorEditor({
   const [reportBusy, setReportBusy] = useState<string | null>(null)
   const reportRuns = (nodeId: string): string[] => {
     const ids = new Set<string>(runsFeeding(nodeId))
-    for (const f of fieldEvaluations ?? [])
+    for (const f of fieldEvaluations ?? []) {
       for (const id of runsFeeding(nodeId, f.graph)) ids.add(id)
+    }
     return [...ids]
   }
   /** The field set the graph reads, and the field in focus; null for plain runs. */
@@ -1245,10 +1254,11 @@ export function CompositorEditor({
     const l = linkInto(graph, nodeId, socket)
     if (!l) return ""
     const from = nodeOf(graph, l.from)
-    if (from?.kind === "run")
+    if (from?.kind === "run") {
       return (
         runOutputs(from.runId).find((o) => o.id === l.fromSocket)?.label ?? "Raster"
       )
+    }
     return from ? kindMeta(from.kind).label : "Raster"
   }
   const reportFigures = (node: GraphNode, subject: string): PdfReportFigure[] =>
@@ -1339,8 +1349,9 @@ export function CompositorEditor({
       if (seen.has(at)) continue
       seen.add(at)
       const node = nodeOf(g, at)
-      if (node?.kind === "run" && node.runId && !out.includes(node.runId))
+      if (node?.kind === "run" && node.runId && !out.includes(node.runId)) {
         out.push(node.runId)
+      }
       for (const l of g.links) if (l.to === at) stack.push(l.from)
     }
     return out
@@ -1427,11 +1438,12 @@ export function CompositorEditor({
         at = { from: up.from, fromSocket: up.fromSocket }
         continue
       }
-      if (n.kind === "run")
+      if (n.kind === "run") {
         return (
           outputsOf(n, runOutputs).find((o) => o.id === at.fromSocket)?.label ??
           at.fromSocket
         )
+      }
       return title(n)
     }
   }
@@ -1568,8 +1580,9 @@ export function CompositorEditor({
   const place = (at: Place): Place => {
     let p = { x: Math.round(at.x), y: Math.round(at.y) }
     const taken = Object.values(graph.places)
-    while (taken.some((q) => Math.abs(q.x - p.x) < 40 && Math.abs(q.y - p.y) < 40))
+    while (taken.some((q) => Math.abs(q.x - p.x) < 40 && Math.abs(q.y - p.y) < 40)) {
       p = { ...p, y: p.y + 56 }
+    }
     return p
   }
 
@@ -1710,8 +1723,9 @@ export function CompositorEditor({
       (e.target as HTMLElement | null)?.closest?.(
         "input, textarea, select, [contenteditable='true']"
       )
-    )
+    ) {
       return
+    }
     const plain = !e.metaKey && !e.ctrlKey && !e.altKey
     if (e.code === "KeyA" && e.shiftKey && plain) setAddAt({ ...pointer.current })
     else if (
@@ -1719,16 +1733,16 @@ export function CompositorEditor({
       plain &&
       !e.shiftKey &&
       selectedLink
-    )
+    ) {
       unlinkSelected()
-    else if (
+    } else if (
       (e.code === "KeyX" || e.key === "Delete" || e.key === "Backspace") &&
       plain &&
       !e.shiftKey &&
       selected
-    )
+    ) {
       remove(selected)
-    else if (e.key === "Home" && plain) api.current?.fit()
+    } else if (e.key === "Home" && plain) api.current?.fit()
     else return
     e.preventDefault()
   }
@@ -1771,9 +1785,11 @@ export function CompositorEditor({
   }
   const movedMemo = useMemo(() => {
     const out = new Map<string, ReturnType<typeof moved>>()
-    for (const n of graph.nodes)
-      if (["majority", "sieve", "morphology", "select"].includes(n.kind))
+    for (const n of graph.nodes) {
+      if (["majority", "sieve", "morphology", "select"].includes(n.kind)) {
         out.set(n.id, moved(n))
+      }
+    }
     return out
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [evaluation])
@@ -1785,8 +1801,9 @@ export function CompositorEditor({
       if (n.kind !== "change") continue
       const a = readyValue(inputOf(n.id, "before"))
       const b = readyValue(inputOf(n.id, "after"))
-      if (a?.type === "classes" && b?.type === "classes")
+      if (a?.type === "classes" && b?.type === "classes") {
         out.set(n.id, { reading: classChange(a, b), info: a.info })
+      }
     }
     return out
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -1852,8 +1869,9 @@ export function CompositorEditor({
             },
           ]
     let bin = ""
-    for (const b of new TextEncoder().encode(zonesGeoJSON(rows)))
+    for (const b of new TextEncoder().encode(zonesGeoJSON(rows))) {
       bin += String.fromCharCode(b)
+    }
     try {
       const dest = await ExportOverlayFile(
         `data:application/geo+json;base64,${btoa(bin)}`,
@@ -1873,7 +1891,7 @@ export function CompositorEditor({
         const at = set ? set.members.findIndex((m) => m.runId === node.runId) : -1
         const focus = (i: number) => {
           const m = set?.members[i]
-          if (m && node.each)
+          if (m && node.each) {
             edit(
               updateNode(graph, {
                 ...node,
@@ -1881,6 +1899,7 @@ export function CompositorEditor({
                 each: { ...node.each, fieldId: m.fieldId },
               })
             )
+          }
         }
         const choose = (value: string) => {
           if (value.startsWith("each:")) {
@@ -2365,8 +2384,9 @@ export function CompositorEditor({
       case "seasonDates": {
         const r = inputOf(node.id, "season")
         const each = perFieldInput(node.id, "season")
-        if (!readySeason(r) && !each?.some((f) => readySeason(f.result)))
+        if (!readySeason(r) && !each?.some((f) => readySeason(f.result))) {
           return <StatusNote result={r} />
+        }
         return (
           <SeasonCard
             focused={readySeason(r)}
@@ -2384,8 +2404,9 @@ export function CompositorEditor({
         const r = inputOf(node.id, "health")
         const each = perFieldInput(node.id, "health")
         const crops = perFieldInput(node.id, "crop")
-        if (!readyHealth(r) && !each?.some((f) => readyHealth(f.result)))
+        if (!readyHealth(r) && !each?.some((f) => readyHealth(f.result))) {
           return <StatusNote result={r} />
+        }
         return (
           <HealthCard
             reference={node.reference}
@@ -2481,8 +2502,9 @@ export function CompositorEditor({
       case "overlap": {
         const r = inputOf(node.id, "overlap")
         const each = perFieldInput(node.id, "overlap")
-        if (!readyOverlap(r) && !each?.some((f) => readyOverlap(f.result)))
+        if (!readyOverlap(r) && !each?.some((f) => readyOverlap(f.result))) {
           return <StatusNote result={r} />
+        }
         return (
           <OverlapCard
             focused={readyOverlap(r)}
@@ -2499,8 +2521,9 @@ export function CompositorEditor({
       case "zones": {
         const r = inputOf(node.id, "zones")
         const each = perFieldInput(node.id, "zones")
-        if (!readyZones(r) && !each?.some((f) => readyZones(f.result)))
+        if (!readyZones(r) && !each?.some((f) => readyZones(f.result))) {
           return <StatusNote result={r} />
+        }
         return (
           <ZonesCard
             k={node.k}
@@ -2520,8 +2543,9 @@ export function CompositorEditor({
       case "radar": {
         const r = inputOf(node.id, "radar")
         const each = perFieldInput(node.id, "radar")
-        if (!readyRadar(r) && !each?.some((f) => readyRadar(f.result)))
+        if (!readyRadar(r) && !each?.some((f) => readyRadar(f.result))) {
           return <StatusNote result={r} />
+        }
         return (
           <RadarCard
             focused={readyRadar(r)}

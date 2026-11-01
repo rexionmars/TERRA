@@ -49,8 +49,9 @@ function registerText(l: OverlapLayer, areaHa: number): string {
 
 function FeatureList({ layer }: { layer: OverlapLayer }) {
   if (layer.status !== "read") return <Note>{layer.note || "Not read."}</Note>
-  if (!layer.features.length)
+  if (!layer.features.length) {
     return <Note>No feature of this register shares ground with the area.</Note>
+  }
   return (
     <div className="panel-scroll flex max-h-[12rem] flex-col gap-1 overflow-y-auto">
       {layer.features.map((f, i) => {

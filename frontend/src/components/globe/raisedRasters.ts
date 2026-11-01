@@ -322,7 +322,7 @@ export function raisedRasterLayer(id: string, map: MapLibreMap): RaisedRasterLay
       ctx.VERTEX_SHADER
     )
     const fs = compile(ctx, FRAG, ctx.FRAGMENT_SHADER)
-    const program = ctx.createProgram()!
+    const program = ctx.createProgram()
     ctx.attachShader(program, vs)
     ctx.attachShader(program, fs)
     ctx.linkProgram(program)

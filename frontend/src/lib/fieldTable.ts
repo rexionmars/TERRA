@@ -103,9 +103,11 @@ const cell = (v: string | number | null | undefined): string => {
  */
 export function fieldTableCsv(rows: readonly FieldRow[]): string {
   const totals = new Map<string, number>()
-  for (const r of rows)
-    for (const c of r.classes ?? [])
+  for (const r of rows) {
+    for (const c of r.classes ?? []) {
       totals.set(c.name, (totals.get(c.name) ?? 0) + c.amount)
+    }
+  }
   const classNames = [...totals.entries()].sort((a, b) => b[1] - a[1]).map(([n]) => n)
   const unit = rows.some((r) => r.classes && r.unit === "px") ? "px" : "ha"
   const header = [

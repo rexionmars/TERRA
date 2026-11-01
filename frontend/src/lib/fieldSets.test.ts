@@ -17,7 +17,7 @@ const square = {
       [0, 0],
     ],
   ],
-} as Area["geometry"]
+}
 
 function area(id: string, name: string, parent = ""): Area {
   return {

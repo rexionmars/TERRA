@@ -429,8 +429,9 @@ export function Confidence({ m }: { m: MineralAnalysis }) {
 
 export function Agreement({ m, group }: { m: MineralAnalysis; group: MineralGroupId }) {
   const a = m.agreement?.find((x) => x.group === group)
-  if (!a)
+  if (!a) {
     return <Note>No EMIT L2B granule exists for the passes used in this group.</Note>
+  }
   return (
     <>
       <div className="flex items-baseline gap-2">

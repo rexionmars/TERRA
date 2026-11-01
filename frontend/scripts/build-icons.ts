@@ -255,10 +255,12 @@ function parse(source: string, where: string): El {
     if (!selfClosing) stack.push(el)
   }
   if (text.slice(last).trim()) throw new Error(`${where}: text after the last element`)
-  if (stack.length !== 1)
+  if (stack.length !== 1) {
     throw new Error(`${where}: <${stack[stack.length - 1].tag}> is never closed`)
-  if (root.children.length !== 1 || root.children[0].tag !== "svg")
+  }
+  if (root.children.length !== 1 || root.children[0].tag !== "svg") {
     throw new Error(`${where}: not a single <svg>`)
+  }
   return root.children[0]
 }
 
@@ -319,10 +321,11 @@ function build(name: string, source: string): Glyph {
   const paint = (value: string, prop: string): string => {
     if (value === "currentColor" || value === "none") return value
     const to = recolour[value.toLowerCase()]
-    if (!to)
+    if (!to) {
       throw new Error(
         `${where}: ${prop} is the literal ${value}, and RECOLOUR does not say what it becomes`
       )
+    }
     used.add(value.toLowerCase())
     return to
   }
@@ -337,10 +340,11 @@ function build(name: string, source: string): Glyph {
       const live = el.children.filter(
         (c) => !SKIPPED.has(c.tag) && !c.tag.includes(":")
       )
-      if (live.length)
+      if (live.length) {
         throw new Error(
           `${where}: <${el.tag}> holds <${live[0].tag}>, which would be lost`
         )
+      }
       return ""
     }
     if (el.tag !== "g" && !SHAPES.has(el.tag)) {
@@ -359,8 +363,9 @@ function build(name: string, source: string): Glyph {
     }
 
     if (ownFill === "cut") {
-      if (depth !== 0 || el.tag === "g")
+      if (depth !== 0 || el.tag === "g") {
         throw new Error(`${where}: a cut mark must be a shape at the top level`)
+      }
       cuts.push(tag(el.tag, { ...attrs, fill: "#000" }))
       return ""
     }
@@ -372,8 +377,9 @@ function build(name: string, source: string): Glyph {
       if (!inner) return ""
       return Object.keys(attrs).length ? `<g${attributes(attrs)}>${inner}</g>` : inner
     }
-    if (el.children.some((c) => !SKIPPED.has(c.tag)))
+    if (el.children.some((c) => !SKIPPED.has(c.tag))) {
       throw new Error(`${where}: <${el.tag}> has children`)
+    }
     if (ownFill === "none" && ownStroke === "none") return ""
     return tag(el.tag, attrs)
   }
@@ -384,23 +390,26 @@ function build(name: string, source: string): Glyph {
     where
   )
   for (const k of Object.keys(rootAttrs)) {
-    if (!PAINT.includes(k))
+    if (!PAINT.includes(k)) {
       throw new Error(
         `${where}: <svg> carries ${k}, which the component's own root would drop`
       )
+    }
   }
   const rootFill = "fill" in rootAttrs ? paint(rootAttrs.fill, "fill") : "currentColor"
-  if ("stroke" in rootAttrs && rootAttrs.stroke !== "none")
+  if ("stroke" in rootAttrs && rootAttrs.stroke !== "none") {
     throw new Error(`${where}: a stroke on <svg>`)
+  }
   let body = svg.children.map((c) => write(c, rootFill, "none", 0)).join("")
   if (rootFill !== "currentColor") body = `<g fill="${rootFill}">${body}</g>`
 
   if (!body) throw new Error(`${where}: nothing left to draw`)
   for (const literal of Object.keys(recolour)) {
-    if (!used.has(literal))
+    if (!used.has(literal)) {
       throw new Error(
         `${where}: RECOLOUR names ${literal}, which the source does not use`
       )
+    }
   }
   if (cuts.length) {
     // One id per glyph, not per instance: every copy of a mask on the page is
@@ -443,8 +452,9 @@ function emit(): string {
     throw new Error(`ICONS is not in alphabetical order at ${names[at]}`)
   }
   for (const source of Object.keys(RECOLOUR)) {
-    if (!Object.values(ICONS).includes(source))
+    if (!Object.values(ICONS).includes(source)) {
       throw new Error(`RECOLOUR names ${source}, which no icon uses`)
+    }
   }
 
   // Several names can answer to one drawing; the string is written once.
@@ -452,8 +462,9 @@ function emit(): string {
   const lines: string[] = []
   for (const name of names) {
     const source = ICONS[name]
-    if (!/^[A-Z][A-Za-z]*$/.test(name))
+    if (!/^[A-Z][A-Za-z]*$/.test(name)) {
       throw new Error(`${name} is not a component name`)
+    }
     if (!existsSync(join(VENDOR, `${source}.svg`))) {
       throw new Error(
         `${name}: vendor/breeze-icons/icons/${source}.svg is not vendored`

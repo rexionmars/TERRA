@@ -125,12 +125,13 @@ function SeriesChart({ season }: { season: Season }) {
 }
 
 function SeasonReading({ season }: { season: Season | null }) {
-  if (!season)
+  if (!season) {
     return (
       <Note>
         The run has fewer than four clear dates, too few to draw a season through.
       </Note>
     )
+  }
   return (
     <div className="flex flex-col gap-1">
       <Figure label="Rise" value={markText(season.rise)} />

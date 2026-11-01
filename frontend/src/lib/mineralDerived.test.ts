@@ -261,8 +261,9 @@ describe("derived legends", () => {
     const m = payload()
     const cellHa = mineralCellAreaHa(m)!
     const legend = legendFor("mineral:agreement2", { mineral: m })
-    if (legend?.kind !== "classes")
+    if (legend?.kind !== "classes") {
       throw new Error(`classes expected, got ${legend?.kind}`)
+    }
     expect(legend.entries.map((e) => e.areaHa)).toEqual(
       [60, 20, 10, 4, 6].map((n) => n * cellHa)
     )

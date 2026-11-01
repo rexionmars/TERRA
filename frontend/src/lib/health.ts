@@ -97,8 +97,9 @@ export function neighbourScores(fields: readonly FieldReport[]): {
     for (const p of f.report.current) {
       const gap = Math.abs(at(p.date) - at(date))
       if (gap > SAME_DATE_DAYS * DAY) continue
-      if (!best || gap < Math.abs(at(best.date) - at(date)))
+      if (!best || gap < Math.abs(at(best.date) - at(date))) {
         best = { date: p.date.slice(0, 10), ndvi: p.ndvi }
+      }
     }
     return { f, obs: best }
   })
