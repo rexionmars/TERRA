@@ -41,7 +41,10 @@ def _smooth(y: np.ndarray) -> np.ndarray:
     y = np.asarray(y, dtype=float)
     if savgol_filter is None or len(y) < 5:
         return y
-    w = min(7, len(y) // 2 * 2 + 1)
+    # The longest odd window the series holds, up to seven. Rounding an even length
+    # up instead asks for seven samples of a series of six, which scipy refuses, and
+    # six is what half a year of monthly-best scenes comes to.
+    w = min(7, len(y) if len(y) % 2 else len(y) - 1)
     return savgol_filter(y, window_length=w, polyorder=2)
 
 
