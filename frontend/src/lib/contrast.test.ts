@@ -91,10 +91,7 @@ describe("contrast", () => {
     )
     // Pure red on white, which exercises a single weighted channel:
     // 1.05 / 0.2626.
-    expect(contrast([255, 0, 0], [255, 255, 255])).toBeCloseTo(
-      3.9984767707539985,
-      10
-    )
+    expect(contrast([255, 0, 0], [255, 255, 255])).toBeCloseTo(3.9984767707539985, 10)
     // Two tokens the interface actually paints, one per theme.
     expect(contrast(TOKENS.dark.text, TOKENS.dark.ink)).toBeCloseTo(
       12.44726444295712,

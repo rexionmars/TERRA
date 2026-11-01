@@ -19,10 +19,7 @@
  */
 import { useCallback, useState } from "react"
 
-import {
-  InspectStorage,
-  PurgeOrphanedRunAssets,
-} from "../../wailsjs/go/main/App"
+import { InspectStorage, PurgeOrphanedRunAssets } from "../../wailsjs/go/main/App"
 import type { store } from "../../wailsjs/go/models"
 import { formatBytes } from "@/lib/formatBytes"
 

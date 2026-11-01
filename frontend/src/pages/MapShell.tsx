@@ -1,6 +1,20 @@
-import { Suspense, lazy, useCallback, useEffect, useMemo, useRef, useState } from "react"
+import {
+  Suspense,
+  lazy,
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react"
 
-import { Sparkle, ChartLine, Crosshair, Image as ImageGlyph, Stack } from "@/components/icons"
+import {
+  Sparkle,
+  ChartLine,
+  Crosshair,
+  Image as ImageGlyph,
+  Stack,
+} from "@/components/icons"
 import { MapButton } from "@/components/globe/MapChrome"
 import { toGlobeArea, type GlobeArea } from "@/components/globe/globeArea"
 import type { OverlayCaption } from "@/components/globe/OverlayCallout"
@@ -10,7 +24,12 @@ import { LayersPanel } from "@/components/shell/LayersPanel"
 import { PointsPanel, type PointSlot } from "@/components/shell/PointsPanel"
 import { ProductsPanel } from "@/components/shell/ProductsPanel"
 import type { ClassificationView, ResultProduct } from "@/components/shell/ResultPanel"
-import { ShellRail, ShellTopBar, keepRailOpen, readRailOpen } from "@/components/shell/ShellChrome"
+import {
+  ShellRail,
+  ShellTopBar,
+  keepRailOpen,
+  readRailOpen,
+} from "@/components/shell/ShellChrome"
 import { VisualizationPanel } from "@/components/shell/VisualizationPanel"
 import {
   COMPOSITOR,
@@ -26,7 +45,10 @@ import type { CompositorGlobeOverlay } from "@/components/workspace/CompositorEd
 import { claimLaunchStart, StartScreen } from "@/components/workspace/StartScreen"
 import { WorkflowManager } from "@/components/workspace/WorkflowManager"
 import { ConfirmDelete } from "@/components/ui/ConfirmDelete"
-import { GlobeOverlayMenu, type GlobeOverlayTarget } from "@/components/workspace/GlobeOverlayMenu"
+import {
+  GlobeOverlayMenu,
+  type GlobeOverlayTarget,
+} from "@/components/workspace/GlobeOverlayMenu"
 import { RunOnMapContext } from "@/components/workspace/RunQueue"
 import { RunBrowser } from "@/components/workspace/RunBrowser"
 import type { Area } from "@/lib/areas"
@@ -95,11 +117,14 @@ const CompareScreen = lazy(() =>
   import("@/components/shell/CompareScreen").then((m) => ({ default: m.CompareScreen }))
 )
 const WorkflowsScreen = lazy(() =>
-  import("@/components/shell/WorkflowsScreen").then((m) => ({ default: m.WorkflowsScreen }))
+  import("@/components/shell/WorkflowsScreen").then((m) => ({
+    default: m.WorkflowsScreen,
+  }))
 )
 
 /** Which panel is held up over the map. One value, so there is only ever one. */
-type ShellPanelId = "areas" | "products" | "visualization" | "result" | "points" | "layers" | "activity"
+type ShellPanelId =
+  "areas" | "products" | "visualization" | "result" | "points" | "layers" | "activity"
 
 /**
  * The whole contract between App and the surface it draws: App owns the parameters,
@@ -107,89 +132,89 @@ type ShellPanelId = "areas" | "products" | "visualization" | "result" | "points"
  */
 export interface MapShellProps {
   /** Where the map was left last session; null starts at the default view. */
-  initialView?: { lat: number; lon: number; zoom: number } | null;
-  customPolygon: GeoJSONGeometry | null;
-  result: PredictResult | null;
+  initialView?: { lat: number; lon: number; zoom: number } | null
+  customPolygon: GeoJSONGeometry | null
+  result: PredictResult | null
   /** Results the map finished with, still in hand for Compare and Workflows. */
-  retainedRuns: readonly { id: string; result: PredictResult }[];
+  retainedRuns: readonly { id: string; result: PredictResult }[]
   /** Let go of one. */
-  onDropRetainedRun?: (id: string) => void;
-  overlayOpacity: number;
-  showConfidence: boolean;
-  confidenceOnTop: boolean;
-  smoothOverlay: boolean;
-  showPredictionOverlay: boolean;
-  showCompositionOverlay: boolean;
-  composition: CompositionOverlay | null;
+  onDropRetainedRun?: (id: string) => void
+  overlayOpacity: number
+  showConfidence: boolean
+  confidenceOnTop: boolean
+  smoothOverlay: boolean
+  showPredictionOverlay: boolean
+  showCompositionOverlay: boolean
+  composition: CompositionOverlay | null
   /** Session gallery of applied compositions (newest first). */
-  compositionGallery?: CompositionOverlay[];
-  onSelectComposition?: (id: string) => void;
-  onRemoveComposition?: (id: string) => void;
-  areaLabel?: string;
-  hasArea: boolean;
-  start: string;
-  end: string;
-  maxCloud: number;
-  monthlyBest: boolean;
-  mode: "single" | "temporal";
-  modelKind: ModelKind;
-  prithviMode: "pixel" | "patch";
-  running: boolean;
-  progress: number;
-  progressMsg: string;
-  composeRunning: boolean;
-  composeProgress: number;
-  composeProgressMsg: string;
-  composeScenes: DataCubeScene[];
-  composeScenesLoading: boolean;
-  composeScenesError: string | null;
-  selectedSceneId: string;
-  composeKind: CompositeKind;
-  composeBands: [string, string, string];
-  composeIndex: CompositeIndex;
-  composeStretchLow: number;
-  composeStretchHigh: number;
-  composeOpacity: number;
-  onViewChange: (v: { lat: number; lon: number; zoom: number }) => void;
-  onPolygonDrawn: (geom: GeoJSONGeometry | null) => void;
+  compositionGallery?: CompositionOverlay[]
+  onSelectComposition?: (id: string) => void
+  onRemoveComposition?: (id: string) => void
+  areaLabel?: string
+  hasArea: boolean
+  start: string
+  end: string
+  maxCloud: number
+  monthlyBest: boolean
+  mode: "single" | "temporal"
+  modelKind: ModelKind
+  prithviMode: "pixel" | "patch"
+  running: boolean
+  progress: number
+  progressMsg: string
+  composeRunning: boolean
+  composeProgress: number
+  composeProgressMsg: string
+  composeScenes: DataCubeScene[]
+  composeScenesLoading: boolean
+  composeScenesError: string | null
+  selectedSceneId: string
+  composeKind: CompositeKind
+  composeBands: [string, string, string]
+  composeIndex: CompositeIndex
+  composeStretchLow: number
+  composeStretchHigh: number
+  composeOpacity: number
+  onViewChange: (v: { lat: number; lon: number; zoom: number }) => void
+  onPolygonDrawn: (geom: GeoJSONGeometry | null) => void
   /** Catalog of drawn/imported AOIs kept beside the active shape. */
-  areas?: import("@/lib/areas").Area[];
-  activeAreaId?: string;
-  activeProjectId?: string | null;
+  areas?: import("@/lib/areas").Area[]
+  activeAreaId?: string
+  activeProjectId?: string | null
   /** File new runs under another project, offered by the browser per project. */
-  onActivateProject?: (id: string) => void;
-  activeProjectName?: string | null;
-  onActivateArea?: (id: string) => void;
-  onRenameArea?: (id: string, name: string) => void;
-  onDeleteArea?: (id: string) => void;
-  onClearArea: () => void;
-  onImportPolygon: () => void;
-  onStartChange: (v: string) => void;
-  onEndChange: (v: string) => void;
-  onMaxCloudChange: (v: number) => void;
-  onMonthlyBestChange: (v: boolean) => void;
-  onModeChange: (m: "single" | "temporal") => void;
-  onModelKindChange: (m: ModelKind) => void;
-  onPrithviModeChange: (m: "pixel" | "patch") => void;
-  onOpacityChange: (v: number) => void;
-  onShowConfidenceChange: (v: boolean) => void;
-  onConfidenceOnTopChange: (v: boolean) => void;
-  onSmoothOverlayChange: (v: boolean) => void;
-  onShowPredictionOverlayChange: (v: boolean) => void;
-  onShowCompositionOverlayChange: (v: boolean) => void;
-  onSelectScene: (id: string) => void;
-  onComposeKindChange: (k: CompositeKind) => void;
-  onComposeBandsChange: (b: [string, string, string]) => void;
-  onComposeIndexChange: (i: CompositeIndex) => void;
-  onComposeStretchChange: (low: number, high: number) => void;
-  onComposeOpacityChange: (v: number) => void;
-  onListComposeScenes: () => void;
-  onApplyComposition: () => void;
-  onClearComposition: () => void;
-  onRun: () => void;
-  onAnalyzeLULC: () => void;
-  lulcRunning?: boolean;
-  onCloseResult: () => void;
+  onActivateProject?: (id: string) => void
+  activeProjectName?: string | null
+  onActivateArea?: (id: string) => void
+  onRenameArea?: (id: string, name: string) => void
+  onDeleteArea?: (id: string) => void
+  onClearArea: () => void
+  onImportPolygon: () => void
+  onStartChange: (v: string) => void
+  onEndChange: (v: string) => void
+  onMaxCloudChange: (v: number) => void
+  onMonthlyBestChange: (v: boolean) => void
+  onModeChange: (m: "single" | "temporal") => void
+  onModelKindChange: (m: ModelKind) => void
+  onPrithviModeChange: (m: "pixel" | "patch") => void
+  onOpacityChange: (v: number) => void
+  onShowConfidenceChange: (v: boolean) => void
+  onConfidenceOnTopChange: (v: boolean) => void
+  onSmoothOverlayChange: (v: boolean) => void
+  onShowPredictionOverlayChange: (v: boolean) => void
+  onShowCompositionOverlayChange: (v: boolean) => void
+  onSelectScene: (id: string) => void
+  onComposeKindChange: (k: CompositeKind) => void
+  onComposeBandsChange: (b: [string, string, string]) => void
+  onComposeIndexChange: (i: CompositeIndex) => void
+  onComposeStretchChange: (low: number, high: number) => void
+  onComposeOpacityChange: (v: number) => void
+  onListComposeScenes: () => void
+  onApplyComposition: () => void
+  onClearComposition: () => void
+  onRun: () => void
+  onAnalyzeLULC: () => void
+  lulcRunning?: boolean
+  onCloseResult: () => void
   /**
    * A request to open the board, bumped each time one arrives.
    *
@@ -197,71 +222,76 @@ export interface MapShellProps {
    * a flag would fire only on its first change -- opening the same studio
    * twice in a row has to work.
    */
-  openBoardNonce?: number;
+  openBoardNonce?: number
   /** Saved workflows, which the store keeps as studios. */
-  studios?: Studio[];
-  onOpenStudio?: (board: Studio) => void;
-  onNewStudio?: (name: string) => void;
+  studios?: Studio[]
+  onOpenStudio?: (board: Studio) => void
+  onNewStudio?: (name: string) => void
   /** Load a saved run as the live one, and hand it back. */
-  onOpenReading?: (run: InferenceRun) => void | Promise<PredictResult | null>;
+  onOpenReading?: (run: InferenceRun) => void | Promise<PredictResult | null>
   /** A published boundary chosen in the catalogue card, to become an area. */
-  onPickBoundary?: (name: string, geometry: GeoJSONGeometry) => void;
+  onPickBoundary?: (name: string, geometry: GeoJSONGeometry) => void
   /** Called when the list of workflows is about to be read, to refresh it. */
   /*
     Returns its promise, so a caller that needs the list BEFORE it draws again
     can wait for it. The menu that opens on hover does not and ignores it; the
     manage dialog does, since it shows the result of its own rename or delete.
   */
-  onStudiosMenu?: () => void | Promise<void>;
-  water?: WaterAnalysis | null;
+  onStudiosMenu?: () => void | Promise<void>
+  water?: WaterAnalysis | null
   /** The AOI as GeoJSON text, for the research pack's manifest. */
-  polygonGeoJSON?: string;
+  polygonGeoJSON?: string
   /**
    * The mineral map: its result, its run and its progress. The runner is
    * absent where the product cannot be started, and the band then does not
    * offer it.
    */
-  mineral?: MineralAnalysis | null;
-  onRunMinerals?: () => void;
+  mineral?: MineralAnalysis | null
+  onRunMinerals?: () => void
   /** The mineral map's passes compared and uncertainty draws; see the Passes card. */
-  mineralOptions?: MineralRunOptions;
-  onMineralOptionsChange?: (o: MineralRunOptions) => void;
-  mineralBusy?: boolean;
-  mineralProgress?: number;
-  mineralProgressMsg?: string;
-  onClearMineral?: () => void;
-  onClearFields?: () => void;
+  mineralOptions?: MineralRunOptions
+  onMineralOptionsChange?: (o: MineralRunOptions) => void
+  mineralBusy?: boolean
+  mineralProgress?: number
+  mineralProgressMsg?: string
+  onClearMineral?: () => void
+  onClearFields?: () => void
   /**
    * The field delineation, as the mineral map's props are: absent runner, no
    * band entry. Adoption is asked for by the compositor's Make fields node,
    * with the run and the thresholds that reached it.
    */
-  fields?: FieldsAnalysis | null;
-  onRunFields?: () => void;
-  fieldsBusy?: boolean;
-  fieldsProgress?: number;
-  fieldsProgressMsg?: string;
-  onAdoptFields?: (runId: string, minHa: number, minCropland: number, replace: boolean) => Promise<boolean>;
+  fields?: FieldsAnalysis | null
+  onRunFields?: () => void
+  fieldsBusy?: boolean
+  fieldsProgress?: number
+  fieldsProgressMsg?: string
+  onAdoptFields?: (
+    runId: string,
+    minHa: number,
+    minCropland: number,
+    replace: boolean
+  ) => Promise<boolean>
   /**
    * The areas the next jobs are queued over (App.tsx, selectAreas), and the
    * queueing itself. While any is selected the band queues its product over
    * them rather than running it over the area in hand.
    */
-  selectedAreaIds?: string[];
-  onSelectAreas?: (ids: string[], mode: "toggle" | "add") => void;
-  onClearSelection?: () => void;
-  onQueueJobs?: (kind: JobKind) => void;
-  waterIndex: WaterIndex;
-  waterRunning: boolean;
-  waterProgress: number;
-  waterProgressMsg: string;
-  showWaterOverlay: boolean;
-  onWaterIndexChange: (i: WaterIndex) => void;
-  onRunWater: () => void;
-  onClearWater: () => void;
-  onShowWaterOverlayChange: (v: boolean) => void;
-  waterOpacity: number;
-  onWaterOpacityChange: (v: number) => void;
+  selectedAreaIds?: string[]
+  onSelectAreas?: (ids: string[], mode: "toggle" | "add") => void
+  onClearSelection?: () => void
+  onQueueJobs?: (kind: JobKind) => void
+  waterIndex: WaterIndex
+  waterRunning: boolean
+  waterProgress: number
+  waterProgressMsg: string
+  showWaterOverlay: boolean
+  onWaterIndexChange: (i: WaterIndex) => void
+  onRunWater: () => void
+  onClearWater: () => void
+  onShowWaterOverlayChange: (v: boolean) => void
+  waterOpacity: number
+  onWaterOpacityChange: (v: number) => void
 }
 
 /** The list with this run in it, once. */
@@ -306,9 +336,9 @@ export function MapShell(props: MapShellProps) {
 
   // Over the map at launch, and gone as soon as the reader begins something.
   const [startOpen, setStartOpen] = useState(false)
-  const [destination, setDestination] = useState<"explore" | "analyses" | "compare" | "workflows">(
-    "explore"
-  )
+  const [destination, setDestination] = useState<
+    "explore" | "analyses" | "compare" | "workflows"
+  >("explore")
   /*
     Each stays mounted once opened, hidden behind the map. The grid's choices survive
     a look at the ground that way, and a graph's Globe nodes go on drawing on it.
@@ -343,7 +373,9 @@ export function MapShell(props: MapShellProps) {
   const [product, setProduct] = useState<BoardToolId | null>(null)
   const [frame, setFrame] = useState<{ key: number; bounds: Bounds } | null>(null)
   const [coords, setCoords] = useState(props.initialView ?? null)
-  const [mineralLayerState, setMineralLayerState] = useState<Record<string, LayerPatch>>({})
+  const [mineralLayerState, setMineralLayerState] = useState<
+    Record<string, LayerPatch>
+  >({})
   const [fieldLayerState, setFieldLayerState] = useState<Record<string, LayerPatch>>({})
   const [assetLayerState, setAssetLayerState] = useState<Record<string, LayerPatch>>({})
   const [spreadM, setSpreadM] = useState(0)
@@ -375,7 +407,12 @@ export function MapShell(props: MapShellProps) {
     if (!b) return
     setFrame({
       key: Date.now(),
-      bounds: { lon_min: b.lonMin, lat_min: b.latMin, lon_max: b.lonMax, lat_max: b.latMax },
+      bounds: {
+        lon_min: b.lonMin,
+        lat_min: b.latMin,
+        lon_max: b.lonMax,
+        lat_max: b.latMax,
+      },
     })
   }
 
@@ -417,7 +454,9 @@ export function MapShell(props: MapShellProps) {
     Runs brought in by name, or by opening a saved workflow. A session's: they
     survive a look at the map and not a restart.
   */
-  const [extraRuns, setExtraRuns] = useState<{ run: InferenceRun; result: PredictResult }[]>([])
+  const [extraRuns, setExtraRuns] = useState<
+    { run: InferenceRun; result: PredictResult }[]
+  >([])
   const [loadingRuns, setLoadingRuns] = useState(false)
   const addRuns = useCallback(async (list: readonly InferenceRun[]) => {
     setLoadingRuns(true)
@@ -516,7 +555,9 @@ export function MapShell(props: MapShellProps) {
     }
   }
   const runRecordOf = (runId: string): PdfReportRun | null => {
-    const r = savedRuns.find((x) => x.id === runId) ?? extraRuns.find((x) => x.run.id === runId)?.run
+    const r =
+      savedRuns.find((x) => x.id === runId) ??
+      extraRuns.find((x) => x.run.id === runId)?.run
     if (!r) return null
     return {
       id: r.id,
@@ -540,8 +581,12 @@ export function MapShell(props: MapShellProps) {
     setCompositorState(next)
   }
   const [compositorGlobe, setCompositorGlobe] = useState<CompositorGlobeOverlay[]>([])
-  const [savedId, setSavedId] = useState<string | null>(() => readBoardMemory("savedId", null))
-  const [savedName, setSavedName] = useState<string | null>(() => readBoardMemory("savedName", null))
+  const [savedId, setSavedId] = useState<string | null>(() =>
+    readBoardMemory("savedId", null)
+  )
+  const [savedName, setSavedName] = useState<string | null>(() =>
+    readBoardMemory("savedName", null)
+  )
   const [naming, setNaming] = useState<string | null>(null)
   const namingNew = useRef(false)
   const [pendingOpen, setPendingOpen] = useState<Studio | "new" | null>(null)
@@ -563,9 +608,13 @@ export function MapShell(props: MapShellProps) {
     setCompositor(
       withMineralNodes(compositor ?? EMPTY_GRAPH, mineralRunId, {
         cover: !!m.cover,
-        bands: (m.positions ?? []).map((p) => p.key).filter((k): k is "fe3" | "aloh" => k === "fe3" || k === "aloh"),
+        bands: (m.positions ?? [])
+          .map((p) => p.key)
+          .filter((k): k is "fe3" | "aloh" => k === "fe3" || k === "aloh"),
         acid: (m.acid_sulfate ?? []).length > 0,
-        agreement: (m.agreement ?? []).map((a) => a.group).filter((g): g is 1 | 2 => g === 1 || g === 2),
+        agreement: (m.agreement ?? [])
+          .map((a) => a.group)
+          .filter((g): g is 1 | 2 => g === 1 || g === 2),
       })
     )
     // The run id is what decides; the graph is read as it stands then.
@@ -575,7 +624,9 @@ export function MapShell(props: MapShellProps) {
   useEffect(() => {
     if (!fieldsRunId || placedRuns.current.has(fieldsRunId)) return
     placedRuns.current.add(fieldsRunId)
-    const classOutput = assets.some((a) => a.id === "fields-classes") ? "fields-classes" : null
+    const classOutput = assets.some((a) => a.id === "fields-classes")
+      ? "fields-classes"
+      : null
     setCompositor(withFieldNodes(compositor ?? EMPTY_GRAPH, fieldsRunId, classOutput))
     // As above.
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -621,7 +672,9 @@ export function MapShell(props: MapShellProps) {
     if (loadingRuns) {
       notifyError(
         "Still opening this workflow",
-        new Error("its runs are still being fetched, and saving now would store it without them")
+        new Error(
+          "its runs are still being fetched, and saving now would store it without them"
+        )
       )
       return
     }
@@ -634,12 +687,19 @@ export function MapShell(props: MapShellProps) {
     if (!members.length && !compositor?.nodes.length) {
       notifyError(
         "Nothing to save yet",
-        new Error("a workflow is a graph and the saved runs it reads, and this has neither. Run a product, or add a saved run")
+        new Error(
+          "a workflow is a graph and the saved runs it reads, and this has neither. Run a product, or add a saved run"
+        )
       )
       return
     }
     try {
-      const board = await saveStudio(trimmed, snapshotBoard(members), savedId ?? undefined, props.activeProjectId)
+      const board = await saveStudio(
+        trimmed,
+        snapshotBoard(members),
+        savedId ?? undefined,
+        props.activeProjectId
+      )
       writeBoardMemory("savedId", board.id)
       writeBoardMemory("savedName", board.name)
       setSavedId(board.id)
@@ -699,7 +759,11 @@ export function MapShell(props: MapShellProps) {
           return
         }
         // Nothing to name, and a project file to write: the save is the file's.
-        if (!session.some((r) => r.record) && !compositor?.nodes.length && pollOperator("PROJECT_SAVE") === true) {
+        if (
+          !session.some((r) => r.record) &&
+          !compositor?.nodes.length &&
+          pollOperator("PROJECT_SAVE") === true
+        ) {
           runOperator("PROJECT_SAVE")
           return
         }
@@ -897,9 +961,12 @@ export function MapShell(props: MapShellProps) {
       setConfidenceVisible: props.onShowConfidenceChange,
       setPredictionVisible: props.onShowPredictionOverlayChange,
       setOverlayOpacity: props.onOpacityChange,
-      patchFieldLayer: (l, p) => setFieldLayerState((held) => mergeLayerPatch(held, l, p)),
-      patchMineralLayer: (l, p) => setMineralLayerState((held) => mergeLayerPatch(held, l, p)),
-      patchAssetLayer: (l, p) => setAssetLayerState((held) => mergeLayerPatch(held, l, p)),
+      patchFieldLayer: (l, p) =>
+        setFieldLayerState((held) => mergeLayerPatch(held, l, p)),
+      patchMineralLayer: (l, p) =>
+        setMineralLayerState((held) => mergeLayerPatch(held, l, p)),
+      patchAssetLayer: (l, p) =>
+        setAssetLayerState((held) => mergeLayerPatch(held, l, p)),
     })
 
   const smoothFrom = layers.find((l) => l.smooth)?.uri
@@ -929,10 +996,20 @@ export function MapShell(props: MapShellProps) {
         const legend = legendFor(l.id, sources)
         const caption: OverlayCaption | undefined =
           legend?.kind === "ramp" ? { legend, area: areaName, detail: null } : undefined
-        const drawn = l.smooth && smoothed?.from === l.uri ? { ...l, uri: smoothed.uri } : l
+        const drawn =
+          l.smooth && smoothed?.from === l.uri ? { ...l, uri: smoothed.uri } : l
         return { key: l.id, areaId, layer: drawn, caption }
       })
-  }, [layers, props.result, props.water, props.composition, props.mineral, areaId, areaName, smoothed])
+  }, [
+    layers,
+    props.result,
+    props.water,
+    props.composition,
+    props.mineral,
+    areaId,
+    areaName,
+    smoothed,
+  ])
 
   const globeAreas = useMemo<GlobeArea[]>(() => {
     const selected = new Set(props.selectedAreaIds ?? [])
@@ -1018,10 +1095,10 @@ export function MapShell(props: MapShellProps) {
             : destination === "compare" || destination === "workflows"
               ? destination
               : panel === "areas"
-              ? "areas"
-              : panel === "activity"
-                ? "activity"
-                : "explore"
+                ? "areas"
+                : panel === "activity"
+                  ? "activity"
+                  : "explore"
         }
         open={railOpen}
         unseen={reports.length > seenReports}
@@ -1066,7 +1143,8 @@ export function MapShell(props: MapShellProps) {
               areas={globeAreas}
               onPickArea={(id, extend) => {
                 const picked = id.slice(id.indexOf(":") + 1)
-                if (extend && props.onSelectAreas) props.onSelectAreas([picked], "toggle")
+                if (extend && props.onSelectAreas)
+                  props.onSelectAreas([picked], "toggle")
                 else props.onActivateArea?.(picked)
               }}
               onBoxArea={
@@ -1078,14 +1156,28 @@ export function MapShell(props: MapShellProps) {
                       )
                   : undefined
               }
-              onClearSelection={props.selectedAreaIds?.length ? props.onClearSelection : undefined}
+              onClearSelection={
+                props.selectedAreaIds?.length ? props.onClearSelection : undefined
+              }
               polygon={props.customPolygon}
               // Deleting the area also drops what was made over it, as clearing does.
-              onPolygonDrawn={(g) => (g ? props.onPolygonDrawn(g) : props.onClearArea())}
+              onPolygonDrawn={(g) =>
+                g ? props.onPolygonDrawn(g) : props.onClearArea()
+              }
               onOverlayContext={(hits, at) => {
                 const entries = hits.flatMap(({ key, fit }) => {
                   const l = layers.find((x) => x.id === key)
-                  return l ? [{ key, title: l.title, hasLegend: false, propertyOnMap: false, fit }] : []
+                  return l
+                    ? [
+                        {
+                          key,
+                          title: l.title,
+                          hasLegend: false,
+                          propertyOnMap: false,
+                          fit,
+                        },
+                      ]
+                    : []
                 })
                 if (entries.length) setOverlayMenu({ at, entries })
               }}
@@ -1165,7 +1257,12 @@ export function MapShell(props: MapShellProps) {
                       if (b) {
                         setFrame({
                           key: Date.now(),
-                          bounds: { lon_min: b.lonMin, lat_min: b.latMin, lon_max: b.lonMax, lat_max: b.latMax },
+                          bounds: {
+                            lon_min: b.lonMin,
+                            lat_min: b.latMin,
+                            lon_max: b.lonMax,
+                            lat_max: b.latMax,
+                          },
                         })
                       }
                     }
@@ -1282,7 +1379,7 @@ export function MapShell(props: MapShellProps) {
           />
 
           {coords && (
-            <span className="telemetry pointer-events-none absolute bottom-3 right-[3.5rem] z-[410] rounded-sm bg-[rgb(var(--p-ink)/0.82)] px-2 py-1 text-label tabular-nums text-foreground">
+            <span className="telemetry pointer-events-none absolute right-[3.5rem] bottom-3 z-[410] rounded-sm bg-[rgb(var(--p-ink)/0.82)] px-2 py-1 text-label text-foreground tabular-nums">
               {coords.lat.toFixed(5)}, {coords.lon.toFixed(5)}
             </span>
           )}
@@ -1300,8 +1397,10 @@ export function MapShell(props: MapShellProps) {
               {running.map((r) => (
                 <div key={r.label}>
                   <div className="flex items-baseline justify-between gap-3 text-label">
-                    <span className="truncate text-foreground">{r.progressMsg || r.label}</span>
-                    <span className="shrink-0 tabular-nums text-muted-foreground">
+                    <span className="truncate text-foreground">
+                      {r.progressMsg || r.label}
+                    </span>
+                    <span className="shrink-0 text-muted-foreground tabular-nums">
                       {Math.round(r.progress)} %
                     </span>
                   </div>
@@ -1343,7 +1442,9 @@ export function MapShell(props: MapShellProps) {
                 fieldsTargetOf={fieldsTargetOf}
                 onAdoptFields={props.onAdoptFields}
                 onNeedRuns={(ids) =>
-                  void addRuns(ids.flatMap((id) => savedRuns.filter((r) => r.id === id)))
+                  void addRuns(
+                    ids.flatMap((id) => savedRuns.filter((r) => r.id === id))
+                  )
                 }
                 runRecordOf={runRecordOf}
                 saved={!!savedId}
@@ -1380,9 +1481,15 @@ export function MapShell(props: MapShellProps) {
           {pendingOpen && (
             <ConfirmDelete
               eyebrow="UNSAVED CHANGES"
-              title={pendingOpen === "new" ? "Start a new workflow?" : `Open "${pendingOpen.name}"?`}
+              title={
+                pendingOpen === "new"
+                  ? "Start a new workflow?"
+                  : `Open "${pendingOpen.name}"?`
+              }
               subtitle={`This workflow has changes that were never saved${savedName ? ` to "${savedName}"` : ""}. They cannot be brought back. Cancel and save to keep both.`}
-              confirmLabel={pendingOpen === "new" ? "Discard and start" : "Discard and open"}
+              confirmLabel={
+                pendingOpen === "new" ? "Discard and start" : "Discard and open"
+              }
               onCancel={() => setPendingOpen(null)}
               onConfirm={() => {
                 const next = pendingOpen
@@ -1404,7 +1511,12 @@ export function MapShell(props: MapShellProps) {
               onShowAtLaunchChange={(show) => {
                 if (!prefs) return
                 void savePrefs(
-                  { ...prefs, extras_json: mergePreferenceExtras(prefs.extras_json, { start_screen: show }) },
+                  {
+                    ...prefs,
+                    extras_json: mergePreferenceExtras(prefs.extras_json, {
+                      start_screen: show,
+                    }),
+                  },
                   { silent: true }
                 ).catch(() => {
                   /* best-effort, as the other preference writers are */

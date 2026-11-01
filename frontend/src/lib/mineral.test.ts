@@ -31,7 +31,10 @@ const EXTENT = { lon_min: -44.1, lat_min: -20.2, lon_max: -44.0, lat_max: -20.1 
 function group(n: number, extra: Partial<MineralGroup> = {}): MineralGroup {
   return {
     group: n,
-    label: n === 1 ? "Fe2+/Fe3+ electronic absorptions, 0.4-1.3 um" : "Vibrational absorptions, 2.0-2.5 um",
+    label:
+      n === 1
+        ? "Fe2+/Fe3+ electronic absorptions, 0.4-1.3 um"
+        : "Vibrational absorptions, 2.0-2.5 um",
     detected_cells: 0,
     detected_area_ha: 0,
     classes: [],

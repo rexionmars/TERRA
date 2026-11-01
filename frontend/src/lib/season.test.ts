@@ -32,7 +32,15 @@ describe("a run's season", () => {
     point("2026-03-05", 0.3),
   ]
   // Rise day 300 (27 Oct 2025), peak day 354 (20 Dec 2025), fall day 50 (19 Feb 2026).
-  const phenology = { sos_doy: 300, pos_doy: 354, eos_doy: 50, los_days: 115, peak: 0.85, base: 0.2, amplitude: 0.65 }
+  const phenology = {
+    sos_doy: 300,
+    pos_doy: 354,
+    eos_doy: 50,
+    los_days: 115,
+    peak: 0.85,
+    base: 0.2,
+    amplitude: 0.65,
+  }
 
   it("places each mark in order and brackets it by the clear observations around it", () => {
     const s = seasonOf({ vi_series: series, phenology })!
@@ -45,6 +53,8 @@ describe("a run's season", () => {
 
   it("is nothing without a series or a peak", () => {
     expect(seasonOf({ vi_series: [], phenology })).toBeNull()
-    expect(seasonOf({ vi_series: series, phenology: { ...phenology, pos_doy: null } })).toBeNull()
+    expect(
+      seasonOf({ vi_series: series, phenology: { ...phenology, pos_doy: null } })
+    ).toBeNull()
   })
 })

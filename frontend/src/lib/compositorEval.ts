@@ -165,7 +165,8 @@ export type Value =
   | ZonesValue
 
 /** Whether a value is a raster, the only kind the filters, masks and mixes take. */
-export const isRaster = (v: Value): v is RasterValue => v.type === "classes" || v.type === "image"
+export const isRaster = (v: Value): v is RasterValue =>
+  v.type === "classes" || v.type === "image"
 
 export type Result =
   | { status: "ready"; value: Value }
@@ -192,7 +193,8 @@ export interface Evaluation {
 export const socketKey = (node: string, socket: string) => `${node}\u0000${socket}`
 
 const valueWidth = (v: RasterValue) => (v.type === "classes" ? v.grid.width : v.width)
-const valueHeight = (v: RasterValue) => (v.type === "classes" ? v.grid.height : v.height)
+const valueHeight = (v: RasterValue) =>
+  v.type === "classes" ? v.grid.height : v.height
 
 /** A class value painted in its legend. */
 export function paintValue(v: RasterValue): ImageValue {
@@ -235,7 +237,10 @@ export function opaqueRGBA(rgba: Uint8ClampedArray): Uint8ClampedArray {
 }
 
 const sameExtent = (a: Bounds, b: Bounds) =>
-  a.lon_min === b.lon_min && a.lon_max === b.lon_max && a.lat_min === b.lat_min && a.lat_max === b.lat_max
+  a.lon_min === b.lon_min &&
+  a.lon_max === b.lon_max &&
+  a.lat_min === b.lat_min &&
+  a.lat_max === b.lat_max
 
 /**
  * For each pixel of a destination grid, the source pixel under its centre, or
@@ -276,7 +281,8 @@ export function resampleMap(
   const map = new Int32Array(dst.width * dst.height)
   for (let y = 0; y < dst.height; y++) {
     for (let x = 0; x < dst.width; x++) {
-      map[y * dst.width + x] = row[y] < 0 || col[x] < 0 ? -1 : row[y] * src.width + col[x]
+      map[y * dst.width + x] =
+        row[y] < 0 || col[x] < 0 ? -1 : row[y] * src.width + col[x]
     }
   }
   return map
@@ -315,7 +321,8 @@ function step(node: GraphNode, v: ClassValue, key: string): ClassValue | string 
         return sieveFilter(v.grid, node.minPixels, node.connectivity)
       case "morphology": {
         const ordinal = v.info.legend.findIndex((e) => e.id === node.classId)
-        if (node.classId == null || ordinal < 0) return "Choose the class to open or close."
+        if (node.classId == null || ordinal < 0)
+          return "Choose the class to open or close."
         return node.op === "open"
           ? openClass(v.grid, ordinal, node.size, classes)
           : closeClass(v.grid, ordinal, node.size)
@@ -361,7 +368,10 @@ export function evaluate(graph: CompositorGraph, ctx: EvalContext): Evaluation {
   const inputs = new Map<string, Result>()
   const used = new Set<string>()
 
-  const cached = <T extends RasterValue>(key: string, make: () => T | string): T | string => {
+  const cached = <T extends RasterValue>(
+    key: string,
+    make: () => T | string
+  ): T | string => {
     used.add(key)
     const hit = ctx.cache.get(key)
     if (hit) return hit as T
@@ -390,7 +400,9 @@ export function evaluate(graph: CompositorGraph, ctx: EvalContext): Evaluation {
 
   /** A value as an image, painted once per class map and kept. */
   const painted = (v: RasterValue): ImageValue =>
-    v.type === "image" ? v : (cached(`paint(${v.key})`, () => paintValue(v)) as ImageValue)
+    v.type === "image"
+      ? v
+      : (cached(`paint(${v.key})`, () => paintValue(v)) as ImageValue)
 
   /** The reason a node cannot run yet, from the first input that is not ready. */
   const notReady = (r: Result): Result =>
@@ -425,10 +437,15 @@ export function evaluate(graph: CompositorGraph, ctx: EvalContext): Evaluation {
       case "select": {
         const up = input(node, "classes", trail)
         if (up.status !== "ready") return notReady(up)
-        if (up.value.type !== "classes") return { status: "failed", note: "Needs a class map." }
+        if (up.value.type !== "classes")
+          return { status: "failed", note: "Needs a class map." }
         const v = up.value
-        const made = cached(`${paramsKey(node)}(${v.key})`, () => step(node, v, `${paramsKey(node)}(${v.key})`))
-        return typeof made === "string" ? { status: "none", note: made } : { status: "ready", value: made }
+        const made = cached(`${paramsKey(node)}(${v.key})`, () =>
+          step(node, v, `${paramsKey(node)}(${v.key})`)
+        )
+        return typeof made === "string"
+          ? { status: "none", note: made }
+          : { status: "ready", value: made }
       }
 
       case "mask": {
@@ -436,8 +453,10 @@ export function evaluate(graph: CompositorGraph, ctx: EvalContext): Evaluation {
         if (raster.status !== "ready") return notReady(raster)
         const mask = input(node, "mask", trail)
         if (mask.status !== "ready") return notReady(mask)
-        if (mask.value.type !== "classes") return { status: "failed", note: "The mask needs a class map." }
-        if (!isRaster(raster.value)) return { status: "failed", note: "The raster input takes a raster." }
+        if (mask.value.type !== "classes")
+          return { status: "failed", note: "The mask needs a class map." }
+        if (!isRaster(raster.value))
+          return { status: "failed", note: "The raster input takes a raster." }
         const v = raster.value
         const m = mask.value
         const made = cached(`mask(${v.key},${m.key})`, (): RasterValue | string => {
@@ -457,10 +476,13 @@ export function evaluate(graph: CompositorGraph, ctx: EvalContext): Evaluation {
             return { ...v, key, grid: { ...v.grid, index } }
           }
           const rgba = v.rgba.slice()
-          for (let p = 0, o = 3; p < v.width * v.height; p++, o += 4) if (!inside(p)) rgba[o] = 0
+          for (let p = 0, o = 3; p < v.width * v.height; p++, o += 4)
+            if (!inside(p)) rgba[o] = 0
           return { ...v, key, rgba }
         })
-        return typeof made === "string" ? { status: "failed", note: made } : { status: "ready", value: made }
+        return typeof made === "string"
+          ? { status: "failed", note: made }
+          : { status: "ready", value: made }
       }
 
       case "mix": {
@@ -469,10 +491,12 @@ export function evaluate(graph: CompositorGraph, ctx: EvalContext): Evaluation {
         const top = input(node, "overlay", trail)
         if (top.status === "busy") return top
         if (top.status === "failed") return { status: "failed", note: top.note }
-        if (!isRaster(base.value)) return { status: "failed", note: "The base takes a raster." }
+        if (!isRaster(base.value))
+          return { status: "failed", note: "The base takes a raster." }
         const b = painted(base.value)
         if (top.status === "none") return { status: "ready", value: b }
-        if (!isRaster(top.value)) return { status: "failed", note: "The overlay takes a raster." }
+        if (!isRaster(top.value))
+          return { status: "failed", note: "The overlay takes a raster." }
         const t = painted(top.value)
         const key = `${paramsKey(node)}(${b.key},${t.key})`
         const made = cached(key, (): ImageValue | string => {
@@ -492,7 +516,9 @@ export function evaluate(graph: CompositorGraph, ctx: EvalContext): Evaluation {
           }
           return { ...b, key, rgba: over(b.rgba, placed, node.opacity) }
         })
-        return typeof made === "string" ? { status: "failed", note: made } : { status: "ready", value: made }
+        return typeof made === "string"
+          ? { status: "failed", note: made }
+          : { status: "ready", value: made }
       }
 
       case "viewer": {
@@ -504,8 +530,12 @@ export function evaluate(graph: CompositorGraph, ctx: EvalContext): Evaluation {
       case "fieldFilter": {
         const up = input(node, "fields", trail)
         if (up.status !== "ready") return notReady(up)
-        if (up.value.type !== "fields") return { status: "failed", note: "Needs the fields a delineation drew." }
-        return { status: "ready", value: filterFields(up.value, node.minHa, node.minCropland) }
+        if (up.value.type !== "fields")
+          return { status: "failed", note: "Needs the fields a delineation drew." }
+        return {
+          status: "ready",
+          value: filterFields(up.value, node.minHa, node.minCropland),
+        }
       }
 
       default:
@@ -518,7 +548,8 @@ export function evaluate(graph: CompositorGraph, ctx: EvalContext): Evaluation {
     // A node's own outputs even where nothing reads them, since the node
     // reports on what it made. Not a Run node's: those are decoded rasters,
     // and only the ones something reads are worth decoding.
-    if (node.kind !== "run") for (const o of kindMeta(node.kind).outputs) output(node.id, o.id, new Set())
+    if (node.kind !== "run")
+      for (const o of kindMeta(node.kind).outputs) output(node.id, o.id, new Set())
   }
   for (const l of graph.links) output(l.from, l.fromSocket, new Set())
   return { outputs, inputs, used }
@@ -529,7 +560,11 @@ export function evaluate(graph: CompositorGraph, ctx: EvalContext): Evaluation {
  * the thresholds carried on. A field with no cropland share -- none was read,
  * or it holds no cell -- has nothing to be judged by and is kept.
  */
-export function filterFields(v: FieldsValue, minHa: number, minCropland: number): FieldsValue {
+export function filterFields(
+  v: FieldsValue,
+  minHa: number,
+  minCropland: number
+): FieldsValue {
   const ha = Math.max(v.minHa, minHa)
   const crop = Math.max(v.minCropland, minCropland)
   return {
@@ -646,7 +681,8 @@ export function classChange(a: ClassValue, b: ClassValue): ChangeReading {
     }
   }
   const ids = [...new Set([...before.keys(), ...after.keys()])]
-  const entry = (id: number) => la.find((e) => e.id === id) ?? lb.find((e) => e.id === id)!
+  const entry = (id: number) =>
+    la.find((e) => e.id === id) ?? lb.find((e) => e.id === id)!
   const rows = ids
     .map((id) => ({
       id,

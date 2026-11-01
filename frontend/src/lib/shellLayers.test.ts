@@ -36,14 +36,20 @@ const layer = (id: string, order: number): RasterLayer => ({
 
 describe("withAssetLayers", () => {
   it("does not list twice a raster the layer table already holds", () => {
-    const out = withAssetLayers([layer("prediction", 400)], [asset("prediction"), asset("confidence")])
+    const out = withAssetLayers(
+      [layer("prediction", 400)],
+      [asset("prediction"), asset("confidence")]
+    )
     expect(out.filter((l) => l.id === "prediction")).toHaveLength(1)
     expect(out.map((l) => l.id)).toContain("confidence")
   })
 
   it("compares by the layer's id, which is not always the asset's", () => {
     // The water raster is the asset water-occurrence and the layer water.
-    const out = withAssetLayers([layer("water", 360)], [asset("water-occurrence", { sceneId: "water" })])
+    const out = withAssetLayers(
+      [layer("water", 360)],
+      [asset("water-occurrence", { sceneId: "water" })]
+    )
     expect(out.map((l) => l.id)).toEqual(["water"])
   })
 
@@ -63,17 +69,25 @@ describe("withAssetLayers", () => {
   })
 
   it("turns on only the first partition of the zones, which runAssets puts suggested first", () => {
-    const out = withAssetLayers([], [asset("zones-4"), asset("zones-3"), asset("zones-5")])
+    const out = withAssetLayers(
+      [],
+      [asset("zones-4"), asset("zones-3"), asset("zones-5")]
+    )
     expect(out.filter((l) => l.visible).map((l) => l.id)).toEqual(["zones-4"])
   })
 
   it("lets the reader's switch and opacity override the opening state", () => {
-    const out = withAssetLayers([], [asset("health-anomaly")], { "health-anomaly": { visible: false, opacity: 0.4 } })
+    const out = withAssetLayers([], [asset("health-anomaly")], {
+      "health-anomaly": { visible: false, opacity: 0.4 },
+    })
     expect(out[0]).toMatchObject({ visible: false, opacity: 0.4 })
   })
 
   it("draws imagery under measurements", () => {
-    const out = withAssetLayers([layer("prediction", 400)], [asset("health-anomaly"), asset("true-color")])
+    const out = withAssetLayers(
+      [layer("prediction", 400)],
+      [asset("health-anomaly"), asset("true-color")]
+    )
     expect(out.map((l) => l.id)).toEqual(["true-color", "health-anomaly", "prediction"])
   })
 })
@@ -81,7 +95,11 @@ describe("withAssetLayers", () => {
 describe("jobReadingOf", () => {
   it("carries what the run measured, named by the area it was over", () => {
     const radar = { extent: EXTENT } as never
-    expect(jobReadingOf("r", "North field", { radar })).toMatchObject({ runId: "r", label: "North field", radar })
+    expect(jobReadingOf("r", "North field", { radar })).toMatchObject({
+      runId: "r",
+      label: "North field",
+      radar,
+    })
   })
 
   it("is null for a run that holds no queued product", () => {

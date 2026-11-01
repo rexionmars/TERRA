@@ -32,7 +32,8 @@ function metresBetween([lon1, lat1]: number[], [lon2, lat2]: number[]): number {
   const dLat = (lat2 - lat1) * rad
   const dLon = (lon2 - lon1) * rad
   const h =
-    Math.sin(dLat / 2) ** 2 + Math.cos(lat1 * rad) * Math.cos(lat2 * rad) * Math.sin(dLon / 2) ** 2
+    Math.sin(dLat / 2) ** 2 +
+    Math.cos(lat1 * rad) * Math.cos(lat2 * rad) * Math.sin(dLon / 2) ** 2
   return 2 * EARTH_RADIUS_M * Math.asin(Math.min(1, Math.sqrt(h)))
 }
 
@@ -58,7 +59,10 @@ export interface ComparePins {
  * Null below two, since a run against itself is not a comparison. A pin to a run
  * that has left the grid is ignored rather than leaving a slot naming nothing.
  */
-export function comparePair(ids: readonly string[], pins: ComparePins): [string, string] | null {
+export function comparePair(
+  ids: readonly string[],
+  pins: ComparePins
+): [string, string] | null {
   const pinA = pins.a && ids.includes(pins.a) ? pins.a : undefined
   const pinB = pins.b && ids.includes(pins.b) && pins.b !== pinA ? pins.b : undefined
   const free = ids.filter((id) => id !== pinA && id !== pinB)

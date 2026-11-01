@@ -56,7 +56,9 @@ export function TitleBar() {
     >
       <div className="flex items-center gap-2">
         <img src="/terra-logo.png" alt="" className="h-7 w-7 object-contain" />
-        <span className="font-display text-sm font-semibold tracking-[0.14em]">TERRA</span>
+        <span className="font-display text-sm font-semibold tracking-[0.14em]">
+          TERRA
+        </span>
         <span className="eyebrow hidden sm:inline">{BRAND_TAGLINE}</span>
       </div>
       <WindowControls />
@@ -105,17 +107,17 @@ export function WindowControls() {
   */
   if (onMac) return null
   return (
-      <div className="app-no-drag flex items-center gap-1">
-        <WindowButton onClick={WindowMinimise} title="Minimize">
-          <Minus className="h-3.5 w-3.5" />
-        </WindowButton>
-        <WindowButton onClick={WindowToggleMaximise} title="Maximize">
-          <Square className="h-3 w-3" />
-        </WindowButton>
-        <WindowButton onClick={Quit} danger title="Close">
-          <X className="h-3.5 w-3.5" />
-        </WindowButton>
-      </div>
+    <div className="app-no-drag flex items-center gap-1">
+      <WindowButton onClick={WindowMinimise} title="Minimize">
+        <Minus className="h-3.5 w-3.5" />
+      </WindowButton>
+      <WindowButton onClick={WindowToggleMaximise} title="Maximize">
+        <Square className="h-3 w-3" />
+      </WindowButton>
+      <WindowButton onClick={Quit} danger title="Close">
+        <X className="h-3.5 w-3.5" />
+      </WindowButton>
+    </div>
   )
 }
 

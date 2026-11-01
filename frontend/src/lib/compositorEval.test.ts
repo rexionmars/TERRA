@@ -36,7 +36,8 @@ function classes(rows: string[], extent = EXTENT): ClassValue {
   const width = rows[0].length
   const index = new Uint8Array(width * height)
   rows.forEach((r, y) => {
-    for (let x = 0; x < width; x++) index[y * width + x] = r[x] === "." ? NO_CLASS : r.charCodeAt(x) - 97
+    for (let x = 0; x < width; x++)
+      index[y * width + x] = r[x] === "." ? NO_CLASS : r.charCodeAt(x) - 97
   })
   return {
     type: "classes",
@@ -56,12 +57,28 @@ function classes(rows: string[], extent = EXTENT): ClassValue {
   }
 }
 
-function image(width: number, height: number, rgba: number[], extent = EXTENT): ImageValue {
-  return { type: "image", key: `i:${rgba.join(",")}`, width, height, rgba: Uint8ClampedArray.from(rgba), extent }
+function image(
+  width: number,
+  height: number,
+  rgba: number[],
+  extent = EXTENT
+): ImageValue {
+  return {
+    type: "image",
+    key: `i:${rgba.join(",")}`,
+    width,
+    height,
+    rgba: Uint8ClampedArray.from(rgba),
+    extent,
+  }
 }
 
 /** A graph built node by node, with each link checked as the editor checks it. */
-function build(nodes: GraphNode[], links: GraphLink[], sources: Record<string, RasterValue>) {
+function build(
+  nodes: GraphNode[],
+  links: GraphLink[],
+  sources: Record<string, RasterValue>
+) {
   let g: CompositorGraph = EMPTY_GRAPH
   for (const n of nodes) g = addNode(g, n, { x: 0, y: 0 })
   const runOutputs = () =>
@@ -73,11 +90,18 @@ function build(nodes: GraphNode[], links: GraphLink[], sources: Record<string, R
   }
   const cache = new Map<string, RasterValue>()
   const source = (_run: string, asset: string): Result =>
-    sources[asset] ? { status: "ready", value: sources[asset] } : { status: "none", note: "gone" }
+    sources[asset]
+      ? { status: "ready", value: sources[asset] }
+      : { status: "none", note: "gone" }
   return { g, cache, run: () => evaluate(g, { source, cache }) }
 }
 
-const L = (from: string, fromSocket: string, to: string, toSocket: string): GraphLink => ({
+const L = (
+  from: string,
+  fromSocket: string,
+  to: string,
+  toSocket: string
+): GraphLink => ({
   from,
   fromSocket,
   to,
@@ -93,11 +117,16 @@ function ready(r: Result | undefined): RasterValue {
 describe("evaluate", () => {
   it("runs a class map through filters and reuses what it already computed", () => {
     const { run, cache } = build(
-      [{ id: "run-1", kind: "run", runId: "r" }, { ...createNode("majority", "majority-1") }],
+      [
+        { id: "run-1", kind: "run", runId: "r" },
+        { ...createNode("majority", "majority-1") },
+      ],
       [L("run-1", "cls", "majority-1", "classes")],
       { cls: classes(["aaaaa", "aaaaa", "aabaa", "aaaaa", "aaaaa"]) }
     )
-    const first = ready(run().outputs.get(socketKey("majority-1", "classes"))) as ClassValue
+    const first = ready(
+      run().outputs.get(socketKey("majority-1", "classes"))
+    ) as ClassValue
     expect([...first.grid.index].every((v) => v === 0)).toBe(true)
     const second = ready(run().outputs.get(socketKey("majority-1", "classes")))
     expect(second).toBe(first)
@@ -105,8 +134,15 @@ describe("evaluate", () => {
   })
 
   it("reports an image reaching an input that needs classes, even when the link predates the rule", () => {
-    const { g, cache } = build([{ id: "run-1", kind: "run", runId: "r" }, createNode("sieve", "sieve-1")], [], {})
-    const linked: CompositorGraph = { ...g, links: [L("run-1", "img", "sieve-1", "classes")] }
+    const { g, cache } = build(
+      [{ id: "run-1", kind: "run", runId: "r" }, createNode("sieve", "sieve-1")],
+      [],
+      {}
+    )
+    const linked: CompositorGraph = {
+      ...g,
+      links: [L("run-1", "img", "sieve-1", "classes")],
+    }
     const e = evaluate(linked, {
       source: () => ({ status: "ready", value: image(1, 1, [0, 0, 0, 255]) }),
       cache,
@@ -116,7 +152,10 @@ describe("evaluate", () => {
 
   it("keeps only the chosen classes", () => {
     const { run } = build(
-      [{ id: "run-1", kind: "run", runId: "r" }, { id: "select-1", kind: "select", keep: [20] }],
+      [
+        { id: "run-1", kind: "run", runId: "r" },
+        { id: "select-1", kind: "select", keep: [20] },
+      ],
       [L("run-1", "cls", "select-1", "classes")],
       { cls: classes(["abca"]) }
     )
@@ -141,7 +180,10 @@ describe("evaluate", () => {
     const base = image(1, 1, [0, 0, 0, 255])
     const top = image(1, 1, [200, 100, 0, 255])
     const { run } = build(
-      [{ id: "run-1", kind: "run", runId: "r" }, { id: "mix-1", kind: "mix", opacity: 0.5 }],
+      [
+        { id: "run-1", kind: "run", runId: "r" },
+        { id: "mix-1", kind: "mix", opacity: 0.5 },
+      ],
       [L("run-1", "base", "mix-1", "base"), L("run-1", "top", "mix-1", "overlay")],
       { base, top }
     )
@@ -152,8 +194,15 @@ describe("evaluate", () => {
   it("passes a Viewer's input through its output, unchanged, to a Globe", () => {
     const cls = classes(["ab"])
     const { run } = build(
-      [{ id: "run-1", kind: "run", runId: "r" }, createNode("viewer", "viewer-1"), createNode("globe", "globe-1")],
-      [L("run-1", "cls", "viewer-1", "image"), L("viewer-1", "image", "globe-1", "layer-1")],
+      [
+        { id: "run-1", kind: "run", runId: "r" },
+        createNode("viewer", "viewer-1"),
+        createNode("globe", "globe-1"),
+      ],
+      [
+        L("run-1", "cls", "viewer-1", "image"),
+        L("viewer-1", "image", "globe-1", "layer-1"),
+      ],
       { cls }
     )
     const e = run()
@@ -173,16 +222,29 @@ describe("evaluate", () => {
 
 describe("resampleMap and over", () => {
   it("is the identity for one grid, and places a smaller extent inside a larger", () => {
-    expect(resampleMap({ width: 2, height: 2, extent: EXTENT }, { width: 2, height: 2, extent: EXTENT })).toBeNull()
+    expect(
+      resampleMap(
+        { width: 2, height: 2, extent: EXTENT },
+        { width: 2, height: 2, extent: EXTENT }
+      )
+    ).toBeNull()
     const m = resampleMap(
-      { width: 1, height: 1, extent: { lon_min: 2, lat_min: 0, lon_max: 4, lat_max: 2 } },
+      {
+        width: 1,
+        height: 1,
+        extent: { lon_min: 2, lat_min: 0, lon_max: 4, lat_max: 2 },
+      },
       { width: 4, height: 1, extent: EXTENT }
     )
     expect(m && typeof m !== "string" ? [...m] : m).toEqual([-1, -1, 0, 0])
   })
 
   it("leaves the base where the overlay is transparent", () => {
-    const out = over(Uint8ClampedArray.from([10, 20, 30, 255]), Uint8ClampedArray.from([255, 255, 255, 0]), 1)
+    const out = over(
+      Uint8ClampedArray.from([10, 20, 30, 255]),
+      Uint8ClampedArray.from([255, 255, 255, 0]),
+      1
+    )
     expect([...out]).toEqual([10, 20, 30, 255])
   })
 })
@@ -205,7 +267,10 @@ describe("readings", () => {
     if (!c.comparable) throw new Error(c.note)
     expect(c.shared).toBe(6)
     expect(c.changed).toBe(2)
-    expect(c.rows.find((r) => r.name === "Soybean")).toMatchObject({ before: 3, after: 5 })
+    expect(c.rows.find((r) => r.name === "Soybean")).toMatchObject({
+      before: 3,
+      after: 5,
+    })
     expect(c.moves.map((m) => [m.from.name, m.to.name, m.px])).toEqual([
       ["Pasture", "Soybean", 1],
       ["Forest", "Soybean", 1],
@@ -219,8 +284,12 @@ describe("readings", () => {
 
 describe("opaqueRGBA", () => {
   it("makes every pixel with data opaque and leaves the empty ones empty", () => {
-    const rgba = new Uint8ClampedArray([20, 164, 186, 55, 0, 0, 0, 0, 51, 184, 178, 125])
-    expect([...opaqueRGBA(rgba)]).toEqual([20, 164, 186, 255, 0, 0, 0, 0, 51, 184, 178, 255])
+    const rgba = new Uint8ClampedArray([
+      20, 164, 186, 55, 0, 0, 0, 0, 51, 184, 178, 125,
+    ])
+    expect([...opaqueRGBA(rgba)]).toEqual([
+      20, 164, 186, 255, 0, 0, 0, 0, 51, 184, 178, 255,
+    ])
     expect(rgba[3]).toBe(55)
   })
 

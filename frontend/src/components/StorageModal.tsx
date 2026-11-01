@@ -157,9 +157,7 @@ function Overview({
                 <span className="text-body text-foreground">{b.label}</span>
                 {/* What removing it would cost, beside the number. A size with
                     no stated consequence invites clearing it. */}
-                <p className="text-micro text-muted-foreground">
-                  {b.consequence}
-                </p>
+                <p className="text-micro text-muted-foreground">{b.consequence}</p>
               </div>
               <div className="shrink-0 text-right">
                 <span className="telemetry text-body text-foreground">
@@ -197,12 +195,11 @@ function Overview({
           <div className="rounded-sm border border-border bg-sunk px-3 py-2">
             <p className="text-body text-foreground">
               {formatBytes(report.orphan_bytes)} in {report.orphan_count}{" "}
-              {report.orphan_count === 1 ? "folder" : "folders"} no analysis
-              refers to.
+              {report.orphan_count === 1 ? "folder" : "folders"} no analysis refers to.
             </p>
             <p className="mt-0.5 text-micro text-muted-foreground">
-              Left behind when an analysis was deleted. Nothing in TERRA can
-              open these, and no export includes them.
+              Left behind when an analysis was deleted. Nothing in TERRA can open these,
+              and no export includes them.
             </p>
             <button
               type="button"
@@ -220,9 +217,9 @@ function Overview({
           </div>
         ) : (
           <p className="text-body text-muted-foreground">
-            Nothing is unreferenced — every file belongs to an analysis or a
-            project. Analyses are removed by deleting them in the project hub,
-            which removes their files too.
+            Nothing is unreferenced — every file belongs to an analysis or a project.
+            Analyses are removed by deleting them in the project hub, which removes
+            their files too.
           </p>
         )}
         {/* Stated because it is otherwise a puzzle: a run that opens onto no
@@ -230,9 +227,8 @@ function Overview({
         {report.empty_runs > 0 && (
           <p className="mt-2 text-micro text-muted-foreground">
             {report.empty_runs}{" "}
-            {report.empty_runs === 1 ? "analysis holds" : "analyses hold"} no
-            files. Some products save no imagery; there is nothing to reclaim
-            from them.
+            {report.empty_runs === 1 ? "analysis holds" : "analyses hold"} no files.
+            Some products save no imagery; there is nothing to reclaim from them.
           </p>
         )}
       </Section>
@@ -241,10 +237,7 @@ function Overview({
 }
 
 function Analyses({ report }: { report: store.StorageReport }) {
-  const withFiles = useMemo(
-    () => report.runs.filter((r) => !r.empty),
-    [report.runs]
-  )
+  const withFiles = useMemo(() => report.runs.filter((r) => !r.empty), [report.runs])
 
   if (withFiles.length === 0) {
     return (
@@ -258,8 +251,8 @@ function Analyses({ report }: { report: store.StorageReport }) {
   return (
     <>
       <p className="mb-3 text-body text-muted-foreground">
-        Largest first. Deleting an analysis in the project hub removes its files
-        as well.
+        Largest first. Deleting an analysis in the project hub removes its files as
+        well.
       </p>
       <ul className="flex flex-col gap-1">
         {withFiles.map((r) => (
@@ -357,9 +350,7 @@ function ProportionBar({
             key={s.label}
             className="flex items-center gap-1.5 text-micro text-muted-foreground"
           >
-            <span
-              className={cn("size-2 rounded-sm", shades[i % shades.length])}
-            />
+            <span className={cn("size-2 rounded-sm", shades[i % shades.length])} />
             {s.label} · {formatBytes(s.bytes)}
           </span>
         ))}

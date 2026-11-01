@@ -323,9 +323,7 @@ export function classDriftBetweenRuns(
   // absent from the other has not drifted -- there is nothing to compare it to,
   // and listing it at a distance of anything would invent the comparison.
   const shared = [...byA.keys()].filter((id) => byB.has(id)).sort((x, y) => x - y)
-  const bands = [
-    ...new Set([...(a.bands ?? []), ...(b.bands ?? [])]),
-  ]
+  const bands = [...new Set([...(a.bands ?? []), ...(b.bands ?? [])])]
 
   return shared.map((id) => {
     const aBands = byA.get(id)!

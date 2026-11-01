@@ -32,7 +32,8 @@ import { Choice } from "./nodeCard"
 import { ActionButton, Figure, Note, Swatch } from "./nodeParts"
 
 const INT = new Intl.NumberFormat("en-US")
-const ha = (v: number) => (Math.abs(v) >= 100 ? `${v.toFixed(0)} ha` : `${v.toFixed(1)} ha`)
+const ha = (v: number) =>
+  Math.abs(v) >= 100 ? `${v.toFixed(0)} ha` : `${v.toFixed(1)} ha`
 const pct = (frac: number) => `${(frac * 100).toFixed(1)}%`
 const nm = (v: number) => `${v.toFixed(0)} nm`
 
@@ -67,9 +68,15 @@ function Rows({
   cols: string
 }) {
   return (
-    <div className="grid items-center gap-x-2 gap-y-1 text-meta" style={{ gridTemplateColumns: cols }}>
+    <div
+      className="grid items-center gap-x-2 gap-y-1 text-meta"
+      style={{ gridTemplateColumns: cols }}
+    >
       {head.map((h, i) => (
-        <span key={i} className={`text-micro text-muted-foreground${i ? " text-right" : ""}`}>
+        <span
+          key={i}
+          className={`text-micro text-muted-foreground${i ? "text-right" : ""}`}
+        >
           {h}
         </span>
       ))}
@@ -81,7 +88,7 @@ function Rows({
               className={
                 i === 0
                   ? `flex min-w-0 items-center gap-1.5 ${r.muted ? "text-muted-foreground" : "text-foreground"}`
-                  : `telemetry whitespace-nowrap text-right ${r.muted ? "text-muted-foreground" : "text-foreground"}`
+                  : `telemetry text-right whitespace-nowrap ${r.muted ? "text-muted-foreground" : "text-foreground"}`
               }
             >
               {c}
@@ -104,11 +111,22 @@ function Named({ color, label }: { color?: string; label: string }) {
   )
 }
 
-export function GroupPick({ value, onPick }: { value: MineralGroupId; onPick: (g: MineralGroupId) => void }) {
+export function GroupPick({
+  value,
+  onPick,
+}: {
+  value: MineralGroupId
+  onPick: (g: MineralGroupId) => void
+}) {
   return (
     <div className="flex items-center gap-1">
       {([1, 2] as const).map((g) => (
-        <Choice key={g} label={GROUP_SHORT[g]} chosen={value === g} onPick={() => onPick(g)} />
+        <Choice
+          key={g}
+          label={GROUP_SHORT[g]}
+          chosen={value === g}
+          onPick={() => onPick(g)}
+        />
       ))}
     </div>
   )
@@ -119,7 +137,9 @@ const spreadText = (s: MineralSpread | null | undefined, fmt: (v: number) => str
 
 export function Coverage({ m }: { m: MineralAnalysis }) {
   const cellHa = mineralCellAreaHa(m)
-  const used = m.selection ? `${m.selection.contributing_passes} of ${m.selection.compared_passes}` : String(m.scenes.length)
+  const used = m.selection
+    ? `${m.selection.contributing_passes} of ${m.selection.compared_passes}`
+    : String(m.scenes.length)
   return (
     <>
       <Figure
@@ -132,14 +152,26 @@ export function Coverage({ m }: { m: MineralAnalysis }) {
           value={`${ha(m.selection.exposed_area_ha)} · ${m.observed_area_ha > 0 ? pct(m.selection.exposed_area_ha / m.observed_area_ha) : "–"} of observed`}
         />
       )}
-      <Figure label="Masked" value={cellHa !== null ? ha(m.masked_cells * cellHa) : `${INT.format(m.masked_cells)} cells`} />
+      <Figure
+        label="Masked"
+        value={
+          cellHa !== null
+            ? ha(m.masked_cells * cellHa)
+            : `${INT.format(m.masked_cells)} cells`
+        }
+      />
       {m.groups.map((g) => (
-        <Figure key={g.group} label={`Identified, ${GROUP_SHORT[g.group as MineralGroupId] ?? g.group}`} value={ha(g.detected_area_ha)} />
+        <Figure
+          key={g.group}
+          label={`Identified, ${GROUP_SHORT[g.group as MineralGroupId] ?? g.group}`}
+          value={ha(g.detected_area_ha)}
+        />
       ))}
       <Figure label="Passes used" value={used} />
       <Note>
-        Band depth is not abundance. Vegetation, water and cloud suppress the answer, so shares are
-        of the observed ground. Exposed: free of green vegetation and residue in the pass used.
+        Band depth is not abundance. Vegetation, water and cloud suppress the answer, so
+        shares are of the observed ground. Exposed: free of green vegetation and residue
+        in the pass used.
       </Note>
       {m.notes.map((n, i) => (
         <Note key={i}>{n}</Note>
@@ -162,24 +194,46 @@ export function Classes({ m, group }: { m: MineralAnalysis; group: MineralGroupI
         ...g.classes.map((c) => ({
           key: c.class,
           title: `mean band depth ${c.mean_depth.toFixed(3)}`,
-          cells: [<Named key="n" color={mineralClassColor(m, c.class, c.color)} label={c.label || c.class} />, ha(c.area_ha), pct(c.fraction_of_observed)],
+          cells: [
+            <Named
+              key="n"
+              color={mineralClassColor(m, c.class, c.color)}
+              label={c.label || c.class}
+            />,
+            ha(c.area_ha),
+            pct(c.fraction_of_observed),
+          ],
         })),
         {
           key: "no-answer",
           muted: true,
-          cells: [<Named key="n" color={MINERAL_NO_ANSWER_COLOR} label="No answer" />, ha(noAnswer), obs > 0 ? pct(noAnswer / obs) : "–"],
+          cells: [
+            <Named key="n" color={MINERAL_NO_ANSWER_COLOR} label="No answer" />,
+            ha(noAnswer),
+            obs > 0 ? pct(noAnswer / obs) : "–",
+          ],
         },
         {
           key: "masked",
           muted: true,
-          cells: [<Named key="n" color={MINERAL_MASKED_COLOR} label="Masked" />, cellHa !== null ? ha(m.masked_cells * cellHa) : "–", "–"],
+          cells: [
+            <Named key="n" color={MINERAL_MASKED_COLOR} label="Masked" />,
+            cellHa !== null ? ha(m.masked_cells * cellHa) : "–",
+            "–",
+          ],
         },
       ]}
     />
   )
 }
 
-export function References({ m, group }: { m: MineralAnalysis; group: MineralGroupId }) {
+export function References({
+  m,
+  group,
+}: {
+  m: MineralAnalysis
+  group: MineralGroupId
+}) {
   const g = m.groups.find((x) => x.group === group)
   if (!g?.entries.length) return <Note>No reference won a cell in this group.</Note>
   return (
@@ -189,7 +243,11 @@ export function References({ m, group }: { m: MineralAnalysis; group: MineralGro
       rows={g.entries.slice(0, 10).map((e) => ({
         key: e.id,
         title: `${e.title} · ${e.class} · mean depth ${e.mean_depth.toFixed(3)}`,
-        cells: [<Named key="n" color={mineralClassColor(m, e.class)} label={e.title} />, INT.format(e.cells), e.mean_fit.toFixed(2)],
+        cells: [
+          <Named key="n" color={mineralClassColor(m, e.class)} label={e.title} />,
+          INT.format(e.cells),
+          e.mean_fit.toFixed(2),
+        ],
       }))}
     />
   )
@@ -216,8 +274,8 @@ export function Passes({ m }: { m: MineralAnalysis }) {
         }))}
       />
       <Note>
-        Each cell from the pass it is least covered in: exposed ground first (NDVI and CAI), then
-        lower NDVI. Exposed: of the cells the pass observed.
+        Each cell from the pass it is least covered in: exposed ground first (NDVI and
+        CAI), then lower NDVI. Exposed: of the cells the pass observed.
       </Note>
     </>
   )
@@ -231,11 +289,21 @@ export function Cover({ m }: { m: MineralAnalysis }) {
       <Figure label="Bare soil" value={pct(c.mean_bare)} />
       <Figure label="Green vegetation" value={pct(c.mean_pv)} />
       <Figure label="Dry vegetation" value={pct(c.mean_npv)} />
-      <Figure label={`Bare above ${c.bare_threshold}`} value={`${ha(c.bare_area_ha)} of ${ha(c.area_ha)}`} />
+      <Figure
+        label={`Bare above ${c.bare_threshold}`}
+        value={`${ha(c.bare_area_ha)} of ${ha(c.area_ha)}`}
+      />
       {c.groups.map((g) => (
-        <Figure key={g.group} label={`Identified there, ${GROUP_SHORT[g.group as MineralGroupId] ?? g.group}`} value={ha(g.identified_area_ha)} />
+        <Figure
+          key={g.group}
+          label={`Identified there, ${GROUP_SHORT[g.group as MineralGroupId] ?? g.group}`}
+          value={ha(g.identified_area_ha)}
+        />
       ))}
-      <Note>Means over the cells with a fraction; the endmembers are EMIT's, built for arid ground.</Note>
+      <Note>
+        Means over the cells with a fraction; the endmembers are EMIT's, built for arid
+        ground.
+      </Note>
     </>
   )
 }
@@ -254,7 +322,10 @@ export function Positions({ m, band }: { m: MineralAnalysis; band: MineralBand }
   return (
     <>
       <div className="flex flex-col gap-0.5">
-        <span className="h-2 rounded-[2px]" style={{ background: mineralRampGradient(p.ramp.colors) }} />
+        <span
+          className="h-2 rounded-[2px]"
+          style={{ background: mineralRampGradient(p.ramp.colors) }}
+        />
         <div className="flex justify-between text-micro text-muted-foreground">
           <span>{nm(p.ramp.min)}</span>
           <span>{nm(p.ramp.max)}</span>
@@ -266,12 +337,20 @@ export function Positions({ m, band }: { m: MineralAnalysis; band: MineralBand }
         rows={[
           ...p.classes.map((c) => ({
             key: c.class,
-            cells: [<Named key="n" color={mineralClassColor(m, c.class)} label={c.label} />, INT.format(c.cells), spreadText(c, nm)],
+            cells: [
+              <Named key="n" color={mineralClassColor(m, c.class)} label={c.label} />,
+              INT.format(c.cells),
+              spreadText(c, nm),
+            ],
           })),
           ...p.references.map((r) => ({
             key: `ref-${r.class}`,
             muted: true,
-            cells: [<Named key="n" label={`${r.class} references`} />, String(r.references), `${nm(r.median_nm)} (${nm(r.min_nm)} to ${nm(r.max_nm)})`],
+            cells: [
+              <Named key="n" label={`${r.class} references`} />,
+              String(r.references),
+              `${nm(r.median_nm)} (${nm(r.min_nm)} to ${nm(r.max_nm)})`,
+            ],
           })),
         ]}
       />
@@ -295,12 +374,16 @@ export function Acid({ m }: { m: MineralAnalysis }) {
         rows={rows.map((r) => ({
           key: r.key,
           title: r.setting,
-          cells: [<Named key="n" color={r.color} label={r.label} />, ha(r.area_ha), r.groups ? `${r.groups["1"] ?? 0} / ${r.groups["2"] ?? 0}` : "–"],
+          cells: [
+            <Named key="n" color={r.color} label={r.label} />,
+            ha(r.area_ha),
+            r.groups ? `${r.groups["1"] ?? 0} / ${r.groups["2"] ?? 0}` : "–",
+          ],
         }))}
       />
       <Note>
-        An identification, not a pH. Group 1 matches rest on Fe3+ bands shared with goethite in
-        iron-rich soil; group 2 on a band of the mineral itself.
+        An identification, not a pH. Group 1 matches rest on Fe3+ bands shared with
+        goethite in iron-rich soil; group 2 on a band of the mineral itself.
       </Note>
     </>
   )
@@ -313,11 +396,17 @@ export function Confidence({ m }: { m: MineralAnalysis }) {
   return (
     <>
       {rows.map((r) => {
-        const identified = m.groups.find((g) => g.group === r.group)?.detected_cells ?? 0
+        const identified =
+          m.groups.find((g) => g.group === r.group)?.detected_cells ?? 0
         return (
           <div key={r.group} className="flex flex-col gap-0.5">
-            <span className="text-micro text-muted-foreground">{GROUP_SHORT[r.group as MineralGroupId] ?? r.group}</span>
-            <Figure label="Fit margin" value={spreadText(r.margin, (v) => v.toFixed(2))} />
+            <span className="text-micro text-muted-foreground">
+              {GROUP_SHORT[r.group as MineralGroupId] ?? r.group}
+            </span>
+            <Figure
+              label="Fit margin"
+              value={spreadText(r.margin, (v) => v.toFixed(2))}
+            />
             {draws > 0 && (
               <Figure
                 label={`Held in all ${r.draws} draws`}
@@ -328,9 +417,11 @@ export function Confidence({ m }: { m: MineralAnalysis }) {
         )
       })}
       <Note>
-        Margin: the fit less the best fit of another class; near zero, another mineral explains the
-        spectrum as well.
-        {draws > 0 ? "" : " Set draws on the Passes card of the run to measure stability."}
+        Margin: the fit less the best fit of another class; near zero, another mineral
+        explains the spectrum as well.
+        {draws > 0
+          ? ""
+          : " Set draws on the Passes card of the run to measure stability."}
       </Note>
     </>
   )
@@ -338,7 +429,8 @@ export function Confidence({ m }: { m: MineralAnalysis }) {
 
 export function Agreement({ m, group }: { m: MineralAnalysis; group: MineralGroupId }) {
   const a = m.agreement?.find((x) => x.group === group)
-  if (!a) return <Note>No EMIT L2B granule exists for the passes used in this group.</Note>
+  if (!a)
+    return <Note>No EMIT L2B granule exists for the passes used in this group.</Note>
   return (
     <>
       <div className="flex items-baseline gap-2">
@@ -349,7 +441,10 @@ export function Agreement({ m, group }: { m: MineralAnalysis; group: MineralGrou
           same class, of {INT.format(a.agree + a.differ)} cells both identified
         </span>
       </div>
-      <Figure label="Here only / L2B only" value={`${INT.format(a.port_only)} / ${INT.format(a.l2b_only)}`} />
+      <Figure
+        label="Here only / L2B only"
+        value={`${INT.format(a.port_only)} / ${INT.format(a.l2b_only)}`}
+      />
       {a.pairs.length > 0 && (
         <Rows
           cols="minmax(0,1fr) minmax(0,1fr) auto"
@@ -357,14 +452,25 @@ export function Agreement({ m, group }: { m: MineralAnalysis; group: MineralGrou
           rows={a.pairs.slice(0, 5).map((p) => ({
             key: `${p.here}>${p.l2b}`,
             cells: [
-              <Named key="h" color={mineralClassColor(m, p.here)} label={m.legend.find((l) => l.class === p.here)?.label ?? p.here} />,
-              <Named key="l" color={mineralClassColor(m, p.l2b)} label={m.legend.find((l) => l.class === p.l2b)?.label ?? p.l2b} />,
+              <Named
+                key="h"
+                color={mineralClassColor(m, p.here)}
+                label={m.legend.find((l) => l.class === p.here)?.label ?? p.here}
+              />,
+              <Named
+                key="l"
+                color={mineralClassColor(m, p.l2b)}
+                label={m.legend.find((l) => l.class === p.l2b)?.label ?? p.l2b}
+              />,
               INT.format(p.cells),
             ],
           }))}
         />
       )}
-      <Note>L2B runs t5.27d1 with libraries that are not public. Vegetation and water count as no mineral.</Note>
+      <Note>
+        L2B runs t5.27d1 with libraries that are not public. Vegetation and water count
+        as no mineral.
+      </Note>
     </>
   )
 }
@@ -408,14 +514,20 @@ export function MineralNodeBody({
     case "mineralClasses":
       return (
         <>
-          <GroupPick value={node.group} onPick={(group) => onChange({ ...node, group })} />
+          <GroupPick
+            value={node.group}
+            onPick={(group) => onChange({ ...node, group })}
+          />
           <Classes m={m} group={node.group} />
         </>
       )
     case "mineralReferences":
       return (
         <>
-          <GroupPick value={node.group} onPick={(group) => onChange({ ...node, group })} />
+          <GroupPick
+            value={node.group}
+            onPick={(group) => onChange({ ...node, group })}
+          />
           <References m={m} group={node.group} />
         </>
       )
@@ -428,7 +540,12 @@ export function MineralNodeBody({
         <>
           <div className="flex items-center gap-1">
             {(["fe3", "aloh"] as const).map((b) => (
-              <Choice key={b} label={BAND_SHORT[b]} chosen={node.band === b} onPick={() => onChange({ ...node, band: b })} />
+              <Choice
+                key={b}
+                label={BAND_SHORT[b]}
+                chosen={node.band === b}
+                onPick={() => onChange({ ...node, band: b })}
+              />
             ))}
           </div>
           <Positions m={m} band={node.band} />
@@ -441,7 +558,10 @@ export function MineralNodeBody({
     case "mineralAgreement":
       return (
         <>
-          <GroupPick value={node.group} onPick={(group) => onChange({ ...node, group })} />
+          <GroupPick
+            value={node.group}
+            onPick={(group) => onChange({ ...node, group })}
+          />
           <Agreement m={m} group={node.group} />
         </>
       )

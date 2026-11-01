@@ -329,10 +329,10 @@
   /* The ground every card is built on: Graphite 900, and its 700 for a card
      with no part in the request -- the layers card, and any card a panel
      builds on this canvas without a subject. */
-  --b-card: #23262C;
-  --b-card-head: #3A3F47;
-  --b-card-edge: #3A3F47;
-  --b-card-ink: #C2C3C5;
+  --b-card: #23262c;
+  --b-card-head: #3a3f47;
+  --b-card-edge: #3a3f47;
+  --b-card-ink: #c2c3c5;
 
   /*
     THE FOUR BANDS AT 0.6 OF THEIR CHROMA, AND WHY THE LITERALS MOVED.
@@ -371,29 +371,29 @@
     -edge. The light parts ring in the ground and are untouched there.
   */
   /* WHERE a run reads -- the area, a scene, a store. Heavy: ringed in itself. */
-  --b-source-body: #23262C;
-  --b-source-head: #8DB04F;
-  --b-source-edge: #8DB04F;
-  --b-source-ink: #23262C;
+  --b-source-body: #23262c;
+  --b-source-head: #8db04f;
+  --b-source-edge: #8db04f;
+  --b-source-ink: #23262c;
 
   /* OVER WHAT STRETCH -- a period. Heavy. */
-  --b-when-body: #23262C;
-  --b-when-head: #EACE51;
-  --b-when-edge: #EACE51;
+  --b-when-body: #23262c;
+  --b-when-head: #eace51;
+  --b-when-edge: #eace51;
   --b-when-ink: #121212;
 
   /* BY WHICH METHOD -- a model, an index, a set of bands. Light:
      the accent stays in the band and the ring is the ground's own. */
-  --b-method-body: #23262C;
-  --b-method-head: #633CB8;
-  --b-method-edge: #3A3F47;
-  --b-method-ink: #FFFFFF;
+  --b-method-body: #23262c;
+  --b-method-head: #633cb8;
+  --b-method-edge: #3a3f47;
+  --b-method-ink: #ffffff;
 
   /* AT WHAT VALUES -- a threshold, a stretch. Light. */
-  --b-value-body: #23262C;
-  --b-value-head: #C5654D;
-  --b-value-edge: #3A3F47;
-  --b-value-ink: #0B0B0B;
+  --b-value-body: #23262c;
+  --b-value-head: #c5654d;
+  --b-value-edge: #3a3f47;
+  --b-value-ink: #0b0b0b;
 
   /*
     A DATA SOURCE, WHICH IS NOT ONE OF THE FOUR PARTS.
@@ -420,10 +420,10 @@
     Its ink is the same near-black the source band carries, at 5.34 -- checked
     in lib/contrast.ts like the rest.
   */
-  --b-catalogue-body: #23262C;
-  --b-catalogue-head: #CB81BB;
-  --b-catalogue-edge: #3A3F47;
-  --b-catalogue-ink: #23262C;
+  --b-catalogue-body: #23262c;
+  --b-catalogue-head: #cb81bb;
+  --b-catalogue-edge: #3a3f47;
+  --b-catalogue-ink: #23262c;
 
   /*
     The run card: where the request ends, and the one control asking to be
@@ -448,15 +448,15 @@
     apart in chroma and 1.80 in lightness, separated mostly by hue. Moving
     either is still one line.
   */
-  --b-action-head: #DCA64F;
-  --b-action-edge: #DCA64F;
-  --b-action-ink: #23262C;
+  --b-action-head: #dca64f;
+  --b-action-edge: #dca64f;
+  --b-action-ink: #23262c;
 
   /* On the graph, not in the request. Forest Ritual's slate: the one band here
      a reader is not meant to look at first. */
   --b-aside-head: #476664;
   --b-aside-edge: #476664;
-  --b-aside-ink: #D3E2DE;
+  --b-aside-ink: #d3e2de;
 
   /*
     THE NODE HEADERS, as Blender's and Solara's node editors draw them: a dark
@@ -475,15 +475,15 @@
     8.62. The same in both themes: a header is a node's chrome, not the
     room's.
   */
-  --b-node-ink: #E6E6E6;
-  --b-card-node: #3A3F47;
-  --b-source-node: #3C5A3A;
-  --b-when-node: #6A5D2A;
-  --b-method-node: #4A3F78;
-  --b-value-node: #6B3F35;
-  --b-catalogue-node: #5D4059;
-  --b-action-node: #6E3636;
-  --b-aside-node: #34403F;
+  --b-node-ink: #e6e6e6;
+  --b-card-node: #3a3f47;
+  --b-source-node: #3c5a3a;
+  --b-when-node: #6a5d2a;
+  --b-method-node: #4a3f78;
+  --b-value-node: #6b3f35;
+  --b-catalogue-node: #5d4059;
+  --b-action-node: #6e3636;
+  --b-aside-node: #34403f;
 
   /*
     THE STUDIO'S OWN THREE, and the reason they exist.
@@ -617,64 +617,64 @@
 
   /* The ground every card is built on, and the card with no part in the
      request. White Smoke, with Silver for the header and the ring. */
-  --b-card: #F4F4F4;
-  --b-card-head: #C2C3C5;
-  --b-card-edge: #C2C3C5;
-  --b-card-ink: #23262C;
+  --b-card: #f4f4f4;
+  --b-card-head: #c2c3c5;
+  --b-card-edge: #c2c3c5;
+  --b-card-ink: #23262c;
 
   /* WHERE a run reads -- the area, a scene, a store. Heavy: ringed in itself. */
-  --b-source-body: #F4F4F4;
-  --b-source-head: #8DB04F;
-  --b-source-edge: #8DB04F;
-  --b-source-ink: #23262C;
+  --b-source-body: #f4f4f4;
+  --b-source-head: #8db04f;
+  --b-source-edge: #8db04f;
+  --b-source-ink: #23262c;
 
   /* OVER WHAT STRETCH -- a period. Heavy. */
-  --b-when-body: #F4F4F4;
-  --b-when-head: #EACE51;
-  --b-when-edge: #EACE51;
+  --b-when-body: #f4f4f4;
+  --b-when-head: #eace51;
+  --b-when-edge: #eace51;
   --b-when-ink: #121212;
 
   /* BY WHICH METHOD -- a model, an index, a set of bands. Light:
      the accent stays in the band and the ring is Silver. */
-  --b-method-body: #F4F4F4;
-  --b-method-head: #633CB8;
-  --b-method-edge: #C2C3C5;
-  --b-method-ink: #FFFFFF;
+  --b-method-body: #f4f4f4;
+  --b-method-head: #633cb8;
+  --b-method-edge: #c2c3c5;
+  --b-method-ink: #ffffff;
 
   /* AT WHAT VALUES -- a threshold, a stretch. Light. */
-  --b-value-body: #F4F4F4;
-  --b-value-head: #C5654D;
-  --b-value-edge: #C2C3C5;
-  --b-value-ink: #0B0B0B;
+  --b-value-body: #f4f4f4;
+  --b-value-head: #c5654d;
+  --b-value-edge: #c2c3c5;
+  --b-value-ink: #0b0b0b;
 
   /* The fifth band, outside the four parts. See the dark block for where the
      hue was placed and why. */
-  --b-catalogue-body: #F4F4F4;
-  --b-catalogue-head: #CB81BB;
-  --b-catalogue-edge: #C2C3C5;
-  --b-catalogue-ink: #23262C;
+  --b-catalogue-body: #f4f4f4;
+  --b-catalogue-head: #cb81bb;
+  --b-catalogue-edge: #c2c3c5;
+  --b-catalogue-ink: #23262c;
 
   /* The run card: where the request ends. Ringed in itself. Muted with the
      four parts; see the dark block for the measurement. */
-  --b-action-head: #DCA64F;
-  --b-action-edge: #DCA64F;
-  --b-action-ink: #23262C;
+  --b-action-head: #dca64f;
+  --b-action-edge: #dca64f;
+  --b-action-ink: #23262c;
 
   /* On the graph, not in the request. */
   --b-aside-head: #476664;
   --b-aside-edge: #476664;
-  --b-aside-ink: #D3E2DE;
+  --b-aside-ink: #d3e2de;
 
   /* The node headers, unchanged: see the dark block. */
-  --b-node-ink: #E6E6E6;
-  --b-card-node: #3A3F47;
-  --b-source-node: #3C5A3A;
-  --b-when-node: #6A5D2A;
-  --b-method-node: #4A3F78;
-  --b-value-node: #6B3F35;
-  --b-catalogue-node: #5D4059;
-  --b-action-node: #6E3636;
-  --b-aside-node: #34403F;
+  --b-node-ink: #e6e6e6;
+  --b-card-node: #3a3f47;
+  --b-source-node: #3c5a3a;
+  --b-when-node: #6a5d2a;
+  --b-method-node: #4a3f78;
+  --b-value-node: #6b3f35;
+  --b-catalogue-node: #5d4059;
+  --b-action-node: #6e3636;
+  --b-aside-node: #34403f;
 
   /*
     The light theme's studio is unchanged: the chassis tokens, at the alpha the
@@ -968,7 +968,7 @@
     equivalent against their own grounds rather than at the same numbers.
   */
   --s-hover: rgb(0 0 0 / 0.05);
-  --s-selected: rgb(0 0 0 / 0.10);
+  --s-selected: rgb(0 0 0 / 0.1);
 
   /*
     Nearly opaque, because here dark ground is the hazard and a filter cannot lift
@@ -1441,7 +1441,6 @@
   --s-selected: rgb(var(--p-surface-raised) / 0.92);
 }
 
-
 /*
   The nav item, the one shared treatment left from the workspace chrome.
 
@@ -1546,7 +1545,6 @@
     transparent 100%
   );
 }
-
 
 .overlay-thumb-crisp {
   image-rendering: pixelated;
@@ -1681,8 +1679,6 @@ a.maplibregl-ctrl-logo,
      decoration sitting on the seam rather than as the control that moves it. */
   cursor: var(--cursor-col-resize);
 }
-
-
 
 /*
   The tile credit is not here any more. It moved to the title bar, where it sits
@@ -1842,7 +1838,7 @@ a.maplibregl-ctrl-logo,
   width: 1.25rem !important;
   height: 1.25rem !important;
   padding: 0 !important;
-  border-radius: var(--radius-sm)!important;
+  border-radius: var(--radius-sm) !important;
   border: 1px solid rgb(var(--p-line) / 0.35) !important;
   background: transparent !important;
   color: var(--muted-foreground) !important;
@@ -1864,4 +1860,3 @@ a.maplibregl-ctrl-logo,
 .terra-toast-success {
   border-color: color-mix(in srgb, var(--success) 35%, transparent);
 }
-

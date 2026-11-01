@@ -86,13 +86,43 @@ function payload(extra: Partial<MineralAnalysis> = {}): MineralAnalysis {
     masked_cells: 40,
     cell_size_deg: [0.0005, 0.0005],
     scenes: [
-      { granule: "a", date: "2024-08-30", cloud_cover: 0, mask_granule: "", cells: 150, masked_cells: 10, wavelength_offset_nm: 0 },
-      { granule: "b", date: "2024-09-03", cloud_cover: 5, mask_granule: "", cells: 50, masked_cells: 30, wavelength_offset_nm: 0 },
-      { granule: "c", date: "2025-07-01", cloud_cover: 9, mask_granule: "", cells: 0, masked_cells: 0, wavelength_offset_nm: 0 },
+      {
+        granule: "a",
+        date: "2024-08-30",
+        cloud_cover: 0,
+        mask_granule: "",
+        cells: 150,
+        masked_cells: 10,
+        wavelength_offset_nm: 0,
+      },
+      {
+        granule: "b",
+        date: "2024-09-03",
+        cloud_cover: 5,
+        mask_granule: "",
+        cells: 50,
+        masked_cells: 30,
+        wavelength_offset_nm: 0,
+      },
+      {
+        granule: "c",
+        date: "2025-07-01",
+        cloud_cover: 9,
+        mask_granule: "",
+        cells: 0,
+        masked_cells: 0,
+        wavelength_offset_nm: 0,
+      },
     ],
     groups: [],
     legend: [],
-    selection: { rule: "r", compared_passes: 3, contributing_passes: 2, exposed_cells: 80, exposed_area_ha: 200 },
+    selection: {
+      rule: "r",
+      compared_passes: 3,
+      contributing_passes: 2,
+      exposed_cells: 80,
+      exposed_area_ha: 200,
+    },
     agreement: [
       {
         group: 2,
@@ -113,8 +143,27 @@ function payload(extra: Partial<MineralAnalysis> = {}): MineralAnalysis {
         title: "Fe3+ crystal-field band",
         unit: "nm",
         group: 1,
-        classes: [{ class: "hematite", label: "Hematite", cells: 88, mean: 912, sd: 11, p10: 898, p50: 914, p90: 925 }],
-        references: [{ class: "hematite", references: 12, min_nm: 866.4, max_nm: 933.6, median_nm: 895.7 }],
+        classes: [
+          {
+            class: "hematite",
+            label: "Hematite",
+            cells: 88,
+            mean: 912,
+            sd: 11,
+            p10: 898,
+            p50: 914,
+            p90: 925,
+          },
+        ],
+        references: [
+          {
+            class: "hematite",
+            references: 12,
+            min_nm: 866.4,
+            max_nm: 933.6,
+            median_nm: 895.7,
+          },
+        ],
         ramp: FE3.ramp!,
       },
     ],
@@ -164,8 +213,13 @@ describe("derived layers on the board", () => {
       "mineral:agreement2",
     ])
     expect(layers.every((l) => !l.visible && l.pixelated)).toBe(true)
-    const on = mineralLayers(payload(), { "mineral:fe3": { visible: true, opacity: 0.5 } })
-    expect(on.find((l) => l.id === "mineral:fe3")).toMatchObject({ visible: true, opacity: 0.5 })
+    const on = mineralLayers(payload(), {
+      "mineral:fe3": { visible: true, opacity: 0.5 },
+    })
+    expect(on.find((l) => l.id === "mineral:fe3")).toMatchObject({
+      visible: true,
+      opacity: 0.5,
+    })
   })
 
   it("leave out a layer whose raster did not survive a reopen", () => {
@@ -196,7 +250,9 @@ describe("derived layers on the board", () => {
     expect(exposure?.classes?.excluded).toEqual([2])
     // A ramp is an image, not classes.
     expect(assets.find((a) => a.id === "mineral-fe3")?.classes).toBeUndefined()
-    expect(assets.find((a) => a.id === "mineral-fe3")?.exportTif?.src).toBe("/tmp/run/mineral_map.tif")
+    expect(assets.find((a) => a.id === "mineral-fe3")?.exportTif?.src).toBe(
+      "/tmp/run/mineral_map.tif"
+    )
   })
 })
 
@@ -205,11 +261,14 @@ describe("derived legends", () => {
     const m = payload()
     const cellHa = mineralCellAreaHa(m)!
     const legend = legendFor("mineral:agreement2", { mineral: m })
-    if (legend?.kind !== "classes") throw new Error(`classes expected, got ${legend?.kind}`)
+    if (legend?.kind !== "classes")
+      throw new Error(`classes expected, got ${legend?.kind}`)
     expect(legend.entries.map((e) => e.areaHa)).toEqual(
       [60, 20, 10, 4, 6].map((n) => n * cellHa)
     )
-    expect(legend.rows).toEqual([{ label: "Same class, of cells both identified", value: "75.0%" }])
+    expect(legend.rows).toEqual([
+      { label: "Same class, of cells both identified", value: "75.0%" },
+    ])
   })
 
   it("split the observed area into exposed and covered", () => {

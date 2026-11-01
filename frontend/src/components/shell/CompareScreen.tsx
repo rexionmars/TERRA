@@ -7,7 +7,10 @@ import {
   type PredictionCompareSide,
 } from "@/components/workspace/PredictionComparison"
 import { DomainShiftEditor } from "@/components/workspace/DomainShiftEditor"
-import { LibraryLimitEditor, type LibraryLimitMode } from "@/components/workspace/LibraryLimitEditor"
+import {
+  LibraryLimitEditor,
+  type LibraryLimitMode,
+} from "@/components/workspace/LibraryLimitEditor"
 import { RunPicker } from "@/components/workspace/RunPicker"
 import { SeparabilityEditor } from "@/components/workspace/SeparabilityEditor"
 import { SpectraEditor } from "@/components/workspace/SpectraEditor"
@@ -33,14 +36,27 @@ import type { InferenceRun } from "@/lib/types"
 import { cn } from "@/lib/utils"
 import { PanelChoices } from "@/components/shell/ShellPanel"
 
-type CompareTab = "differences" | "shift" | "cohort" | "spectra" | "separability" | "library" | "tables"
+type CompareTab =
+  "differences" | "shift" | "cohort" | "spectra" | "separability" | "library" | "tables"
 
 const TABS: readonly { id: CompareTab; label: string; title: string }[] = [
-  { id: "differences", label: "Differences", title: "Agreement, transitions and class shares between A and B" },
-  { id: "shift", label: "Domain shift", title: "How far apart the two runs sit, as the model saw them" },
+  {
+    id: "differences",
+    label: "Differences",
+    title: "Agreement, transitions and class shares between A and B",
+  },
+  {
+    id: "shift",
+    label: "Domain shift",
+    title: "How far apart the two runs sit, as the model saw them",
+  },
   { id: "cohort", label: "Cohort", title: "Every run measured from one source" },
   { id: "spectra", label: "Spectra", title: "What each class reflects, in both runs" },
-  { id: "separability", label: "Separability", title: "How far apart classes are, and where that changes" },
+  {
+    id: "separability",
+    label: "Separability",
+    title: "How far apart classes are, and where that changes",
+  },
   { id: "library", label: "Library", title: "Each class against a spectral library" },
   { id: "tables", label: "Tables", title: "The runs' own tables" },
 ]
@@ -73,7 +89,10 @@ function Tile({
       )}
     >
       <figcaption className="flex shrink-0 items-center gap-1.5 border-b border-border px-2 py-1.5">
-        <span className="min-w-0 flex-1 truncate text-read text-foreground" title={run.label}>
+        <span
+          className="min-w-0 flex-1 truncate text-read text-foreground"
+          title={run.label}
+        >
           {run.label}
         </span>
         {canCompare &&
@@ -139,7 +158,7 @@ function Tile({
           </select>
         )}
         <p
-          className="truncate text-label tabular-nums text-muted-foreground"
+          className="truncate text-label text-muted-foreground tabular-nums"
           title={[run.period, run.model].filter(Boolean).join(" · ")}
         >
           {asset?.extent && `${formatGroundWidth(groundWidthM(asset.extent))} across`}
@@ -211,22 +230,38 @@ export function CompareScreen({
   const compared: [PredictionCompareSide, PredictionCompareSide] | null =
     sideA && sideB ? [sideA, sideB] : null
 
-  const [mapCompare, setMapCompare] = useState<{ key: string; compare: ClassMapCompare | null; error: string | null } | null>(null)
-  const pairKey = compared ? `${compared[0].uri.length}:${compared[0].areaId}|${compared[1].uri.length}:${compared[1].areaId}` : ""
+  const [mapCompare, setMapCompare] = useState<{
+    key: string
+    compare: ClassMapCompare | null
+    error: string | null
+  } | null>(null)
+  const pairKey = compared
+    ? `${compared[0].uri.length}:${compared[0].areaId}|${compared[1].uri.length}:${compared[1].areaId}`
+    : ""
   useEffect(() => {
     if (!compared) return
     let live = true
     const legend = (s: PredictionCompareSide) =>
-      (s.result.class_stats ?? []).map((c) => ({ id: c.class_id, name: c.name, color: c.color }))
-    compareClassMaps(compared[0].uri, legend(compared[0]), compared[1].uri, legend(compared[1]))
+      (s.result.class_stats ?? []).map((c) => ({
+        id: c.class_id,
+        name: c.name,
+        color: c.color,
+      }))
+    compareClassMaps(
+      compared[0].uri,
+      legend(compared[0]),
+      compared[1].uri,
+      legend(compared[1])
+    )
       .then((compare) => live && setMapCompare({ key: pairKey, compare, error: null }))
-      .catch((e: unknown) =>
-        live &&
-        setMapCompare({
-          key: pairKey,
-          compare: null,
-          error: e instanceof Error ? e.message : "Could not compare these rasters.",
-        })
+      .catch(
+        (e: unknown) =>
+          live &&
+          setMapCompare({
+            key: pairKey,
+            compare: null,
+            error: e instanceof Error ? e.message : "Could not compare these rasters.",
+          })
       )
     return () => {
       live = false
@@ -247,7 +282,10 @@ export function CompareScreen({
     const text = tables.map((t) => `# ${t.csvName}\n${tableToCSV(t)}`).join("\n\n")
     try {
       await navigator.clipboard.writeText(text)
-      notifySuccess(`${tables.length} tables copied`, tables.map((t) => t.csvName).join(", "))
+      notifySuccess(
+        `${tables.length} tables copied`,
+        tables.map((t) => t.csvName).join(", ")
+      )
     } catch (e) {
       notifyError("Could not copy the deltas", e)
     }
@@ -255,19 +293,26 @@ export function CompareScreen({
 
   const n = gridRuns.length
   const empty = (msg: string) => (
-    <p className="flex h-full items-center justify-center px-6 text-center text-read text-muted-foreground">{msg}</p>
+    <p className="flex h-full items-center justify-center px-6 text-center text-read text-muted-foreground">
+      {msg}
+    </p>
   )
 
   return (
     <div
       ref={setSurface}
       hidden={hidden}
-      className={cn("app-no-drag absolute inset-0 z-[480] flex-col bg-app", hidden ? "hidden" : "flex")}
+      className={cn(
+        "app-no-drag absolute inset-0 z-[480] flex-col bg-app",
+        hidden ? "hidden" : "flex"
+      )}
     >
       <header className="flex h-12 shrink-0 items-center gap-3 border-b border-border px-4">
         <h1 className="text-title font-medium text-foreground">Compare</h1>
         <span className="text-label text-muted-foreground">
-          {n === 0 ? "No runs on the grid" : `${n} ${n === 1 ? "run" : "runs"}, each to its own scale`}
+          {n === 0
+            ? "No runs on the grid"
+            : `${n} ${n === 1 ? "run" : "runs"}, each to its own scale`}
         </span>
         <div className="ml-auto">
           <RunPicker
@@ -284,7 +329,9 @@ export function CompareScreen({
       <div className="flex min-h-0 flex-1">
         <div className="min-w-0 flex-1 overflow-auto p-3">
           {n === 0 ? (
-            empty("Add a saved run to set it beside another. Runs of any area and any product can stand here.")
+            empty(
+              "Add a saved run to set it beside another. Runs of any area and any product can stand here."
+            )
           ) : (
             <div
               className="grid h-full min-h-[24rem] gap-3"
@@ -313,15 +360,26 @@ export function CompareScreen({
           className="flex w-[34rem] shrink-0 flex-col border-l border-border bg-[rgb(var(--p-surface))]"
         >
           <div className="flex shrink-0 flex-col gap-1.5 border-b border-border px-3 py-2">
-            <PanelChoices label="Reading" value={tab} options={TABS} onChange={setTab} />
+            <PanelChoices
+              label="Reading"
+              value={tab}
+              options={TABS}
+              onChange={setTab}
+            />
             {compared && (
               <div className="flex items-center gap-2 text-label text-muted-foreground">
                 <span className="min-w-0 truncate">
-                  <strong className="font-semibold text-foreground">A</strong> {compared[0].label}{" "}
-                  <strong className="font-semibold text-foreground">B</strong> {compared[1].label}
+                  <strong className="font-semibold text-foreground">A</strong>{" "}
+                  {compared[0].label}{" "}
+                  <strong className="font-semibold text-foreground">B</strong>{" "}
+                  {compared[1].label}
                 </span>
                 {tab === "differences" && (
-                  <button type="button" onClick={() => void copyDeltas()} className={cn(btnGhost, "ml-auto shrink-0")}>
+                  <button
+                    type="button"
+                    onClick={() => void copyDeltas()}
+                    className={cn(btnGhost, "ml-auto shrink-0")}
+                  >
                     <Copy className="size-3.5" />
                     Copy deltas
                   </button>
@@ -373,7 +431,9 @@ export function CompareScreen({
                   </p>
                 </div>
               ) : (
-                empty("Two classifications on the grid are compared here. Mark which with A and B on their tiles.")
+                empty(
+                  "Two classifications on the grid are compared here. Mark which with A and B on their tiles."
+                )
               ))}
             {tab === "shift" &&
               (compared ? (
@@ -391,20 +451,38 @@ export function CompareScreen({
                   onPickTarget={(id) => setPins(pinSlot(pair, "b", id))}
                 />
               ) : (
-                empty("Needs a source and at least one other classification on the grid.")
+                empty(
+                  "Needs a source and at least one other classification on the grid."
+                )
               ))}
             {tab === "spectra" &&
-              (readRuns.length ? <SpectraEditor runs={readRuns} /> : empty("Needs a classification on the grid."))}
+              (readRuns.length ? (
+                <SpectraEditor runs={readRuns} />
+              ) : (
+                empty("Needs a classification on the grid.")
+              ))}
             {tab === "separability" &&
-              (readRuns.length ? <SeparabilityEditor runs={readRuns} /> : empty("Needs a classification on the grid."))}
+              (readRuns.length ? (
+                <SeparabilityEditor runs={readRuns} />
+              ) : (
+                empty("Needs a classification on the grid.")
+              ))}
             {tab === "library" &&
               (readRuns.length ? (
-                <LibraryLimitEditor runs={readRuns} mode={libraryMode} surface={surface} />
+                <LibraryLimitEditor
+                  runs={readRuns}
+                  mode={libraryMode}
+                  surface={surface}
+                />
               ) : (
                 empty("Needs a classification on the grid.")
               ))}
             {tab === "tables" &&
-              (readRuns.length ? <RunTables runs={readRuns} /> : empty("Needs a classification on the grid."))}
+              (readRuns.length ? (
+                <RunTables runs={readRuns} />
+              ) : (
+                empty("Needs a classification on the grid.")
+              ))}
           </div>
         </aside>
       </div>

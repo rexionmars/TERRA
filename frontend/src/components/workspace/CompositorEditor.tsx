@@ -29,7 +29,11 @@ import { NumberField } from "@/components/ui/NumberField"
 import { parseFields, type FieldsTarget } from "@/lib/fields"
 import type { FieldsAnalysis, MineralAnalysis, PredictResult } from "@/lib/types"
 import { notifyExportFail, notifyExportOk } from "@/lib/notify"
-import { ExportOverlayFile, ExportPDFReport, GetAppVersion } from "../../../wailsjs/go/main/App"
+import {
+  ExportOverlayFile,
+  ExportPDFReport,
+  GetAppVersion,
+} from "../../../wailsjs/go/main/App"
 import {
   linkKey,
   SocketCanvas,
@@ -49,13 +53,7 @@ import { RadarCard } from "./radarNodes"
 import { ZonesCard } from "./zonesNodes"
 import { chosenPartition, zonesGeoJSON } from "@/lib/zones"
 import { AreaHeaderMenus } from "./areaHeader"
-import {
-  ContextMenu,
-  MenuGroup,
-  MenuItem,
-  MenuRule,
-  MenuPopover,
-} from "./MenuPopover"
+import { ContextMenu, MenuGroup, MenuItem, MenuRule, MenuPopover } from "./MenuPopover"
 import { HeaderMenu } from "./HeaderControls"
 import { classIndexFor, NO_CLASS } from "@/lib/classMask"
 import { loadImage } from "@/lib/smoothOverlay"
@@ -121,11 +119,24 @@ import {
 import { seasonOf } from "@/lib/season"
 import { fieldRow, fieldTableCsv } from "@/lib/fieldTable"
 import type { LayerLegend } from "@/lib/layerLegend"
-import { buildPdfReport, mapSource, productsIn, type PdfReportFigure, type PdfReportRun } from "@/lib/pdfReport"
+import {
+  buildPdfReport,
+  mapSource,
+  productsIn,
+  type PdfReportFigure,
+  type PdfReportRun,
+} from "@/lib/pdfReport"
 import type { AssetRun, ClassRaster } from "@/lib/runAssets"
 import { isZeroExtent, type RasterLayer } from "@/lib/mapLayers"
 import { arrange } from "@/lib/compositorLayout"
-import { perField, resolveEach, runKindProduct, setOf, type FieldMember, type FieldSet } from "@/lib/fieldSets"
+import {
+  perField,
+  resolveEach,
+  runKindProduct,
+  setOf,
+  type FieldMember,
+  type FieldSet,
+} from "@/lib/fieldSets"
 import { notifyInfo } from "@/lib/notify"
 
 /** How wide each kind is drawn: settings at the run graph's width, readings wider. */
@@ -261,14 +272,19 @@ function hectares(v: number): string {
 
 /** A pixel count as ground, where the run reported how much ground a pixel is. */
 function ground(px: number, info: ClassRaster): string {
-  return info.pixelAreaHa == null ? `${INT.format(px)} px` : `${hectares(px * info.pixelAreaHa)} ha`
+  return info.pixelAreaHa == null
+    ? `${INT.format(px)} px`
+    : `${hectares(px * info.pixelAreaHa)} ha`
 }
 
 /*
   A PNG's RGBA bytes, decoded once per data URI and kept. The class rasters go
   through lib/classMask.ts instead, which inverts their colours to classes.
 */
-const decodedImages = new Map<string, Promise<{ width: number; height: number; rgba: Uint8ClampedArray }>>()
+const decodedImages = new Map<
+  string,
+  Promise<{ width: number; height: number; rgba: Uint8ClampedArray }>
+>()
 function decodeRGBA(uri: string) {
   const hit = decodedImages.get(uri)
   if (hit) return hit
@@ -309,7 +325,13 @@ function painted(v: RasterValue): ImageValue {
  * picture only ever shown here. Not interpolated, since a blend of two class
  * colours names no class.
  */
-function RasterCanvas({ image, style }: { image: ImageValue; style: React.CSSProperties }) {
+function RasterCanvas({
+  image,
+  style,
+}: {
+  image: ImageValue
+  style: React.CSSProperties
+}) {
   const ref = useRef<HTMLCanvasElement | null>(null)
   useEffect(() => {
     const canvas = ref.current
@@ -353,22 +375,35 @@ function AreasReading({ value }: { value: ClassValue }) {
                 {entry.name}
               </span>
             </span>
-            <span className="h-1.5 rounded-full" style={{ background: "rgb(var(--p-line) / 0.25)" }}>
+            <span
+              className="h-1.5 rounded-full"
+              style={{ background: "rgb(var(--p-line) / 0.25)" }}
+            >
               <span
                 className="block h-full rounded-full"
                 style={{ width: `${(px / top) * 100}%`, background: "var(--b-lit)" }}
               />
             </span>
             <span className="telemetry text-right text-foreground">
-              {info.pixelAreaHa == null ? INT.format(px) : hectares(px * info.pixelAreaHa)}
+              {info.pixelAreaHa == null
+                ? INT.format(px)
+                : hectares(px * info.pixelAreaHa)}
             </span>
-            <span className="telemetry text-right text-muted-foreground">{share(px, total)}</span>
+            <span className="telemetry text-right text-muted-foreground">
+              {share(px, total)}
+            </span>
           </div>
         ))}
       </div>
-      <Figure label="Classified" value={`${INT.format(total)} px · ${ground(total, info)}`} />
+      <Figure
+        label="Classified"
+        value={`${INT.format(total)} px · ${ground(total, info)}`}
+      />
       {info.areaIsMean && (
-        <Note>Areas use the mean cell area: the grid is in degrees, so a cell's area varies with latitude.</Note>
+        <Note>
+          Areas use the mean cell area: the grid is in degrees, so a cell's area varies
+          with latitude.
+        </Note>
       )}
     </div>
   )
@@ -391,11 +426,19 @@ function AreasCard({
   return (
     <div className="flex flex-col gap-1.5">
       <div className="flex items-center gap-1">
-        <Choice label={`All ${fields.count} fields`} chosen={all} onPick={() => setAll(true)} />
+        <Choice
+          label={`All ${fields.count} fields`}
+          chosen={all}
+          onPick={() => setAll(true)}
+        />
         <Choice label="This field" chosen={!all} onPick={() => setAll(false)} />
       </div>
       {all ? (
-        <SummedReading values={fields.values} count={fields.count} waiting={fields.waiting} />
+        <SummedReading
+          values={fields.values}
+          count={fields.count}
+          waiting={fields.waiting}
+        />
       ) : value ? (
         <AreasReading value={value} />
       ) : (
@@ -406,7 +449,15 @@ function AreasCard({
 }
 
 /** Every field's classes summed; see sumClassAreas for how classes meet. */
-function SummedReading({ values, count, waiting }: { values: ClassValue[]; count: number; waiting: number }) {
+function SummedReading({
+  values,
+  count,
+  waiting,
+}: {
+  values: ClassValue[]
+  count: number
+  waiting: number
+}) {
   const { rows, total, unit } = useMemo(() => sumClassAreas(values), [values])
   const top = rows[0]?.amount ?? 1
   const amount = (x: number) => (unit === "ha" ? hectares(x) : INT.format(x))
@@ -415,7 +466,9 @@ function SummedReading({ values, count, waiting }: { values: ClassValue[]; count
       <div className="grid grid-cols-[minmax(0,1fr)_3.5rem_auto_auto] items-center gap-x-2 gap-y-1 text-meta">
         <span className="text-micro text-muted-foreground">Class</span>
         <span />
-        <span className="text-right text-micro text-muted-foreground">{unit === "ha" ? "Area (ha)" : "Pixels"}</span>
+        <span className="text-right text-micro text-muted-foreground">
+          {unit === "ha" ? "Area (ha)" : "Pixels"}
+        </span>
         <span className="text-right text-micro text-muted-foreground">Share</span>
         {rows.map(({ entry, amount: a }) => (
           <div key={`${entry.name}:${entry.color}`} className="contents">
@@ -425,11 +478,19 @@ function SummedReading({ values, count, waiting }: { values: ClassValue[]; count
                 {entry.name}
               </span>
             </span>
-            <span className="h-1.5 rounded-full" style={{ background: "rgb(var(--p-line) / 0.25)" }}>
-              <span className="block h-full rounded-full" style={{ width: `${(a / top) * 100}%`, background: "var(--b-lit)" }} />
+            <span
+              className="h-1.5 rounded-full"
+              style={{ background: "rgb(var(--p-line) / 0.25)" }}
+            >
+              <span
+                className="block h-full rounded-full"
+                style={{ width: `${(a / top) * 100}%`, background: "var(--b-lit)" }}
+              />
             </span>
             <span className="telemetry text-right text-foreground">{amount(a)}</span>
-            <span className="telemetry text-right text-muted-foreground">{share(a, total)}</span>
+            <span className="telemetry text-right text-muted-foreground">
+              {share(a, total)}
+            </span>
           </div>
         ))}
       </div>
@@ -437,17 +498,27 @@ function SummedReading({ values, count, waiting }: { values: ClassValue[]; count
         label="Fields read"
         value={`${values.length} of ${count}${unit === "ha" ? ` · ${hectares(total)} ha` : ""}`}
       />
-      {waiting > 0 && <Note>{waiting} still decoding; the sum grows as they arrive.</Note>}
+      {waiting > 0 && (
+        <Note>{waiting} still decoding; the sum grows as they arrive.</Note>
+      )}
     </div>
   )
 }
 
 /** What differs between the two class maps on a Change node. */
-function ChangeReadingView({ reading, info }: { reading: ChangeReading; info: ClassRaster }) {
+function ChangeReadingView({
+  reading,
+  info,
+}: {
+  reading: ChangeReading
+  info: ClassRaster
+}) {
   if (!reading.comparable) return <Note>{reading.note}</Note>
   const unit = info.pixelAreaHa == null ? "px" : "ha"
-  const amount = (px: number) => (info.pixelAreaHa == null ? INT.format(px) : hectares(px * info.pixelAreaHa))
-  const signed = (px: number) => (px > 0 ? `+${amount(px)}` : px < 0 ? `−${amount(-px)}` : "0")
+  const amount = (px: number) =>
+    info.pixelAreaHa == null ? INT.format(px) : hectares(px * info.pixelAreaHa)
+  const signed = (px: number) =>
+    px > 0 ? `+${amount(px)}` : px < 0 ? `−${amount(-px)}` : "0"
   return (
     <div className="flex flex-col gap-2">
       <div className="flex items-baseline gap-2">
@@ -455,13 +526,18 @@ function ChangeReadingView({ reading, info }: { reading: ChangeReading; info: Cl
           {share(reading.changed, reading.shared)}
         </span>
         <span className="text-meta text-muted-foreground">
-          of {INT.format(reading.shared)} pixels classified in both changed class ({ground(reading.changed, info)})
+          of {INT.format(reading.shared)} pixels classified in both changed class (
+          {ground(reading.changed, info)})
         </span>
       </div>
       <div className="grid grid-cols-[minmax(0,1fr)_auto_auto_auto] items-center gap-x-2.5 gap-y-1 text-meta">
         <span className="text-micro text-muted-foreground">Class</span>
-        <span className="text-right text-micro text-muted-foreground">Before ({unit})</span>
-        <span className="text-right text-micro text-muted-foreground">After ({unit})</span>
+        <span className="text-right text-micro text-muted-foreground">
+          Before ({unit})
+        </span>
+        <span className="text-right text-micro text-muted-foreground">
+          After ({unit})
+        </span>
         <span className="text-right text-micro text-muted-foreground">Change</span>
         {reading.rows.map((r) => (
           <div key={r.id} className="contents">
@@ -471,9 +547,15 @@ function ChangeReadingView({ reading, info }: { reading: ChangeReading; info: Cl
                 {r.name}
               </span>
             </span>
-            <span className="telemetry text-right text-muted-foreground">{amount(r.before)}</span>
-            <span className="telemetry text-right text-foreground">{amount(r.after)}</span>
-            <span className="telemetry text-right text-foreground">{signed(r.after - r.before)}</span>
+            <span className="telemetry text-right text-muted-foreground">
+              {amount(r.before)}
+            </span>
+            <span className="telemetry text-right text-foreground">
+              {amount(r.after)}
+            </span>
+            <span className="telemetry text-right text-foreground">
+              {signed(r.after - r.before)}
+            </span>
           </div>
         ))}
       </div>
@@ -481,14 +563,20 @@ function ChangeReadingView({ reading, info }: { reading: ChangeReading; info: Cl
         <div className="flex flex-col gap-1">
           <span className="text-micro text-muted-foreground">Largest transitions</span>
           {reading.moves.slice(0, 5).map((m) => (
-            <div key={`${m.from.id}-${m.to.id}`} className="flex items-center gap-1.5 text-meta">
+            <div
+              key={`${m.from.id}-${m.to.id}`}
+              className="flex items-center gap-1.5 text-meta"
+            >
               <Swatch color={m.from.color} />
               <span className="min-w-0 truncate text-foreground" title={m.from.name}>
                 {m.from.name}
               </span>
               <span className="text-muted-foreground">to</span>
               <Swatch color={m.to.color} />
-              <span className="min-w-0 flex-1 truncate text-foreground" title={m.to.name}>
+              <span
+                className="min-w-0 flex-1 truncate text-foreground"
+                title={m.to.name}
+              >
                 {m.to.name}
               </span>
               <span className="telemetry shrink-0 text-foreground">
@@ -516,7 +604,10 @@ function AddCascade({
   const [category, setCategory] = useState<NodeCategory>("input")
   return (
     <div className="flex">
-      <div className="w-[7.5rem] shrink-0 border-r py-0.5" style={{ borderColor: "rgb(var(--p-line) / 0.4)" }}>
+      <div
+        className="w-[7.5rem] shrink-0 border-r py-0.5"
+        style={{ borderColor: "rgb(var(--p-line) / 0.4)" }}
+      >
         {CATEGORIES.map((c) => (
           <button
             key={c.id}
@@ -526,7 +617,11 @@ function AddCascade({
             onFocus={() => setCategory(c.id)}
             onClick={() => setCategory(c.id)}
             className="flex w-full items-center gap-2 px-2 py-[3px] text-left text-meta text-foreground outline-none"
-            style={category === c.id ? { background: "rgb(var(--p-accent) / 0.18)" } : undefined}
+            style={
+              category === c.id
+                ? { background: "rgb(var(--p-accent) / 0.18)" }
+                : undefined
+            }
           >
             <span className="min-w-0 flex-1 truncate">{c.label}</span>
             <CaretRight className="size-2.5 shrink-0 opacity-60" />
@@ -678,7 +773,12 @@ export function CompositorEditor({
   /** The area a delineation's fields would belong to, or null where it has none. */
   fieldsTargetOf?: (runId: string) => FieldsTarget | null
   /** Makes a delineation's fields areas, with the thresholds that reached the node. */
-  onAdoptFields?: (runId: string, minHa: number, minCropland: number, replace: boolean) => Promise<boolean>
+  onAdoptFields?: (
+    runId: string,
+    minHa: number,
+    minCropland: number,
+    replace: boolean
+  ) => Promise<boolean>
   /** The stored graph, or null where the reader has not changed the default. */
   graph: CompositorGraph | null
   onChange: (next: CompositorGraph) => void
@@ -707,7 +807,9 @@ export function CompositorEditor({
         `overlap:${resultOf?.(r.runId)?.overlap?.read_at ?? ""}`,
         `radar:${resultOf?.(r.runId)?.radar?.series.length ?? -1}`,
         `zones:${resultOf?.(r.runId)?.zones?.partitions.length ?? -1}`,
-        ...r.assets.map((a) => `${a.id}:${a.title}:${a.previewUri.length}:${a.classes ? 1 : 0}`),
+        ...r.assets.map(
+          (a) => `${a.id}:${a.title}:${a.previewUri.length}:${a.classes ? 1 : 0}`
+        ),
       ].join("\u0000")
     )
     .join("|")
@@ -715,13 +817,18 @@ export function CompositorEditor({
   runsRef.current = runs
 
   const runOf = (runId: string | null) => runsRef.current.find((r) => r.runId === runId)
-  const fieldsOfRun = (runId: string | null) => (runId && fieldsOf ? fieldsOf(runId) : null)
-  const mineralOfRun = (runId: string | null) => (runId && mineralOf ? mineralOf(runId) : null)
-  const resultOfRun = (runId: string | null) => (runId && resultOf ? resultOf(runId) : null)
+  const fieldsOfRun = (runId: string | null) =>
+    runId && fieldsOf ? fieldsOf(runId) : null
+  const mineralOfRun = (runId: string | null) =>
+    runId && mineralOf ? mineralOf(runId) : null
+  const resultOfRun = (runId: string | null) =>
+    runId && resultOf ? resultOf(runId) : null
   /** Whether a run carries a season to read: a classification's series and its peak. */
   const hasSeason = (runId: string | null) => {
     const r = resultOfRun(runId)
-    return !!r && !r.health && (r.vi_series?.length ?? 0) > 0 && r.phenology?.pos_doy != null
+    return (
+      !!r && !r.health && (r.vi_series?.length ?? 0) > 0 && r.phenology?.pos_doy != null
+    )
   }
   const runOutputs = (runId: string | null) => [
     ...(runOf(runId)?.assets ?? []).map((a) => ({
@@ -759,13 +866,18 @@ export function CompositorEditor({
       : []),
   ]
 
-  const firstClass = runs.flatMap((r) => r.assets.filter((a) => a.classes).map((a) => ({ run: r, asset: a })))[0]
+  const firstClass = runs.flatMap((r) =>
+    r.assets.filter((a) => a.classes).map((a) => ({ run: r, asset: a }))
+  )[0]
   /*
     The field sets by what decides their runs. Rebuilt by the board on every
     render, so the graph is keyed on this rather than on the list.
   */
   const setsKey = fieldSets
-    .map((f) => `${f.areaId}:${f.runKind}:${f.members.map((m) => `${m.fieldId}=${m.runId}`).join(",")}`)
+    .map(
+      (f) =>
+        `${f.areaId}:${f.runKind}:${f.members.map((m) => `${m.fieldId}=${m.runId}`).join(",")}`
+    )
     .join("|")
   const setsRef = useRef(fieldSets)
   setsRef.current = fieldSets
@@ -777,7 +889,10 @@ export function CompositorEditor({
   const graph = useMemo<CompositorGraph>(
     () =>
       resolveEach(
-        stored ?? (firstClass ? defaultGraph(firstClass.run.runId, firstClass.asset.id) : EMPTY_GRAPH),
+        stored ??
+          (firstClass
+            ? defaultGraph(firstClass.run.runId, firstClass.asset.id)
+            : EMPTY_GRAPH),
         setsRef.current
       ),
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -808,7 +923,9 @@ export function CompositorEditor({
 
   /* ---- The rasters Run nodes offer, decoded once each ------------------ */
 
-  const [decoded, setDecoded] = useState<Record<string, { uri: string; result: Result }>>({})
+  const [decoded, setDecoded] = useState<
+    Record<string, { uri: string; result: Result }>
+  >({})
   const decodedRef = useRef(decoded)
   decodedRef.current = decoded
   const token = useRef(1)
@@ -824,7 +941,11 @@ export function CompositorEditor({
       return asset ? [{ runId: node.runId, asset }] : []
     })
   )
-  const neededKey = [...new Set(needed.map((n) => `${n.runId}:${n.asset.id}:${n.asset.previewUri.length}`))].join("|")
+  const neededKey = [
+    ...new Set(
+      needed.map((n) => `${n.runId}:${n.asset.id}:${n.asset.previewUri.length}`)
+    ),
+  ].join("|")
 
   useEffect(() => {
     for (const { runId, asset } of needed) {
@@ -833,7 +954,9 @@ export function CompositorEditor({
       if (decodedRef.current[key]?.uri === uri) continue
       setDecoded((prev) => ({ ...prev, [key]: { uri, result: { status: "busy" } } }))
       const settle = (result: Result) =>
-        setDecoded((prev) => (prev[key]?.uri === uri ? { ...prev, [key]: { uri, result } } : prev))
+        setDecoded((prev) =>
+          prev[key]?.uri === uri ? { ...prev, [key]: { uri, result } } : prev
+        )
       const valueKey = `run:${runId}:${asset.id}:${token.current++}`
       const info = asset.classes
       if (info) {
@@ -853,7 +976,8 @@ export function CompositorEditor({
               // A copy: the decoded map is classMask's cached object, shared.
               index = map.index.slice()
               const drop = new Set(info.excluded)
-              for (let p = 0; p < index.length; p++) if (drop.has(index[p])) index[p] = NO_CLASS
+              for (let p = 0; p < index.length; p++)
+                if (drop.has(index[p])) index[p] = NO_CLASS
             }
             settle({
               status: "ready",
@@ -866,17 +990,27 @@ export function CompositorEditor({
               },
             })
           })
-          .catch(() => settle({ status: "failed", note: "The raster could not be decoded." }))
+          .catch(() =>
+            settle({ status: "failed", note: "The raster could not be decoded." })
+          )
       } else {
         decodeRGBA(uri)
           .then((img) =>
             settle({
               status: "ready",
               // Opaque, so the Viewer shows what the Globe node draws (opaqueRGBA).
-              value: { type: "image", key: valueKey, ...img, rgba: opaqueRGBA(img.rgba), extent: asset.extent },
+              value: {
+                type: "image",
+                key: valueKey,
+                ...img,
+                rgba: opaqueRGBA(img.rgba),
+                extent: asset.extent,
+              },
             })
           )
-          .catch(() => settle({ status: "failed", note: "The raster could not be decoded." }))
+          .catch(() =>
+            settle({ status: "failed", note: "The raster could not be decoded." })
+          )
       }
     }
     // `needed` is rebuilt every render; its key is what changes.
@@ -915,7 +1049,8 @@ export function CompositorEditor({
         }
         if (assetId === SEASON_SOCKET) {
           const r = resultOfRun(runId)
-          if (!r || !hasSeason(runId)) return { status: "none", note: "That run carries no season series." }
+          if (!r || !hasSeason(runId))
+            return { status: "none", note: "That run carries no season series." }
           return {
             status: "ready",
             value: {
@@ -929,34 +1064,61 @@ export function CompositorEditor({
         }
         if (assetId === HEALTH_SOCKET) {
           const h = resultOfRun(runId)?.health
-          if (!h) return { status: "none", note: "That run is not a vegetation health run." }
+          if (!h)
+            return { status: "none", note: "That run is not a vegetation health run." }
           return {
             status: "ready",
-            value: { type: "health", key: `health:${runId}:${h.anomaly.length}:${h.map_date}`, runId, report: h },
+            value: {
+              type: "health",
+              key: `health:${runId}:${h.anomaly.length}:${h.map_date}`,
+              runId,
+              report: h,
+            },
           }
         }
         if (assetId === ZONES_SOCKET) {
           const mz = resultOfRun(runId)?.zones
-          if (!mz) return { status: "none", note: "That run is not a management zones run." }
+          if (!mz)
+            return { status: "none", note: "That run is not a management zones run." }
           return {
             status: "ready",
-            value: { type: "zones", key: `zones:${runId}:${mz.partitions.length}:${mz.suggested_k}`, runId, report: mz },
+            value: {
+              type: "zones",
+              key: `zones:${runId}:${mz.partitions.length}:${mz.suggested_k}`,
+              runId,
+              report: mz,
+            },
           }
         }
         if (assetId === RADAR_SOCKET) {
           const s1 = resultOfRun(runId)?.radar
-          if (!s1) return { status: "none", note: "That run is not a Sentinel-1 radar run." }
+          if (!s1)
+            return { status: "none", note: "That run is not a Sentinel-1 radar run." }
           return {
             status: "ready",
-            value: { type: "radar", key: `radar:${runId}:${s1.series.length}:${s1.map_date}`, runId, report: s1 },
+            value: {
+              type: "radar",
+              key: `radar:${runId}:${s1.series.length}:${s1.map_date}`,
+              runId,
+              report: s1,
+            },
           }
         }
         if (assetId === OVERLAP_SOCKET) {
           const o = resultOfRun(runId)?.overlap
-          if (!o) return { status: "none", note: "That run is not a socio-environmental overlap run." }
+          if (!o)
+            return {
+              status: "none",
+              note: "That run is not a socio-environmental overlap run.",
+            }
           return {
             status: "ready",
-            value: { type: "overlap", key: `overlap:${runId}:${o.read_at}`, runId, report: o },
+            value: {
+              type: "overlap",
+              key: `overlap:${runId}:${o.read_at}`,
+              runId,
+              report: o,
+            },
           }
         }
         if (assetId === MINERAL_SOCKET) {
@@ -964,7 +1126,12 @@ export function CompositorEditor({
           if (!m) return { status: "none", note: "That run is not a mineral map." }
           return {
             status: "ready",
-            value: { type: "mineral", key: `mineral:${runId}:${m.observed_cells}`, runId, analysis: m },
+            value: {
+              type: "mineral",
+              key: `mineral:${runId}:${m.observed_cells}`,
+              runId,
+              analysis: m,
+            },
           }
         }
         if (!run.assets.some((a) => a.id === assetId)) {
@@ -975,7 +1142,8 @@ export function CompositorEditor({
       cache: cache.current,
     }
     const e = evaluate(graph, ctx)
-    const each: { member: FieldMember; graph: CompositorGraph; evaluation: Evaluation }[] | null =
+    const each:
+      { member: FieldMember; graph: CompositorGraph; evaluation: Evaluation }[] | null =
       fieldGraphs?.map((f) => ({ ...f, evaluation: evaluate(f.graph, ctx) })) ?? null
     const used = new Set(e.used)
     for (const f of each ?? []) for (const k of f.evaluation.used) used.add(k)
@@ -985,8 +1153,10 @@ export function CompositorEditor({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [graph.nodes, graph.links, decoded, runsKey, fieldGraphs])
 
-  const outputOf = (node: string, socket: string) => evaluation.outputs.get(socketKey(node, socket))
-  const inputOf = (node: string, socket: string) => evaluation.inputs.get(socketKey(node, socket))
+  const outputOf = (node: string, socket: string) =>
+    evaluation.outputs.get(socketKey(node, socket))
+  const inputOf = (node: string, socket: string) =>
+    evaluation.inputs.get(socketKey(node, socket))
   /** A ready raster, or null -- for fields and mineral figures as well, which are no raster. */
   const readyValue = (r: Result | undefined): RasterValue | null =>
     r?.status === "ready" && isRaster(r.value) ? r.value : null
@@ -1033,7 +1203,11 @@ export function CompositorEditor({
         readyZones(inputs("zones"))?.report ?? null
       )
     if (each) {
-      return each.map((f) => row(f.member.fieldName, (socket) => f.evaluation.inputs.get(socketKey(nodeId, socket))))
+      return each.map((f) =>
+        row(f.member.fieldName, (socket) =>
+          f.evaluation.inputs.get(socketKey(nodeId, socket))
+        )
+      )
     }
     const runIds = runsFeeding(nodeId)
     const name = runOf(runIds[0] ?? null)?.title ?? "Run"
@@ -1049,14 +1223,19 @@ export function CompositorEditor({
   const [reportBusy, setReportBusy] = useState<string | null>(null)
   const reportRuns = (nodeId: string): string[] => {
     const ids = new Set<string>(runsFeeding(nodeId))
-    for (const f of fieldEvaluations ?? []) for (const id of runsFeeding(nodeId, f.graph)) ids.add(id)
+    for (const f of fieldEvaluations ?? [])
+      for (const id of runsFeeding(nodeId, f.graph)) ids.add(id)
     return [...ids]
   }
   /** The field set the graph reads, and the field in focus; null for plain runs. */
   const reportSet = () => {
     if (!fieldEvaluations) return null
-    const each = graph.nodes.find((n): n is Extract<GraphNode, { kind: "run" }> => n.kind === "run" && !!n.each)?.each
-    const set = each ? fieldSets.find((x) => x.areaId === each.areaId && x.runKind === each.runKind) : undefined
+    const each = graph.nodes.find(
+      (n): n is Extract<GraphNode, { kind: "run" }> => n.kind === "run" && !!n.each
+    )?.each
+    const set = each
+      ? fieldSets.find((x) => x.areaId === each.areaId && x.runKind === each.runKind)
+      : undefined
     if (!each || !set) return null
     const focus = set.members.find((m) => m.fieldId === each.fieldId) ?? set.members[0]
     return { areaName: set.areaName, focus: focus?.fieldName ?? null }
@@ -1066,7 +1245,10 @@ export function CompositorEditor({
     const l = linkInto(graph, nodeId, socket)
     if (!l) return ""
     const from = nodeOf(graph, l.from)
-    if (from?.kind === "run") return runOutputs(from.runId).find((o) => o.id === l.fromSocket)?.label ?? "Raster"
+    if (from?.kind === "run")
+      return (
+        runOutputs(from.runId).find((o) => o.id === l.fromSocket)?.label ?? "Raster"
+      )
     return from ? kindMeta(from.kind).label : "Raster"
   }
   const reportFigures = (node: GraphNode, subject: string): PdfReportFigure[] =>
@@ -1075,7 +1257,13 @@ export function CompositorEditor({
       const v = readyValue(inputOf(nodeId, socket))
       if (!v) return []
       const image = painted(v)
-      const legend = v.type === "classes" ? classAreas(v).rows.map((r) => ({ label: r.entry.name, color: r.entry.color })) : []
+      const legend =
+        v.type === "classes"
+          ? classAreas(v).rows.map((r) => ({
+              label: r.entry.name,
+              color: r.entry.color,
+            }))
+          : []
       return [
         {
           title: `${sourceLabel(nodeId, socket)}, ${subject}.`,
@@ -1131,7 +1319,10 @@ export function CompositorEditor({
     let bin = ""
     for (const b of new TextEncoder().encode(text)) bin += String.fromCharCode(b)
     try {
-      const dest = await ExportOverlayFile(`data:text/csv;base64,${btoa(bin)}`, "terra_fields_table.csv")
+      const dest = await ExportOverlayFile(
+        `data:text/csv;base64,${btoa(bin)}`,
+        "terra_fields_table.csv"
+      )
       if (dest) notifyExportOk(dest)
     } catch (e) {
       notifyExportFail(e)
@@ -1148,7 +1339,8 @@ export function CompositorEditor({
       if (seen.has(at)) continue
       seen.add(at)
       const node = nodeOf(g, at)
-      if (node?.kind === "run" && node.runId && !out.includes(node.runId)) out.push(node.runId)
+      if (node?.kind === "run" && node.runId && !out.includes(node.runId))
+        out.push(node.runId)
       for (const l of g.links) if (l.to === at) stack.push(l.from)
     }
     return out
@@ -1167,12 +1359,16 @@ export function CompositorEditor({
     that field's own ground, which is what makes one graph stand for all of
     them on the globe. The field in focus is only what the cards show.
   */
-  const sources: { member: FieldMember | null; graph: CompositorGraph; evaluation: Evaluation }[] =
-    fieldEvaluations ?? [{ member: null, graph, evaluation }]
+  const sources: {
+    member: FieldMember | null
+    graph: CompositorGraph
+    evaluation: Evaluation
+  }[] = fieldEvaluations ?? [{ member: null, graph, evaluation }]
   const sent = sources.flatMap(({ member, graph: g, evaluation: ev }) =>
     g.nodes.flatMap((node) => {
       if (node.kind !== "globe") return []
-      const ground = runOf(runsFeeding(node.id, g)[0] ?? null)?.areaId ?? `compositor:${node.id}`
+      const ground =
+        runOf(runsFeeding(node.id, g)[0] ?? null)?.areaId ?? `compositor:${node.id}`
       return inputsOf(g, node).flatMap((input) => {
         const link = linkInto(g, node.id, input.id)
         const r = ev.inputs.get(socketKey(node.id, input.id))
@@ -1202,11 +1398,16 @@ export function CompositorEditor({
     g.nodes.some(
       (n) =>
         n.kind === "globe" &&
-        inputsOf(g, n).some((i) => ev.inputs.get(socketKey(n.id, i.id))?.status === "busy")
+        inputsOf(g, n).some(
+          (i) => ev.inputs.get(socketKey(n.id, i.id))?.status === "busy"
+        )
     )
   )
   const sentKey = sent
-    .map((s) => `${s.node.id}:${s.socket}:${s.label}:${s.value.key}:${s.node.opacity}:${s.areaId}:${s.runIds.join(",")}`)
+    .map(
+      (s) =>
+        `${s.node.id}:${s.socket}:${s.label}:${s.value.key}:${s.node.opacity}:${s.areaId}:${s.runIds.join(",")}`
+    )
     .join("|")
 
   /**
@@ -1226,7 +1427,11 @@ export function CompositorEditor({
         at = { from: up.from, fromSocket: up.fromSocket }
         continue
       }
-      if (n.kind === "run") return outputsOf(n, runOutputs).find((o) => o.id === at.fromSocket)?.label ?? at.fromSocket
+      if (n.kind === "run")
+        return (
+          outputsOf(n, runOutputs).find((o) => o.id === at.fromSocket)?.label ??
+          at.fromSocket
+        )
       return title(n)
     }
   }
@@ -1278,7 +1483,10 @@ export function CompositorEditor({
           smooth: false,
           visible: true,
         },
-        legend: s.value.type === "classes" ? classLegend(s.value, describe(s.from, s.fromSocket)) : null,
+        legend:
+          s.value.type === "classes"
+            ? classLegend(s.value, describe(s.from, s.fromSocket))
+            : null,
       }))
     )
     // `sent` is rebuilt every render; its key is what changes.
@@ -1315,7 +1523,9 @@ export function CompositorEditor({
   }
   const [heights, setHeights] = useState<Record<string, number>>({})
   const measure = (id: string, h: number) =>
-    setHeights((prev) => (Math.abs((prev[id] ?? 0) - h) < 1 ? prev : { ...prev, [id]: h }))
+    setHeights((prev) =>
+      Math.abs((prev[id] ?? 0) - h) < 1 ? prev : { ...prev, [id]: h }
+    )
 
   const api = useRef<CanvasApi | null>(null)
 
@@ -1328,7 +1538,10 @@ export function CompositorEditor({
   const frameNext = useRef(false)
   const arrangeNodes = () => {
     if (!graph.nodes.length) return
-    const places = arrange(graph, (n) => ({ w: WIDTH[n.kind], h: heights[n.id] ?? GUESS_H[n.kind] }))
+    const places = arrange(graph, (n) => ({
+      w: WIDTH[n.kind],
+      h: heights[n.id] ?? GUESS_H[n.kind],
+    }))
     frameNext.current = true
     edit({ ...graph, places: { ...graph.places, ...places } })
   }
@@ -1347,13 +1560,16 @@ export function CompositorEditor({
 
   const refuse = (kind: NodeKind): string | null =>
     // A field set is something to read from with no run on the board yet.
-    kind === "run" && !runs.length && !fieldSets.length ? "No run in this workflow to read from." : null
+    kind === "run" && !runs.length && !fieldSets.length
+      ? "No run in this workflow to read from."
+      : null
 
   /** `at`, stepped down past any node already standing there. */
   const place = (at: Place): Place => {
     let p = { x: Math.round(at.x), y: Math.round(at.y) }
     const taken = Object.values(graph.places)
-    while (taken.some((q) => Math.abs(q.x - p.x) < 40 && Math.abs(q.y - p.y) < 40)) p = { ...p, y: p.y + 56 }
+    while (taken.some((q) => Math.abs(q.x - p.x) < 40 && Math.abs(q.y - p.y) < 40))
+      p = { ...p, y: p.y + 56 }
     return p
   }
 
@@ -1373,7 +1589,11 @@ export function CompositorEditor({
         ? {
             ...node,
             runId: set.members[0]?.runId ?? null,
-            each: { areaId: set.areaId, runKind: set.runKind, fieldId: set.members[0]?.fieldId ?? null },
+            each: {
+              areaId: set.areaId,
+              runKind: set.runKind,
+              fieldId: set.members[0]?.fieldId ?? null,
+            },
           }
         : { ...node, runId }
     }
@@ -1393,7 +1613,11 @@ export function CompositorEditor({
         const type = outputType(next, sel.id, out.id, runOutputs)
         for (const input of inputsOf(next, node)) {
           if (type && !input.accepts.includes(type)) continue
-          const r = connect(next, { from: sel.id, fromSocket: out.id, to: id, toSocket: input.id }, runOutputs)
+          const r = connect(
+            next,
+            { from: sel.id, fromSocket: out.id, to: id, toSocket: input.id },
+            runOutputs
+          )
           if (r.ok) {
             next = r.graph
             break outer
@@ -1410,7 +1634,12 @@ export function CompositorEditor({
     setSelected((s) => (s === id ? null : s))
   }
 
-  const link = (from: string, fromSocket: string, to: string, toSocket: string | null) => {
+  const link = (
+    from: string,
+    fromSocket: string,
+    to: string,
+    toSocket: string | null
+  ) => {
     const target = nodeOf(graph, to)
     if (!target) return
     let socket = toSocket
@@ -1418,10 +1647,15 @@ export function CompositorEditor({
       // Let go over a node's body: the first input that takes this output,
       // an empty one before one already linked.
       const type = outputType(graph, from, fromSocket, runOutputs)
-      const fits = inputsOf(graph, target).filter((i) => !type || i.accepts.includes(type))
+      const fits = inputsOf(graph, target).filter(
+        (i) => !type || i.accepts.includes(type)
+      )
       socket = (fits.find((i) => !linkInto(graph, to, i.id)) ?? fits[0])?.id ?? null
       if (!socket) {
-        notifyInfo("That link was not made", `${kindMeta(target.kind).label} has no input that takes this output.`)
+        notifyInfo(
+          "That link was not made",
+          `${kindMeta(target.kind).label} has no input that takes this output.`
+        )
         return
       }
     }
@@ -1444,12 +1678,22 @@ export function CompositorEditor({
     if (!viewer) {
       viewer = nextNodeId(g, "viewer")
       const at = g.places[id] ?? { x: 0, y: 0 }
-      g = addNode(g, createNode("viewer", viewer), place({ x: at.x + WIDTH[node.kind] + 64, y: at.y }))
+      g = addNode(
+        g,
+        createNode("viewer", viewer),
+        place({ x: at.x + WIDTH[node.kind] + 64, y: at.y })
+      )
     }
     const current = linkInto(g, viewer, "image")
     const next =
-      current?.from === id ? (outs.findIndex((o) => o.id === current.fromSocket) + 1) % outs.length : 0
-    const r = connect(g, { from: id, fromSocket: outs[next].id, to: viewer, toSocket: "image" }, runOutputs)
+      current?.from === id
+        ? (outs.findIndex((o) => o.id === current.fromSocket) + 1) % outs.length
+        : 0
+    const r = connect(
+      g,
+      { from: id, fromSocket: outs[next].id, to: viewer, toSocket: "image" },
+      runOutputs
+    )
     if (r.ok) edit({ ...r.graph, viewer })
   }
 
@@ -1462,12 +1706,27 @@ export function CompositorEditor({
   const onKey = useRef<(e: KeyboardEvent) => void>(() => {})
   onKey.current = (e: KeyboardEvent) => {
     if (!over.current || e.defaultPrevented || e.repeat) return
-    if ((e.target as HTMLElement | null)?.closest?.("input, textarea, select, [contenteditable='true']")) return
+    if (
+      (e.target as HTMLElement | null)?.closest?.(
+        "input, textarea, select, [contenteditable='true']"
+      )
+    )
+      return
     const plain = !e.metaKey && !e.ctrlKey && !e.altKey
     if (e.code === "KeyA" && e.shiftKey && plain) setAddAt({ ...pointer.current })
-    else if ((e.code === "KeyX" || e.key === "Delete" || e.key === "Backspace") && plain && !e.shiftKey && selectedLink)
+    else if (
+      (e.code === "KeyX" || e.key === "Delete" || e.key === "Backspace") &&
+      plain &&
+      !e.shiftKey &&
+      selectedLink
+    )
       unlinkSelected()
-    else if ((e.code === "KeyX" || e.key === "Delete" || e.key === "Backspace") && plain && !e.shiftKey && selected)
+    else if (
+      (e.code === "KeyX" || e.key === "Delete" || e.key === "Backspace") &&
+      plain &&
+      !e.shiftKey &&
+      selected
+    )
       remove(selected)
     else if (e.key === "Home" && plain) api.current?.fit()
     else return
@@ -1512,7 +1771,9 @@ export function CompositorEditor({
   }
   const movedMemo = useMemo(() => {
     const out = new Map<string, ReturnType<typeof moved>>()
-    for (const n of graph.nodes) if (["majority", "sieve", "morphology", "select"].includes(n.kind)) out.set(n.id, moved(n))
+    for (const n of graph.nodes)
+      if (["majority", "sieve", "morphology", "select"].includes(n.kind))
+        out.set(n.id, moved(n))
     return out
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [evaluation])
@@ -1524,7 +1785,8 @@ export function CompositorEditor({
       if (n.kind !== "change") continue
       const a = readyValue(inputOf(n.id, "before"))
       const b = readyValue(inputOf(n.id, "after"))
-      if (a?.type === "classes" && b?.type === "classes") out.set(n.id, { reading: classChange(a, b), info: a.info })
+      if (a?.type === "classes" && b?.type === "classes")
+        out.set(n.id, { reading: classChange(a, b), info: a.info })
     }
     return out
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -1532,7 +1794,9 @@ export function CompositorEditor({
 
   const legendOf = (r: Result | undefined) => {
     const v = readyValue(r)
-    return v?.type === "classes" ? v.info.legend.filter((_, i) => !v.info.excluded.includes(i)) : []
+    return v?.type === "classes"
+      ? v.info.legend.filter((_, i) => !v.info.excluded.includes(i))
+      : []
   }
 
   const [adopting, setAdopting] = useState<Record<string, "confirm" | "busy">>({})
@@ -1547,13 +1811,20 @@ export function CompositorEditor({
   const saveFields = async (v: FieldsValue) => {
     const text = JSON.stringify({
       type: "FeatureCollection",
-      features: v.fields.map((f) => ({ type: "Feature", properties: f.properties, geometry: f.geometry })),
+      features: v.fields.map((f) => ({
+        type: "Feature",
+        properties: f.properties,
+        geometry: f.geometry,
+      })),
     })
     // Base64 of the UTF-8 bytes: btoa alone refuses anything outside Latin-1.
     let bin = ""
     for (const b of new TextEncoder().encode(text)) bin += String.fromCharCode(b)
     try {
-      const dest = await ExportOverlayFile(`data:application/geo+json;base64,${btoa(bin)}`, "terra_fields.geojson")
+      const dest = await ExportOverlayFile(
+        `data:application/geo+json;base64,${btoa(bin)}`,
+        "terra_fields.geojson"
+      )
       if (dest) notifyExportOk(dest)
     } catch (e) {
       notifyExportFail(e)
@@ -1565,17 +1836,29 @@ export function CompositorEditor({
     const each = perFieldInput(nodeId, "zones")
     const rows =
       all && each
-        ? each.map((f) => ({ name: f.member.fieldName, partition: chosenPartition(readyZones(f.result)?.report ?? null, k) }))
+        ? each.map((f) => ({
+            name: f.member.fieldName,
+            partition: chosenPartition(readyZones(f.result)?.report ?? null, k),
+          }))
         : [
             {
-              name: runOf(readyZones(inputOf(nodeId, "zones"))?.runId ?? null)?.title ?? "field",
-              partition: chosenPartition(readyZones(inputOf(nodeId, "zones"))?.report ?? null, k),
+              name:
+                runOf(readyZones(inputOf(nodeId, "zones"))?.runId ?? null)?.title ??
+                "field",
+              partition: chosenPartition(
+                readyZones(inputOf(nodeId, "zones"))?.report ?? null,
+                k
+              ),
             },
           ]
     let bin = ""
-    for (const b of new TextEncoder().encode(zonesGeoJSON(rows))) bin += String.fromCharCode(b)
+    for (const b of new TextEncoder().encode(zonesGeoJSON(rows)))
+      bin += String.fromCharCode(b)
     try {
-      const dest = await ExportOverlayFile(`data:application/geo+json;base64,${btoa(bin)}`, "terra_zones.geojson")
+      const dest = await ExportOverlayFile(
+        `data:application/geo+json;base64,${btoa(bin)}`,
+        "terra_zones.geojson"
+      )
       if (dest) notifyExportOk(dest)
     } catch (e) {
       notifyExportFail(e)
@@ -1590,12 +1873,21 @@ export function CompositorEditor({
         const at = set ? set.members.findIndex((m) => m.runId === node.runId) : -1
         const focus = (i: number) => {
           const m = set?.members[i]
-          if (m && node.each) edit(updateNode(graph, { ...node, runId: m.runId, each: { ...node.each, fieldId: m.fieldId } }))
+          if (m && node.each)
+            edit(
+              updateNode(graph, {
+                ...node,
+                runId: m.runId,
+                each: { ...node.each, fieldId: m.fieldId },
+              })
+            )
         }
         const choose = (value: string) => {
           if (value.startsWith("each:")) {
             const [areaId, runKind] = value.slice(5).split("|")
-            const first = fieldSets.find((f) => f.areaId === areaId && f.runKind === runKind)?.members[0]
+            const first = fieldSets.find(
+              (f) => f.areaId === areaId && f.runKind === runKind
+            )?.members[0]
             edit(
               updateNode(graph, {
                 id: node.id,
@@ -1611,14 +1903,26 @@ export function CompositorEditor({
         return (
           <>
             <select
-              value={node.each ? setChoice(node.each.areaId, node.each.runKind) : run ? run.runId : ""}
+              value={
+                node.each
+                  ? setChoice(node.each.areaId, node.each.runKind)
+                  : run
+                    ? run.runId
+                    : ""
+              }
               onChange={(e) => choose(e.target.value)}
               className="field-input h-[1.375rem] w-full px-1 text-meta"
               title="The run whose rasters this node offers, or every field of an area"
             >
-              {!node.each && !run && <option value="">{node.runId ? "Not in this workflow" : "Choose a run"}</option>}
+              {!node.each && !run && (
+                <option value="">
+                  {node.runId ? "Not in this workflow" : "Choose a run"}
+                </option>
+              )}
               {node.each && !set && (
-                <option value={setChoice(node.each.areaId, node.each.runKind)}>No field has this run any more</option>
+                <option value={setChoice(node.each.areaId, node.each.runKind)}>
+                  No field has this run any more
+                </option>
               )}
               {/*
                 The fields of an area first: a set is the one choice here that
@@ -1628,7 +1932,10 @@ export function CompositorEditor({
               {fieldSets.length > 0 && (
                 <optgroup label="Every field of an area">
                   {fieldSets.map((f) => (
-                    <option key={setChoice(f.areaId, f.runKind)} value={setChoice(f.areaId, f.runKind)}>
+                    <option
+                      key={setChoice(f.areaId, f.runKind)}
+                      value={setChoice(f.areaId, f.runKind)}
+                    >
                       {`${f.areaName} · ${runKindProduct(f.runKind)} · ${f.members.length} fields`}
                     </option>
                   ))}
@@ -1655,7 +1962,9 @@ export function CompositorEditor({
                 </button>
                 <select
                   value={set.members[at]?.fieldId ?? ""}
-                  onChange={(e) => focus(set.members.findIndex((m) => m.fieldId === e.target.value))}
+                  onChange={(e) =>
+                    focus(set.members.findIndex((m) => m.fieldId === e.target.value))
+                  }
                   className="field-input h-[1.375rem] min-w-0 flex-1 px-1 text-meta"
                   title="The field the cards show. The Globe draws every field."
                 >
@@ -1678,7 +1987,8 @@ export function CompositorEditor({
             )}
             {set ? (
               <Note>
-                Field {at + 1} of {set.members.length}, each its latest {runKindProduct(set.runKind).toLowerCase()} run
+                Field {at + 1} of {set.members.length}, each its latest{" "}
+                {runKindProduct(set.runKind).toLowerCase()} run
                 {run?.model ? ` · ${run.model}` : ""}
               </Note>
             ) : (
@@ -1723,7 +2033,12 @@ export function CompositorEditor({
                     onChange={(e) => {
                       const v = Math.round(Number(e.target.value))
                       if (Number.isFinite(v)) {
-                        edit(updateNode(graph, { ...node, minPixels: Math.min(SIEVE_MAX, Math.max(SIEVE_MIN, v)) }))
+                        edit(
+                          updateNode(graph, {
+                            ...node,
+                            minPixels: Math.min(SIEVE_MAX, Math.max(SIEVE_MIN, v)),
+                          })
+                        )
                       }
                     }}
                     className="field-input h-[1.375rem] w-16 px-1 text-right text-meta"
@@ -1731,7 +2046,9 @@ export function CompositorEditor({
                   <span className="text-muted-foreground">px</span>
                 </label>
                 <div className="flex items-center gap-1">
-                  <span className="mr-auto text-meta text-muted-foreground">Touching by</span>
+                  <span className="mr-auto text-meta text-muted-foreground">
+                    Touching by
+                  </span>
                   <Choice
                     label="Edges"
                     chosen={node.connectivity === 4}
@@ -1780,9 +2097,15 @@ export function CompositorEditor({
                     )
                   }
                   className="field-input h-[1.375rem] w-full px-1 text-meta"
-                  title={node.op === "open" ? "The class whose narrow parts are removed" : "The class whose narrow gaps are filled"}
+                  title={
+                    node.op === "open"
+                      ? "The class whose narrow parts are removed"
+                      : "The class whose narrow gaps are filled"
+                  }
                 >
-                  <option value="">{legend.length ? "Choose a class" : "No class map yet"}</option>
+                  <option value="">
+                    {legend.length ? "Choose a class" : "No class map yet"}
+                  </option>
                   {legend.map((e) => (
                     <option key={e.id} value={e.id}>
                       {e.name}
@@ -1805,7 +2128,9 @@ export function CompositorEditor({
                           edit(
                             updateNode(graph, {
                               ...node,
-                              keep: on ? node.keep.filter((k) => k !== e.id) : [...node.keep, e.id],
+                              keep: on
+                                ? node.keep.filter((k) => k !== e.id)
+                                : [...node.keep, e.id],
                             })
                           )
                         }
@@ -1814,12 +2139,25 @@ export function CompositorEditor({
                         <span
                           aria-hidden
                           className="grid size-2.5 shrink-0 place-items-center rounded-[2px]"
-                          style={{ boxShadow: "inset 0 0 0 1px rgb(var(--p-line-strong))" }}
+                          style={{
+                            boxShadow: "inset 0 0 0 1px rgb(var(--p-line-strong))",
+                          }}
                         >
-                          {on && <span className="size-1.5 rounded-[1px]" style={{ background: "var(--b-lit)" }} />}
+                          {on && (
+                            <span
+                              className="size-1.5 rounded-[1px]"
+                              style={{ background: "var(--b-lit)" }}
+                            />
+                          )}
                         </span>
                         <Swatch color={e.color} />
-                        <span className={on ? "truncate text-foreground" : "truncate text-muted-foreground"}>
+                        <span
+                          className={
+                            on
+                              ? "truncate text-foreground"
+                              : "truncate text-muted-foreground"
+                          }
+                        >
                           {e.name}
                         </span>
                       </button>
@@ -1829,7 +2167,10 @@ export function CompositorEditor({
               ) : null)}
             <StatusNote result={out} />
             {m && (
-              <Figure label="Changed" value={`${share(m.changed, m.classified)} · ${ground(m.changed, m.info)}`} />
+              <Figure
+                label="Changed"
+                value={`${share(m.changed, m.classified)} · ${ground(m.changed, m.info)}`}
+              />
             )}
           </>
         )
@@ -1849,10 +2190,14 @@ export function CompositorEditor({
                 max={1}
                 step={0.05}
                 value={node.opacity}
-                onChange={(e) => edit(updateNode(graph, { ...node, opacity: Number(e.target.value) }))}
+                onChange={(e) =>
+                  edit(updateNode(graph, { ...node, opacity: Number(e.target.value) }))
+                }
                 className="min-w-0 flex-1 accent-[var(--b-lit)]"
               />
-              <span className="telemetry w-8 text-right text-foreground">{Math.round(node.opacity * 100)}%</span>
+              <span className="telemetry w-8 text-right text-foreground">
+                {Math.round(node.opacity * 100)}%
+              </span>
             </label>
             <StatusNote result={outputOf(node.id, "image")} />
           </>
@@ -1864,7 +2209,9 @@ export function CompositorEditor({
         // Under a field set, every field's class map as well as the one in focus.
         const fields = fieldEvaluations
           ? (() => {
-              const results = fieldEvaluations.map((f) => f.evaluation.inputs.get(socketKey(node.id, "classes")))
+              const results = fieldEvaluations.map((f) =>
+                f.evaluation.inputs.get(socketKey(node.id, "classes"))
+              )
               const values = results
                 .map((x) => readyValue(x))
                 .filter((x): x is ClassValue => x?.type === "classes")
@@ -1875,14 +2222,20 @@ export function CompositorEditor({
         if (fields && (fields.values.length || fields.waiting)) {
           return <AreasCard value={v?.type === "classes" ? v : null} fields={fields} />
         }
-        return v?.type === "classes" ? <AreasReading value={v} /> : <StatusNote result={r} />
+        return v?.type === "classes" ? (
+          <AreasReading value={v} />
+        ) : (
+          <StatusNote result={r} />
+        )
       }
 
       case "change": {
         const c = changes.get(node.id)
         if (c) return <ChangeReadingView reading={c.reading} info={c.info} />
         const a = inputOf(node.id, "before")
-        return <StatusNote result={a?.status === "ready" ? inputOf(node.id, "after") : a} />
+        return (
+          <StatusNote result={a?.status === "ready" ? inputOf(node.id, "after") : a} />
+        )
       }
 
       case "fieldFilter": {
@@ -1901,7 +2254,9 @@ export function CompositorEditor({
                 const x = Number(t.replace("ha", "").replace(",", ".").trim())
                 return Number.isFinite(x) ? x : null
               }}
-              onChange={(x) => edit(updateNode(graph, { ...node, minHa: Math.max(0, x) }))}
+              onChange={(x) =>
+                edit(updateNode(graph, { ...node, minHa: Math.max(0, x) }))
+              }
             />
             <NumberField
               label="Min. cropland"
@@ -1914,10 +2269,20 @@ export function CompositorEditor({
                 const x = Number(t.replace("%", "").replace(",", ".").trim())
                 return Number.isFinite(x) ? x / 100 : null
               }}
-              onChange={(x) => edit(updateNode(graph, { ...node, minCropland: Math.min(1, Math.max(0, x)) }))}
+              onChange={(x) =>
+                edit(
+                  updateNode(graph, {
+                    ...node,
+                    minCropland: Math.min(1, Math.max(0, x)),
+                  })
+                )
+              }
             />
             {out ? (
-              <Figure label="Kept" value={`${INT.format(out.fields.length)} of ${INT.format(out.total)}`} />
+              <Figure
+                label="Kept"
+                value={`${INT.format(out.fields.length)} of ${INT.format(out.total)}`}
+              />
             ) : (
               <StatusNote result={outputOf(node.id, "fields")} />
             )}
@@ -1931,7 +2296,9 @@ export function CompositorEditor({
         if (!v) return <StatusNote result={r} />
         const target = fieldsTargetOf?.(v.runId) ?? null
         if (!target || !onAdoptFields) {
-          return <Note>Only a saved delineation over a saved area can make its fields.</Note>
+          return (
+            <Note>Only a saved delineation over a saved area can make its fields.</Note>
+          )
         }
         const state = adopting[node.id]
         const n = v.fields.length
@@ -1945,12 +2312,22 @@ export function CompositorEditor({
             <>
               <Note>
                 {`${target.name} holds ${target.adopted} fields from an earlier delineation`}
-                {target.adoptedWithRuns ? `, ${target.adoptedWithRuns} with runs of their own` : ""}
+                {target.adoptedWithRuns
+                  ? `, ${target.adoptedWithRuns} with runs of their own`
+                  : ""}
                 {". Replacing removes them; fields drawn by hand stay."}
               </Note>
               <div className="flex gap-1">
-                <ActionButton label="Replace" icon={<Polygon className="size-3.5" />} onClick={() => void go(true)} />
-                <Choice label="Cancel" chosen={false} onPick={() => setAdoptState(node.id, null)} />
+                <ActionButton
+                  label="Replace"
+                  icon={<Polygon className="size-3.5" />}
+                  onClick={() => void go(true)}
+                />
+                <Choice
+                  label="Cancel"
+                  chosen={false}
+                  onPick={() => setAdoptState(node.id, null)}
+                />
               </div>
             </>
           )
@@ -1963,7 +2340,9 @@ export function CompositorEditor({
               icon={<Polygon className="size-3.5" />}
               busy={state === "busy"}
               disabled={!n}
-              onClick={() => (target.adopted > 0 ? setAdoptState(node.id, "confirm") : void go(false))}
+              onClick={() =>
+                target.adopted > 0 ? setAdoptState(node.id, "confirm") : void go(false)
+              }
             />
           </>
         )
@@ -1986,11 +2365,17 @@ export function CompositorEditor({
       case "seasonDates": {
         const r = inputOf(node.id, "season")
         const each = perFieldInput(node.id, "season")
-        if (!readySeason(r) && !each?.some((f) => readySeason(f.result))) return <StatusNote result={r} />
+        if (!readySeason(r) && !each?.some((f) => readySeason(f.result)))
+          return <StatusNote result={r} />
         return (
           <SeasonCard
             focused={readySeason(r)}
-            fields={each?.map((f) => ({ name: f.member.fieldName, season: readySeason(f.result)?.season ?? null })) ?? null}
+            fields={
+              each?.map((f) => ({
+                name: f.member.fieldName,
+                season: readySeason(f.result)?.season ?? null,
+              })) ?? null
+            }
           />
         )
       }
@@ -1999,7 +2384,8 @@ export function CompositorEditor({
         const r = inputOf(node.id, "health")
         const each = perFieldInput(node.id, "health")
         const crops = perFieldInput(node.id, "crop")
-        if (!readyHealth(r) && !each?.some((f) => readyHealth(f.result))) return <StatusNote result={r} />
+        if (!readyHealth(r) && !each?.some((f) => readyHealth(f.result)))
+          return <StatusNote result={r} />
         return (
           <HealthCard
             reference={node.reference}
@@ -2032,8 +2418,8 @@ export function CompositorEditor({
         ) {
           return (
             <Note>
-              Link a class map, a Season, or a Health, Overlap, Radar or Zones report: each fills its columns, one row per
-              field.
+              Link a class map, a Season, or a Health, Overlap, Radar or Zones report:
+              each fills its columns, one row per field.
             </Note>
           )
         }
@@ -2045,7 +2431,13 @@ export function CompositorEditor({
           !linked("radar") && "a Radar report",
           !linked("zones") && "a Zones report",
         ].filter((x): x is string => !!x)
-        return <FieldTableCard rows={tableRows(node.id)} missing={missing} onExport={() => void saveTable(node.id)} />
+        return (
+          <FieldTableCard
+            rows={tableRows(node.id)}
+            missing={missing}
+            onExport={() => void saveTable(node.id)}
+          />
+        )
       }
 
       case "pdfReport": {
@@ -2074,7 +2466,11 @@ export function CompositorEditor({
             onSettings={(settings) => edit(updateNode(graph, { ...node, settings }))}
             products={products.map((p) => names[p])}
             fields={rows.length}
-            maps={pdfReportMaps(graph, node).filter((m) => readyValue(inputOf(node.id, m.id))).length}
+            maps={
+              pdfReportMaps(graph, node).filter((m) =>
+                readyValue(inputOf(node.id, m.id))
+              ).length
+            }
             missing={missing}
             busy={reportBusy === node.id}
             onExport={() => void exportReport(node)}
@@ -2085,11 +2481,17 @@ export function CompositorEditor({
       case "overlap": {
         const r = inputOf(node.id, "overlap")
         const each = perFieldInput(node.id, "overlap")
-        if (!readyOverlap(r) && !each?.some((f) => readyOverlap(f.result))) return <StatusNote result={r} />
+        if (!readyOverlap(r) && !each?.some((f) => readyOverlap(f.result)))
+          return <StatusNote result={r} />
         return (
           <OverlapCard
             focused={readyOverlap(r)}
-            fields={each?.map((f) => ({ name: f.member.fieldName, overlap: readyOverlap(f.result) })) ?? null}
+            fields={
+              each?.map((f) => ({
+                name: f.member.fieldName,
+                overlap: readyOverlap(f.result),
+              })) ?? null
+            }
           />
         )
       }
@@ -2097,13 +2499,19 @@ export function CompositorEditor({
       case "zones": {
         const r = inputOf(node.id, "zones")
         const each = perFieldInput(node.id, "zones")
-        if (!readyZones(r) && !each?.some((f) => readyZones(f.result))) return <StatusNote result={r} />
+        if (!readyZones(r) && !each?.some((f) => readyZones(f.result)))
+          return <StatusNote result={r} />
         return (
           <ZonesCard
             k={node.k}
             onK={(k) => edit(updateNode(graph, { ...node, k }))}
             focused={readyZones(r)}
-            fields={each?.map((f) => ({ name: f.member.fieldName, zones: readyZones(f.result) })) ?? null}
+            fields={
+              each?.map((f) => ({
+                name: f.member.fieldName,
+                zones: readyZones(f.result),
+              })) ?? null
+            }
             onExport={(all) => void saveZones(node.id, node.k, all)}
           />
         )
@@ -2112,11 +2520,17 @@ export function CompositorEditor({
       case "radar": {
         const r = inputOf(node.id, "radar")
         const each = perFieldInput(node.id, "radar")
-        if (!readyRadar(r) && !each?.some((f) => readyRadar(f.result))) return <StatusNote result={r} />
+        if (!readyRadar(r) && !each?.some((f) => readyRadar(f.result)))
+          return <StatusNote result={r} />
         return (
           <RadarCard
             focused={readyRadar(r)}
-            fields={each?.map((f) => ({ name: f.member.fieldName, radar: readyRadar(f.result) })) ?? null}
+            fields={
+              each?.map((f) => ({
+                name: f.member.fieldName,
+                radar: readyRadar(f.result),
+              })) ?? null
+            }
           />
         )
       }
@@ -2134,7 +2548,11 @@ export function CompositorEditor({
         const r = inputOf(node.id, "report")
         const v = readyMineral(r)
         return v ? (
-          <MineralNodeBody node={node} value={v} onChange={(next) => edit(updateNode(graph, next))} />
+          <MineralNodeBody
+            node={node}
+            value={v}
+            onChange={(next) => edit(updateNode(graph, next))}
+          />
         ) : (
           <StatusNote result={r} />
         )
@@ -2152,7 +2570,10 @@ export function CompositorEditor({
               image={image}
               style={{
                 width: inner,
-                height: Math.min(260, Math.round((inner * image.height) / Math.max(1, image.width))),
+                height: Math.min(
+                  260,
+                  Math.round((inner * image.height) / Math.max(1, image.width))
+                ),
                 background: "rgb(var(--p-line) / 0.12)",
                 borderRadius: 2,
               }}
@@ -2163,7 +2584,9 @@ export function CompositorEditor({
       }
 
       case "globe": {
-        const layers = inputsOf(graph, node).filter((i) => linkInto(graph, node.id, i.id))
+        const layers = inputsOf(graph, node).filter((i) =>
+          linkInto(graph, node.id, i.id)
+        )
         const values = layers.map((i) => ({ input: i, result: inputOf(node.id, i.id) }))
         const unplaced = values.filter((x) => {
           const v = readyValue(x.result)
@@ -2180,22 +2603,35 @@ export function CompositorEditor({
                 max={1}
                 step={0.05}
                 value={node.opacity}
-                onChange={(e) => edit(updateNode(graph, { ...node, opacity: Number(e.target.value) }))}
+                onChange={(e) =>
+                  edit(updateNode(graph, { ...node, opacity: Number(e.target.value) }))
+                }
                 className="min-w-0 flex-1 accent-[var(--b-lit)]"
               />
-              <span className="telemetry w-8 text-right text-foreground">{Math.round(node.opacity * 100)}%</span>
+              <span className="telemetry w-8 text-right text-foreground">
+                {Math.round(node.opacity * 100)}%
+              </span>
             </label>
             {!layers.length ? (
-              <Note>Link a raster to a layer. Each layer is drawn over the one above it in this list.</Note>
+              <Note>
+                Link a raster to a layer. Each layer is drawn over the one above it in
+                this list.
+              </Note>
             ) : (
               <>
-                <Figure label="Layers" value={String(layers.length - unplaced.length)} />
+                <Figure
+                  label="Layers"
+                  value={String(layers.length - unplaced.length)}
+                />
                 {waiting && <StatusNote result={waiting.result} />}
                 {unplaced.map((x) => (
-                  <Note key={x.input.id}>{x.input.label} has no extent to place it by, so it is not drawn.</Note>
+                  <Note key={x.input.id}>
+                    {x.input.label} has no extent to place it by, so it is not drawn.
+                  </Note>
                 ))}
                 <Note>
-                  Drawn in every Globe area, Layer 1 lowest; the Globe's spread sets how far apart they stand.
+                  Drawn in every Globe area, Layer 1 lowest; the Globe's spread sets how
+                  far apart they stand.
                 </Note>
               </>
             )}
@@ -2217,13 +2653,18 @@ export function CompositorEditor({
       // Links out of a run whose raster is gone keep a row, so they can be seen and pulled off.
       for (const l of graph.links) {
         if (l.from === node.id && !outs.some((o) => o.id === l.fromSocket)) {
-          outs = [...outs, { id: l.fromSocket, label: `${l.fromSocket} (missing)`, colour: PLAIN }]
+          outs = [
+            ...outs,
+            { id: l.fromSocket, label: `${l.fromSocket} (missing)`, colour: PLAIN },
+          ]
         }
       }
     }
     const busy =
       node.kind === "run" &&
-      graph.links.some((l) => l.from === node.id && outputOf(node.id, l.fromSocket)?.status === "busy")
+      graph.links.some(
+        (l) => l.from === node.id && outputOf(node.id, l.fromSocket)?.status === "busy"
+      )
     return {
       id: node.id,
       place: dragging[node.id] ?? graph.places[node.id] ?? { x: 0, y: 0 },
@@ -2237,15 +2678,16 @@ export function CompositorEditor({
       inputs: inputsOf(graph, node).map((i) => ({
         id: i.id,
         label: i.label,
-        colour: TYPE_COLOUR[
-          i.accepts.includes("fields")
-            ? "fields"
-            : i.accepts.includes("mineral")
-              ? "mineral"
-              : i.accepts.includes("image")
-                ? "image"
-                : "classes"
-        ],
+        colour:
+          TYPE_COLOUR[
+            i.accepts.includes("fields")
+              ? "fields"
+              : i.accepts.includes("mineral")
+                ? "mineral"
+                : i.accepts.includes("image")
+                  ? "image"
+                  : "classes"
+          ],
         linked: !!linkInto(graph, node.id, i.id),
       })),
       header: (
@@ -2272,7 +2714,8 @@ export function CompositorEditor({
     return {
       ...l,
       colour: typeColour(outputType(graph, l.from, l.fromSocket, runOutputs)),
-      state: r?.status === "ready" ? "ok" : r?.status === "failed" ? "failed" : "pending",
+      state:
+        r?.status === "ready" ? "ok" : r?.status === "failed" ? "failed" : "pending",
     }
   })
 
@@ -2371,7 +2814,12 @@ export function CompositorEditor({
         </MenuPopover>
       </AreaHeaderMenus>
 
-      <ContextMenu at={addAt} surface={surface} title="Add" onClose={() => setAddAt(null)}>
+      <ContextMenu
+        at={addAt}
+        surface={surface}
+        title="Add"
+        onClose={() => setAddAt(null)}
+      >
         {addGroups((kind) => {
           const at = addAt ? api.current?.toBoard(addAt.x, addAt.y) : undefined
           add(kind, at)
@@ -2408,7 +2856,10 @@ export function CompositorEditor({
             onArrange={arrangeNodes}
           />
         ) : (
-          <div className="flex h-full items-center justify-center p-4" style={{ background: "var(--s-field)" }}>
+          <div
+            className="flex h-full items-center justify-center p-4"
+            style={{ background: "var(--s-field)" }}
+          >
             <p className="max-w-[26rem] text-center text-meta leading-relaxed text-muted-foreground">
               {runs.length || fieldSets.length
                 ? "The graph is empty. Add a Run node from the Add menu, or press Shift+A over this area."

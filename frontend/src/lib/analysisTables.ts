@@ -96,14 +96,7 @@ export function classStatsTable(stats: ClassStat[]): DataTable | null {
       num("pct"),
       num("area_ha"),
     ],
-    (stats ?? []).map((c) => [
-      c.class_id,
-      c.name,
-      c.color,
-      c.pixels,
-      c.pct,
-      c.area_ha,
-    ])
+    (stats ?? []).map((c) => [c.class_id, c.name, c.color, c.pixels, c.pct, c.area_ha])
   )
 }
 
@@ -146,9 +139,7 @@ export function hasPhenology(ph?: PhenologyMetrics | null): boolean {
   ].some((v) => v !== null && v !== undefined)
 }
 
-export function phenologyTable(
-  ph?: PhenologyMetrics | null
-): DataTable | null {
+export function phenologyTable(ph?: PhenologyMetrics | null): DataTable | null {
   if (!hasPhenology(ph) || !ph) return null
   return table(
     "phenology",
@@ -162,23 +153,11 @@ export function phenologyTable(
       num("base"),
       num("amplitude"),
     ],
-    [
-      [
-        ph.sos_doy,
-        ph.pos_doy,
-        ph.eos_doy,
-        ph.los_days,
-        ph.peak,
-        ph.base,
-        ph.amplitude,
-      ],
-    ]
+    [[ph.sos_doy, ph.pos_doy, ph.eos_doy, ph.los_days, ph.peak, ph.base, ph.amplitude]]
   )
 }
 
-export function phenologyStatesTable(
-  states: PhenologyStatePoint[]
-): DataTable | null {
+export function phenologyStatesTable(states: PhenologyStatePoint[]): DataTable | null {
   return table(
     "phenology_states",
     "phenology_states.csv",
@@ -189,13 +168,7 @@ export function phenologyStatesTable(
       { key: "color", swatch: true },
       num("ndvi_mean"),
     ],
-    (states ?? []).map((s) => [
-      s.date,
-      s.state,
-      s.state_name,
-      s.color,
-      s.ndvi_mean,
-    ])
+    (states ?? []).map((s) => [s.date, s.state, s.state_name, s.color, s.ndvi_mean])
   )
 }
 
@@ -259,9 +232,7 @@ export function lulcMetricsTable(lulc?: LULCAnalysis | null): DataTable | null {
   )
 }
 
-export function lulcCompositionTable(
-  lulc?: LULCAnalysis | null
-): DataTable | null {
+export function lulcCompositionTable(lulc?: LULCAnalysis | null): DataTable | null {
   return table(
     "lulc_composition",
     "lulc_composition.csv",
@@ -290,19 +261,12 @@ export function lulcGroupsTable(lulc?: LULCAnalysis | null): DataTable | null {
   return table(
     "lulc_groups",
     "lulc_groups.csv",
-    [
-      { key: "group" },
-      { key: "color", swatch: true },
-      num("pct"),
-      num("area_ha"),
-    ],
+    [{ key: "group" }, { key: "color", swatch: true }, num("pct"), num("area_ha")],
     (lulc?.groups ?? []).map((g) => [g.group, g.color, g.pct, g.area_ha])
   )
 }
 
-export function lulcPredVsRefTable(
-  lulc?: LULCAnalysis | null
-): DataTable | null {
+export function lulcPredVsRefTable(lulc?: LULCAnalysis | null): DataTable | null {
   return table(
     "lulc_pred_vs_ref",
     "lulc_pred_vs_ref.csv",
@@ -356,9 +320,7 @@ export function domainFingerprintTable(
   )
 }
 
-export function waterSeriesTable(
-  water?: WaterAnalysis | null
-): DataTable | null {
+export function waterSeriesTable(water?: WaterAnalysis | null): DataTable | null {
   return table(
     "water_series",
     "water_series.csv",
@@ -413,8 +375,7 @@ export function allAnalysisTables(result: PredictResult): DataTable[] {
 
 /** RFC 4180 quoting, matching encoding/csv on the Go side. */
 export function tableToCSV(t: DataTable): string {
-  const esc = (v: string) =>
-    /[",\r\n]/.test(v) ? `"${v.replace(/"/g, '""')}"` : v
+  const esc = (v: string) => (/[",\r\n]/.test(v) ? `"${v.replace(/"/g, '""')}"` : v)
   const lines = [t.columns.map((c) => esc(c.key)).join(",")]
   for (const row of t.rows) {
     lines.push(row.map((cell) => esc(formatNumber(cell))).join(","))

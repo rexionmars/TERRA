@@ -13,7 +13,12 @@
 import type { LayerPatch } from "@/lib/layerPatch"
 import type { RasterLayer } from "@/lib/mapLayers"
 import type { RunAsset } from "@/lib/runAssets"
-import type { HealthAnalysis, OverlapAnalysis, RadarAnalysis, ZonesAnalysis } from "@/lib/types"
+import type {
+  HealthAnalysis,
+  OverlapAnalysis,
+  RadarAnalysis,
+  ZonesAnalysis,
+} from "@/lib/types"
 
 /** What a queued product's saved run holds, which App keeps no state for. */
 export interface JobReading {
@@ -42,7 +47,12 @@ const IMAGERY = new Set(["true-color", "ndvi", "health-ndvi", "radar-composite"]
 function shownOnOpening(assets: readonly RunAsset[]): Set<string> {
   const shown = new Set<string>()
   const first = (prefix: string) => assets.find((a) => a.id.startsWith(prefix))?.sceneId
-  for (const id of [first("health-anomaly"), first("overlap-map"), first("radar-composite"), first("zones-")]) {
+  for (const id of [
+    first("health-anomaly"),
+    first("overlap-map"),
+    first("radar-composite"),
+    first("zones-"),
+  ]) {
     if (id) shown.add(id)
   }
   return shown
@@ -78,8 +88,20 @@ export function withAssetLayers(
 export function jobReadingOf(
   runId: string,
   label: string,
-  r: { health?: HealthAnalysis | null; overlap?: OverlapAnalysis | null; radar?: RadarAnalysis | null; zones?: ZonesAnalysis | null } | null
+  r: {
+    health?: HealthAnalysis | null
+    overlap?: OverlapAnalysis | null
+    radar?: RadarAnalysis | null
+    zones?: ZonesAnalysis | null
+  } | null
 ): JobReading | null {
   if (!r || !(r.health || r.overlap || r.radar || r.zones)) return null
-  return { runId, label, health: r.health, overlap: r.overlap, radar: r.radar, zones: r.zones }
+  return {
+    runId,
+    label,
+    health: r.health,
+    overlap: r.overlap,
+    radar: r.radar,
+    zones: r.zones,
+  }
 }

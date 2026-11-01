@@ -154,8 +154,7 @@ export function DomainCohort({
   }, [cohort, axis])
 
   // Only worth saying on the axis that has the ceiling.
-  const atCeiling =
-    axis === "mmd" && saturated(plotted.map((p) => p.x))
+  const atCeiling = axis === "mmd" && saturated(plotted.map((p) => p.x))
 
   const sourceAgreement = cohort.source.agreement?.overall_pct ?? null
   const table = useMemo(() => cohortTable(cohort), [cohort])
@@ -203,23 +202,22 @@ export function DomainCohort({
 
       {plotted.length === 0 ? (
         <p className="text-[10px] leading-snug text-muted-foreground">
-          No target is comparable with this source, so there is no axis to place
-          one on. The list below says why for each.
+          No target is comparable with this source, so there is no axis to place one on.
+          The list below says why for each.
         </p>
       ) : (
         <>
           <p className="text-[10px] leading-snug text-muted-foreground">
-            One point per target. A descending trend means divergence accounts
-            for the loss; a point far right and high transfers despite distance;
-            one near the axis and low fails for another reason.
+            One point per target. A descending trend means divergence accounts for the
+            loss; a point far right and high transfers despite distance; one near the
+            axis and low fails for another reason.
           </p>
           {atCeiling && (
             <p className="text-[10px] leading-snug text-amber-500/90">
-              Every target is at the top of MMD&apos;s range, where a bounded
-              kernel stops separating: past roughly three training standard
-              deviations the statistic moves in the third decimal while the
-              domains keep moving apart. Read this set on CVA instead, which
-              does not have a ceiling.
+              Every target is at the top of MMD&apos;s range, where a bounded kernel
+              stops separating: past roughly three training standard deviations the
+              statistic moves in the third decimal while the domains keep moving apart.
+              Read this set on CVA instead, which does not have a ceiling.
             </p>
           )}
           <div className="h-56 w-full">
@@ -313,10 +311,7 @@ export function DomainCohort({
           <p className="eyebrow !text-[9px]">Not on the axis</p>
           <ul className="flex flex-col gap-0.5">
             {excluded.map((row) => (
-              <li
-                key={row.id}
-                className="flex items-baseline gap-1.5 text-[10px]"
-              >
+              <li key={row.id} className="flex items-baseline gap-1.5 text-[10px]">
                 <span className="min-w-0 flex-1 truncate text-muted-foreground">
                   {row.label}
                 </span>

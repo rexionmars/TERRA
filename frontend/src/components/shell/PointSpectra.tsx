@@ -84,21 +84,54 @@ export function PointSpectra({
       />
       {ticks.map((v) => (
         <g key={v}>
-          <line x1={PAD.left - 3} x2={PAD.left} y1={y(v)} y2={y(v)} stroke="var(--muted-foreground)" strokeWidth={0.75} />
-          <text x={PAD.left - 5} y={y(v)} fontSize={10} fill="var(--muted-foreground)" textAnchor="end" dominantBaseline="middle">
+          <line
+            x1={PAD.left - 3}
+            x2={PAD.left}
+            y1={y(v)}
+            y2={y(v)}
+            stroke="var(--muted-foreground)"
+            strokeWidth={0.75}
+          />
+          <text
+            x={PAD.left - 5}
+            y={y(v)}
+            fontSize={10}
+            fill="var(--muted-foreground)"
+            textAnchor="end"
+            dominantBaseline="middle"
+          >
             {v.toFixed(2)}
           </text>
         </g>
       ))}
       {X_TICKS.map((v) => (
         <g key={v}>
-          <line x1={x(v)} x2={x(v)} y1={axisY} y2={axisY + 3} stroke="var(--muted-foreground)" strokeWidth={0.75} />
-          <text x={x(v)} y={axisY + 13} fontSize={10} fill="var(--muted-foreground)" textAnchor="middle">
+          <line
+            x1={x(v)}
+            x2={x(v)}
+            y1={axisY}
+            y2={axisY + 3}
+            stroke="var(--muted-foreground)"
+            strokeWidth={0.75}
+          />
+          <text
+            x={x(v)}
+            y={axisY + 13}
+            fontSize={10}
+            fill="var(--muted-foreground)"
+            textAnchor="middle"
+          >
             {v}
           </text>
         </g>
       ))}
-      <text x={(PAD.left + W - PAD.right) / 2} y={H - 8} fontSize={10} fill="var(--muted-foreground)" textAnchor="middle">
+      <text
+        x={(PAD.left + W - PAD.right) / 2}
+        y={H - 8}
+        fontSize={10}
+        fill="var(--muted-foreground)"
+        textAnchor="middle"
+      >
         Wavelength (nm)
       </text>
       <text
@@ -137,12 +170,25 @@ export function PointSpectra({
                 {style.marker === "circle" ? (
                   <circle cx={x(r.wavelength_nm)} cy={y(r.mean)} r={2.5} fill={ink} />
                 ) : (
-                  <rect x={x(r.wavelength_nm) - 2.25} y={y(r.mean) - 2.25} width={4.5} height={4.5} fill={ink} />
+                  <rect
+                    x={x(r.wavelength_nm) - 2.25}
+                    y={y(r.mean) - 2.25}
+                    width={4.5}
+                    height={4.5}
+                    fill={ink}
+                  />
                 )}
               </g>
             ))}
-            <text x={x(last.wavelength_nm) + 6} y={y(last.mean)} fontSize={10} fill={ink} dominantBaseline="middle">
-              {c.slot} · {last.name.length > 13 ? `${last.name.slice(0, 12)}…` : last.name}
+            <text
+              x={x(last.wavelength_nm) + 6}
+              y={y(last.mean)}
+              fontSize={10}
+              fill={ink}
+              dominantBaseline="middle"
+            >
+              {c.slot} ·{" "}
+              {last.name.length > 13 ? `${last.name.slice(0, 12)}…` : last.name}
             </text>
           </g>
         )

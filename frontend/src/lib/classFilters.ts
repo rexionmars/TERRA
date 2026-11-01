@@ -233,7 +233,8 @@ export function sieveFilter(
   // grows or is absorbed; they are recognised on the way out and skipped.
   const hs: number[] = []
   const hi: number[] = []
-  const less = (i: number, j: number) => hs[i] < hs[j] || (hs[i] === hs[j] && hi[i] < hi[j])
+  const less = (i: number, j: number) =>
+    hs[i] < hs[j] || (hs[i] === hs[j] && hi[i] < hi[j])
   const swap = (i: number, j: number) => {
     ;[hs[i], hs[j]] = [hs[j], hs[i]]
     ;[hi[i], hi[j]] = [hi[j], hi[i]]
@@ -286,7 +287,11 @@ export function sieveFilter(
 
     let target = -1
     for (const b of around) {
-      if (target < 0 || size[b] > size[target] || (size[b] === size[target] && b < target)) {
+      if (
+        target < 0 ||
+        size[b] > size[target] ||
+        (size[b] === size[target] && b < target)
+      ) {
         target = b
       }
     }
@@ -332,7 +337,11 @@ export function sieveFilter(
 }
 
 /** A summed-area table over a width x height field, one extra row and column. */
-function summedArea(w: number, h: number, on: (x: number, y: number) => number): Int32Array {
+function summedArea(
+  w: number,
+  h: number,
+  on: (x: number, y: number) => number
+): Int32Array {
   const sat = new Int32Array((w + 1) * (h + 1))
   for (let y = 0; y < h; y++) {
     let row = 0
@@ -345,7 +354,14 @@ function summedArea(w: number, h: number, on: (x: number, y: number) => number):
 }
 
 /** The sum over the window of radius r centred at (cx, cy), clipped to the field. */
-function windowSum(sat: Int32Array, w: number, h: number, cx: number, cy: number, r: number): number {
+function windowSum(
+  sat: Int32Array,
+  w: number,
+  h: number,
+  cx: number,
+  cy: number,
+  r: number
+): number {
   const x0 = Math.max(0, cx - r)
   const y0 = Math.max(0, cy - r)
   const x1 = Math.min(w - 1, cx + r)
@@ -353,7 +369,10 @@ function windowSum(sat: Int32Array, w: number, h: number, cx: number, cy: number
   if (x0 > x1 || y0 > y1) return 0
   const W = w + 1
   return (
-    sat[(y1 + 1) * W + (x1 + 1)] - sat[y0 * W + (x1 + 1)] - sat[(y1 + 1) * W + x0] + sat[y0 * W + x0]
+    sat[(y1 + 1) * W + (x1 + 1)] -
+    sat[y0 * W + (x1 + 1)] -
+    sat[(y1 + 1) * W + x0] +
+    sat[y0 * W + x0]
   )
 }
 
@@ -390,7 +409,9 @@ export function openClass(
     const v = index[iy * w + ix]
     return v !== NO_CLASS && v !== c ? 1 : 0
   })
-  const fits = summedArea(pw, ph, (x, y) => (windowSum(other, pw, ph, x, y, r) === 0 ? 1 : 0))
+  const fits = summedArea(pw, ph, (x, y) =>
+    windowSum(other, pw, ph, x, y, r) === 0 ? 1 : 0
+  )
 
   const out = index.slice()
   const hist = new Int32Array(classes)
@@ -407,7 +428,8 @@ export function openClass(
         }
       }
       let best = -1
-      for (let k = 0; k < classes; k++) if (hist[k] > 0 && (best < 0 || hist[k] > hist[best])) best = k
+      for (let k = 0; k < classes; k++)
+        if (hist[k] > 0 && (best < 0 || hist[k] > hist[best])) best = k
       if (best >= 0) out[p] = best
     }
   }
@@ -467,7 +489,11 @@ export function changedPixels(a: ClassGrid, b: ClassGrid): number {
  * How many pixels went from each class to each other class, as a flat
  * classes x classes table: row is the class in `a`, column the class in `b`.
  */
-export function transitionCounts(a: ClassGrid, b: ClassGrid, classes: number): Uint32Array {
+export function transitionCounts(
+  a: ClassGrid,
+  b: ClassGrid,
+  classes: number
+): Uint32Array {
   const t = new Uint32Array(classes * classes)
   for (let p = 0; p < a.index.length; p++) {
     const x = a.index[p]

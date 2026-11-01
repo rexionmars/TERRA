@@ -35,7 +35,8 @@ import { openProjectFile, projectFileName } from "@/lib/projectFiles"
 import { cn } from "@/lib/utils"
 
 /** What the rail can show as current. */
-export type RailPlace = "explore" | "areas" | "analyses" | "compare" | "workflows" | "activity"
+export type RailPlace =
+  "explore" | "areas" | "analyses" | "compare" | "workflows" | "activity"
 
 /*
   THE RAIL IS NARROWER THAN THE TRAFFIC LIGHTS ARE WIDE. They end about 61px in and
@@ -140,7 +141,10 @@ function NewProject({ onCreated }: { onCreated: (id: string) => void }) {
     }
   }
   return (
-    <form onSubmit={create} className="flex items-center gap-1 border-t border-border p-1.5">
+    <form
+      onSubmit={create}
+      className="flex items-center gap-1 border-t border-border p-1.5"
+    >
       <input
         aria-label="New project name"
         placeholder="New project name"
@@ -190,7 +194,8 @@ export function ShellTopBar({
   recentFiles: readonly string[]
 }) {
   const [menu, setMenu] = useState<"project" | "area" | "options" | null>(null)
-  const open = (m: "project" | "area" | "options") => (next: boolean) => setMenu(next ? m : null)
+  const open = (m: "project" | "area" | "options") => (next: boolean) =>
+    setMenu(next ? m : null)
   const roots = areas.filter((a) => !a.parent_id)
   const appItem = (i: AppSurfaces["items"][keyof AppSurfaces["items"]]) => (
     <MenuItem
@@ -219,8 +224,16 @@ export function ShellTopBar({
       >
         <SidebarSimple className="size-4" />
       </button>
-      <nav aria-label="Project and area" className="flex min-w-0 flex-1 items-center gap-0.5">
-        <Crumb label={projectName} title="Project" open={menu === "project"} onOpenChange={open("project")}>
+      <nav
+        aria-label="Project and area"
+        className="flex min-w-0 flex-1 items-center gap-0.5"
+      >
+        <Crumb
+          label={projectName}
+          title="Project"
+          open={menu === "project"}
+          onOpenChange={open("project")}
+        >
           {projects.map((pr) => (
             <MenuItem
               key={pr.id}
@@ -240,7 +253,13 @@ export function ShellTopBar({
           />
         </Crumb>
         <CaretRight className="size-3 shrink-0 text-muted-foreground" />
-        <Crumb label={areaName} title="Area" current open={menu === "area"} onOpenChange={open("area")}>
+        <Crumb
+          label={areaName}
+          title="Area"
+          current
+          open={menu === "area"}
+          onOpenChange={open("area")}
+        >
           {roots.length ? (
             roots.map((a) => (
               <MenuItem
@@ -352,7 +371,7 @@ function RailButton({
           aria-hidden
           className={cn(
             "absolute size-1.5 rounded-full bg-destructive-quiet",
-            open ? "left-[1.5rem] top-1.5" : "right-1.5 top-1.5"
+            open ? "top-1.5 left-[1.5rem]" : "top-1.5 right-1.5"
           )}
         />
       )}
@@ -405,10 +424,21 @@ export function ShellRail({
         open ? "w-52" : "w-[3.25rem]"
       )}
     >
-      {RESERVES_TRAFFIC_LIGHTS && <div className="app-draggable h-11 shrink-0 border-b border-border" />}
+      {RESERVES_TRAFFIC_LIGHTS && (
+        <div className="app-draggable h-11 shrink-0 border-b border-border" />
+      )}
       <div className="flex min-h-0 flex-1 flex-col border-r border-border">
-        <div className={cn("flex h-11 shrink-0 items-center", open ? "gap-3 px-3" : "justify-center")}>
-          <img src="/terra-logo.png" alt="TERRA" className="size-7 shrink-0 rounded-md object-contain" />
+        <div
+          className={cn(
+            "flex h-11 shrink-0 items-center",
+            open ? "gap-3 px-3" : "justify-center"
+          )}
+        >
+          <img
+            src="/terra-logo.png"
+            alt="TERRA"
+            className="size-7 shrink-0 rounded-md object-contain"
+          />
           {open && (
             <span className="font-display text-sm font-semibold tracking-[0.14em] text-foreground">
               TERRA
@@ -416,7 +446,12 @@ export function ShellRail({
           )}
         </div>
 
-        <div className={cn("flex min-h-0 flex-1 flex-col overflow-y-auto py-1", open ? "px-2" : "items-center")}>
+        <div
+          className={cn(
+            "flex min-h-0 flex-1 flex-col overflow-y-auto py-1",
+            open ? "px-2" : "items-center"
+          )}
+        >
           <RailButton
             icon={Compass}
             label="Explore"
@@ -424,7 +459,13 @@ export function ShellRail({
             active={place === "explore"}
             onClick={onExplore}
           />
-          <RailButton icon={Polygon} label="Areas" open={open} active={place === "areas"} onClick={onAreas} />
+          <RailButton
+            icon={Polygon}
+            label="Areas"
+            open={open}
+            active={place === "areas"}
+            onClick={onAreas}
+          />
           <RailButton
             icon={Folders}
             label="Analyses"
@@ -456,7 +497,12 @@ export function ShellRail({
             dot={unseen}
             onClick={onActivity}
           />
-          <RailButton icon={ChatCentered} label="Feedback" open={open} onClick={link("/issues")} />
+          <RailButton
+            icon={ChatCentered}
+            label="Feedback"
+            open={open}
+            onClick={link("/issues")}
+          />
           <RailButton
             icon={Lifebuoy}
             label="Help"
@@ -472,7 +518,9 @@ export function ShellRail({
         </div>
 
         {!loading && (
-          <div className={cn("flex shrink-0 pb-2 pt-1", open ? "px-2" : "justify-center")}>
+          <div
+            className={cn("flex shrink-0 pt-1 pb-2", open ? "px-2" : "justify-center")}
+          >
             <button
               type="button"
               onClick={() => (user ? goProfile() : goAuth())}
@@ -485,14 +533,22 @@ export function ShellRail({
             >
               <span className="flex size-7 shrink-0 items-center justify-center overflow-hidden rounded-md bg-[rgb(var(--p-surface-raised))] text-label font-medium">
                 {user?.avatar_uri ? (
-                  <img src={user.avatar_uri} alt="" className="size-full object-cover" />
+                  <img
+                    src={user.avatar_uri}
+                    alt=""
+                    className="size-full object-cover"
+                  />
                 ) : user?.display_name ? (
                   initials(user.display_name)
                 ) : (
                   <User className="size-4 text-muted-foreground" />
                 )}
               </span>
-              {open && <span className="truncate text-read">{user?.display_name || "Sign in"}</span>}
+              {open && (
+                <span className="truncate text-read">
+                  {user?.display_name || "Sign in"}
+                </span>
+              )}
             </button>
           </div>
         )}

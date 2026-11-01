@@ -55,10 +55,7 @@ export const MODE_OPTIONS: readonly ModeOption[] = [
  * Cumulative retention is a Random Forest procedure: the other two models
  * produce the map and nothing to accumulate.
  */
-export function modeBlockedBy(
-  mode: ClassifyMode,
-  model: ModelKind
-): string | null {
+export function modeBlockedBy(mode: ClassifyMode, model: ModelKind): string | null {
   if (mode === "temporal" && model !== "spectral") {
     return "Temporal retention runs on Random Forest."
   }

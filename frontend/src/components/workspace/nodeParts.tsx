@@ -61,8 +61,10 @@ export function ActionButton({
       disabled={off}
       className={cn(
         "flex w-full items-center justify-center gap-1.5 rounded-sm px-2 py-1 text-meta transition-colors",
-        "focus-visible:outline-none focus-visible:inset-ring-1 focus-visible:inset-ring-ring",
-        off ? "cursor-not-allowed bg-control text-muted-foreground" : "bg-accent text-accent-foreground hover:opacity-90"
+        "focus-visible:inset-ring-1 focus-visible:inset-ring-ring focus-visible:outline-none",
+        off
+          ? "cursor-not-allowed bg-control text-muted-foreground"
+          : "bg-accent text-accent-foreground hover:opacity-90"
       )}
     >
       {busy ? <CircleNotch className="size-3.5 animate-spin" /> : icon}

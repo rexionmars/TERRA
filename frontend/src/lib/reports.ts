@@ -16,13 +16,7 @@
  */
 import { useSyncExternalStore } from "react"
 
-export type ReportLevel =
-  | "operator"
-  | "info"
-  | "success"
-  | "error"
-  | "input"
-  | "output"
+export type ReportLevel = "operator" | "info" | "success" | "error" | "input" | "output"
 
 export interface Report {
   id: number

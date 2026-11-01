@@ -40,10 +40,7 @@ const point = (fields: Partial<ClassSpectrumPoint>): ClassSpectrumPoint =>
     ...fields,
   }) as ClassSpectrumPoint
 
-const spectra = (
-  points: ClassSpectrumPoint[],
-  bands = ["B02", "B08"]
-): ClassSpectra =>
+const spectra = (points: ClassSpectrumPoint[], bands = ["B02", "B08"]): ClassSpectra =>
   ({
     scene_date: "2021-01-15",
     n_scenes: 12,
@@ -294,17 +291,11 @@ describe("classDriftBetweenRuns", () => {
       would invent the comparison.
     */
     const a = spectra(
-      [
-        point({ class_id: 1, band: "B02" }),
-        point({ class_id: 2, band: "B02" }),
-      ],
+      [point({ class_id: 1, band: "B02" }), point({ class_id: 2, band: "B02" })],
       ["B02"]
     )
     const b = spectra(
-      [
-        point({ class_id: 2, band: "B02" }),
-        point({ class_id: 9, band: "B02" }),
-      ],
+      [point({ class_id: 2, band: "B02" }), point({ class_id: 9, band: "B02" })],
       ["B02"]
     )
 
@@ -326,7 +317,7 @@ describe("classDriftBetweenRuns", () => {
       different findings that produce the same distance, so the direction is
       reported separately rather than inferred from it.
     */
-    const a = spectra([point({ class_id: 1, band: "B11", mean: 0.30 })], ["B11"])
+    const a = spectra([point({ class_id: 1, band: "B11", mean: 0.3 })], ["B11"])
     const b = spectra([point({ class_id: 1, band: "B11", mean: 0.18 })], ["B11"])
 
     const [drift] = classDriftBetweenRuns(a, b)

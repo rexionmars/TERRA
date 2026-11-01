@@ -28,20 +28,54 @@ const size = (n: GraphNode): Box => SIZE[n.kind] ?? { w: 320, h: 250 }
 
 /** The graph of the reader's screenshot: a run through a majority filter to readings and a globe. */
 function screenshot(): CompositorGraph {
-  let g = withMineralNodes(EMPTY_GRAPH, "r", { cover: false, bands: ["fe3"], acid: true, agreement: [2] })
+  let g = withMineralNodes(EMPTY_GRAPH, "r", {
+    cover: false,
+    bands: ["fe3"],
+    acid: true,
+    agreement: [2],
+  })
   // Keep three of the mineral cards, as the reader had.
-  const keep = new Set(["run-1", "mineralAgreement-1", "mineralAcid-1", "mineralPositions-1"])
-  g = { ...g, nodes: g.nodes.filter((n) => keep.has(n.id)), links: g.links.filter((l) => keep.has(l.to)) }
+  const keep = new Set([
+    "run-1",
+    "mineralAgreement-1",
+    "mineralAcid-1",
+    "mineralPositions-1",
+  ])
+  g = {
+    ...g,
+    nodes: g.nodes.filter((n) => keep.has(n.id)),
+    links: g.links.filter((l) => keep.has(l.to)),
+  }
   for (const [n, at] of [
-    [{ id: "majority-1", kind: "majority", size: 3 }, { x: 260, y: 500 }],
-    [{ id: "viewer-1", kind: "viewer" }, { x: 100, y: 650 }],
-    [{ id: "areas-1", kind: "areas" }, { x: 500, y: 650 }],
-    [{ id: "change-1", kind: "change" }, { x: 820, y: 470 }],
-    [{ id: "globe-1", kind: "globe", opacity: 0.85 }, { x: 570, y: 1000 }],
+    [
+      { id: "majority-1", kind: "majority", size: 3 },
+      { x: 260, y: 500 },
+    ],
+    [
+      { id: "viewer-1", kind: "viewer" },
+      { x: 100, y: 650 },
+    ],
+    [
+      { id: "areas-1", kind: "areas" },
+      { x: 500, y: 650 },
+    ],
+    [
+      { id: "change-1", kind: "change" },
+      { x: 820, y: 470 },
+    ],
+    [
+      { id: "globe-1", kind: "globe", opacity: 0.85 },
+      { x: 570, y: 1000 },
+    ],
   ] as [GraphNode, { x: number; y: number }][]) {
     g = addNode(g, n, at)
   }
-  const L = (from: string, fromSocket: string, to: string, toSocket: string): GraphLink => ({ from, fromSocket, to, toSocket })
+  const L = (
+    from: string,
+    fromSocket: string,
+    to: string,
+    toSocket: string
+  ): GraphLink => ({ from, fromSocket, to, toSocket })
   return {
     ...g,
     links: [
@@ -56,7 +90,10 @@ function screenshot(): CompositorGraph {
   }
 }
 
-function overlaps(g: CompositorGraph, places: Record<string, { x: number; y: number }>) {
+function overlaps(
+  g: CompositorGraph,
+  places: Record<string, { x: number; y: number }>
+) {
   const nodes = g.nodes
   for (let i = 0; i < nodes.length; i++) {
     for (let j = i + 1; j < nodes.length; j++) {
@@ -64,7 +101,12 @@ function overlaps(g: CompositorGraph, places: Record<string, { x: number; y: num
       const b = places[nodes[j].id]
       const sa = size(nodes[i])
       const sb = size(nodes[j])
-      if (a.x < b.x + sb.w && b.x < a.x + sa.w && a.y < b.y + sb.h && b.y < a.y + sa.h) {
+      if (
+        a.x < b.x + sb.w &&
+        b.x < a.x + sa.w &&
+        a.y < b.y + sb.h &&
+        b.y < a.y + sa.h
+      ) {
         return `${nodes[i].id} overlaps ${nodes[j].id}`
       }
     }
@@ -89,7 +131,12 @@ describe("arrange", () => {
   })
 
   it("folds a column of a mineral map's cards rather than stacking a tower", () => {
-    const g = withMineralNodes(EMPTY_GRAPH, "r", { cover: true, bands: ["fe3", "aloh"], acid: true, agreement: [1, 2] })
+    const g = withMineralNodes(EMPTY_GRAPH, "r", {
+      cover: true,
+      bands: ["fe3", "aloh"],
+      acid: true,
+      agreement: [1, 2],
+    })
     const maxColumnHeight = 1100
     const p = arrange(g, size, { maxColumnHeight })
     expect(overlaps(g, p)).toBeNull()
@@ -107,8 +154,23 @@ describe("arrange", () => {
   it("stacks pipelines that share no link, the reader's highest first", () => {
     let g = screenshot()
     g = addNode(g, { id: "run-9", kind: "run", runId: "other" }, { x: 0, y: 5000 })
-    g = addNode(g, { id: "mineralCoverage-9", kind: "mineralCoverage" }, { x: 400, y: 5000 })
-    g = { ...g, links: [...g.links, { from: "run-9", fromSocket: MINERAL_SOCKET, to: "mineralCoverage-9", toSocket: "report" }] }
+    g = addNode(
+      g,
+      { id: "mineralCoverage-9", kind: "mineralCoverage" },
+      { x: 400, y: 5000 }
+    )
+    g = {
+      ...g,
+      links: [
+        ...g.links,
+        {
+          from: "run-9",
+          fromSocket: MINERAL_SOCKET,
+          to: "mineralCoverage-9",
+          toSocket: "report",
+        },
+      ],
+    }
     const p = arrange(g, size)
     expect(overlaps(g, p)).toBeNull()
     const firstBottom = Math.max(
@@ -122,7 +184,9 @@ describe("arrange", () => {
     const p = arrange(g, size)
     const minX = Math.min(...g.nodes.map((n) => g.places[n.id].x))
     expect(Math.min(...Object.values(p).map((q) => q.x))).toBe(minX)
-    expect(arrange({ ...g, places: { ...g.places, ...p } }, size)).toEqual(arrange({ ...g, places: { ...g.places, ...p } }, size))
+    expect(arrange({ ...g, places: { ...g.places, ...p } }, size)).toEqual(
+      arrange({ ...g, places: { ...g.places, ...p } }, size)
+    )
   })
 
   it("places a graph with no links in one column", () => {

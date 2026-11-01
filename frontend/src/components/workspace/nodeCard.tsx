@@ -69,7 +69,7 @@ export function Choice({
       title={blockedBy ?? undefined}
       className={cn(
         "inline-flex h-[1.375rem] shrink-0 items-center rounded-sm px-1.5 text-meta transition-colors",
-        "focus-visible:outline-none focus-visible:inset-ring-1 focus-visible:inset-ring-ring",
+        "focus-visible:inset-ring-1 focus-visible:inset-ring-ring focus-visible:outline-none",
         disabled || blockedBy
           ? "cursor-not-allowed text-muted-foreground/40"
           : chosen

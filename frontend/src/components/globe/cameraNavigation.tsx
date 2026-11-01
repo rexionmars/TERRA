@@ -193,7 +193,11 @@ export function CameraControls({
       northRef.current?.setAttribute("transform", `translate(${x} ${y})`)
     }
     paint()
-    const subs = [map.on("rotate", paint), map.on("pitch", paint), map.on("move", paint)]
+    const subs = [
+      map.on("rotate", paint),
+      map.on("pitch", paint),
+      map.on("move", paint),
+    ]
     return () => {
       for (const s of subs) s.unsubscribe()
     }

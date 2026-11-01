@@ -1,6 +1,14 @@
 import { useState } from "react"
 
-import { CaretRight, Check, PencilSimple, Polygon, Trash, Upload, X } from "@/components/icons"
+import {
+  CaretRight,
+  Check,
+  PencilSimple,
+  Polygon,
+  Trash,
+  Upload,
+  X,
+} from "@/components/icons"
 import { ConfirmDelete } from "@/components/ui/ConfirmDelete"
 import type { Area } from "@/lib/areas"
 import type { GeoJSONGeometry } from "@/lib/types"
@@ -111,7 +119,9 @@ function AreaRow({
           onClick={onToggle}
           className="flex size-7 shrink-0 items-center justify-center rounded-sm text-muted-foreground hover:text-foreground"
         >
-          <CaretRight className={cn("size-3 transition-transform", expanded && "rotate-90")} />
+          <CaretRight
+            className={cn("size-3 transition-transform", expanded && "rotate-90")}
+          />
         </button>
       ) : (
         <span aria-hidden className="w-2 shrink-0" />
@@ -123,7 +133,10 @@ function AreaRow({
         className="flex min-w-0 flex-1 items-center gap-3 py-2 text-left"
       >
         <Polygon
-          className={cn("size-4 shrink-0", active ? "text-accent-quiet" : "text-muted-foreground")}
+          className={cn(
+            "size-4 shrink-0",
+            active ? "text-accent-quiet" : "text-muted-foreground"
+          )}
         />
         <span className="min-w-0 flex-1">
           <span className="block truncate text-read text-foreground">{area.name}</span>
@@ -134,7 +147,7 @@ function AreaRow({
           </span>
         </span>
       </button>
-      <div className="flex opacity-0 transition-opacity focus-within:opacity-100 group-hover:opacity-100">
+      <div className="flex opacity-0 transition-opacity group-hover:opacity-100 focus-within:opacity-100">
         {onRename && (
           <IconButton
             label={`Rename ${area.name}`}
@@ -228,7 +241,8 @@ export function AreasPanel({
     const runs = a.run_count + fields.reduce((n, f) => n + f.run_count, 0)
     const parts = [
       runs > 0 && `${runs} ${runs === 1 ? "run" : "runs"} and their rasters`,
-      fields.length > 0 && `${fields.length} ${fields.length === 1 ? "field" : "fields"}`,
+      fields.length > 0 &&
+        `${fields.length} ${fields.length === 1 ? "field" : "fields"}`,
     ].filter(Boolean)
     return parts.length
       ? `This also deletes ${parts.join(" and ")}. It cannot be undone.`
@@ -238,7 +252,10 @@ export function AreasPanel({
   if (catalogue && onPickBoundary) {
     return (
       <ShellPanel
-        crumbs={[{ label: "Areas", onClick: () => setCatalogue(false) }, { label: "IBGE boundaries" }]}
+        crumbs={[
+          { label: "Areas", onClick: () => setCatalogue(false) },
+          { label: "IBGE boundaries" },
+        ]}
         onClose={onClose}
       >
         <BoundaryCatalogue
@@ -260,9 +277,14 @@ export function AreasPanel({
           {selected > 0 && (
             <div className="flex items-center justify-between gap-2 text-label text-muted-foreground">
               <span>
-                {selected} selected. Products queue one run for each. Shift-press adds or removes one.
+                {selected} selected. Products queue one run for each. Shift-press adds
+                or removes one.
               </span>
-              <button type="button" onClick={onClearSelection} className="text-foreground hover:underline">
+              <button
+                type="button"
+                onClick={onClearSelection}
+                className="text-foreground hover:underline"
+              >
                 Clear
               </button>
             </div>
@@ -278,8 +300,7 @@ export function AreasPanel({
               onClick={() => setCatalogue(true)}
               className={cn(btnGhost, "w-full")}
             >
-              <Polygon className="size-4" />
-              A state or municipality, from IBGE
+              <Polygon className="size-4" />A state or municipality, from IBGE
             </button>
           )}
         </div>

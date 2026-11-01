@@ -36,13 +36,17 @@ export function parseHex(hex: string): Channels | null {
 
 export function toHex([r, g, b]: Channels): string {
   const h = (v: number) =>
-    Math.max(0, Math.min(255, Math.round(v))).toString(16).padStart(2, "0")
+    Math.max(0, Math.min(255, Math.round(v)))
+      .toString(16)
+      .padStart(2, "0")
   return `#${h(r)}${h(g)}${h(b)}`
 }
 
 /** `fg` painted at `alpha` over `bg`, which is what a translucent panel is. */
 export function compositeOver(fg: Channels, bg: Channels, alpha: number): Channels {
-  return [0, 1, 2].map((i) => fg[i] * alpha + bg[i] * (1 - alpha)) as unknown as Channels
+  return [0, 1, 2].map(
+    (i) => fg[i] * alpha + bg[i] * (1 - alpha)
+  ) as unknown as Channels
 }
 
 /**

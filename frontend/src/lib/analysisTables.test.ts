@@ -150,7 +150,11 @@ describe("tableToCSV", () => {
   const table: DataTable = {
     id: "demo",
     csvName: "demo.csv",
-    columns: [{ key: "date" }, { key: "label, short" }, { key: "value", numeric: true }],
+    columns: [
+      { key: "date" },
+      { key: "label, short" },
+      { key: "value", numeric: true },
+    ],
     rows: [
       ["2024-01-05", 'he said "yes"', 1e21],
       [null, "a,b", null],
@@ -305,8 +309,20 @@ describe("temporalTable", () => {
     // statement about the date; no NDVI mean is a date the crop pixels were
     // not seen on, and a 0 there would be read as bare ground.
     const t = temporalTable([
-      { date: "2024-01-05", n_dates_stack: 4, soja_ndvi_mean: null, soja_retention_pct: null, dominant: null },
-      { date: "2024-02-06", n_dates_stack: 5, soja_ndvi_mean: 0.71, soja_retention_pct: 92.4, dominant: "Soja" },
+      {
+        date: "2024-01-05",
+        n_dates_stack: 4,
+        soja_ndvi_mean: null,
+        soja_retention_pct: null,
+        dominant: null,
+      },
+      {
+        date: "2024-02-06",
+        n_dates_stack: 5,
+        soja_ndvi_mean: 0.71,
+        soja_retention_pct: 92.4,
+        dominant: "Soja",
+      },
     ])
     expect(t?.rows).toEqual([
       ["2024-01-05", 4, null, null, ""],
@@ -342,7 +358,20 @@ describe("the LULC tables", () => {
     // would be a composition of no stated collection and no stated year.
     const t = lulcMetricsTable(lulc)
     expect(t?.rows).toEqual([
-      [2023, "MapBiomas Collection 9", 512.5, 51250, 4, 1.02, 0.73, "Soja", 58.4, 58.4, 6.1, 64.5],
+      [
+        2023,
+        "MapBiomas Collection 9",
+        512.5,
+        51250,
+        4,
+        1.02,
+        0.73,
+        "Soja",
+        58.4,
+        58.4,
+        6.1,
+        64.5,
+      ],
     ])
     expect(t?.rows[0]).toHaveLength(t?.columns.length ?? 0)
   })
@@ -487,7 +516,20 @@ describe("waterSeriesTable", () => {
       })
     )
     expect(t?.rows).toEqual([
-      ["2024-02-11", "S2A_20240211", 3.2, 10450, 0, 0.12, "true", "false", 12.5, 13.1, 1306, 130.6],
+      [
+        "2024-02-11",
+        "S2A_20240211",
+        3.2,
+        10450,
+        0,
+        0.12,
+        "true",
+        "false",
+        12.5,
+        13.1,
+        1306,
+        130.6,
+      ],
     ])
     expect(t?.rows[0]).toHaveLength(t?.columns.length ?? 0)
   })
@@ -531,7 +573,14 @@ describe("allAnalysisTables", () => {
     const tables = allAnalysisTables({
       ...empty,
       class_stats: [
-        { class_id: 3, name: "Soja", color: "#ffbb00", pixels: 51250, pct: 58.4, area_ha: 512.5 },
+        {
+          class_id: 3,
+          name: "Soja",
+          color: "#ffbb00",
+          pixels: 51250,
+          pct: 58.4,
+          area_ha: 512.5,
+        },
       ],
       lulc: {
         year: 2023,
@@ -556,7 +605,11 @@ describe("allAnalysisTables", () => {
         series: [{ date: "2024-01-05", water_fraction_pct: 3.2 }],
       }),
     })
-    expect(tables.map((t) => t.id)).toEqual(["class_stats", "lulc_metrics", "water_series"])
+    expect(tables.map((t) => t.id)).toEqual([
+      "class_stats",
+      "lulc_metrics",
+      "water_series",
+    ])
   })
 
   it("names every table after the file the research pack writes it to", () => {
@@ -565,7 +618,14 @@ describe("allAnalysisTables", () => {
     for (const t of allAnalysisTables({
       ...empty,
       class_stats: [
-        { class_id: 3, name: "Soja", color: "#ffbb00", pixels: 51250, pct: 58.4, area_ha: 512.5 },
+        {
+          class_id: 3,
+          name: "Soja",
+          color: "#ffbb00",
+          pixels: 51250,
+          pct: 58.4,
+          area_ha: 512.5,
+        },
       ],
       phenology: {
         sos_doy: 245,

@@ -1,4 +1,11 @@
-import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react"
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type ReactNode,
+} from "react"
 import {
   ArrowCounterClockwise,
   Columns,
@@ -8,10 +15,7 @@ import {
 } from "@/components/icons"
 import { ModalHeader, ModalShell } from "@/components/ui/ModalShell"
 import { notifyExportFail, notifyExportOk } from "@/lib/notify"
-import {
-  ExportClassification,
-  ExportOverlayFile,
-} from "../../wailsjs/go/main/App"
+import { ExportClassification, ExportOverlayFile } from "../../wailsjs/go/main/App"
 import { cn } from "@/lib/utils"
 import { btnGhost, btnPrimary } from "@/components/ui/buttons"
 
@@ -34,7 +38,8 @@ function shortLabel(title: string): string {
   if (title.startsWith("MapBiomas")) return "MapBiomas"
   if (title.startsWith("NDVI")) return "NDVI"
   if (title.startsWith("Confidence")) return "Confidence"
-  if (title.startsWith("Satellite") || title.startsWith("True color")) return "Satellite"
+  if (title.startsWith("Satellite") || title.startsWith("True color"))
+    return "Satellite"
   return title
 }
 
@@ -171,7 +176,7 @@ function PlotViewport({
     <div
       ref={viewportRef}
       className={cn(
-        "relative size-full min-h-0 overflow-hidden touch-none",
+        "relative size-full min-h-0 touch-none overflow-hidden",
         scale > 1 ? "cursor-grab active:cursor-grabbing" : "cursor-default"
       )}
       onPointerDown={(e) => {
@@ -223,7 +228,7 @@ function PlotViewport({
         {children}
       </div>
 
-      <div className="absolute bottom-2 right-2 z-30 flex flex-col overflow-hidden rounded-sm border border-white/15 bg-black/55 shadow-md">
+      <div className="absolute right-2 bottom-2 z-30 flex flex-col overflow-hidden rounded-sm border border-white/15 bg-black/55 shadow-md">
         <button
           type="button"
           title="Zoom in"
@@ -256,7 +261,7 @@ function PlotViewport({
       </div>
 
       {scale > 1.01 && (
-        <div className="pointer-events-none absolute left-2 top-2 z-30 rounded-sm bg-black/55 px-1.5 py-0.5 text-meta tracking-wide text-white/85">
+        <div className="pointer-events-none absolute top-2 left-2 z-30 rounded-sm bg-black/55 px-1.5 py-0.5 text-meta tracking-wide text-white/85">
           {Math.round(scale * 100)}%
         </div>
       )}
@@ -287,9 +292,7 @@ export function PlotSwipeView({
     if (!el) return
     const rect = el.getBoundingClientRect()
     if (rect.width <= 0) return
-    onRatioChange(
-      Math.min(1, Math.max(0, (clientX - rect.left) / rect.width))
-    )
+    onRatioChange(Math.min(1, Math.max(0, (clientX - rect.left) / rect.width)))
   }
 
   return (
@@ -325,10 +328,10 @@ export function PlotSwipeView({
         style={{ left: `${ratio * 100}%`, transform: "translateX(-50%)" }}
       />
       {/* Fixed corner labels — keep the divider free to travel edge-to-edge */}
-      <div className="pointer-events-none absolute left-2 top-2 z-10 rounded-sm bg-black/55 px-1.5 py-0.5 text-meta tracking-wide text-white/90">
+      <div className="pointer-events-none absolute top-2 left-2 z-10 rounded-sm bg-black/55 px-1.5 py-0.5 text-meta tracking-wide text-white/90">
         {shortLabel(left.title)}
       </div>
-      <div className="pointer-events-none absolute right-2 top-2 z-10 rounded-sm bg-black/55 px-1.5 py-0.5 text-meta tracking-wide text-white/90">
+      <div className="pointer-events-none absolute top-2 right-2 z-10 rounded-sm bg-black/55 px-1.5 py-0.5 text-meta tracking-wide text-white/90">
         {shortLabel(right.title)}
       </div>
       <button
@@ -376,10 +379,7 @@ export function AnalysisPlotModal({
   onClose: () => void
 }) {
   const compareCandidates = useMemo(
-    () =>
-      sortCompareCandidates(
-        plots.filter((p) => p.id !== plot.id && !!p.uri)
-      ),
+    () => sortCompareCandidates(plots.filter((p) => p.id !== plot.id && !!p.uri)),
     [plots, plot.id]
   )
 
@@ -404,27 +404,19 @@ export function AnalysisPlotModal({
   }, [onClose])
 
   const comparePlot =
-    compareCandidates.find((p) => p.id === compareId) ??
-    compareCandidates[0] ??
-    null
+    compareCandidates.find((p) => p.id === compareId) ?? compareCandidates[0] ?? null
 
   const canSwipe = compareCandidates.length > 0 && !!comparePlot
 
   // Satellite (true color) always sits on the left when present in the pair.
-  const swipeLeft =
-    !comparePlot
-      ? null
-      : plot.id === "satellite"
-        ? plot
-        : comparePlot.id === "satellite"
-          ? comparePlot
-          : comparePlot
-  const swipeRight =
-    !comparePlot
-      ? null
-      : plot.id === "satellite"
+  const swipeLeft = !comparePlot
+    ? null
+    : plot.id === "satellite"
+      ? plot
+      : comparePlot.id === "satellite"
         ? comparePlot
-        : plot
+        : comparePlot
+  const swipeRight = !comparePlot ? null : plot.id === "satellite" ? comparePlot : plot
 
   const exportPng = async () => {
     try {
@@ -458,120 +450,114 @@ export function AnalysisPlotModal({
         onClose={onClose}
       />
 
-        <div
-          className="flex min-h-0 flex-1 flex-col gap-3 overflow-hidden p-4"
-          style={{ background: "var(--background)" }}
-        >
-          <div className="rounded-sm border border-border bg-secondary min-h-0 flex-1 overflow-hidden">
-            <PlotViewport resetKey={`${plot.id}:${swipeOn ? compareId ?? "" : "solo"}`}>
-              {swipeOn && swipeLeft && swipeRight ? (
-                <PlotSwipeView
-                  left={swipeLeft}
-                  right={swipeRight}
-                  ratio={swipeRatio}
-                  onRatioChange={setSwipeRatio}
+      <div
+        className="flex min-h-0 flex-1 flex-col gap-3 overflow-hidden p-4"
+        style={{ background: "var(--background)" }}
+      >
+        <div className="min-h-0 flex-1 overflow-hidden rounded-sm border border-border bg-secondary">
+          <PlotViewport resetKey={`${plot.id}:${swipeOn ? (compareId ?? "") : "solo"}`}>
+            {swipeOn && swipeLeft && swipeRight ? (
+              <PlotSwipeView
+                left={swipeLeft}
+                right={swipeRight}
+                ratio={swipeRatio}
+                onRatioChange={setSwipeRatio}
+              />
+            ) : (
+              <div className="absolute inset-0 flex items-center justify-center p-2">
+                <img
+                  src={plot.uri}
+                  alt={plot.title}
+                  draggable={false}
+                  className={cn(
+                    "size-full object-contain",
+                    plot.pixelated && "overlay-thumb-crisp"
+                  )}
                 />
-              ) : (
-                <div className="absolute inset-0 flex items-center justify-center p-2">
-                  <img
-                    src={plot.uri}
-                    alt={plot.title}
-                    draggable={false}
-                    className={cn(
-                      "size-full object-contain",
-                      plot.pixelated && "overlay-thumb-crisp"
-                    )}
-                  />
-                </div>
-              )}
-            </PlotViewport>
-          </div>
+              </div>
+            )}
+          </PlotViewport>
+        </div>
 
-          {plot.showClassLegend && legend && legend.length > 0 && (
-            <div className="flex shrink-0 flex-wrap gap-3">
-              {legend.map((c) => (
+        {plot.showClassLegend && legend && legend.length > 0 && (
+          <div className="flex shrink-0 flex-wrap gap-3">
+            {legend.map((c) => (
+              <span
+                key={c.id}
+                className="flex items-center gap-1.5 text-meta text-muted-foreground"
+              >
                 <span
-                  key={c.id}
-                  className="flex items-center gap-1.5 text-meta text-muted-foreground"
-                >
-                  <span
-                    className="size-2.5 rounded-[2px]"
-                    style={{ backgroundColor: c.color }}
-                  />
-                  {c.id}: {c.name}
-                </span>
-              ))}
-            </div>
+                  className="size-2.5 rounded-[2px]"
+                  style={{ backgroundColor: c.color }}
+                />
+                {c.id}: {c.name}
+              </span>
+            ))}
+          </div>
+        )}
+      </div>
+
+      <div
+        className="flex shrink-0 flex-wrap items-center justify-between gap-3 px-4 py-3"
+        style={{
+          borderTop: "1px solid var(--border)",
+          background: "var(--panel-solid)",
+        }}
+      >
+        <div className="flex min-w-0 flex-wrap items-center gap-2">
+          {canSwipe ? (
+            <>
+              <button
+                type="button"
+                onClick={() => setSwipeOn((v) => !v)}
+                className={cn(
+                  "inline-flex h-8 items-center gap-1.5 rounded-sm border px-3 text-body",
+                  swipeOn ? "border-primary/50 bg-primary/15 text-foreground" : btnGhost
+                )}
+                title="Swipe compare"
+              >
+                <Columns className="size-3.5" />
+                Swipe
+              </button>
+              {swipeOn && (
+                <label className="flex items-center gap-1.5 text-body text-muted-foreground">
+                  vs
+                  <select
+                    value={comparePlot?.id ?? ""}
+                    onChange={(e) => setCompareId(e.target.value)}
+                    className="max-w-[12rem] rounded-sm border border-border bg-sunk px-1.5 py-0.5 text-body text-foreground"
+                  >
+                    {compareCandidates.map((p) => (
+                      <option key={p.id} value={p.id}>
+                        {shortLabel(p.title)}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+              )}
+            </>
+          ) : (
+            <span />
           )}
         </div>
 
-        <div
-          className="flex shrink-0 flex-wrap items-center justify-between gap-3 px-4 py-3"
-          style={{
-            borderTop: "1px solid var(--border)",
-            background: "var(--panel-solid)",
-          }}
-        >
-          <div className="flex min-w-0 flex-wrap items-center gap-2">
-            {canSwipe ? (
-              <>
-                <button
-                  type="button"
-                  onClick={() => setSwipeOn((v) => !v)}
-                  className={cn(
-                    "inline-flex h-8 items-center gap-1.5 rounded-sm border px-3 text-body",
-                    swipeOn
-                      ? "border-primary/50 bg-primary/15 text-foreground"
-                      : btnGhost
-                  )}
-                  title="Swipe compare"
-                >
-                  <Columns className="size-3.5" />
-                  Swipe
-                </button>
-                {swipeOn && (
-                  <label className="flex items-center gap-1.5 text-body text-muted-foreground">
-                    vs
-                    <select
-                      value={comparePlot?.id ?? ""}
-                      onChange={(e) => setCompareId(e.target.value)}
-                      className="rounded-sm border border-border bg-sunk max-w-[12rem] px-1.5 py-0.5 text-body text-foreground"
-                    >
-                      {compareCandidates.map((p) => (
-                        <option key={p.id} value={p.id}>
-                          {shortLabel(p.title)}
-                        </option>
-                      ))}
-                    </select>
-                  </label>
-                )}
-              </>
-            ) : (
-              <span />
-            )}
-          </div>
-
-          <div className="flex flex-wrap items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
+          <button type="button" onClick={() => void exportPng()} className={btnGhost}>
+            <Download className="size-3.5" />
+            Export PNG
+          </button>
+          {plot.rasterTif ? (
             <button
               type="button"
-              onClick={() => void exportPng()}
-              className={btnGhost}
+              onClick={() => void exportTif()}
+              className={btnPrimary}
             >
               <Download className="size-3.5" />
-              Export PNG
+              Export GeoTIFF
             </button>
-            {plot.rasterTif ? (
-              <button
-                type="button"
-                onClick={() => void exportTif()}
-                className={btnPrimary}
-              >
-                <Download className="size-3.5" />
-                Export GeoTIFF
-              </button>
-            ) : null}
-          </div>
+          ) : null}
         </div>
+      </div>
     </ModalShell>
   )
 }

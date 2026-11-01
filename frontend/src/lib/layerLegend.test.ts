@@ -60,7 +60,8 @@ const viPoint = (date: string, ndvi_mean: number): VISeriesPoint =>
   of naming the variant that actually came back.
 */
 const asClasses = (l: LayerLegend) => {
-  if (l?.kind !== "classes") throw new Error(`expected classes, got ${l?.kind ?? "null"}`)
+  if (l?.kind !== "classes")
+    throw new Error(`expected classes, got ${l?.kind ?? "null"}`)
   return l
 }
 const asRamp = (l: LayerLegend) => {
@@ -526,9 +527,9 @@ describe("legendFor, confidence", () => {
 
     expect(legend.ramp?.low).toBe("0%")
     expect(legend.ramp?.high).toBe("100%")
-    expect(legend.ramp?.gradient.startsWith(
-      "linear-gradient(to right, rgb(0 0 255) 0.00%,"
-    )).toBe(true)
+    expect(
+      legend.ramp?.gradient.startsWith("linear-gradient(to right, rgb(0 0 255) 0.00%,")
+    ).toBe(true)
     expect(legend.ramp?.gradient.endsWith("rgb(255 255 127) 100.00%)")).toBe(true)
   })
 })
@@ -691,9 +692,11 @@ describe("legendFor, NDVI mean", () => {
 
     expect(legend.ramp?.low).toBe("0")
     expect(legend.ramp?.high).toBe("1")
-    expect(legend.ramp?.gradient.startsWith(
-      "linear-gradient(to right, rgb(255 204 114) 0.00%,"
-    )).toBe(true)
+    expect(
+      legend.ramp?.gradient.startsWith(
+        "linear-gradient(to right, rgb(255 204 114) 0.00%,"
+      )
+    ).toBe(true)
     expect(legend.ramp?.gradient.endsWith("rgb(38 242 0) 100.00%)")).toBe(true)
   })
 })

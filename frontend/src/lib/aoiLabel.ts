@@ -68,9 +68,7 @@ export function resolveAoiDisplayLabel(opts: {
 }
 
 /** Read aoi_label from a run's summary JSON if present. */
-export function aoiLabelFromRunSummary(
-  summary?: string | null
-): string | undefined {
+export function aoiLabelFromRunSummary(summary?: string | null): string | undefined {
   if (!summary?.trim()) return undefined
   try {
     const j = JSON.parse(summary) as { aoi_label?: unknown }

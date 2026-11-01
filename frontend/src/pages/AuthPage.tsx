@@ -97,9 +97,7 @@ export function AuthPage() {
               onChange={(e) => setPassword(e.target.value)}
               className="field-input focus-visible:ring-1 focus-visible:ring-ring"
               placeholder="Min. 6 characters"
-              autoComplete={
-                mode === "login" ? "current-password" : "new-password"
-              }
+              autoComplete={mode === "login" ? "current-password" : "new-password"}
             />
           </Field>
 
@@ -118,13 +116,7 @@ export function AuthPage() {
   )
 }
 
-function Field({
-  label,
-  children,
-}: {
-  label: string
-  children: React.ReactNode
-}) {
+function Field({ label, children }: { label: string; children: React.ReactNode }) {
   return (
     <label className="flex flex-col gap-1">
       <span className="eyebrow">{label}</span>

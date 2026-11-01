@@ -588,7 +588,13 @@ export function checkMapChrome(
       t.ink.map((c) => c * alpha + ground * (1 - alpha)) as unknown as Channels
     for (const { fg, min } of ON_MAP_CHROME) {
       const ratio = Math.min(contrast(t[fg], over(0)), contrast(t[fg], over(brightest)))
-      out.push({ theme, fg, ratio: Math.round(ratio * 100) / 100, min, passes: ratio >= min })
+      out.push({
+        theme,
+        fg,
+        ratio: Math.round(ratio * 100) / 100,
+        min,
+        passes: ratio >= min,
+      })
     }
   }
   return out

@@ -29,11 +29,7 @@ export function notifySuccess(
   })
 }
 
-export function notifyError(
-  title: string,
-  error?: unknown,
-  opts?: ExternalToast
-) {
+export function notifyError(title: string, error?: unknown, opts?: ExternalToast) {
   playNotifySound("error")
   const why = error !== undefined ? errText(error) : undefined
   report("error", title, why)
@@ -44,11 +40,7 @@ export function notifyError(
   })
 }
 
-export function notifyInfo(
-  title: string,
-  description?: string,
-  opts?: ExternalToast
-) {
+export function notifyInfo(title: string, description?: string, opts?: ExternalToast) {
   report("info", title, description)
   toast.message(title, {
     description,

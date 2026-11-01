@@ -80,7 +80,11 @@ function required(tag: string, name: string, file: string): string {
  * the drawables carry literal colours in that form, and read straight through
  * they would come out with the alpha as the red channel.
  */
-function resolveColor(value: string, palette: Record<string, string>, file: string): string {
+function resolveColor(
+  value: string,
+  palette: Record<string, string>,
+  file: string
+): string {
   if (value.startsWith("?attr/")) {
     const key = value.slice("?attr/".length)
     const hit = palette[key]
@@ -103,7 +107,10 @@ function resolveColor(value: string, palette: Record<string, string>, file: stri
  */
 function paths(xml: string, file: string): string[] {
   for (const g of xml.match(/<group\b[^>]*>/g) ?? []) {
-    const attrs = g.replace(/^<group\s*/, "").replace(/\/?>$/, "").trim()
+    const attrs = g
+      .replace(/^<group\s*/, "")
+      .replace(/\/?>$/, "")
+      .trim()
     const meaningful = attrs.replace(/android:name\s*=\s*"[^"]*"/g, "").trim()
     if (meaningful) throw new Error(`${file}: <group> carries ${meaningful}`)
   }
@@ -113,7 +120,8 @@ function paths(xml: string, file: string): string[] {
 function toSvg(drawable: string, file: string, variant: Variant): string {
   const palette = PALETTES[variant] as unknown as Record<string, string>
   const vector = drawable.match(/<vector\b[\s\S]*?>/)
-  if (!vector) throw new Error(`${file}: no <vector> root (animation lists are unsupported)`)
+  if (!vector)
+    throw new Error(`${file}: no <vector> root (animation lists are unsupported)`)
   const vw = attr(vector[0], "viewportWidth")
   const vh = attr(vector[0], "viewportHeight")
   if (vw !== String(VIEWPORT) || vh !== String(VIEWPORT)) {
@@ -155,14 +163,17 @@ function dataUri(svg: string): string {
 type Pointer = { name: string; hotspot: [number, number]; svg: Record<Variant, string> }
 
 function read(): Pointer[] {
-  const icons = readdirSync(VENDOR).filter((f) => f.endsWith("_vector_icon.xml")).sort()
+  const icons = readdirSync(VENDOR)
+    .filter((f) => f.endsWith("_vector_icon.xml"))
+    .sort()
   return icons.map((iconFile) => {
     const icon = readFileSync(join(VENDOR, iconFile), "utf8")
     const tag = icon.match(/<pointer-icon\b[\s\S]*?\/>/)
     if (!tag) throw new Error(`${iconFile}: no <pointer-icon>`)
     const hx = Number(attr(tag[0], "hotSpotX")!.replace("dp", ""))
     const hy = Number(attr(tag[0], "hotSpotY")!.replace("dp", ""))
-    if (!Number.isFinite(hx) || !Number.isFinite(hy)) throw new Error(`${iconFile}: bad hotspot`)
+    if (!Number.isFinite(hx) || !Number.isFinite(hy))
+      throw new Error(`${iconFile}: bad hotspot`)
 
     const drawableName = attr(tag[0], "bitmap")!.split("/").pop()!
     const drawableFile = join(VENDOR, "drawable", `${drawableName}.xml`)
@@ -170,7 +181,9 @@ function read(): Pointer[] {
 
     const scale = SIZE / VIEWPORT
     return {
-      name: iconFile.slice("pointer_".length, -"_vector_icon.xml".length).replace(/_/g, "-"),
+      name: iconFile
+        .slice("pointer_".length, -"_vector_icon.xml".length)
+        .replace(/_/g, "-"),
       hotspot: [hx * scale, hy * scale],
       svg: {
         normal: toSvg(drawable, drawableName, "normal"),
@@ -228,7 +241,8 @@ function emit(pointers: Pointer[]): string {
 
   /** Every keyword this set answers, paired with the pointer that answers it. */
   const bindings: [string, Pointer][] = Object.entries(KEYWORDS).flatMap(
-    ([name, keywords]) => keywords.map((k) => [k, byName.get(name)!] as [string, Pointer]),
+    ([name, keywords]) =>
+      keywords.map((k) => [k, byName.get(name)!] as [string, Pointer])
   )
 
   /**
@@ -335,13 +349,13 @@ if (check) {
   if (onDisk !== generated) {
     console.error(
       `src/cursors.css does not match what scripts/build-cursors.ts produces ` +
-        `from vendor/aosp-pointers.\nRun: npx tsx scripts/build-cursors.ts`,
+        `from vendor/aosp-pointers.\nRun: npx tsx scripts/build-cursors.ts`
     )
     process.exit(1)
   }
   console.log(
     `cursors: ${pointers.length} pointers, 2 variants, ${SIZE}px -- ` +
-      `src/cursors.css matches the vendored sources.`,
+      `src/cursors.css matches the vendored sources.`
   )
 } else {
   writeFileSync(OUT, generated)

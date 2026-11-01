@@ -32,10 +32,7 @@ import { EnvironmentPanel } from "@/components/EnvironmentPanel"
 import { KeymapTable } from "@/components/KeymapTable"
 import { StorageModal } from "@/components/StorageModal"
 import { cn } from "@/lib/utils"
-import type {
-  InferenceRun,
-  Preferences,
-} from "@/lib/types"
+import type { InferenceRun, Preferences } from "@/lib/types"
 import {
   alwaysShowWhatsNewFromPrefs,
   mergePreferenceExtras,
@@ -129,8 +126,9 @@ export function ProfilePage({
   const [backupResult, setBackupResult] = useState<string | null>(null)
   const [backupError, setBackupError] = useState<string | null>(null)
   const [restoreBusy, setRestoreBusy] = useState(false)
-  const [restorePreview, setRestorePreview] =
-    useState<store.RestorePreview | null>(null)
+  const [restorePreview, setRestorePreview] = useState<store.RestorePreview | null>(
+    null
+  )
   const [restoreResult, setRestoreResult] = useState<string | null>(null)
   const [restoreError, setRestoreError] = useState<string | null>(null)
   /*
@@ -227,10 +225,7 @@ export function ProfilePage({
   */
 
   const persistPreferences = useCallback(
-    async (next: {
-      theme: string
-      alwaysShowWhatsNew?: boolean
-    }) => {
+    async (next: { theme: string; alwaysShowWhatsNew?: boolean }) => {
       if (!user) return
       const payload: Preferences = {
         user_id: user.id,
@@ -250,11 +245,7 @@ export function ProfilePage({
         }),
       }
       await savePrefs(payload)
-      if (
-        next.theme === "dark" ||
-        next.theme === "light" ||
-        next.theme === "system"
-      ) {
+      if (next.theme === "dark" || next.theme === "light" || next.theme === "system") {
         setNextTheme(next.theme)
       }
     },
@@ -454,9 +445,7 @@ export function ProfilePage({
           )}
         >
           <ArrowLeft className="size-3.5 shrink-0" />
-          <span className="min-w-0 truncate">
-            Back to {returnLabel}
-          </span>
+          <span className="min-w-0 truncate">Back to {returnLabel}</span>
         </button>
 
         <div className="border-b border-border px-3 py-3">
@@ -679,14 +668,12 @@ export function ProfilePage({
                 {/* The written path, not just "done". A file the user chose
                     the location of is one they have to find again. */}
                 {backupResult && (
-                  <p className="telemetry mt-2 break-all text-micro text-muted-foreground">
+                  <p className="telemetry mt-2 text-micro break-all text-muted-foreground">
                     {backupResult}
                   </p>
                 )}
                 {backupError && (
-                  <p className="mt-2 text-body text-destructive-quiet">
-                    {backupError}
-                  </p>
+                  <p className="mt-2 text-body text-destructive-quiet">{backupError}</p>
                 )}
               </SettingRow>
 
@@ -765,17 +752,12 @@ export function ProfilePage({
                       , written {restorePreview.manifest.created_at.slice(0, 10)}.
                     </p>
                     <p className="text-body text-muted-foreground">
-                      Restoring replaces the{" "}
-                      {restorePreview.current.runs}{" "}
-                      {restorePreview.current.runs === 1
-                        ? "analysis"
-                        : "analyses"}{" "}
-                      and {restorePreview.current.projects}{" "}
-                      {restorePreview.current.projects === 1
-                        ? "project"
-                        : "projects"}{" "}
-                      currently here. You will be signed out and will need to set
-                      a password again.
+                      Restoring replaces the {restorePreview.current.runs}{" "}
+                      {restorePreview.current.runs === 1 ? "analysis" : "analyses"} and{" "}
+                      {restorePreview.current.projects}{" "}
+                      {restorePreview.current.projects === 1 ? "project" : "projects"}{" "}
+                      currently here. You will be signed out and will need to set a
+                      password again.
                     </p>
                     <div className="flex flex-wrap items-center gap-2">
                       <button
@@ -950,8 +932,8 @@ export function ProfilePage({
               className="h-10 w-auto shrink-0 self-start object-contain"
             />
             <p className="min-w-0 flex-1 text-meta leading-relaxed text-muted-foreground">
-              TERRA is open source. If it is useful to you, a star helps other
-              people find it, and sponsoring pays for the time that goes into it.
+              TERRA is open source. If it is useful to you, a star helps other people
+              find it, and sponsoring pays for the time that goes into it.
             </p>
             <div className="flex shrink-0 items-center gap-2">
               <button
@@ -1024,7 +1006,7 @@ function SettingRow({
     <div
       data-setting={id}
       className={cn(
-        "relative border-l-2 py-3.5 pl-4 pr-2 transition-colors",
+        "relative border-l-2 py-3.5 pr-2 pl-4 transition-colors",
         focused
           ? // The marker was the accent at 22 percent, which composites to
             // rgb(95 54 38) and reads 1.31 to 1 against the row's own

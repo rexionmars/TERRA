@@ -229,4 +229,3 @@ export function SplashScreen({ exiting = false, live = true }: SplashScreenProps
     </div>
   )
 }
-

@@ -99,7 +99,7 @@ const authority = extract(
 const claims: Claim[] = [
   extract(
     "wails.json",
-    'info.productVersion (what the packaged bundle reports)',
+    "info.productVersion (what the packaged bundle reports)",
     /"productVersion"\s*:\s*"([^"]+)"/
   ),
   extract("CITATION.cff", "version:", /^version:\s*([^\s#]+)/m),
@@ -192,9 +192,7 @@ if (arrayStart < 0 || arrayEnd < 0) {
   )
 }
 const stillNames = [
-  ...splash
-    .slice(arrayStart, arrayEnd)
-    .matchAll(/\bname:\s*"([^"]+)"/g),
+  ...splash.slice(arrayStart, arrayEnd).matchAll(/\bname:\s*"([^"]+)"/g),
 ].map((m) => m[1])
 
 console.log(`\ncode name  brand.ts RELEASE_NAME  ${releaseName}`)

@@ -43,7 +43,8 @@ function onMenuKeys(e: React.KeyboardEvent<HTMLDivElement>) {
   if (!["ArrowDown", "ArrowUp", "Home", "End"].includes(e.key)) return
   if (e.defaultPrevented) return
   const from = document.activeElement as HTMLElement | null
-  if (from && from !== e.currentTarget && from.getAttribute("role") !== "menuitem") return
+  if (from && from !== e.currentTarget && from.getAttribute("role") !== "menuitem")
+    return
   const items = Array.from(e.currentTarget.querySelectorAll<HTMLElement>(MENU_ITEM))
   if (!items.length) return
   e.preventDefault()
@@ -258,7 +259,7 @@ export function MenuItem({
         "flex w-full items-center gap-2 py-[3px] text-left text-meta transition-colors",
         // One glyph's width, so a sub-entry lines up under its parent's label
         // rather than under its icon.
-        indented ? "pl-7 pr-2" : "px-2",
+        indented ? "pr-2 pl-7" : "px-2",
         disabled
           ? "cursor-not-allowed text-muted-foreground/40"
           : // The row the arrows reached, drawn as the row the pointer is on.
@@ -334,7 +335,7 @@ export function MenuGroup({
 }) {
   return (
     <div className="py-0.5">
-      <p className="eyebrow !text-[9px] px-2 pb-0.5">{label}</p>
+      <p className="eyebrow px-2 pb-0.5 !text-[9px]">{label}</p>
       {children}
     </div>
   )
@@ -433,7 +434,7 @@ export function ContextMenu({
         visibility: pos ? "visible" : "hidden",
       }}
     >
-      <p className="truncate px-2 pb-1 pt-0.5 text-[10px] text-muted-foreground">
+      <p className="truncate px-2 pt-0.5 pb-1 text-[10px] text-muted-foreground">
         {title}
       </p>
       <MenuRule />

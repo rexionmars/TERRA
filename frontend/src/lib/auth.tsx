@@ -222,14 +222,11 @@ export function AuthProvider({
     No caller needs the echo. Every one of them already holds the state it just
     wrote, and Settings applies the theme itself rather than waiting to be told.
   */
-  const savePrefs = useCallback(
-    async (p: Preferences, opts?: { silent?: boolean }) => {
-      await SavePreferences(p as never)
-      setPrefs(p)
-      if (!opts?.silent) notifySuccess("Preferences saved.")
-    },
-    []
-  )
+  const savePrefs = useCallback(async (p: Preferences, opts?: { silent?: boolean }) => {
+    await SavePreferences(p as never)
+    setPrefs(p)
+    if (!opts?.silent) notifySuccess("Preferences saved.")
+  }, [])
 
   /**
    * Which settings page the next arrival should land on.

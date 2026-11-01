@@ -3,12 +3,26 @@ import { useEffect, useMemo, useState } from "react"
 import { Crosshair, Trash } from "@/components/icons"
 import { Swatch } from "@/components/workspace/nodeParts"
 import { btnGhost } from "@/components/ui/buttons"
-import { FALLBACK_PIXEL_SIZE_M, brushFootprint, type BrushRadiusPx } from "@/lib/boardProbe"
-import { readPoint, type ClassLayer, type MapPoint, type PointReading } from "@/lib/mapProbe"
+import {
+  FALLBACK_PIXEL_SIZE_M,
+  brushFootprint,
+  type BrushRadiusPx,
+} from "@/lib/boardProbe"
+import {
+  readPoint,
+  type ClassLayer,
+  type MapPoint,
+  type PointReading,
+} from "@/lib/mapProbe"
 import type { PredictResult } from "@/lib/types"
 import { cn } from "@/lib/utils"
 import { PointSpectra, type SpectraPoint } from "@/components/shell/PointSpectra"
-import { PanelChoices, PanelEmpty, PanelHeading, ShellPanel } from "@/components/shell/ShellPanel"
+import {
+  PanelChoices,
+  PanelEmpty,
+  PanelHeading,
+  ShellPanel,
+} from "@/components/shell/ShellPanel"
 
 export type PointSlot = "A" | "B"
 
@@ -38,8 +52,10 @@ function PointCard({
         >
           {slot}
         </span>
-        <span className="min-w-0 flex-1 truncate text-read tabular-nums text-foreground">
-          {point ? `${point.lat.toFixed(5)}, ${point.lon.toFixed(5)}` : `Point ${slot} not placed`}
+        <span className="min-w-0 flex-1 truncate text-read text-foreground tabular-nums">
+          {point
+            ? `${point.lat.toFixed(5)}, ${point.lon.toFixed(5)}`
+            : `Point ${slot} not placed`}
         </span>
         <button
           type="button"
@@ -73,7 +89,7 @@ function PointCard({
                     <Swatch color={r.sample.entry.color} />
                     <span className="truncate">{r.sample.entry.name}</span>
                     {r.sample.examined > 1 && (
-                      <span className="shrink-0 text-label tabular-nums text-muted-foreground">
+                      <span className="shrink-0 text-label text-muted-foreground tabular-nums">
                         {r.sample.votes} of {r.sample.examined}
                       </span>
                     )}
@@ -117,7 +133,9 @@ export function PointsPanel({
   onClose: () => void
 }) {
   const [radius, setRadius] = useState<BrushRadiusPx>(0)
-  const [readings, setReadings] = useState<Partial<Record<PointSlot, PointReading[]>>>({})
+  const [readings, setReadings] = useState<Partial<Record<PointSlot, PointReading[]>>>(
+    {}
+  )
 
   useEffect(() => {
     let live = true
@@ -150,13 +168,19 @@ export function PointsPanel({
   const curves = useMemo<SpectraPoint[]>(() => {
     const out: SpectraPoint[] = []
     for (const slot of ["A", "B"] as const) {
-      const id = readings[slot]?.find((r) => r.layerId === "prediction")?.sample?.entry?.id
-      if (typeof id === "number" && !out.some((c) => c.classId === id)) out.push({ slot, classId: id })
+      const id = readings[slot]?.find((r) => r.layerId === "prediction")?.sample?.entry
+        ?.id
+      if (typeof id === "number" && !out.some((c) => c.classId === id))
+        out.push({ slot, classId: id })
     }
     return out
   }, [readings])
   const sameClass =
-    !!points.A && !!points.B && curves.length === 1 && !!readings.A?.length && !!readings.B?.length
+    !!points.A &&
+    !!points.B &&
+    curves.length === 1 &&
+    !!readings.A?.length &&
+    !!readings.B?.length
   const nOf = (id: number) => spectra?.points.find((p) => p.class_id === id)?.n_pixels
 
   return (
@@ -168,7 +192,9 @@ export function PointsPanel({
       ) : (
         <div className="flex flex-col gap-4">
           <div className="flex flex-col gap-1">
-            <span className="text-label text-muted-foreground">Read around each point</span>
+            <span className="text-label text-muted-foreground">
+              Read around each point
+            </span>
             <PanelChoices
               label="Pixels read around each point"
               value={radius}
@@ -199,10 +225,13 @@ export function PointsPanel({
               <PanelHeading>Mean spectrum of each point's class</PanelHeading>
               <PointSpectra spectra={spectra} points={curves} />
               <figcaption className="text-label text-muted-foreground">
-                Marks are the mean of every pixel of the class on {spectra.scene_date}; whiskers run from
-                the 5th to the 95th percentile
-                {curves.map((c) => ` (${c.slot}: n = ${nOf(c.classId) ?? "unknown"})`).join("")}. A run
-                keeps no spectrum per pixel, so this is not what the point itself reflects.
+                Marks are the mean of every pixel of the class on {spectra.scene_date};
+                whiskers run from the 5th to the 95th percentile
+                {curves
+                  .map((c) => ` (${c.slot}: n = ${nOf(c.classId) ?? "unknown"})`)
+                  .join("")}
+                . A run keeps no spectrum per pixel, so this is not what the point
+                itself reflects.
                 {sameClass && " Both points are on one class, so they draw one curve."}
               </figcaption>
             </figure>

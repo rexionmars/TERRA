@@ -21,11 +21,11 @@ export function KeymapTable() {
   })
 
   return (
-    <div className="flex flex-col gap-3 px-4 pb-4 pt-3">
+    <div className="flex flex-col gap-3 px-4 pt-3 pb-4">
       <p className="text-body leading-relaxed text-muted-foreground">
-        None of these work while typing in a field, except the ones that save,
-        search and open settings. Every command here can also be found by name
-        with <span className="telemetry text-foreground">{formatKeys("F3")}</span>.
+        None of these work while typing in a field, except the ones that save, search
+        and open settings. Every command here can also be found by name with{" "}
+        <span className="telemetry text-foreground">{formatKeys("F3")}</span>.
       </p>
       <input
         value={query}

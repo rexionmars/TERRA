@@ -91,7 +91,9 @@ export function ProjectFileHost({
       } catch (e) {
         // A recent file that has since moved or gone leaves the list.
         if (path && /no such file|cannot find/i.test(String(e))) {
-          writeExtras((x) => ({ recent_project_files: withoutRecent(x.recent_project_files, path) }))
+          writeExtras((x) => ({
+            recent_project_files: withoutRecent(x.recent_project_files, path),
+          }))
         }
         notifyError("Could not open the project file", e)
       }
@@ -136,14 +138,18 @@ export function ProjectFileHost({
       poll: () => {
         const p = needProject()
         if (p !== true) return p
-        return linked ? true : "This project has no file yet; Save project file as\u2026 makes one"
+        return linked
+          ? true
+          : "This project has no file yet; Save project file as\u2026 makes one"
       },
     },
     PROJECT_SAVE_AS: { run: () => save(""), poll: needProject },
     PROJECT_REVEAL: {
       run: () => {
         if (linked) {
-          void RevealProjectFile(linked).catch((e) => notifyError("Could not show the file", e))
+          void RevealProjectFile(linked).catch((e) =>
+            notifyError("Could not show the file", e)
+          )
         }
       },
       poll: () => (linked ? true : "This project has no file yet"),

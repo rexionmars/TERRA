@@ -23,14 +23,20 @@ export interface SessionRun {
 
 function periodOf(r: PredictResult, record?: InferenceRun | null): string | null {
   const d = r.date_range
-  if (d?.length) return d[0] === d[d.length - 1] ? d[0] : `${d[0]} to ${d[d.length - 1]}`
+  if (d?.length)
+    return d[0] === d[d.length - 1] ? d[0] : `${d[0]} to ${d[d.length - 1]}`
   return record?.period_start ? `${record.period_start} to ${record.period_end}` : null
 }
 
 const modelOf = (kind?: string | null) => (kind ? modelLabel(kind as ModelKind) : null)
 
 export function sessionRuns(i: {
-  live: { id: string; label: string; model?: string | null; result: PredictResult } | null
+  live: {
+    id: string
+    label: string
+    model?: string | null
+    result: PredictResult
+  } | null
   retained: readonly { id: string; result: PredictResult }[]
   extra: readonly { run: InferenceRun; result: PredictResult }[]
   saved: readonly InferenceRun[]
@@ -61,7 +67,8 @@ export function sessionRuns(i: {
     const record = i.saved.find((s) => s.id === id) ?? null
     out.push({
       id,
-      label: areaName(record?.area_id) ?? areaName(r.id) ?? record?.label ?? "Earlier run",
+      label:
+        areaName(record?.area_id) ?? areaName(r.id) ?? record?.label ?? "Earlier run",
       model: modelOf(record?.model_kind),
       period: periodOf(r.result, record),
       result: r.result,

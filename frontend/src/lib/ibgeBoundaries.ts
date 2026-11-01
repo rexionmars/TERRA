@@ -64,9 +64,7 @@ let statesOnce: Promise<Boundary[]> | null = null
 export function listStates(): Promise<Boundary[]> {
   statesOnce ??= read<{ id: number; sigla: string; nome: string }[]>(
     `${LOCALIDADES}/estados?orderBy=nome`
-  ).then((rows) =>
-    rows.map((r) => ({ id: r.id, name: r.nome, uf: r.sigla }))
-  )
+  ).then((rows) => rows.map((r) => ({ id: r.id, name: r.nome, uf: r.sigla })))
   return statesOnce
 }
 
@@ -83,9 +81,7 @@ export function listMunicipalities(state: Boundary): Promise<Boundary[]> {
   if (held) return held
   const asked = read<{ id: number; nome: string }[]>(
     `${LOCALIDADES}/estados/${state.id}/municipios`
-  ).then((rows) =>
-    rows.map((r) => ({ id: r.id, name: r.nome, uf: state.uf }))
-  )
+  ).then((rows) => rows.map((r) => ({ id: r.id, name: r.nome, uf: state.uf })))
   municipalitiesOnce.set(state.id, asked)
   return asked
 }

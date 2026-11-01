@@ -19,9 +19,7 @@ const CATALOG: WhatsNewEntry[] = [
 
 describe("notesForVersion", () => {
   it("is the running version's entry, not everything before it", () => {
-    expect(notesForVersion("0.5.0", CATALOG).map((e) => e.title)).toEqual([
-      "five",
-    ])
+    expect(notesForVersion("0.5.0", CATALOG).map((e) => e.title)).toEqual(["five"])
   })
 
   it("differs from the gate's span for a reader who skipped a version", () => {

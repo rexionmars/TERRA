@@ -88,14 +88,20 @@ export const linkKey = (to: string, toSocket: string) => `${to}\u0000${toSocket}
 /** Room left around the graph in the wire layer, so a curve's bulge is never clipped. */
 const WIRE_PAD = 240
 
-export function outputSocketY(node: SocketNode, index: number, folded: boolean): number {
+export function outputSocketY(
+  node: SocketNode,
+  index: number,
+  folded: boolean
+): number {
   if (folded) return node.place.y + HEAD_H / 2
   return node.place.y + HEAD_H + BODY_PAD + index * ROW_H + ROW_H / 2
 }
 
 export function inputSocketY(node: SocketNode, index: number, folded: boolean): number {
   if (folded) return node.place.y + HEAD_H / 2
-  return node.place.y + HEAD_H + BODY_PAD + (node.outputs.length + index) * ROW_H + ROW_H / 2
+  return (
+    node.place.y + HEAD_H + BODY_PAD + (node.outputs.length + index) * ROW_H + ROW_H / 2
+  )
 }
 
 function Socket({
@@ -155,7 +161,12 @@ export function SocketCanvas({
    * A link was pulled from an output and let go over an input -- `toSocket` --
    * or over a node's body, where the caller chooses the input (null).
    */
-  onLink: (from: string, fromSocket: string, to: string, toSocket: string | null) => void
+  onLink: (
+    from: string,
+    fromSocket: string,
+    to: string,
+    toSocket: string | null
+  ) => void
   /** A link was pulled off the input it landed on. */
   onUnlink: (to: string, toSocket: string) => void
   /** A node was pressed, or the empty field (null). */
@@ -203,7 +214,11 @@ export function SocketCanvas({
     const gw = maxX - minX
     const gh = maxY - minY
     // Never magnified to fill, for the reason NodeCanvas gives.
-    const z = clamp(Math.min((w - FIT_PAD * 2) / gw, (h - FIT_PAD * 2) / gh), MIN_ZOOM, 1)
+    const z = clamp(
+      Math.min((w - FIT_PAD * 2) / gw, (h - FIT_PAD * 2) / gh),
+      MIN_ZOOM,
+      1
+    )
     setView({ z, x: (w - gw * z) / 2 - minX * z, y: (h - gh * z) / 2 - minY * z })
   }, [])
 
@@ -358,7 +373,13 @@ export function SocketCanvas({
     e.preventDefault()
     touched.current = true
     setFront(n.id)
-    drag.current = { kind: "node", id: n.id, startX: e.clientX, startY: e.clientY, from: n.place }
+    drag.current = {
+      kind: "node",
+      id: n.id,
+      startX: e.clientX,
+      startY: e.clientY,
+      from: n.place,
+    }
     capture(e)
   }
 
@@ -388,7 +409,11 @@ export function SocketCanvas({
     const d = drag.current
     if (!d) return
     if (d.kind === "link") {
-      setPulling({ from: d.from, fromSocket: d.fromSocket, ...toBoard(e.clientX, e.clientY) })
+      setPulling({
+        from: d.from,
+        fromSocket: d.fromSocket,
+        ...toBoard(e.clientX, e.clientY),
+      })
       return
     }
     const dx = e.clientX - d.startX
@@ -397,7 +422,10 @@ export function SocketCanvas({
       setView({ ...d.from, x: d.from.x + dx, y: d.from.y + dy })
       return
     }
-    onMove(d.id, { x: Math.round(d.from.x + dx / view.z), y: Math.round(d.from.y + dy / view.z) })
+    onMove(d.id, {
+      x: Math.round(d.from.x + dx / view.z),
+      y: Math.round(d.from.y + dy / view.z),
+    })
   }
 
   const endDrag = (e?: React.PointerEvent) => {
@@ -412,7 +440,8 @@ export function SocketCanvas({
         const isFolded = folded.has(n.id)
         n.inputs.forEach((s, i) => {
           const dist = Math.hypot(at.x - n.place.x, at.y - inputSocketY(n, i, isFolded))
-          if (dist <= SOCKET_REACH && (!best || dist < best.d)) best = { node: n.id, socket: s.id, d: dist }
+          if (dist <= SOCKET_REACH && (!best || dist < best.d))
+            best = { node: n.id, socket: s.id, d: dist }
         })
       }
       const hit = best as { node: string; socket: string } | null
@@ -438,7 +467,10 @@ export function SocketCanvas({
   const byId = new Map(nodes.map((n) => [n.id, n]))
 
   const outputPoint = (n: SocketNode, socket: string) => {
-    const i = Math.max(0, n.outputs.findIndex((s) => s.id === socket))
+    const i = Math.max(
+      0,
+      n.outputs.findIndex((s) => s.id === socket)
+    )
     return { x: n.place.x + n.w, y: outputSocketY(n, i, folded.has(n.id)) }
   }
 
@@ -476,20 +508,24 @@ export function SocketCanvas({
       onPointerUp={endDrag}
       onPointerCancel={() => endDrag()}
       className={cn(
-        "app-no-drag relative h-full w-full overflow-hidden touch-none select-none",
+        "app-no-drag relative h-full w-full touch-none overflow-hidden select-none",
         gesture && "gesture-lock",
         className
       )}
       style={{
         background: "var(--s-field)",
-        backgroundImage: "radial-gradient(rgb(var(--p-line) / 0.45) 1px, transparent 1px)",
+        backgroundImage:
+          "radial-gradient(rgb(var(--p-line) / 0.45) 1px, transparent 1px)",
         backgroundSize: `${24 * view.z}px ${24 * view.z}px`,
         backgroundPosition: `${view.x}px ${view.y}px`,
-        cursor: drag.current?.kind === "pan" ? "var(--cursor-grabbing)" : "var(--cursor-default)",
+        cursor:
+          drag.current?.kind === "pan"
+            ? "var(--cursor-grabbing)"
+            : "var(--cursor-default)",
       }}
     >
       <div
-        className="pointer-events-none absolute left-0 top-0 origin-top-left"
+        className="pointer-events-none absolute top-0 left-0 origin-top-left"
         style={{ transform: `translate(${view.x}px, ${view.y}px) scale(${view.z})` }}
       >
         <svg
@@ -497,65 +533,79 @@ export function SocketCanvas({
           style={{ left: minX, top: minY, width: maxX - minX, height: maxY - minY }}
         >
           <g transform={`translate(${-minX} ${-minY})`}>
-          {links.map((l) => {
-            const a = byId.get(l.from)
-            const b = byId.get(l.to)
-            if (!a || !b) return null
-            const j = b.inputs.findIndex((s) => s.id === l.toSocket)
-            if (j < 0) return null
-            const p = outputPoint(a, l.fromSocket)
-            const d = wirePath(p.x, p.y, b.place.x, inputSocketY(b, j, folded.has(b.id)))
-            const selected = selectedLink === linkKey(l.to, l.toSocket)
-            const stroke = selected
-              ? "rgb(var(--p-accent))"
-              : l.state === "failed"
-                ? "var(--p-wire-failed)"
-                : l.colour
-            return (
-              <g key={`${l.to}-${l.toSocket}`}>
-                <path d={d} fill="none" stroke="rgb(0 0 0 / 0.45)" strokeWidth={selected ? 5.5 : 4} />
-                <path
-                  d={d}
-                  fill="none"
-                  stroke={stroke}
-                  strokeWidth={selected ? 3 : 2}
-                  strokeOpacity={l.state === "pending" && !selected ? 0.5 : 1}
-                  strokeDasharray={l.state === "pending" && !selected ? "8 4" : undefined}
-                  className={l.state === "pending" && !selected ? "wire-flow" : undefined}
-                />
-                {/*
+            {links.map((l) => {
+              const a = byId.get(l.from)
+              const b = byId.get(l.to)
+              if (!a || !b) return null
+              const j = b.inputs.findIndex((s) => s.id === l.toSocket)
+              if (j < 0) return null
+              const p = outputPoint(a, l.fromSocket)
+              const d = wirePath(
+                p.x,
+                p.y,
+                b.place.x,
+                inputSocketY(b, j, folded.has(b.id))
+              )
+              const selected = selectedLink === linkKey(l.to, l.toSocket)
+              const stroke = selected
+                ? "rgb(var(--p-accent))"
+                : l.state === "failed"
+                  ? "var(--p-wire-failed)"
+                  : l.colour
+              return (
+                <g key={`${l.to}-${l.toSocket}`}>
+                  <path
+                    d={d}
+                    fill="none"
+                    stroke="rgb(0 0 0 / 0.45)"
+                    strokeWidth={selected ? 5.5 : 4}
+                  />
+                  <path
+                    d={d}
+                    fill="none"
+                    stroke={stroke}
+                    strokeWidth={selected ? 3 : 2}
+                    strokeOpacity={l.state === "pending" && !selected ? 0.5 : 1}
+                    strokeDasharray={
+                      l.state === "pending" && !selected ? "8 4" : undefined
+                    }
+                    className={
+                      l.state === "pending" && !selected ? "wire-flow" : undefined
+                    }
+                  />
+                  {/*
                   What a press lands on: the same curve, wide and invisible, so
                   a two-pixel line can be hit without aiming at it.
                 */}
-                <path
-                  d={d}
-                  fill="none"
-                  stroke="transparent"
-                  strokeWidth={12}
-                  style={{ pointerEvents: "stroke", cursor: "pointer" }}
-                  onPointerDown={(e) => {
-                    if (e.button !== 0) return
-                    e.stopPropagation()
-                    onSelectLink?.(l.to, l.toSocket)
-                  }}
-                />
-              </g>
-            )
-          })}
-          {pulling && byId.get(pulling.from) && (
-            <path
-              d={wirePath(
-                outputPoint(byId.get(pulling.from)!, pulling.fromSocket).x,
-                outputPoint(byId.get(pulling.from)!, pulling.fromSocket).y,
-                pulling.x,
-                pulling.y
-              )}
-              fill="none"
-              stroke="rgb(var(--p-accent))"
-              strokeWidth={1.5}
-              strokeDasharray="4 4"
-            />
-          )}
+                  <path
+                    d={d}
+                    fill="none"
+                    stroke="transparent"
+                    strokeWidth={12}
+                    style={{ pointerEvents: "stroke", cursor: "pointer" }}
+                    onPointerDown={(e) => {
+                      if (e.button !== 0) return
+                      e.stopPropagation()
+                      onSelectLink?.(l.to, l.toSocket)
+                    }}
+                  />
+                </g>
+              )
+            })}
+            {pulling && byId.get(pulling.from) && (
+              <path
+                d={wirePath(
+                  outputPoint(byId.get(pulling.from)!, pulling.fromSocket).x,
+                  outputPoint(byId.get(pulling.from)!, pulling.fromSocket).y,
+                  pulling.x,
+                  pulling.y
+                )}
+                fill="none"
+                stroke="rgb(var(--p-accent))"
+                strokeWidth={1.5}
+                strokeDasharray="4 4"
+              />
+            )}
           </g>
         </svg>
 
@@ -566,7 +616,8 @@ export function SocketCanvas({
               key={n.id}
               ref={watch(n.id)}
               onPointerDownCapture={(e) => {
-                if (e.button === 0) onSelect(n.id, { ctrl: e.ctrlKey || e.metaKey, shift: e.shiftKey })
+                if (e.button === 0)
+                  onSelect(n.id, { ctrl: e.ctrlKey || e.metaKey, shift: e.shiftKey })
               }}
               className="pointer-events-auto absolute rounded-md"
               style={{
@@ -583,10 +634,14 @@ export function SocketCanvas({
               <div
                 onPointerDown={(e) => beginNode(e, n)}
                 className={cn(
-                  "relative flex cursor-grab items-center gap-1 pl-1 pr-1.5 text-body active:cursor-grabbing",
+                  "relative flex cursor-grab items-center gap-1 pr-1.5 pl-1 text-body active:cursor-grabbing",
                   isFolded ? "rounded-md" : "rounded-t-md"
                 )}
-                style={{ height: HEAD_H, background: n.head, color: "var(--b-node-ink)" }}
+                style={{
+                  height: HEAD_H,
+                  background: n.head,
+                  color: "var(--b-node-ink)",
+                }}
               >
                 <button
                   type="button"
@@ -602,7 +657,9 @@ export function SocketCanvas({
                     <CaretDown className="size-2.5" />
                   )}
                 </button>
-                <span className="flex min-w-0 flex-1 items-center gap-1.5">{n.header}</span>
+                <span className="flex min-w-0 flex-1 items-center gap-1.5">
+                  {n.header}
+                </span>
                 {isFolded &&
                   n.outputs.map((s) => (
                     <Socket
@@ -623,7 +680,10 @@ export function SocketCanvas({
                       className="relative flex items-center justify-end px-2.5 text-meta"
                       style={{ height: ROW_H }}
                     >
-                      <span className="min-w-0 truncate text-foreground" title={s.label}>
+                      <span
+                        className="min-w-0 truncate text-foreground"
+                        title={s.label}
+                      >
                         {s.label}
                       </span>
                       <Socket
@@ -647,14 +707,19 @@ export function SocketCanvas({
                         onPointerDown={(e) => pullOff(e, n.id, s.id)}
                       />
                       <span
-                        className={cn("min-w-0 truncate", s.linked ? "text-foreground" : "text-muted-foreground")}
+                        className={cn(
+                          "min-w-0 truncate",
+                          s.linked ? "text-foreground" : "text-muted-foreground"
+                        )}
                         title={s.label}
                       >
                         {s.label}
                       </span>
                     </div>
                   ))}
-                  <div className="flex flex-col gap-1.5 px-2.5 pb-2 pt-1">{n.children}</div>
+                  <div className="flex flex-col gap-1.5 px-2.5 pt-1 pb-2">
+                    {n.children}
+                  </div>
                 </div>
               )}
             </div>
@@ -669,9 +734,9 @@ export function SocketCanvas({
           title="Arrange the nodes by their links"
           aria-label="Arrange the nodes by their links"
           className={cn(
-            "absolute bottom-2 right-10 flex size-7 items-center justify-center rounded-sm",
+            "absolute right-10 bottom-2 flex size-7 items-center justify-center rounded-sm",
             "bg-selected text-muted-foreground transition-colors hover:bg-hover hover:text-foreground",
-            "focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+            "focus-visible:ring-1 focus-visible:ring-ring focus-visible:outline-none"
           )}
         >
           <TreeStructure className="size-3.5" />
@@ -685,9 +750,9 @@ export function SocketCanvas({
         }}
         title="Frame every node (Home)"
         className={cn(
-          "absolute bottom-2 right-2 flex size-7 items-center justify-center rounded-sm",
+          "absolute right-2 bottom-2 flex size-7 items-center justify-center rounded-sm",
           "bg-selected text-muted-foreground transition-colors hover:bg-hover hover:text-foreground",
-          "focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+          "focus-visible:ring-1 focus-visible:ring-ring focus-visible:outline-none"
         )}
       >
         <ArrowsOut className="size-3.5" />

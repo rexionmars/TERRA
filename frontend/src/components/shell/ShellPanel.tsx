@@ -42,17 +42,22 @@ export function ShellPanel({
       ref={panelRef}
       aria-label={crumbs[crumbs.length - 1]?.label}
       className={cn(
-        "map-chrome map-chrome-panel app-no-drag absolute bottom-10 right-[3.5rem] top-3 z-[450] flex max-w-[calc(100%-5rem)] flex-col overflow-hidden rounded-md border border-[rgb(var(--p-line)/0.28)] shadow-[0_2px_8px_rgb(0_0_0/0.28)]",
+        "map-chrome map-chrome-panel app-no-drag absolute top-3 right-[3.5rem] bottom-10 z-[450] flex max-w-[calc(100%-5rem)] flex-col overflow-hidden rounded-md border border-[rgb(var(--p-line)/0.28)] shadow-[0_2px_8px_rgb(0_0_0/0.28)]",
         wide ? "w-[44rem]" : "w-[26rem]"
       )}
     >
-      <header className="flex h-12 shrink-0 items-center gap-1.5 border-b border-border pl-4 pr-2">
-        <nav aria-label="Panel path" className="flex min-w-0 flex-1 items-center gap-1.5">
+      <header className="flex h-12 shrink-0 items-center gap-1.5 border-b border-border pr-2 pl-4">
+        <nav
+          aria-label="Panel path"
+          className="flex min-w-0 flex-1 items-center gap-1.5"
+        >
           {crumbs.map((c, i) => {
             const last = i === crumbs.length - 1
             return (
               <span key={c.label} className="flex min-w-0 items-center gap-1.5">
-                {i > 0 && <CaretRight className="size-3 shrink-0 text-muted-foreground" />}
+                {i > 0 && (
+                  <CaretRight className="size-3 shrink-0 text-muted-foreground" />
+                )}
                 {c.onClick ? (
                   <button
                     type="button"
@@ -94,7 +99,9 @@ export function ShellPanel({
       >
         {children}
       </div>
-      {footer && <footer className="shrink-0 border-t border-border p-3">{footer}</footer>}
+      {footer && (
+        <footer className="shrink-0 border-t border-border p-3">{footer}</footer>
+      )}
     </aside>
   )
 }
@@ -126,7 +133,7 @@ export function PanelSection({
         <CaretRight className="size-3 shrink-0 text-muted-foreground transition-transform group-open:rotate-90" />
         {title}
       </summary>
-      <div className="flex flex-col gap-1.5 pb-1 pl-[1.125rem] pt-2">{children}</div>
+      <div className="flex flex-col gap-1.5 pt-2 pb-1 pl-[1.125rem]">{children}</div>
     </details>
   )
 }
@@ -181,7 +188,13 @@ export function PanelLimit({ children }: { children: React.ReactNode }) {
 }
 
 /** Nothing to show, and what would put something there. */
-export function PanelEmpty({ title, children }: { title: string; children: React.ReactNode }) {
+export function PanelEmpty({
+  title,
+  children,
+}: {
+  title: string
+  children: React.ReactNode
+}) {
   return (
     <div className="flex h-full flex-col items-center justify-center gap-1 px-6 text-center">
       <p className="text-title font-medium text-foreground">{title}</p>

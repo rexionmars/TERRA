@@ -50,7 +50,11 @@ function Entries({
     <>
       <MenuItem
         icon={Note}
-        label={entry.propertyOnMap ? "Hide the property on the map" : "Show the property on the map"}
+        label={
+          entry.propertyOnMap
+            ? "Hide the property on the map"
+            : "Show the property on the map"
+        }
         title={
           !entry.hasLegend
             ? "Nothing published what this raster's colours mean"
@@ -110,11 +114,21 @@ export function GlobeOverlayMenu({
     >
       {target &&
         (one ? (
-          <Entries entry={one} onClose={onClose} onToggleProperty={onToggleProperty} onTakeOff={onTakeOff} />
+          <Entries
+            entry={one}
+            onClose={onClose}
+            onToggleProperty={onToggleProperty}
+            onTakeOff={onTakeOff}
+          />
         ) : (
           target.entries.map((e) => (
             <MenuGroup key={e.key} label={e.title}>
-              <Entries entry={e} onClose={onClose} onToggleProperty={onToggleProperty} onTakeOff={onTakeOff} />
+              <Entries
+                entry={e}
+                onClose={onClose}
+                onToggleProperty={onToggleProperty}
+                onTakeOff={onTakeOff}
+              />
             </MenuGroup>
           ))
         ))}

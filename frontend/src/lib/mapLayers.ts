@@ -74,8 +74,7 @@ export interface RasterLayer {
  */
 export function isZeroExtent(e: Bounds | null | undefined): boolean {
   return (
-    !e ||
-    (e.lon_min === 0 && e.lon_max === 0 && e.lat_min === 0 && e.lat_max === 0)
+    !e || (e.lon_min === 0 && e.lon_max === 0 && e.lat_min === 0 && e.lat_max === 0)
   )
 }
 
@@ -246,7 +245,13 @@ export function fieldsLayers(
 ): RasterLayer[] {
   if (!f || isZeroExtent(f.extent)) return []
   const out: RasterLayer[] = []
-  const add = (id: string, title: string, uri: string | undefined, order: number, pixelated: boolean) => {
+  const add = (
+    id: string,
+    title: string,
+    uri: string | undefined,
+    order: number,
+    pixelated: boolean
+  ) => {
     if (!uri) return
     out.push({
       id,
@@ -260,8 +265,20 @@ export function fieldsLayers(
       visible: state[id]?.visible ?? fieldLayerDefaultVisible(id),
     })
   }
-  add(FIELD_LAYER.windowA, `Window A, ${sceneDate(f.window_a.date)}`, f.window_a_uri, 341, false)
-  add(FIELD_LAYER.windowB, `Window B, ${sceneDate(f.window_b.date)}`, f.window_b_uri, 342, false)
+  add(
+    FIELD_LAYER.windowA,
+    `Window A, ${sceneDate(f.window_a.date)}`,
+    f.window_a_uri,
+    341,
+    false
+  )
+  add(
+    FIELD_LAYER.windowB,
+    `Window B, ${sceneDate(f.window_b.date)}`,
+    f.window_b_uri,
+    342,
+    false
+  )
   add(FIELD_LAYER.classes, "Field boundaries", f.classes_uri, 366, true)
   return out
 }

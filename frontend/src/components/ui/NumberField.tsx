@@ -135,7 +135,7 @@ export function NumberField({
           if (e.key === "Enter") commit(e.currentTarget.value)
           else if (e.key === "Escape") setEditing(null)
         }}
-        className="h-[1.375rem] w-full rounded-sm border-0 bg-sunk px-2 text-center text-meta text-foreground outline-none ring-1 ring-ring"
+        className="h-[1.375rem] w-full rounded-sm border-0 bg-sunk px-2 text-center text-meta text-foreground ring-1 ring-ring outline-none"
       />
     )
   }
@@ -159,8 +159,8 @@ export function NumberField({
       }}
       onKeyDown={onKeyDown}
       className={cn(
-        "flex h-[1.375rem] select-none items-center justify-between gap-2 rounded-sm px-2 transition-colors",
-        "focus-visible:outline-none focus-visible:inset-ring-1 focus-visible:inset-ring-ring",
+        "flex h-[1.375rem] items-center justify-between gap-2 rounded-sm px-2 transition-colors select-none",
+        "focus-visible:inset-ring-1 focus-visible:inset-ring-ring focus-visible:outline-none",
         /*
           A boundary, not only a fill. The fill alone measures 1.33 against the
           studio band's ink and 1.13 in light, so the field had no visible
@@ -169,13 +169,11 @@ export function NumberField({
           box-shadow, so it costs no layout width.
         */
         disabled
-          ? "cursor-not-allowed bg-control inset-ring-1 inset-ring-line opacity-45"
+          ? "cursor-not-allowed bg-control opacity-45 inset-ring-1 inset-ring-line"
           : "cursor-ew-resize bg-selected inset-ring-1 inset-ring-line-strong hover:bg-hover"
       )}
     >
-      <span className="min-w-0 truncate text-meta text-muted-foreground">
-        {label}
-      </span>
+      <span className="min-w-0 truncate text-meta text-muted-foreground">{label}</span>
       <span className="telemetry shrink-0 text-meta text-foreground">
         {format(value)}
       </span>

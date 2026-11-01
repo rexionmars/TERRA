@@ -69,12 +69,7 @@ export function ConfirmDelete({
         subtitle={subtitle}
       />
       <div className="flex shrink-0 justify-end gap-2 border-t border-border px-4 py-3">
-        <button
-          type="button"
-          disabled={busy}
-          onClick={onCancel}
-          className={btnGhost}
-        >
+        <button type="button" disabled={busy} onClick={onCancel} className={btnGhost}>
           Cancel
         </button>
         <button

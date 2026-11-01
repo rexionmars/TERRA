@@ -43,7 +43,8 @@ export function RunTables({
 
   return (
     <div className="flex h-full min-h-0 flex-col">
-      <div className="flex shrink-0 flex-wrap items-center gap-1 border-b px-2 py-1.5"
+      <div
+        className="flex shrink-0 flex-wrap items-center gap-1 border-b px-2 py-1.5"
         style={{ borderColor: "rgb(var(--p-line) / 0.22)" }}
       >
         {/* Which run, only where more than one is selected. */}
@@ -74,7 +75,12 @@ export function RunTables({
         <select
           value={table?.id ?? ""}
           onChange={(e) =>
-            setTableIdx(Math.max(0, tables.findIndex((t) => t.id === e.target.value)))
+            setTableIdx(
+              Math.max(
+                0,
+                tables.findIndex((t) => t.id === e.target.value)
+              )
+            )
           }
           className="field-input h-6 w-auto max-w-full px-1 text-meta"
         >
@@ -95,9 +101,7 @@ export function RunTables({
             caption={`${run.label} · ${table.csvName}`}
           />
         ) : (
-          <p className="text-meta text-muted-foreground">
-            This run carries no tables.
-          </p>
+          <p className="text-meta text-muted-foreground">This run carries no tables.</p>
         )}
       </div>
     </div>

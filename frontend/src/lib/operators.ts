@@ -296,7 +296,12 @@ export function runOperator(id: OperatorId): boolean {
 export const IS_MAC =
   typeof navigator !== "undefined" && /Mac/.test(navigator.userAgent)
 
-const MAC_SYMBOLS: Record<string, string> = { Mod: "⌘", Ctrl: "⌃", Alt: "⌥", Shift: "⇧" }
+const MAC_SYMBOLS: Record<string, string> = {
+  Mod: "⌘",
+  Ctrl: "⌃",
+  Alt: "⌥",
+  Shift: "⇧",
+}
 const KEY_NAMES: Record<string, string> = {
   Period: ".",
   Comma: ",",
@@ -356,7 +361,10 @@ export function keyMatches(spec: string, e: KeyEventLike, mac = IS_MAC): boolean
  * key can mean one thing over the viewport and another elsewhere.
  */
 export function operatorForKey(e: KeyEventLike, mac = IS_MAC): OperatorId | null {
-  return OPERATOR_IDS.find((id) => OPERATORS[id].keys?.some((k) => keyMatches(k, e, mac))) ?? null
+  return (
+    OPERATOR_IDS.find((id) => OPERATORS[id].keys?.some((k) => keyMatches(k, e, mac))) ??
+    null
+  )
 }
 
 /**
@@ -405,4 +413,3 @@ export function searchOperators(query: string): OperatorId[] {
     (a, b) => rank(a) - rank(b)
   )
 }
-

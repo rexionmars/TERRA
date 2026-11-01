@@ -1,7 +1,14 @@
 import { describe, expect, it } from "vitest"
 
 import { fieldRow, fieldTableCsv } from "@/lib/fieldTable"
-import { carGapHa, formatHa, overlapFigures, periodHa, registerHa, registers } from "@/lib/overlap"
+import {
+  carGapHa,
+  formatHa,
+  overlapFigures,
+  periodHa,
+  registerHa,
+  registers,
+} from "@/lib/overlap"
 import { runRowLine } from "@/lib/runSummary"
 import type { OverlapAnalysis, OverlapLayer } from "@/lib/types"
 
@@ -32,8 +39,15 @@ const report: OverlapAnalysis = {
   layers: [
     layer("car", { overlap_ha: 96, n_features: 3 }),
     layer("prodes", { overlap_ha: 12 }),
-    layer("deter", { status: "not_covered", note: "DETER monitors the Amazon and the Cerrado" }),
-    layer("indigenous", { status: "failed", title: "Indigenous lands", note: "not read: HTTP 503" }),
+    layer("deter", {
+      status: "not_covered",
+      note: "DETER monitors the Amazon and the Cerrado",
+    }),
+    layer("indigenous", {
+      status: "failed",
+      title: "Indigenous lands",
+      note: "not read: HTTP 503",
+    }),
     layer("embargo_ibama", { overlap_ha: 4 }),
     layer("embargo_icmbio"),
     layer("conservation"),
@@ -57,7 +71,12 @@ describe("an overlap run's figures", () => {
 
   it("reads the part of the area outside every CAR registration", () => {
     expect(carGapHa(report)).toBe(4)
-    const unreadCar = { ...report, layers: report.layers.map((l) => (l.id === "car" ? { ...l, status: "failed" as const } : l)) }
+    const unreadCar = {
+      ...report,
+      layers: report.layers.map((l) =>
+        l.id === "car" ? { ...l, status: "failed" as const } : l
+      ),
+    }
     expect(carGapHa(unreadCar)).toBeNull()
   })
 
@@ -93,7 +112,10 @@ describe("an overlap run's figures", () => {
 describe("the Field table with an overlap run", () => {
   it("writes the hectares of each register, and leaves a register not read empty", () => {
     const csv = fieldTableCsv([fieldRow("field 3", null, null, null, report)])
-    const [head, row] = csv.trim().split("\n").map((l) => l.split(","))
+    const [head, row] = csv
+      .trim()
+      .split("\n")
+      .map((l) => l.split(","))
     const col = (name: string) => row[head.indexOf(name)]
     expect(col("registers_read_at")).toBe("2026-09-26T20:55:00Z")
     expect(col("prodes_2009_2020_ha")).toBe("3")
@@ -112,9 +134,22 @@ describe("an overlap run in a run list", () => {
     const summary = JSON.stringify({
       overlap_read_at: "2026-09-26T20:55:00Z",
       overlap_ha: { car: 96, prodes: 12, embargo_ibama: 4, conservation: 0 },
-      overlap_status: { car: "read", prodes: "read", embargo_ibama: "read", indigenous: "failed" },
+      overlap_status: {
+        car: "read",
+        prodes: "read",
+        embargo_ibama: "read",
+        indigenous: "failed",
+      },
     })
-    expect(runRowLine({ kind: "overlap", model_kind: "public-registers", period_start: "", period_end: "", summary })).toBe(
+    expect(
+      runRowLine({
+        kind: "overlap",
+        model_kind: "public-registers",
+        period_start: "",
+        period_end: "",
+        summary,
+      })
+    ).toBe(
       "Socio-environmental overlap · meets 2 registers · 1 not read · read 2026-09-26"
     )
   })

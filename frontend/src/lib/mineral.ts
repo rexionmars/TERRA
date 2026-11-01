@@ -46,7 +46,8 @@ export function mineralDerivedLayer(
   m: MineralAnalysis | null | undefined,
   layerId: string
 ): MineralLayer | null {
-  if (!m || !isMineralLayer(layerId) || mineralGroupOfLayer(layerId) !== null) return null
+  if (!m || !isMineralLayer(layerId) || mineralGroupOfLayer(layerId) !== null)
+    return null
   const id = layerId.slice(MINERAL_LAYER_PREFIX.length)
   return m.layers?.find((l) => l.id === id) ?? null
 }
@@ -69,7 +70,9 @@ export function mineralPassesUsed(m: MineralAnalysis): number {
 export function mineralRampGradient(colors: readonly string[]): string {
   if (colors.length === 0) return "transparent"
   if (colors.length === 1) return colors[0]
-  const stops = colors.map((c, i) => `${c} ${((i / (colors.length - 1)) * 100).toFixed(1)}%`)
+  const stops = colors.map(
+    (c, i) => `${c} ${((i / (colors.length - 1)) * 100).toFixed(1)}%`
+  )
   return `linear-gradient(to right, ${stops.join(", ")})`
 }
 

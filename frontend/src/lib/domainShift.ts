@@ -1,10 +1,7 @@
 /**
  * Helpers for Domain Shift diagnostics between two saved PredictResults.
  */
-import {
-  AnalyzeDomainShift,
-  AnalyzeDomainShiftCohort,
-} from "../../wailsjs/go/main/App"
+import { AnalyzeDomainShift, AnalyzeDomainShiftCohort } from "../../wailsjs/go/main/App"
 import { analysis } from "../../wailsjs/go/models"
 import type {
   DomainFingerprint,
@@ -38,9 +35,7 @@ import type {
  * reads only `matrix` for the F1, and the rest of `LULCAgreement` is a large
  * payload it has no use for.
  */
-function fingerprintPayload(
-  fp: DomainFingerprint
-): Record<string, unknown> {
+function fingerprintPayload(fp: DomainFingerprint): Record<string, unknown> {
   return { ...fp }
 }
 
@@ -62,7 +57,7 @@ function agreementPayload(
 export function hasDomainFingerprint(
   result: PredictResult | null | undefined
 ): boolean {
-  return !!(result?.domain_fingerprint?.mean?.length)
+  return !!result?.domain_fingerprint?.mean?.length
 }
 
 /**
@@ -79,9 +74,7 @@ export function hasDomainFingerprint(
  * cannot be standardised and why, rather than leaving the reader with a report
  * whose three main figures are blank for reasons it does not give.
  */
-export function canStandardise(
-  result: PredictResult | null | undefined
-): boolean {
+export function canStandardise(result: PredictResult | null | undefined): boolean {
   const fp = result?.domain_fingerprint
   return !!(fp?.z_mean?.length && fp?.z_var?.length)
 }

@@ -66,7 +66,8 @@ export interface OutputDef {
   type: SocketType | { follow: string }
 }
 
-export type NodeCategory = "input" | "filter" | "mask" | "color" | "analysis" | "mineral" | "output"
+export type NodeCategory =
+  "input" | "filter" | "mask" | "color" | "analysis" | "mineral" | "output"
 
 /** A Tetracorder group: 1 reads the Fe electronic bands, 2 the 2.0-2.5 um vibrational ones. */
 export type MineralGroupId = 1 | 2
@@ -172,7 +173,9 @@ export interface CompositorGraph {
 const CLASSES = ["classes"] as const
 const ANY = ["classes", "image"] as const
 const FIELDS = ["fields"] as const
-const REPORT = [{ id: "report", label: "Mineral report", accepts: ["mineral"] as const }] as const
+const REPORT = [
+  { id: "report", label: "Mineral report", accepts: ["mineral"] as const },
+] as const
 const SEASON = ["season"] as const
 const HEALTH = ["health"] as const
 const OVERLAP = ["overlap"] as const
@@ -552,13 +555,24 @@ export const PDF_REPORT_MAX_MAPS = 12
  * are linked. Labelled by position rather than by id, so a list whose second
  * was unlinked reads 1, 2 rather than 1, 3.
  */
-function growing(graph: CompositorGraph, node: GraphNode, pattern: RegExp, prefix: string, label: string, max: number): InputDef[] {
+function growing(
+  graph: CompositorGraph,
+  node: GraphNode,
+  pattern: RegExp,
+  prefix: string,
+  label: string,
+  max: number
+): InputDef[] {
   const used = graph.links
     .filter((l) => l.to === node.id && pattern.test(l.toSocket))
     .map((l) => Number(pattern.exec(l.toSocket)![1]))
     .sort((a, b) => a - b)
   const next = used.length < max ? [(used[used.length - 1] ?? 0) + 1] : []
-  return [...used, ...next].map((n, i) => ({ id: `${prefix}-${n}`, label: `${label} ${i + 1}`, accepts: ANY }))
+  return [...used, ...next].map((n, i) => ({
+    id: `${prefix}-${n}`,
+    label: `${label} ${i + 1}`,
+    accepts: ANY,
+  }))
 }
 
 /**
@@ -571,16 +585,22 @@ function growing(graph: CompositorGraph, node: GraphNode, pattern: RegExp, prefi
  * number of sockets would allow.
  */
 export function inputsOf(graph: CompositorGraph, node: GraphNode): readonly InputDef[] {
-  if (node.kind === "globe") return growing(graph, node, LAYER, "layer", "Layer", Infinity)
+  if (node.kind === "globe")
+    return growing(graph, node, LAYER, "layer", "Layer", Infinity)
   if (node.kind === "pdfReport") {
-    return [...kindMeta(node.kind).inputs, ...growing(graph, node, MAP, "map", "Map", PDF_REPORT_MAX_MAPS)]
+    return [
+      ...kindMeta(node.kind).inputs,
+      ...growing(graph, node, MAP, "map", "Map", PDF_REPORT_MAX_MAPS),
+    ]
   }
   return kindMeta(node.kind).inputs
 }
 
 /** A PDF report's linked maps, in the order the report draws them. */
 export function pdfReportMaps(graph: CompositorGraph, node: GraphNode): InputDef[] {
-  return inputsOf(graph, node).filter((i) => MAP.test(i.id) && !!linkInto(graph, node.id, i.id))
+  return inputsOf(graph, node).filter(
+    (i) => MAP.test(i.id) && !!linkInto(graph, node.id, i.id)
+  )
 }
 
 /** Whether `socket` names an input a node of this kind can have at all. */
@@ -675,7 +695,11 @@ export function nodeOf(graph: CompositorGraph, id: string): GraphNode | undefine
 }
 
 /** The link into one input, or undefined where nothing feeds it. */
-export function linkInto(graph: CompositorGraph, to: string, toSocket: string): GraphLink | undefined {
+export function linkInto(
+  graph: CompositorGraph,
+  to: string,
+  toSocket: string
+): GraphLink | undefined {
   return graph.links.find((l) => l.to === to && l.toSocket === toSocket)
 }
 
@@ -685,7 +709,9 @@ export function linkInto(graph: CompositorGraph, to: string, toSocket: string): 
  */
 export function outputsOf(
   node: GraphNode,
-  runOutputs: (runId: string | null) => readonly { id: string; label: string; type: SocketType }[]
+  runOutputs: (
+    runId: string | null
+  ) => readonly { id: string; label: string; type: SocketType }[]
 ): readonly { id: string; label: string; type: SocketType | { follow: string } }[] {
   return node.kind === "run" ? runOutputs(node.runId) : kindMeta(node.kind).outputs
 }
@@ -708,7 +734,13 @@ export function outputType(
   if (typeof out.type === "string") return out.type
   const link = linkInto(graph, nodeId, out.type.follow)
   if (!link) return null
-  return outputType(graph, link.from, link.fromSocket, runOutputs, new Set(seen).add(nodeId))
+  return outputType(
+    graph,
+    link.from,
+    link.fromSocket,
+    runOutputs,
+    new Set(seen).add(nodeId)
+  )
 }
 
 /** Whether `ancestor` feeds `id` through any chain of links. */
@@ -725,7 +757,8 @@ export function feeds(graph: CompositorGraph, ancestor: string, id: string): boo
   return false
 }
 
-export type ConnectResult = { ok: true; graph: CompositorGraph } | { ok: false; reason: string }
+export type ConnectResult =
+  { ok: true; graph: CompositorGraph } | { ok: false; reason: string }
 
 /**
  * A link from one output onto one input, replacing whatever fed that input.
@@ -744,17 +777,27 @@ export function connect(
   if (!a || !b) return { ok: false, reason: "That node is no longer on the graph." }
   if (a.id === b.id) return { ok: false, reason: "A node cannot read its own output." }
   const input = canHaveInput(b, link.toSocket)
-    ? (inputsOf(graph, b).find((i) => i.id === link.toSocket) ??
-      { id: link.toSocket, label: b.kind === "pdfReport" ? "Map" : "Layer", accepts: ANY })
+    ? (inputsOf(graph, b).find((i) => i.id === link.toSocket) ?? {
+        id: link.toSocket,
+        label: b.kind === "pdfReport" ? "Map" : "Layer",
+        accepts: ANY,
+      })
     : undefined
-  if (!input) return { ok: false, reason: `${kindMeta(b.kind).label} has no input called ${link.toSocket}.` }
+  if (!input)
+    return {
+      ok: false,
+      reason: `${kindMeta(b.kind).label} has no input called ${link.toSocket}.`,
+    }
   if (
     b.kind === "pdfReport" &&
     MAP.test(link.toSocket) &&
     !linkInto(graph, b.id, link.toSocket) &&
     pdfReportMaps(graph, b).length >= PDF_REPORT_MAX_MAPS
   ) {
-    return { ok: false, reason: `A PDF report draws at most ${PDF_REPORT_MAX_MAPS} maps.` }
+    return {
+      ok: false,
+      reason: `A PDF report draws at most ${PDF_REPORT_MAX_MAPS} maps.`,
+    }
   }
   if (!outputsOf(a, runOutputs).some((o) => o.id === link.fromSocket)) {
     return { ok: false, reason: "That output is no longer on its node." }
@@ -770,7 +813,12 @@ export function connect(
     ok: true,
     graph: {
       ...graph,
-      links: [...graph.links.filter((l) => !(l.to === link.to && l.toSocket === link.toSocket)), link],
+      links: [
+        ...graph.links.filter(
+          (l) => !(l.to === link.to && l.toSocket === link.toSocket)
+        ),
+        link,
+      ],
     },
   }
 }
@@ -824,7 +872,11 @@ export function refusal(input: InputDef, type: SocketType): string {
   return `${input.label} needs a class map, and this output is an image: a class cannot be read back out of colour.`
 }
 
-export function disconnect(graph: CompositorGraph, to: string, toSocket: string): CompositorGraph {
+export function disconnect(
+  graph: CompositorGraph,
+  to: string,
+  toSocket: string
+): CompositorGraph {
   return {
     ...graph,
     links: graph.links.filter((l) => !(l.to === to && l.toSocket === toSocket)),
@@ -832,7 +884,11 @@ export function disconnect(graph: CompositorGraph, to: string, toSocket: string)
 }
 
 /** Add a node at `place`. The first Viewer added becomes the active one. */
-export function addNode(graph: CompositorGraph, node: GraphNode, place: Place): CompositorGraph {
+export function addNode(
+  graph: CompositorGraph,
+  node: GraphNode,
+  place: Place
+): CompositorGraph {
   return {
     ...graph,
     nodes: [...graph.nodes, node],
@@ -852,7 +908,9 @@ export function removeNode(graph: CompositorGraph, id: string): CompositorGraph 
     links: graph.links.filter((l) => l.from !== id && l.to !== id),
     places,
     viewer:
-      graph.viewer === id ? (nodes.find((n) => n.kind === "viewer")?.id ?? null) : graph.viewer,
+      graph.viewer === id
+        ? (nodes.find((n) => n.kind === "viewer")?.id ?? null)
+        : graph.viewer,
   }
 }
 
@@ -860,11 +918,17 @@ export function removeNode(graph: CompositorGraph, id: string): CompositorGraph 
 export function updateNode(graph: CompositorGraph, next: GraphNode): CompositorGraph {
   return {
     ...graph,
-    nodes: graph.nodes.map((n) => (n.id === next.id && n.kind === next.kind ? next : n)),
+    nodes: graph.nodes.map((n) =>
+      n.id === next.id && n.kind === next.kind ? next : n
+    ),
   }
 }
 
-export function moveNode(graph: CompositorGraph, id: string, place: Place): CompositorGraph {
+export function moveNode(
+  graph: CompositorGraph,
+  id: string,
+  place: Place
+): CompositorGraph {
   return { ...graph, places: { ...graph.places, [id]: place } }
 }
 
@@ -920,7 +984,8 @@ export function withFieldNodes(
 ): CompositorGraph {
   const existing = graph.nodes.find(
     (n): n is Extract<GraphNode, { kind: "run" }> =>
-      n.kind === "run" && graph.links.some((l) => l.from === n.id && l.fromSocket === FIELDS_SOCKET)
+      n.kind === "run" &&
+      graph.links.some((l) => l.from === n.id && l.fromSocket === FIELDS_SOCKET)
   )
   if (existing) {
     return existing.runId === runId ? graph : updateNode(graph, { ...existing, runId })
@@ -934,7 +999,11 @@ export function withFieldNodes(
   const viewer = id("viewer")
   let g: CompositorGraph = graph
   g = addNode(g, { id: run, kind: "run", runId }, { x: 0, y: bottom })
-  g = addNode(g, { id: filter, kind: "fieldFilter", ...FIELD_FILTER_DEFAULT }, { x: 280, y: bottom })
+  g = addNode(
+    g,
+    { id: filter, kind: "fieldFilter", ...FIELD_FILTER_DEFAULT },
+    { x: 280, y: bottom }
+  )
   g = addNode(g, { id: adopt, kind: "adoptFields" }, { x: 540, y: bottom - 40 })
   g = addNode(g, { id: save, kind: "saveFields" }, { x: 540, y: bottom + 150 })
   const links: GraphLink[] = [
@@ -980,7 +1049,8 @@ export function withMineralNodes(
 ): CompositorGraph {
   const existing = graph.nodes.find(
     (n): n is Extract<GraphNode, { kind: "run" }> =>
-      n.kind === "run" && graph.links.some((l) => l.from === n.id && l.fromSocket === MINERAL_SOCKET)
+      n.kind === "run" &&
+      graph.links.some((l) => l.from === n.id && l.fromSocket === MINERAL_SOCKET)
   )
   if (existing) {
     return existing.runId === runId ? graph : updateNode(graph, { ...existing, runId })
@@ -999,11 +1069,19 @@ export function withMineralNodes(
     ],
     [
       { id: "", kind: "mineralConfidence" },
-      ...parts.agreement.map((group): GraphNode => ({ id: "", kind: "mineralAgreement", group })),
+      ...parts.agreement.map((group): GraphNode => ({
+        id: "",
+        kind: "mineralAgreement",
+        group,
+      })),
       ...(parts.cover ? [{ id: "", kind: "mineralCover" } as GraphNode] : []),
     ],
     [
-      ...parts.bands.map((band): GraphNode => ({ id: "", kind: "mineralPositions", band })),
+      ...parts.bands.map((band): GraphNode => ({
+        id: "",
+        kind: "mineralPositions",
+        band,
+      })),
       ...(parts.acid ? [{ id: "", kind: "mineralAcid" } as GraphNode] : []),
       { id: "", kind: "mineralSave" },
     ],
@@ -1030,7 +1108,8 @@ const str = (v: unknown): string | null => (typeof v === "string" && v ? v : nul
 /** A stored node's report settings, each field its type or its default. */
 function parsePdfReportSettings(raw: unknown): PdfReportSettings {
   const o = raw && typeof raw === "object" ? (raw as Record<string, unknown>) : {}
-  const text = (k: keyof PdfReportSettings) => (typeof o[k] === "string" ? (o[k] as string) : (PDF_REPORT_DEFAULT[k] as string))
+  const text = (k: keyof PdfReportSettings) =>
+    typeof o[k] === "string" ? (o[k] as string) : (PDF_REPORT_DEFAULT[k] as string)
   return {
     title: text("title"),
     subtitle: text("subtitle"),
@@ -1058,7 +1137,12 @@ function parseNode(raw: unknown): GraphNode | null {
       const areaId = e && typeof e === "object" ? str(e.areaId) : null
       const runKind = e && typeof e === "object" ? str(e.runKind) : null
       return areaId && runKind
-        ? { id, kind: "run", runId: str(o.runId), each: { areaId, runKind, fieldId: str(e!.fieldId) } }
+        ? {
+            id,
+            kind: "run",
+            runId: str(o.runId),
+            each: { areaId, runKind, fieldId: str(e!.fieldId) },
+          }
         : { id, kind: "run", runId: str(o.runId) }
     }
     case "majority":
@@ -1078,21 +1162,34 @@ function parseNode(raw: unknown): GraphNode | null {
         kind: "morphology",
         op: o.op === "close" ? "close" : "open",
         size,
-        classId: typeof o.classId === "number" && Number.isFinite(o.classId) ? o.classId : null,
+        classId:
+          typeof o.classId === "number" && Number.isFinite(o.classId)
+            ? o.classId
+            : null,
       }
     case "select":
       return {
         id,
         kind: "select",
         keep: Array.isArray(o.keep)
-          ? [...new Set(o.keep.filter((v): v is number => typeof v === "number" && Number.isFinite(v)))]
+          ? [
+              ...new Set(
+                o.keep.filter(
+                  (v): v is number => typeof v === "number" && Number.isFinite(v)
+                )
+              ),
+            ]
           : [],
       }
     case "mask":
       return { id, kind: "mask" }
     case "mix": {
       const v = Number(o.opacity)
-      return { id, kind: "mix", opacity: Number.isFinite(v) ? Math.min(1, Math.max(0, v)) : 0.6 }
+      return {
+        id,
+        kind: "mix",
+        opacity: Number.isFinite(v) ? Math.min(1, Math.max(0, v)) : 0.6,
+      }
     }
     case "areas":
       return { id, kind: "areas" }
@@ -1102,7 +1199,11 @@ function parseNode(raw: unknown): GraphNode | null {
       return { id, kind: "viewer" }
     case "globe": {
       const v = Number(o.opacity)
-      return { id, kind: "globe", opacity: Number.isFinite(v) ? Math.min(1, Math.max(0, v)) : 0.85 }
+      return {
+        id,
+        kind: "globe",
+        opacity: Number.isFinite(v) ? Math.min(1, Math.max(0, v)) : 0.85,
+      }
     }
     case "fieldFilter": {
       const ha = Number(o.minHa)
@@ -1111,7 +1212,9 @@ function parseNode(raw: unknown): GraphNode | null {
         id,
         kind: "fieldFilter",
         minHa: Number.isFinite(ha) ? Math.max(0, ha) : FIELD_FILTER_DEFAULT.minHa,
-        minCropland: Number.isFinite(crop) ? Math.min(1, Math.max(0, crop)) : FIELD_FILTER_DEFAULT.minCropland,
+        minCropland: Number.isFinite(crop)
+          ? Math.min(1, Math.max(0, crop))
+          : FIELD_FILTER_DEFAULT.minCropland,
       }
     }
     case "adoptFields":
@@ -1123,7 +1226,11 @@ function parseNode(raw: unknown): GraphNode | null {
     case "seasonDates":
       return { id, kind: "seasonDates" }
     case "health":
-      return { id, kind: "health", reference: o.reference === "neighbours" ? "neighbours" : "history" }
+      return {
+        id,
+        kind: "health",
+        reference: o.reference === "neighbours" ? "neighbours" : "history",
+      }
     case "fieldTable":
       return { id, kind: "fieldTable" }
     case "overlap":
@@ -1131,7 +1238,11 @@ function parseNode(raw: unknown): GraphNode | null {
     case "radar":
       return { id, kind: "radar" }
     case "zones":
-      return { id, kind: "zones", k: typeof o.k === "number" && [3, 4, 5].includes(o.k) ? o.k : null }
+      return {
+        id,
+        kind: "zones",
+        k: typeof o.k === "number" && [3, 4, 5].includes(o.k) ? o.k : null,
+      }
     case "mineralClasses":
     case "mineralReferences":
     case "mineralAgreement":
@@ -1188,26 +1299,37 @@ export function parseGraph(raw: unknown): CompositorGraph | null {
     // The Globe took one input, `image`, before it took layers.
     if (to.kind === "globe" && link.toSocket === "image") link.toSocket = "layer-1"
     // The PDF report took two fixed maps, map1 and map2, before its maps grew.
-    if (to.kind === "pdfReport" && /^map[12]$/.test(link.toSocket)) link.toSocket = `map-${link.toSocket.slice(3)}`
+    if (to.kind === "pdfReport" && /^map[12]$/.test(link.toSocket))
+      link.toSocket = `map-${link.toSocket.slice(3)}`
     if (linkInto(graph, link.to, link.toSocket)) continue
     if (!canHaveInput(to, link.toSocket)) continue
     // Structure only. A Run node's outputs, and so the types, are not known
     // until its run has loaded; the evaluation reports a link that is wrong.
-    if (from.kind !== "run" && !kindMeta(from.kind).outputs.some((x) => x.id === link.fromSocket)) continue
+    if (
+      from.kind !== "run" &&
+      !kindMeta(from.kind).outputs.some((x) => x.id === link.fromSocket)
+    )
+      continue
     if (feeds(graph, to.id, from.id)) continue
     graph = { ...graph, links: [...graph.links, link as GraphLink] }
   }
 
-  const rawPlaces = (o.places && typeof o.places === "object" ? o.places : {}) as Record<string, unknown>
+  const rawPlaces = (
+    o.places && typeof o.places === "object" ? o.places : {}
+  ) as Record<string, unknown>
   const places: Record<string, Place> = {}
   for (const id of ids) {
     const p = rawPlaces[id] as { x?: unknown; y?: unknown } | undefined
-    if (p && Number.isFinite(p.x) && Number.isFinite(p.y)) places[id] = { x: p.x as number, y: p.y as number }
+    if (p && Number.isFinite(p.x) && Number.isFinite(p.y))
+      places[id] = { x: p.x as number, y: p.y as number }
   }
   const viewer = str(o.viewer)
   return {
     ...graph,
     places,
-    viewer: viewer && nodes.some((n) => n.id === viewer && n.kind === "viewer") ? viewer : null,
+    viewer:
+      viewer && nodes.some((n) => n.id === viewer && n.kind === "viewer")
+        ? viewer
+        : null,
   }
 }

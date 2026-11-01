@@ -59,9 +59,7 @@ describe("paletteColor", () => {
     >) {
       for (let k = 0; k <= 40; k++) {
         const t = k / 40
-        expect(parse(paletteColor(name, t))).toEqual(
-          reference(PALETTE_STOPS[name], t)
-        )
+        expect(parse(paletteColor(name, t))).toEqual(reference(PALETTE_STOPS[name], t))
       }
     }
   })

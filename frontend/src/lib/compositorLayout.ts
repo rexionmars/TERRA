@@ -112,7 +112,9 @@ export function arrange(
     // 1. Layers, by longest path, through a topological order (Kahn, 1962).
     const inComp = new Set(comp)
     const layer = new Map<string, number>()
-    const waiting = new Map(comp.map((id) => [id, [...preds.get(id)!].filter((p) => inComp.has(p)).length]))
+    const waiting = new Map(
+      comp.map((id) => [id, [...preds.get(id)!].filter((p) => inComp.has(p)).length])
+    )
     const queue = comp.filter((id) => waiting.get(id) === 0)
     for (const id of queue) layer.set(id, 0)
     while (queue.length) {
@@ -130,7 +132,9 @@ export function arrange(
 
     const depth = Math.max(...comp.map((id) => layer.get(id)!)) + 1
     const columns: string[][] = Array.from({ length: depth }, () => [])
-    for (const id of [...comp].sort((a, b) => was(a).y - was(b).y || was(a).x - was(b).x)) {
+    for (const id of [...comp].sort(
+      (a, b) => was(a).y - was(b).y || was(a).x - was(b).x
+    )) {
       columns[layer.get(id)!].push(id)
     }
 
@@ -143,7 +147,12 @@ export function arrange(
       const key = new Map(
         c.map((id) => {
           const near = [...toward.get(id)!].filter((x) => inComp.has(x))
-          return [id, near.length ? near.reduce((s, x) => s + rank.get(x)!, 0) / near.length : rank.get(id)!]
+          return [
+            id,
+            near.length
+              ? near.reduce((s, x) => s + rank.get(x)!, 0) / near.length
+              : rank.get(id)!,
+          ]
         })
       )
       c.sort((a, b) => key.get(a)! - key.get(b)!)
@@ -160,7 +169,8 @@ export function arrange(
     }
 
     // 3. Places: fold what is too tall, then centre every fold on the tallest.
-    const stack = (c: string[]) => c.reduce((s, id) => s + box.get(id)!.h, 0) + Math.max(0, c.length - 1) * o.rowGap
+    const stack = (c: string[]) =>
+      c.reduce((s, id) => s + box.get(id)!.h, 0) + Math.max(0, c.length - 1) * o.rowGap
     const folds: string[][][] = columns.map((c) => {
       const limit = Math.max(o.maxColumnHeight, ...c.map((id) => box.get(id)!.h))
       const parts: string[][] = [[]]

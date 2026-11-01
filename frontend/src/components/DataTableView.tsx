@@ -46,9 +46,7 @@ export function DataTableView({
   const rows = useMemo(() => {
     if (!sort) return table.rows
     const dir = sort.direction === "asc" ? 1 : -1
-    return [...table.rows].sort(
-      (a, b) => compare(a[sort.column], b[sort.column]) * dir
-    )
+    return [...table.rows].sort((a, b) => compare(a[sort.column], b[sort.column]) * dir)
   }, [table.rows, sort])
 
   const toggleSort = (index: number) => {
@@ -107,7 +105,7 @@ export function DataTableView({
       </div>
 
       {/* Wide tables scroll inside the section rather than widening the page. */}
-      <div className="rounded-sm border border-border bg-sunk max-h-[22rem] overflow-auto">
+      <div className="max-h-[22rem] overflow-auto rounded-sm border border-border bg-sunk">
         <table className="selectable w-full min-w-max text-left text-[11px]">
           <thead className="sticky top-0 z-10">
             <tr
@@ -169,7 +167,7 @@ export function DataTableView({
                     <td
                       key={col.key}
                       className={cn(
-                        "whitespace-nowrap px-2.5 py-1.5",
+                        "px-2.5 py-1.5 whitespace-nowrap",
                         col.numeric
                           ? "telemetry text-right text-foreground"
                           : "text-muted-foreground"

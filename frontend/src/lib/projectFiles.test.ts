@@ -12,12 +12,18 @@ import {
 
 describe("the recent project files", () => {
   it("puts the file first and keeps it once", () => {
-    expect(withRecent(["/a.terra", "/b.terra"], "/b.terra")).toEqual(["/b.terra", "/a.terra"])
+    expect(withRecent(["/a.terra", "/b.terra"], "/b.terra")).toEqual([
+      "/b.terra",
+      "/a.terra",
+    ])
     expect(withRecent(undefined, "/a.terra")).toEqual(["/a.terra"])
   })
 
   it("keeps no more than its bound, dropping the oldest", () => {
-    const many = Array.from({ length: MAX_RECENT_PROJECT_FILES }, (_, i) => `/f${i}.terra`)
+    const many = Array.from(
+      { length: MAX_RECENT_PROJECT_FILES },
+      (_, i) => `/f${i}.terra`
+    )
     const next = withRecent(many, "/new.terra")
     expect(next).toHaveLength(MAX_RECENT_PROJECT_FILES)
     expect(next[0]).toBe("/new.terra")

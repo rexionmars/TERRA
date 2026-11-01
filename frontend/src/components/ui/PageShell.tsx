@@ -34,12 +34,7 @@ export function PageShell({
   className?: string
 }) {
   return (
-    <div
-      className={cn(
-        "app-no-drag flex h-full min-h-0 gap-3 bg-app p-3",
-        className
-      )}
-    >
+    <div className={cn("app-no-drag flex h-full min-h-0 gap-3 bg-app p-3", className)}>
       {children}
     </div>
   )

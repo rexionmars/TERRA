@@ -63,7 +63,8 @@ export function fieldSets(areas: readonly Area[], runs: readonly RunRow[]): Fiel
     if (kind === "fields") continue
     const k = `${field.id}\u0000${kind}`
     const prev = latest.get(k)
-    if (!prev || r.created_at > prev.run.created_at) latest.set(k, { field, kind, run: r })
+    if (!prev || r.created_at > prev.run.created_at)
+      latest.set(k, { field, kind, run: r })
   }
   const sets = new Map<string, FieldSet>()
   for (const { field, kind, run } of latest.values()) {
@@ -71,15 +72,22 @@ export function fieldSets(areas: readonly Area[], runs: readonly RunRow[]): Fiel
     let set = sets.get(k)
     if (!set) {
       const parent = areas.find((a) => a.id === field.parent_id)
-      set = { areaId: field.parent_id, areaName: parent?.name ?? "area", runKind: kind, members: [] }
+      set = {
+        areaId: field.parent_id,
+        areaName: parent?.name ?? "area",
+        runKind: kind,
+        members: [],
+      }
       sets.set(k, set)
     }
     set.members.push({ fieldId: field.id, fieldName: field.name, runId: run.id })
   }
   const out = [...sets.values()]
-  for (const s of out) s.members.sort((a, b) => byName.compare(a.fieldName, b.fieldName))
+  for (const s of out)
+    s.members.sort((a, b) => byName.compare(a.fieldName, b.fieldName))
   return out.sort(
-    (a, b) => byName.compare(a.areaName, b.areaName) || a.runKind.localeCompare(b.runKind)
+    (a, b) =>
+      byName.compare(a.areaName, b.areaName) || a.runKind.localeCompare(b.runKind)
   )
 }
 
@@ -89,13 +97,21 @@ type EachNode = RunNode & { each: NonNullable<RunNode["each"]> }
 const isEach = (n: GraphNode): n is EachNode => n.kind === "run" && !!n.each
 
 /** The set a field-set node reads, or undefined where the catalogue no longer has it. */
-export function setOf(sets: readonly FieldSet[], node: GraphNode): FieldSet | undefined {
+export function setOf(
+  sets: readonly FieldSet[],
+  node: GraphNode
+): FieldSet | undefined {
   if (!isEach(node)) return undefined
-  return sets.find((s) => s.areaId === node.each.areaId && s.runKind === node.each.runKind)
+  return sets.find(
+    (s) => s.areaId === node.each.areaId && s.runKind === node.each.runKind
+  )
 }
 
 /** A graph with some Run nodes pointed at other runs; unchanged where none moves. */
-function pointed(graph: CompositorGraph, runIdOf: (n: EachNode) => string | null): CompositorGraph {
+function pointed(
+  graph: CompositorGraph,
+  runIdOf: (n: EachNode) => string | null
+): CompositorGraph {
   let changed = false
   const nodes = graph.nodes.map((n) => {
     if (!isEach(n)) return n
@@ -114,11 +130,17 @@ function pointed(graph: CompositorGraph, runIdOf: (n: EachNode) => string | null
  * its outputs, its sources, the links' types -- then reads the field in focus
  * with no second path.
  */
-export function resolveEach(graph: CompositorGraph, sets: readonly FieldSet[]): CompositorGraph {
+export function resolveEach(
+  graph: CompositorGraph,
+  sets: readonly FieldSet[]
+): CompositorGraph {
   return pointed(graph, (n) => {
     const set = setOf(sets, n)
     if (!set) return null
-    return (set.members.find((m) => m.fieldId === n.each.fieldId) ?? set.members[0])?.runId ?? null
+    return (
+      (set.members.find((m) => m.fieldId === n.each.fieldId) ?? set.members[0])
+        ?.runId ?? null
+    )
   })
 }
 
@@ -144,9 +166,12 @@ export function perField(
   const fields = new Map<string, FieldMember>()
   for (const n of graph.nodes) {
     if (!isEach(n) || n.each.areaId !== lead.areaId) continue
-    for (const m of setOf(sets, n)?.members ?? []) if (!fields.has(m.fieldId)) fields.set(m.fieldId, m)
+    for (const m of setOf(sets, n)?.members ?? [])
+      if (!fields.has(m.fieldId)) fields.set(m.fieldId, m)
   }
-  const members = [...fields.values()].sort((a, b) => byName.compare(a.fieldName, b.fieldName))
+  const members = [...fields.values()].sort((a, b) =>
+    byName.compare(a.fieldName, b.fieldName)
+  )
   return members.map((member) => ({
     member,
     graph: pointed(graph, (n) => {

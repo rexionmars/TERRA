@@ -36,7 +36,9 @@ export function band(z: number): Band {
 }
 
 /** The latest departure a run reports against its earlier seasons, or null. */
-export function latestDeparture(report: HealthAnalysis): { date: string; ndvi: number | null; ndre: number | null } | null {
+export function latestDeparture(
+  report: HealthAnalysis
+): { date: string; ndvi: number | null; ndre: number | null } | null {
   const l = report.latest
   if (!l) return null
   return { date: l.date, ndvi: l.ndvi_z, ndre: l.ndre_z }
@@ -71,7 +73,11 @@ const at = (d: string) => Date.parse(`${d.slice(0, 10)}T00:00:00Z`)
  * clear dates coincide except where cloud took one field and left another.
  */
 export function sharedDate(reports: readonly HealthAnalysis[]): string | null {
-  const dates = [...new Set(reports.flatMap((r) => r.current.map((p) => p.date.slice(0, 10))))].sort().reverse()
+  const dates = [
+    ...new Set(reports.flatMap((r) => r.current.map((p) => p.date.slice(0, 10)))),
+  ]
+    .sort()
+    .reverse()
   const need = Math.ceil(reports.length / 2)
   for (const d of dates) {
     const seen = reports.filter((r) =>
@@ -89,7 +95,10 @@ function median(xs: number[]): number {
 }
 
 /** Each field's NDVI on the shared date against the others of its crop. */
-export function neighbourScores(fields: readonly FieldReport[]): { date: string | null; scores: NeighbourScore[] } {
+export function neighbourScores(fields: readonly FieldReport[]): {
+  date: string | null
+  scores: NeighbourScore[]
+} {
   const date = sharedDate(fields.map((f) => f.report))
   const read = fields.map((f) => {
     if (!date) return { f, obs: null }
@@ -97,7 +106,8 @@ export function neighbourScores(fields: readonly FieldReport[]): { date: string 
     for (const p of f.report.current) {
       const gap = Math.abs(at(p.date) - at(date))
       if (gap > SAME_DATE_DAYS * DAY) continue
-      if (!best || gap < Math.abs(at(best.date) - at(date))) best = { date: p.date.slice(0, 10), ndvi: p.ndvi }
+      if (!best || gap < Math.abs(at(best.date) - at(date)))
+        best = { date: p.date.slice(0, 10), ndvi: p.ndvi }
     }
     return { f, obs: best }
   })

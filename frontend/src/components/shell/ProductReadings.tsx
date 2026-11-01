@@ -41,7 +41,10 @@ async function saveGeoJSON(text: string, filename: string) {
   let bin = ""
   for (const b of new TextEncoder().encode(text)) bin += String.fromCharCode(b)
   try {
-    const dest = await ExportOverlayFile(`data:application/geo+json;base64,${btoa(bin)}`, filename)
+    const dest = await ExportOverlayFile(
+      `data:application/geo+json;base64,${btoa(bin)}`,
+      filename
+    )
     if (dest) notifyExportOk(dest)
   } catch (e) {
     notifyExportFail(e)
@@ -104,7 +107,11 @@ export function MineralResult({ mineral: m }: { mineral: MineralAnalysis }) {
 }
 
 /** The saved area a delineation was run over, which is where its fields go. */
-function useFieldsTarget(fields: FieldsAnalysis, areas: readonly Area[], projectId?: string | null) {
+function useFieldsTarget(
+  fields: FieldsAnalysis,
+  areas: readonly Area[],
+  projectId?: string | null
+) {
   const [areaId, setAreaId] = useState<string | null>(null)
   useEffect(() => {
     if (!fields.run_id || !projectId) {
@@ -142,7 +149,12 @@ export function FieldsResult({
   fields: FieldsAnalysis
   areas: readonly Area[]
   projectId?: string | null
-  onAdopt?: (runId: string, minHa: number, minCropland: number, replace: boolean) => Promise<boolean>
+  onAdopt?: (
+    runId: string,
+    minHa: number,
+    minCropland: number,
+    replace: boolean
+  ) => Promise<boolean>
 }) {
   const [minHa, setMinHa] = useState(0)
   const [minCropland, setMinCropland] = useState(0)
@@ -187,7 +199,10 @@ export function FieldsResult({
               />
             </>
           )}
-          <Figure label="Not seen clearly" value={`${(f.masked_fraction * 100).toFixed(1)} %`} />
+          <Figure
+            label="Not seen clearly"
+            value={`${(f.masked_fraction * 100).toFixed(1)} %`}
+          />
         </PanelSection>
         <PanelSection title="Scenes read">
           <Figure
@@ -216,18 +231,26 @@ export function FieldsResult({
               />
             </label>
             <label className="flex min-w-0 flex-1 flex-col gap-1">
-              <span className="text-label text-muted-foreground">Cropland at least (%)</span>
+              <span className="text-label text-muted-foreground">
+                Cropland at least (%)
+              </span>
               <input
                 type="number"
                 min={0}
                 max={100}
                 step={5}
                 disabled={!hasShares}
-                title={hasShares ? undefined : "This delineation read no MapBiomas cropland share."}
+                title={
+                  hasShares
+                    ? undefined
+                    : "This delineation read no MapBiomas cropland share."
+                }
                 className="field-input"
                 value={Math.round(minCropland * 100)}
                 onChange={(e) =>
-                  setMinCropland(Math.min(1, Math.max(0, (e.target.valueAsNumber || 0) / 100)))
+                  setMinCropland(
+                    Math.min(1, Math.max(0, (e.target.valueAsNumber || 0) / 100))
+                  )
                 }
               />
             </label>
@@ -239,14 +262,25 @@ export function FieldsResult({
             <>
               <Note>
                 {`${target.name} holds ${target.adopted} fields from an earlier delineation`}
-                {target.adoptedWithRuns ? `, ${target.adoptedWithRuns} with runs of their own` : ""}
+                {target.adoptedWithRuns
+                  ? `, ${target.adoptedWithRuns} with runs of their own`
+                  : ""}
                 . Replacing removes them; fields drawn by hand stay.
               </Note>
               <div className="flex gap-1">
-                <button type="button" disabled={busy} onClick={() => void adopt(true)} className={btnGhost}>
+                <button
+                  type="button"
+                  disabled={busy}
+                  onClick={() => void adopt(true)}
+                  className={btnGhost}
+                >
                   Replace them
                 </button>
-                <button type="button" onClick={() => setConfirming(false)} className={btnGhost}>
+                <button
+                  type="button"
+                  onClick={() => setConfirming(false)}
+                  className={btnGhost}
+                >
                   Keep them
                 </button>
               </div>
@@ -257,7 +291,9 @@ export function FieldsResult({
               <button
                 type="button"
                 disabled={busy || !kept.length}
-                onClick={() => (target.adopted > 0 ? setConfirming(true) : void adopt(false))}
+                onClick={() =>
+                  target.adopted > 0 ? setConfirming(true) : void adopt(false)
+                }
                 className={cn(btnGhost, "self-start")}
               >
                 <Polygon className="size-3.5" />
@@ -351,7 +387,9 @@ export function ZonesResult({
       <button
         type="button"
         disabled={!partition}
-        onClick={() => void saveGeoJSON(zonesGeoJSON([{ name, partition }]), "terra_zones.geojson")}
+        onClick={() =>
+          void saveGeoJSON(zonesGeoJSON([{ name, partition }]), "terra_zones.geojson")
+        }
         className={cn(btnGhost, "self-start")}
       >
         <DownloadSimple className="size-3.5" />

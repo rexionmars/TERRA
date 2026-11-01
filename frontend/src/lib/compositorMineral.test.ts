@@ -25,12 +25,21 @@ import type { MineralAnalysis } from "./types"
 const runOutputs = (runId: string | null) =>
   runId
     ? [
-        { id: "mineral-group2", label: "Minerals 2.0-2.5 um", type: "classes" as const },
+        {
+          id: "mineral-group2",
+          label: "Minerals 2.0-2.5 um",
+          type: "classes" as const,
+        },
         { id: MINERAL_SOCKET, label: "Mineral report", type: "mineral" as const },
       ]
     : []
 
-const link = (from: string, fromSocket: string, to: string, toSocket: string): GraphLink => ({
+const link = (
+  from: string,
+  fromSocket: string,
+  to: string,
+  toSocket: string
+): GraphLink => ({
   from,
   fromSocket,
   to,
@@ -46,38 +55,76 @@ function graph(): CompositorGraph {
   return g
 }
 
-const ANALYSIS = { observed_cells: 10, groups: [], scenes: [], legend: [], notes: [] } as unknown as MineralAnalysis
+const ANALYSIS = {
+  observed_cells: 10,
+  groups: [],
+  scenes: [],
+  legend: [],
+  notes: [],
+} as unknown as MineralAnalysis
 
 describe("a mineral map's figures in the graph", () => {
   it("go only into the Mineral nodes, and no raster goes there", () => {
     const g = graph()
-    expect(connect(g, link("run-1", MINERAL_SOCKET, "mineralClasses-1", "report"), runOutputs).ok).toBe(true)
-    const intoViewer = connect(g, link("run-1", MINERAL_SOCKET, "viewer-1", "image"), runOutputs)
+    expect(
+      connect(
+        g,
+        link("run-1", MINERAL_SOCKET, "mineralClasses-1", "report"),
+        runOutputs
+      ).ok
+    ).toBe(true)
+    const intoViewer = connect(
+      g,
+      link("run-1", MINERAL_SOCKET, "viewer-1", "image"),
+      runOutputs
+    )
     expect(intoViewer.ok).toBe(false)
     if (!intoViewer.ok) expect(intoViewer.reason).toMatch(/a mineral map's figures/)
-    const rasterIn = connect(g, link("run-1", "mineral-group2", "mineralClasses-1", "report"), runOutputs)
+    const rasterIn = connect(
+      g,
+      link("run-1", "mineral-group2", "mineralClasses-1", "report"),
+      runOutputs
+    )
     expect(rasterIn.ok).toBe(false)
     if (!rasterIn.ok) expect(rasterIn.reason).toMatch(/takes a mineral map's figures/)
   })
 
   it("reach a card as the run reported them", () => {
-    const r = connect(graph(), link("run-1", MINERAL_SOCKET, "mineralClasses-1", "report"), runOutputs)
+    const r = connect(
+      graph(),
+      link("run-1", MINERAL_SOCKET, "mineralClasses-1", "report"),
+      runOutputs
+    )
     if (!r.ok) throw new Error(r.reason)
     const e = evaluate(r.graph, {
       source: (runId, asset) =>
         asset === MINERAL_SOCKET
-          ? { status: "ready", value: { type: "mineral", key: `mineral:${runId}`, runId, analysis: ANALYSIS } }
+          ? {
+              status: "ready",
+              value: {
+                type: "mineral",
+                key: `mineral:${runId}`,
+                runId,
+                analysis: ANALYSIS,
+              },
+            }
           : { status: "busy" },
       cache: new Map(),
     })
     const got = e.inputs.get(socketKey("mineralClasses-1", "report"))
     expect(got?.status).toBe("ready")
-    if (got?.status === "ready") expect(got.value.type === "mineral" && got.value.analysis).toBe(ANALYSIS)
+    if (got?.status === "ready")
+      expect(got.value.type === "mineral" && got.value.analysis).toBe(ANALYSIS)
   })
 })
 
 describe("withMineralNodes", () => {
-  const PARTS: MineralParts = { cover: false, bands: ["fe3"], acid: true, agreement: [1] }
+  const PARTS: MineralParts = {
+    cover: false,
+    bands: ["fe3"],
+    acid: true,
+    agreement: [1],
+  }
 
   it("places the cards the run has figures for, each fed from one Run node's report", () => {
     const g = withMineralNodes(EMPTY_GRAPH, "r1", PARTS)
@@ -89,14 +136,18 @@ describe("withMineralNodes", () => {
     expect(kinds).toContain("mineralAcid")
     expect(kinds).toContain("mineralSave")
     expect(kinds).not.toContain("mineralCover")
-    const classes = g.nodes.filter((n) => n.kind === "mineralClasses").map((n) => n.kind === "mineralClasses" && n.group)
+    const classes = g.nodes
+      .filter((n) => n.kind === "mineralClasses")
+      .map((n) => n.kind === "mineralClasses" && n.group)
     expect(classes.sort()).toEqual([1, 2])
     const agreement = g.nodes.filter((n) => n.kind === "mineralAgreement")
     expect(agreement).toHaveLength(1)
     expect(agreement[0].kind === "mineralAgreement" && agreement[0].group).toBe(1)
     const cards = g.nodes.filter((n) => n.kind !== "run")
     expect(g.links).toHaveLength(cards.length)
-    expect(g.links.every((l) => l.fromSocket === MINERAL_SOCKET && l.toSocket === "report")).toBe(true)
+    expect(
+      g.links.every((l) => l.fromSocket === MINERAL_SOCKET && l.toSocket === "report")
+    ).toBe(true)
     // No two cards stand on one place.
     const places = cards.map((n) => `${g.places[n.id].x},${g.places[n.id].y}`)
     expect(new Set(places).size).toBe(places.length)
@@ -128,8 +179,12 @@ describe("withMineralNodes", () => {
   })
 
   it("names a card by its setting", () => {
-    expect(mineralNodeTitle({ id: "a", kind: "mineralClasses", group: 1 })).toBe("Classes, 0.4-1.3 um")
-    expect(mineralNodeTitle({ id: "b", kind: "mineralPositions", band: "aloh" })).toBe("Al-OH band position")
+    expect(mineralNodeTitle({ id: "a", kind: "mineralClasses", group: 1 })).toBe(
+      "Classes, 0.4-1.3 um"
+    )
+    expect(mineralNodeTitle({ id: "b", kind: "mineralPositions", band: "aloh" })).toBe(
+      "Al-OH band position"
+    )
     expect(mineralNodeTitle({ id: "c", kind: "mineralCoverage" })).toBeNull()
   })
 })

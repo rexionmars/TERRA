@@ -41,8 +41,7 @@ export function sameGround(
   const rb = polygonOuterRing(b)
   if (!ra || !rb || ra.length !== rb.length) return false
   return ra.every(
-    (p, i) =>
-      Math.abs(p[0] - rb[i][0]) < 1e-9 && Math.abs(p[1] - rb[i][1]) < 1e-9
+    (p, i) => Math.abs(p[0] - rb[i][0]) < 1e-9 && Math.abs(p[1] - rb[i][1]) < 1e-9
   )
 }
 
@@ -147,9 +146,7 @@ const METRES_PER_DEGREE = (2 * Math.PI * EARTH_RADIUS_M) / 360
  * 110540 for latitude) instead introduces a systematic bias of about 0.48
  * percent, which is 0.34 ha on a 71 ha parcel.
  */
-export function geometryAreaM2(
-  geometry: GeoJSONGeometry | null | undefined
-): number {
+export function geometryAreaM2(geometry: GeoJSONGeometry | null | undefined): number {
   if (!geometry) return 0
   const bounds = geometryBounds(geometry)
   if (!bounds) return 0
@@ -160,8 +157,7 @@ export function geometryAreaM2(
   const ringArea = (ring: LonLat[]): number => {
     if (!ring || ring.length < 3) return 0
     const closed =
-      ring[0][0] === ring[ring.length - 1][0] &&
-      ring[0][1] === ring[ring.length - 1][1]
+      ring[0][0] === ring[ring.length - 1][0] && ring[0][1] === ring[ring.length - 1][1]
     const pts = closed ? ring.slice(0, -1) : ring
     let sum = 0
     for (let i = 0; i < pts.length; i++) {
@@ -242,7 +238,11 @@ export function pointInRing(lon: number, lat: number, ring: LonLat[]): boolean {
   return inside
 }
 
-export function pointInAoi(lon: number, lat: number, geometry: GeoJSONGeometry): boolean {
+export function pointInAoi(
+  lon: number,
+  lat: number,
+  geometry: GeoJSONGeometry
+): boolean {
   if (geometry.type === "Polygon") {
     const coords = geometry.coordinates as LonLat[][]
     const outer = coords[0]
@@ -302,5 +302,3 @@ export function pickContourEdge(geometry: GeoJSONGeometry): {
   if (!best) return null
   return { a: best.a, b: best.b, mid: best.mid }
 }
-
-

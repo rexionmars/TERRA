@@ -5,7 +5,13 @@ import type { InferenceRun, PredictResult } from "@/lib/types"
 
 const result = (over: Partial<PredictResult> = {}) => ({ ...over }) as PredictResult
 const record = (id: string, over: Partial<InferenceRun> = {}) =>
-  ({ id, model_kind: "spectral", period_start: "2026-01-01", period_end: "2026-02-01", ...over }) as InferenceRun
+  ({
+    id,
+    model_kind: "spectral",
+    period_start: "2026-01-01",
+    period_end: "2026-02-01",
+    ...over,
+  }) as InferenceRun
 
 const none = { live: null, retained: [], extra: [], saved: [], areas: [] }
 
@@ -65,10 +71,16 @@ describe("sessionRuns", () => {
     const out = sessionRuns({
       ...none,
       extra: [
-        { run: record("a"), result: result({ date_range: ["2026-03-01", "2026-04-01"] }) },
+        {
+          run: record("a"),
+          result: result({ date_range: ["2026-03-01", "2026-04-01"] }),
+        },
         { run: record("b"), result: result() },
       ],
     })
-    expect(out.map((r) => r.period)).toEqual(["2026-03-01 to 2026-04-01", "2026-01-01 to 2026-02-01"])
+    expect(out.map((r) => r.period)).toEqual([
+      "2026-03-01 to 2026-04-01",
+      "2026-01-01 to 2026-02-01",
+    ])
   })
 })

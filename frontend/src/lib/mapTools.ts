@@ -53,7 +53,8 @@ export interface MapTool {
  * added to the band alone, after the panels were gone, so they are added here
  * and not there.
  */
-export type BoardToolId = MapToolId | "mineral" | "fields" | "health" | "overlap" | "radar" | "zones"
+export type BoardToolId =
+  MapToolId | "mineral" | "fields" | "health" | "overlap" | "radar" | "zones"
 
 /**
  * Every product the band can start, and the subject each one answers about.

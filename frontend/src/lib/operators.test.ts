@@ -37,7 +37,10 @@ describe("the table", () => {
         for (const spec of OPERATORS[id].keys ?? []) {
           const slot = formatKeys(spec, mac)
           const other = seen.get(slot)
-          expect(other === undefined || other === id, `${slot}: ${other} and ${id}`).toBe(true)
+          expect(
+            other === undefined || other === id,
+            `${slot}: ${other} and ${id}`
+          ).toBe(true)
           seen.set(slot, id)
         }
       }
@@ -63,8 +66,12 @@ describe("keyMatches", () => {
   })
 
   it("reads Ctrl as the Control key on every platform", () => {
-    expect(keyMatches("Ctrl+Space", key("Space", { ctrlKey: true }, " "), true)).toBe(true)
-    expect(keyMatches("Ctrl+Space", key("Space", { metaKey: true }, " "), true)).toBe(false)
+    expect(keyMatches("Ctrl+Space", key("Space", { ctrlKey: true }, " "), true)).toBe(
+      true
+    )
+    expect(keyMatches("Ctrl+Space", key("Space", { metaKey: true }, " "), true)).toBe(
+      false
+    )
   })
 
   it("matches the physical key, not the character a modifier types", () => {

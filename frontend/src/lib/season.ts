@@ -115,7 +115,11 @@ export function seasonOf(result: {
 export function shortDate(d: string): string {
   const t = at(d)
   if (!Number.isFinite(t)) return d
-  return new Date(t).toLocaleDateString("en-GB", { day: "2-digit", month: "short", timeZone: "UTC" })
+  return new Date(t).toLocaleDateString("en-GB", {
+    day: "2-digit",
+    month: "short",
+    timeZone: "UTC",
+  })
 }
 
 /** Days between two dates, the later minus the earlier. */

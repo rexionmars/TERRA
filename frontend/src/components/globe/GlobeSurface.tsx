@@ -58,14 +58,8 @@ import {
   type RaisedRasterLayer,
 } from "@/components/globe/raisedRasters"
 import { SpreadHandle } from "@/components/globe/SpreadHandle"
-import {
-  OverlayCallouts,
-  type OverlayCaption,
-} from "@/components/globe/OverlayCallout"
-import {
-  fetchEsriImageryHere,
-  type ImageryHere,
-} from "@/components/globe/imageryDate"
+import { OverlayCallouts, type OverlayCaption } from "@/components/globe/OverlayCallout"
+import { fetchEsriImageryHere, type ImageryHere } from "@/components/globe/imageryDate"
 import { isZeroExtent, type RasterLayer } from "@/lib/mapLayers"
 import {
   ELEVATION_CREDIT,
@@ -174,8 +168,7 @@ const HANDOVER_ZOOM = zoomOfLevel(ESRI_FIRST_LEVEL)
  * Half open, like every layer range here: drawn through 13, gone at 14. Taken
  * from the mosaic's own native level so the two cannot disagree.
  */
-const RECENT_MAX_ZOOM =
-  zoomOfLevel(basemapByKind("s2recent").maxNativeZoom ?? 14) + 1
+const RECENT_MAX_ZOOM = zoomOfLevel(basemapByKind("s2recent").maxNativeZoom ?? 14) + 1
 
 /*
   THE SHAPE BEING DRAWN GETS ITS OWN SOURCE, not a feature in the catalog's.
@@ -308,9 +301,7 @@ const SPREAD_MAX_M = 200
 
 /** A palette token's channels as a CSS colour MapLibre will parse. */
 function token(name: string, fallback: string): string {
-  const raw = getComputedStyle(document.documentElement)
-    .getPropertyValue(name)
-    .trim()
+  const raw = getComputedStyle(document.documentElement).getPropertyValue(name).trim()
   const channels = raw.split(/\s+/).filter(Boolean)
   return channels.length === 3 ? `rgb(${channels.join(",")})` : fallback
 }
@@ -324,7 +315,12 @@ function toFeatureCollection(areas: readonly GlobeArea[]) {
       // Carried in properties rather than as the feature id: a feature id has
       // to be a number or a string that MapLibre may reuse for state, and this
       // is only ever read back on a press.
-      properties: { areaId: a.id, name: a.name, isField: !!a.field, selected: !!a.selected },
+      properties: {
+        areaId: a.id,
+        name: a.name,
+        isField: !!a.field,
+        selected: !!a.selected,
+      },
       geometry: {
         type: "MultiPolygon" as const,
         coordinates: a.parts.map((ring) => [ring]),
@@ -383,7 +379,10 @@ export function GlobeSurface({
    * shares one extent, which is why the answer is a list: the menu names each
    * one rather than guessing which plane the pointer meant.
    */
-  onOverlayContext?: (hits: { key: string; fit: () => void }[], at: { x: number; y: number }) => void
+  onOverlayContext?: (
+    hits: { key: string; fit: () => void }[],
+    at: { x: number; y: number }
+  ) => void
   areas: readonly GlobeArea[]
   /**
    * A delineation's polygons not yet made fields, as a GeoJSON
@@ -633,8 +632,7 @@ export function GlobeSurface({
           ] as [number, number],
           /* The height its raster is drawn at, so the tie is to the raster and
              not to the ground under it. */
-          elevationM:
-            raisedRasters.find((r) => r.key === o.key)?.elevationM ?? 0,
+          elevationM: raisedRasters.find((r) => r.key === o.key)?.elevationM ?? 0,
           caption: o.caption!,
         })),
     [overlays, raisedRasters]
@@ -775,9 +773,7 @@ export function GlobeSurface({
           link, since MapOptions.attributionControl is merged by shallow spread.
         */
         attributionControl: false,
-        center: initialView
-          ? [initialView.lon, initialView.lat]
-          : START_CENTER,
+        center: initialView ? [initialView.lon, initialView.lat] : START_CENTER,
         zoom: initialView?.zoom ?? START_ZOOM,
         /*
           85, not the 60 this defaults to. Sixty is a map's ceiling, set so a
@@ -1146,7 +1142,10 @@ export function GlobeSurface({
       if (e.button === 2) rightDown = { x: e.clientX, y: e.clientY }
     }
     map.getCanvasContainer().addEventListener("mousedown", onRightDown)
-    subs.push({ unsubscribe: () => map.getCanvasContainer().removeEventListener("mousedown", onRightDown) })
+    subs.push({
+      unsubscribe: () =>
+        map.getCanvasContainer().removeEventListener("mousedown", onRightDown),
+    })
     subs.push(
       map.on("contextmenu", (e: MapMouseEvent) => {
         const open = overlayContextRef.current
@@ -1154,7 +1153,8 @@ export function GlobeSurface({
         const down = rightDown
         rightDown = null
         if (!open || modeRef.current !== "idle") return
-        if (down && Math.hypot(ev.clientX - down.x, ev.clientY - down.y) > PRESS_PX) return
+        if (down && Math.hypot(ev.clientX - down.x, ev.clientY - down.y) > PRESS_PX)
+          return
         const { lng, lat } = e.lngLat
         const hits = rastersAt(raisedListRef.current, lng, lat)
         if (!hits.length) return
@@ -1360,7 +1360,10 @@ export function GlobeSurface({
         "flex size-6 items-center justify-center rounded-full bg-primary text-label font-semibold text-primary-foreground shadow-[0_0_0_2px_#141414]"
       el.textContent = p.label
       el.setAttribute("role", "img")
-      el.setAttribute("aria-label", `Point ${p.label}, ${p.lat.toFixed(5)}, ${p.lon.toFixed(5)}`)
+      el.setAttribute(
+        "aria-label",
+        `Point ${p.label}, ${p.lat.toFixed(5)}, ${p.lon.toFixed(5)}`
+      )
       return new Marker({ element: el }).setLngLat([p.lon, p.lat]).addTo(map)
     })
     return () => markers.forEach((m) => m.remove())
@@ -1406,9 +1409,7 @@ export function GlobeSurface({
   useEffect(() => {
     const map = mapRef.current
     if (!map || !ready) return
-    const boxes = overlays
-      .map((o) => o.layer.extent)
-      .filter((e) => !isZeroExtent(e))
+    const boxes = overlays.map((o) => o.layer.extent).filter((e) => !isZeroExtent(e))
     if (!boxes.length) return
     map.fitBounds(
       [
@@ -1456,11 +1457,7 @@ export function GlobeSurface({
     }
     map.setLayerZoomRange("imagery", drawing ? 0 : HANDOVER_ZOOM - 1, 24)
     if (map.getLayer("imagery-wide")) {
-      map.setLayoutProperty(
-        "imagery-wide",
-        "visibility",
-        drawing ? "none" : "visible"
-      )
+      map.setLayoutProperty("imagery-wide", "visibility", drawing ? "none" : "visible")
     }
   }, [base, drawing, ready])
 
@@ -1477,11 +1474,7 @@ export function GlobeSurface({
   useEffect(() => {
     const map = mapRef.current
     if (!map || !ready || !map.getLayer("imagery-recent")) return
-    map.setLayoutProperty(
-      "imagery-recent",
-      "visibility",
-      recent ? "visible" : "none"
-    )
+    map.setLayoutProperty("imagery-recent", "visibility", recent ? "visible" : "none")
     // After the layer is already asking for tiles: the id is pinned, so this
     // only makes sure the service still holds the search behind it.
     if (recent) void ensureMosaic()
@@ -1523,27 +1516,22 @@ export function GlobeSurface({
         abort = new AbortController()
         const c = map.getCenter()
         try {
-          const here: ImageryHere = recent && map.getZoom() < RECENT_MAX_ZOOM
-            ? {
-                date: await fetchLatestSceneDate(c.lat, c.lng, abort.signal),
-                // The mosaic has no ceiling to report: it composes at any level
-                // the service will serve, and magnifies its own pixels past 14.
-                maxLevel: null,
-                magnified: false,
-              }
-            : await fetchEsriImageryHere(
-                c.lat,
-                c.lng,
-                map.getZoom(),
-                abort.signal
-              )
+          const here: ImageryHere =
+            recent && map.getZoom() < RECENT_MAX_ZOOM
+              ? {
+                  date: await fetchLatestSceneDate(c.lat, c.lng, abort.signal),
+                  // The mosaic has no ceiling to report: it composes at any level
+                  // the service will serve, and magnifies its own pixels past 14.
+                  maxLevel: null,
+                  magnified: false,
+                }
+              : await fetchEsriImageryHere(c.lat, c.lng, map.getZoom(), abort.signal)
           if (!cancelled) setEsriHere(here)
         } catch (err) {
           if ((err as Error)?.name === "AbortError") return
           // Not a failure worth reporting: the credit stands, and neither the
           // date nor the ceiling is a part the licence asks for.
-          if (!cancelled)
-            setEsriHere({ date: null, maxLevel: null, magnified: false })
+          if (!cancelled) setEsriHere({ date: null, maxLevel: null, magnified: false })
         }
       }, 350)
     }
@@ -1591,9 +1579,7 @@ export function GlobeSurface({
       polygon
         ? {
             type: "FeatureCollection",
-            features: [
-              { type: "Feature", properties: {}, geometry: polygon as never },
-            ],
+            features: [{ type: "Feature", properties: {}, geometry: polygon as never }],
           }
         : { type: "FeatureCollection", features: [] }
     )
@@ -1693,8 +1679,8 @@ export function GlobeSurface({
         anything heavier would compete with the imagery for the answer.
       */}
       {ready && !failure && (
-        <div className="telemetry pointer-events-none absolute bottom-3 left-3 right-3 flex flex-wrap items-center gap-x-2 gap-y-0.5 text-[10px] text-muted-foreground">
-          <span className="tabular-nums text-foreground">z{zoom.toFixed(1)}</span>
+        <div className="telemetry pointer-events-none absolute right-3 bottom-3 left-3 flex flex-wrap items-center gap-x-2 gap-y-0.5 text-[10px] text-muted-foreground">
+          <span className="text-foreground tabular-nums">z{zoom.toFixed(1)}</span>
           {/*
             AHEAD OF `busy`, ALONE AMONG THESE. The others are answers to "why
             is the picture not changing", and while tiles are in flight the
@@ -1705,8 +1691,7 @@ export function GlobeSurface({
           */}
           {!wide && recent && !recentDrawn ? (
             <span>
-              recent imagery ends at z{RECENT_MAX_ZOOM}; below 10 m this is
-              Esri
+              recent imagery ends at z{RECENT_MAX_ZOOM}; below 10 m this is Esri
             </span>
           ) : busy ? (
             <span>loading imagery</span>
@@ -1714,13 +1699,10 @@ export function GlobeSurface({
             /* Not an error. The imagery ends and the picture is magnified from
                its last real level, which is what a map does; saying so is the
                difference between a limit and a fault. */
-            <span>
-              magnified past z{ceiling}, the finest this imagery has here
-            </span>
+            <span>magnified past z{ceiling}, the finest this imagery has here</span>
           ) : !wide && zoom > nativeMax(shownBasemap) ? (
             <span>
-              magnified past z{nativeMax(shownBasemap)}, the finest this
-              imagery has
+              magnified past z{nativeMax(shownBasemap)}, the finest this imagery has
             </span>
           ) : null}
           {/*
@@ -1776,7 +1758,7 @@ export function GlobeSurface({
         <CameraControls
           map={mapRef.current}
           level={level}
-          className="absolute bottom-3 right-3"
+          className="absolute right-3 bottom-3"
         />
       )}
 
@@ -1788,7 +1770,7 @@ export function GlobeSurface({
         and "what am I drawing" apart.
       */}
       {ready && !failure && (
-        <MapBar className="app-no-drag absolute right-3 top-3 z-[400] flex flex-col">
+        <MapBar className="app-no-drag absolute top-3 right-3 z-[400] flex flex-col">
           {leadingTools}
           {leadingTools && (
             <div aria-hidden className="h-1 bg-[rgb(var(--p-line)/0.45)]" />
@@ -1843,12 +1825,7 @@ export function GlobeSurface({
             two identical glyphs on one rail is a rail that cannot be read
             without pressing it.
           */}
-          <MapMenu
-            label="Base"
-            value={base}
-            onChange={setBase}
-            options={BASE_OPTIONS}
-          >
+          <MapMenu label="Base" value={base} onChange={setBase} options={BASE_OPTIONS}>
             {BASE_OPTIONS.find((o) => o.id === base)?.icon}
           </MapMenu>
           {/*
@@ -1952,7 +1929,7 @@ export function GlobeSurface({
 
       {searching && ready && !failure && (
         <SearchBar
-          className="app-no-drag absolute left-3 right-[3.5rem] top-3 z-[401] max-w-[22rem]"
+          className="app-no-drag absolute top-3 right-[3.5rem] left-3 z-[401] max-w-[22rem]"
           autoFocus
           onSelectLocation={(lat, lon) => {
             /*
@@ -1971,23 +1948,19 @@ export function GlobeSurface({
         <div className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center gap-2 px-6 text-center">
           {failure ? (
             <>
-              <Warning
-                className="size-5 text-destructive-quiet"
-              />
+              <Warning className="size-5 text-destructive-quiet" />
               <p className="max-w-[22rem] text-body text-muted-foreground">
                 {ready
                   ? "The globe reported an error."
                   : "The globe did not finish opening."}
               </p>
-              <p className="telemetry max-w-[22rem] break-words text-meta text-muted-foreground">
+              <p className="telemetry max-w-[22rem] text-meta break-words text-muted-foreground">
                 {failure}
               </p>
             </>
           ) : (
             <>
-              <Globe
-                className="size-5 animate-pulse text-muted-foreground"
-              />
+              <Globe className="size-5 animate-pulse text-muted-foreground" />
               <p className="text-body text-muted-foreground">Opening the globe</p>
             </>
           )}

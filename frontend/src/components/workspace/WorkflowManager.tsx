@@ -19,11 +19,7 @@ import { Check, Stack, Pencil, Trash, X, type Icon } from "@/components/icons"
 import { ConfirmDelete } from "@/components/ui/ConfirmDelete"
 import { ModalShell } from "@/components/ui/ModalShell"
 import { notifyError, notifySuccess } from "@/lib/notify"
-import {
-  deleteStudio,
-  renameStudio,
-  type Studio,
-} from "@/lib/studios"
+import { deleteStudio, renameStudio, type Studio } from "@/lib/studios"
 import { cn } from "@/lib/utils"
 
 export function WorkflowManager({
@@ -139,7 +135,7 @@ export function WorkflowManager({
             return (
               <li
                 key={b.id}
-                className="flex items-center gap-2 border-b py-1.5 pl-1 pr-0.5 last:border-b-0"
+                className="flex items-center gap-2 border-b py-1.5 pr-0.5 pl-1 last:border-b-0"
                 style={{ borderColor: "rgb(var(--p-line) / 0.2)" }}
               >
                 <Stack
@@ -164,9 +160,7 @@ export function WorkflowManager({
                   <span className="min-w-0 flex-1 truncate text-body text-foreground">
                     {b.name}
                     {isOpen && (
-                      <span className="ml-2 text-meta text-muted-foreground">
-                        open
-                      </span>
+                      <span className="ml-2 text-meta text-muted-foreground">open</span>
                     )}
                   </span>
                 )}
@@ -207,7 +201,7 @@ export function WorkflowManager({
           type="button"
           onClick={onDismiss}
           disabled={busy}
-          className="rounded-sm px-2.5 py-1 text-body text-muted-foreground transition-colors hover:bg-secondary/50 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+          className="rounded-sm px-2.5 py-1 text-body text-muted-foreground transition-colors hover:bg-secondary/50 focus-visible:ring-1 focus-visible:ring-ring focus-visible:outline-none"
         >
           <X className="mr-1 inline size-3" />
           Close
@@ -236,7 +230,7 @@ function RowButton({
       aria-label={label}
       onClick={onClick}
       className={cn(
-        "shrink-0 rounded-sm p-1 transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring",
+        "shrink-0 rounded-sm p-1 transition-colors focus-visible:ring-1 focus-visible:ring-ring focus-visible:outline-none",
         danger
           ? "text-muted-foreground hover:bg-destructive/15 hover:text-destructive-quiet"
           : "text-muted-foreground hover:bg-secondary/60 hover:text-foreground"

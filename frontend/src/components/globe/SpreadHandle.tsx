@@ -121,9 +121,7 @@ function Arrow({
     onChange: (m: number) => void
   }>
 }) {
-  const from = useRef<{ y: number; spread: number; mPerPx: number } | null>(
-    null
-  )
+  const from = useRef<{ y: number; spread: number; mPerPx: number } | null>(null)
   const [dragging, setDragging] = useState(false)
 
   const onPointerDown = useCallback(
@@ -224,13 +222,7 @@ function Arrow({
         A wider invisible target over the shaft. Two pixels of line is a target
         for a mouse on a good day and for nothing else.
       */}
-      <rect
-        x={10}
-        y={0}
-        width={20}
-        height={ARROW_PX + 14}
-        fill="transparent"
-      />
+      <rect x={10} y={0} width={20} height={ARROW_PX + 14} fill="transparent" />
     </svg>
   )
 }

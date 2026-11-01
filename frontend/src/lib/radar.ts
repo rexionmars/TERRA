@@ -41,7 +41,11 @@ export function lastLoss(report: RadarAnalysis | null): RadarLoss | null {
 export function latestPass(report: RadarAnalysis | null): RadarPoint | null {
   const s = report?.series ?? []
   if (!s.length) return null
-  return s.reduce((a, b) => (b.date > a.date || (b.date === a.date && b.relative_orbit > a.relative_orbit) ? b : a))
+  return s.reduce((a, b) =>
+    b.date > a.date || (b.date === a.date && b.relative_orbit > a.relative_orbit)
+      ? b
+      : a
+  )
 }
 
 /** What a field's row in the Field table carries of its radar run. */

@@ -15,7 +15,12 @@ import { overlapFigures, type OverlapFigures } from "@/lib/overlap"
 import { radarFigures, type RadarFigures } from "@/lib/radar"
 import { zonesFigures, type ZonesFigures } from "@/lib/zones"
 import type { Season } from "@/lib/season"
-import type { HealthAnalysis, OverlapAnalysis, RadarAnalysis, ZonesAnalysis } from "@/lib/types"
+import type {
+  HealthAnalysis,
+  OverlapAnalysis,
+  RadarAnalysis,
+  ZonesAnalysis,
+} from "@/lib/types"
 
 export interface FieldRow {
   field: string
@@ -26,7 +31,12 @@ export interface FieldRow {
   season: Season | null
   /** Mean classifier confidence over the run, 0-1; null where none was reported. */
   confidence: number | null
-  health: { date: string; ndviZ: number | null; ndreZ: number | null; ndvi: number } | null
+  health: {
+    date: string
+    ndviZ: number | null
+    ndreZ: number | null
+    ndvi: number
+  } | null
   /** Hectares on each register; a register not read is null, not zero. */
   overlap: OverlapFigures | null
   radar: RadarFigures | null
@@ -93,7 +103,9 @@ const cell = (v: string | number | null | undefined): string => {
  */
 export function fieldTableCsv(rows: readonly FieldRow[]): string {
   const totals = new Map<string, number>()
-  for (const r of rows) for (const c of r.classes ?? []) totals.set(c.name, (totals.get(c.name) ?? 0) + c.amount)
+  for (const r of rows)
+    for (const c of r.classes ?? [])
+      totals.set(c.name, (totals.get(c.name) ?? 0) + c.amount)
   const classNames = [...totals.entries()].sort((a, b) => b[1] - a[1]).map(([n]) => n)
   const unit = rows.some((r) => r.classes && r.unit === "px") ? "px" : "ha"
   const header = [
