@@ -10,7 +10,7 @@
 import type { OverlapAnalysis, OverlapLayer } from "@/lib/types"
 
 /** The registers in the order the card and the table read them. */
-export const REGISTER_ORDER = [
+const REGISTER_ORDER = [
   "prodes",
   "deter",
   "embargo_ibama",

@@ -9,7 +9,7 @@ import {
   BlockAgreementPair,
   ReferenceConfusionPair,
 } from "@/components/workspace/AgreementCharts"
-import { PlotSwipeView } from "@/components/AnalysisPlotModal"
+import { PlotSwipeView } from "./PlotSwipeView"
 import { cn } from "@/lib/utils"
 import type { ClassMapCompare } from "@/lib/boardProbe"
 import type { ModelKind, PredictResult } from "@/lib/types"

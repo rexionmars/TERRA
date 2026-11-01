@@ -84,37 +84,6 @@ export function isField(a: Pick<Area, "parent_id">): boolean {
 }
 
 /**
- * The fields of each area, keyed by the parent's id, in the order listed.
- *
- * The store lists fields beside the roots, each naming its parent, and leaves
- * the tree to the reader; this is that tree, one level deep.
- */
-export function fieldsByParent(areas: readonly Area[]): Map<string, Area[]> {
-  const out = new Map<string, Area[]>()
-  for (const a of areas) {
-    if (!a.parent_id) continue
-    const list = out.get(a.parent_id)
-    if (list) list.push(a)
-    else out.set(a.parent_id, [a])
-  }
-  return out
-}
-
-/**
- * The area whose fields are in view: the area itself, or its parent when it
- * is a field. Null when neither is known.
- */
-export function rootOf(
-  areas: readonly Area[],
-  id: string | null | undefined
-): Area | null {
-  if (!id) return null
-  const a = areas.find((x) => x.id === id)
-  if (!a) return null
-  return a.parent_id ? (areas.find((x) => x.id === a.parent_id) ?? null) : a
-}
-
-/**
  * A selection of areas extended by a shift-press, a box or a "select its
  * fields": the areas a job is queued over (lib/jobs.ts).
  *

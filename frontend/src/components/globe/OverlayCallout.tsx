@@ -656,9 +656,6 @@ function CalloutBody({ caption }: { caption: OverlayCaption }) {
             averages toward grey and brightness flattens, so without it the
             vegetation under the box arrives colourless and the plate reads as
             a dark rectangle rather than as glass over that place.
-
-            Same construction as the run board's wires -- see GROUND in
-            NodeCanvas -- and the same three terms in the same order.
           */
           background: "rgb(var(--p-ink) / 0.78)",
           backdropFilter: "blur(16px) brightness(0.5) saturate(1.25)",

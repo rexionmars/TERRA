@@ -2,15 +2,9 @@
  * A node field whose nodes declare their sockets, as Blender's compositor and
  * shader editors draw them.
  *
- * WHY NOT NodeCanvas. That field draws the run graph, where the edges are the
- * shape of a request: a node's input rows exist because a wire arrives, and a
- * socket only pulls where the reader added the card. Here the reader builds
- * the graph, so every socket exists whether or not anything is linked to it,
- * a link joins one output socket to one input socket, and pulling a link off
- * an input is how it is removed -- Blender's gestures, which a request-shaped
- * field would have to be taught to refuse. The view mechanics are the same as
- * NodeCanvas's and are written the same way; the geometry constants and the
- * wire curve are its own, imported.
+ * The reader builds the graph, so every socket exists whether or not anything is
+ * linked to it, a link joins one output socket to one input socket, and pulling a
+ * link off an input is how it is removed: Blender's gestures.
  *
  * A NODE IS A HEADER, ITS OUTPUTS, ITS INPUTS, THEN ITS SETTINGS. Blender sets
  * some settings between the outputs and the inputs; they are set after both
@@ -19,10 +13,13 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react"
 import { ArrowsOut, CaretDown, CaretRight, TreeStructure } from "@/components/icons"
 import { cn } from "@/lib/utils"
-import { BODY_PAD, HEAD_H, ROW_H, wirePath } from "./NodeCanvas"
 
 export type Place = { x: number; y: number }
 
+/** The fixed geometry that places sockets without measuring rows. */
+const HEAD_H = 26
+const ROW_H = 22
+const BODY_PAD = 4
 const SOCKET = 10
 /** How far from a socket, in board units, a dropped link still lands on it. */
 const SOCKET_REACH = 14
@@ -42,7 +39,11 @@ export interface SocketNode {
   id: string
   place: Place
   w: number
-  /** A guess until measured; see NodeCanvas for why both exist. */
+  /**
+   * A guess until measured. The layout runs before any node exists, and a height
+   * written by hand cannot be right for a node whose contents depend on what is
+   * being asked.
+   */
   h: number
   header: React.ReactNode
   /** The header band's colour. */
@@ -82,22 +83,24 @@ interface View {
 
 const clamp = (v: number, lo: number, hi: number) => Math.min(hi, Math.max(lo, v))
 
+/** A wire from (x1, y1) to (x2, y2), leaving and arriving level. */
+function wirePath(x1: number, y1: number, x2: number, y2: number): string {
+  const reach = clamp(Math.abs(x2 - x1) * 0.5, 30, 160)
+  return `M ${x1} ${y1} C ${x1 + reach} ${y1}, ${x2 - reach} ${y2}, ${x2} ${y2}`
+}
+
 /** What names a link: the input it lands on, since an input takes one link. */
 export const linkKey = (to: string, toSocket: string) => `${to}\u0000${toSocket}`
 
 /** Room left around the graph in the wire layer, so a curve's bulge is never clipped. */
 const WIRE_PAD = 240
 
-export function outputSocketY(
-  node: SocketNode,
-  index: number,
-  folded: boolean
-): number {
+function outputSocketY(node: SocketNode, index: number, folded: boolean): number {
   if (folded) return node.place.y + HEAD_H / 2
   return node.place.y + HEAD_H + BODY_PAD + index * ROW_H + ROW_H / 2
 }
 
-export function inputSocketY(node: SocketNode, index: number, folded: boolean): number {
+function inputSocketY(node: SocketNode, index: number, folded: boolean): number {
   if (folded) return node.place.y + HEAD_H / 2
   return (
     node.place.y + HEAD_H + BODY_PAD + (node.outputs.length + index) * ROW_H + ROW_H / 2
@@ -213,7 +216,9 @@ export function SocketCanvas({
     }
     const gw = maxX - minX
     const gh = maxY - minY
-    // Never magnified to fill, for the reason NodeCanvas gives.
+    // Never magnified to fill: a graph smaller than its pane is drawn at its own size
+    // and centred, because scaling three nodes up to fill a wide area makes the type
+    // large and says nothing new.
     const z = clamp(
       Math.min((w - FIT_PAD * 2) / gw, (h - FIT_PAD * 2) / gh),
       MIN_ZOOM,
@@ -262,7 +267,12 @@ export function SocketCanvas({
     }
   }, [apiRef, toBoard, fit])
 
-  /* Measured heights, through one observer; see NodeCanvas for borderBoxSize. */
+  /*
+    Measured heights, through one observer. borderBoxSize, not getBoundingClientRect:
+    the nodes live inside the zoom transform, so a rect measured off the screen is the
+    height times whatever the view is at. The observer reports in the element's own
+    space.
+  */
   const measureRef = useRef(onMeasure)
   measureRef.current = onMeasure
   const watched = useRef(new Map<Element, string>())
@@ -296,7 +306,11 @@ export function SocketCanvas({
     []
   )
 
-  /* Zoom about the pointer, on a non-passive listener: see NodeCanvas. */
+  /*
+    Zoom about the pointer, on a listener registered by hand: React attaches wheel
+    handlers passively, and a passive handler cannot call preventDefault, so the
+    gesture would zoom the graph AND scroll whatever ancestor would.
+  */
   useEffect(() => {
     const host = hostRef.current
     if (!host) return

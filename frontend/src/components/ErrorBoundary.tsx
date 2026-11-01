@@ -21,7 +21,7 @@
  */
 import { Component, type ErrorInfo, type ReactNode } from "react"
 import { Warning, ArrowCounterClockwise } from "@/components/icons"
-import { btnGhostDense, btnPrimary } from "@/components/ui/buttons"
+import { btnPrimary } from "@/components/ui/buttons"
 import { cn } from "@/lib/utils"
 
 export interface ErrorFallbackProps {
@@ -183,49 +183,6 @@ export function AppErrorFallback({ error, componentStack }: ErrorFallbackProps) 
           Reload the window
         </button>
       </div>
-    </div>
-  )
-}
-
-/**
- * One studio panel, replaced by what happened to it.
- *
- * Fills the area's body and paints its own ink, which is not decoration: the
- * viewport's area is transparent so the WebGL canvas behind it shows through,
- * and text laid over a rendered scene cannot be read at any contrast the
- * palette can offer. It takes pointer events back for the same reason -- that
- * area is pointer-transparent by design, and a retry nobody can press is a
- * dead end.
- */
-export function PanelErrorFallback({
-  error,
-  componentStack,
-  reset,
-  panel,
-}: ErrorFallbackProps & {
-  /** The editor's own label, so the message names what is missing. */
-  panel: string
-}) {
-  return (
-    <div
-      role="alert"
-      className="pointer-events-auto flex h-full w-full flex-col items-start gap-2 overflow-auto p-3"
-      style={{ background: "var(--s-panel)" }}
-    >
-      <p className="flex items-center gap-1.5 text-meta text-destructive-quiet">
-        <Warning className="size-3 shrink-0" />
-        {panel} stopped drawing
-      </p>
-      <p className="text-body text-muted-foreground">
-        The rest of the board is unaffected. Trying again rebuilds this panel from the
-        state as it stands now, and the area can be retyped or closed from its header
-        either way.
-      </p>
-      <CrashDetail error={error} componentStack={componentStack} />
-      <button type="button" className={btnGhostDense} onClick={reset}>
-        <ArrowCounterClockwise className="size-3" />
-        Try again
-      </button>
     </div>
   )
 }

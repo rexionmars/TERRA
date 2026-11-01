@@ -54,15 +54,6 @@ export function parseRunSummary(summary?: string | null): RunSummary {
 }
 
 /**
- * The class covering the most pixels. class_statistics emits class_stats
- * ordered by pixel count descending (sidecar/infer.py), so this is element 0
- * rather than a scan.
- */
-export function dominantClass(stats: RunClassStat[]): RunClassStat | null {
-  return stats[0] ?? null
-}
-
-/**
  * Area the model actually assigned a class to, which is not the AOI area: the
  * qualifying-pixel mask differs per model, so the same AOI classified twice can
  * report two figures. Label it as classified area, never as AOI area.
@@ -81,7 +72,7 @@ export function formatHectares(ha: number): string {
   return `${Math.round(ha).toLocaleString()} ha`
 }
 
-export function runSummaryObject(summary?: string | null): Record<string, unknown> {
+function runSummaryObject(summary?: string | null): Record<string, unknown> {
   if (!summary?.trim()) return {}
   try {
     const j = JSON.parse(summary) as unknown

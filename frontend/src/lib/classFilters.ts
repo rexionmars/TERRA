@@ -467,13 +467,6 @@ export function closeClass(grid: ClassGrid, c: number, size: WindowSize): ClassG
   return { width: w, height: h, index: out }
 }
 
-/** Pixels per legend ordinal. */
-export function classCounts(grid: ClassGrid, classes: number): Uint32Array {
-  const counts = new Uint32Array(classes)
-  for (const v of grid.index) if (v < classes) counts[v]++
-  return counts
-}
-
 /** Pixels classified in both grids whose class differs. Same grid required. */
 export function changedPixels(a: ClassGrid, b: ClassGrid): number {
   let n = 0
@@ -483,24 +476,6 @@ export function changedPixels(a: ClassGrid, b: ClassGrid): number {
     if (x !== NO_CLASS && y !== NO_CLASS && x !== y) n++
   }
   return n
-}
-
-/**
- * How many pixels went from each class to each other class, as a flat
- * classes x classes table: row is the class in `a`, column the class in `b`.
- */
-export function transitionCounts(
-  a: ClassGrid,
-  b: ClassGrid,
-  classes: number
-): Uint32Array {
-  const t = new Uint32Array(classes * classes)
-  for (let p = 0; p < a.index.length; p++) {
-    const x = a.index[p]
-    const y = b.index[p]
-    if (x < classes && y < classes) t[x * classes + y]++
-  }
-  return t
 }
 
 /**

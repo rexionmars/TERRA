@@ -293,8 +293,7 @@ export function runOperator(id: OperatorId): boolean {
   asynchronously: a keystroke has to be matched when it arrives. WKWebView
   reports "Macintosh" there and WebView2 does not.
 */
-export const IS_MAC =
-  typeof navigator !== "undefined" && /Mac/.test(navigator.userAgent)
+const IS_MAC = typeof navigator !== "undefined" && /Mac/.test(navigator.userAgent)
 
 const MAC_SYMBOLS: Record<string, string> = {
   Mod: "⌘",

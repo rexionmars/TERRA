@@ -90,7 +90,7 @@ export interface ClassProbeSample {
  * TextureLoader defaults to flipY, so the mesh UV that paints the image top at
  * v=1 matches ImageData's row 0 at the top of the buffer.
  */
-export function uvToTexel(
+function uvToTexel(
   u: number,
   v: number,
   width: number,

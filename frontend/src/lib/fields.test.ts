@@ -1,6 +1,5 @@
 import { describe, expect, it } from "vitest"
 
-import { fieldsByParent, rootOf, type Area } from "@/lib/areas"
 import {
   fieldLayerDefaultVisible,
   fieldWindows,
@@ -95,35 +94,5 @@ describe("field layers", () => {
     expect(fieldLayerDefaultVisible(FIELD_LAYER.classes)).toBe(true)
     expect(fieldLayerDefaultVisible(FIELD_LAYER.windowA)).toBe(false)
     expect(fieldLayerDefaultVisible(FIELD_LAYER.windowB)).toBe(false)
-  })
-})
-
-function area(id: string, parent = ""): Area {
-  return {
-    id,
-    name: id,
-    geometry: square as Area["geometry"],
-    created_at: "",
-    notes: "",
-    run_count: 0,
-    parent_id: parent,
-    source_run_id: parent ? "run" : "",
-  }
-}
-
-describe("the area tree", () => {
-  const areas = [area("aoi"), area("f1", "aoi"), area("other"), area("f2", "aoi")]
-
-  it("lists each area's fields under it, in order", () => {
-    const tree = fieldsByParent(areas)
-    expect(tree.get("aoi")?.map((a) => a.id)).toEqual(["f1", "f2"])
-    expect(tree.has("other")).toBe(false)
-  })
-
-  it("finds the area whose fields are in view, from the area or one of its fields", () => {
-    expect(rootOf(areas, "f2")?.id).toBe("aoi")
-    expect(rootOf(areas, "aoi")?.id).toBe("aoi")
-    expect(rootOf(areas, "missing")).toBeNull()
-    expect(rootOf(areas, null)).toBeNull()
   })
 })

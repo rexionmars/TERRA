@@ -95,18 +95,6 @@ export function cornersOf(e: Bounds): number[][] {
   ]
 }
 
-/** `Bounds` as Leaflet wants them, or null where there is nothing to draw. */
-export function boundsToLatLng(
-  e: Bounds | null | undefined
-): [[number, number], [number, number]] | null {
-  if (isZeroExtent(e)) return null
-  const b = e as Bounds
-  return [
-    [b.lat_min, b.lon_min],
-    [b.lat_max, b.lon_max],
-  ]
-}
-
 export interface VisibleLayerInput {
   result: PredictResult | null
   showPredictionOverlay: boolean

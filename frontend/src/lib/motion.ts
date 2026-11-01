@@ -51,11 +51,3 @@ export const SCREEN = {
   duration: 0.24,
   ease: [0.22, 1, 0.36, 1],
 } as const
-
-/**
- * A press, in milliseconds for CSS rather than for motion.
- *
- * Kept here so the one thing that answers a pointer immediately is declared
- * beside the things that answer it over time.
- */
-export const PRESS_MS = 90

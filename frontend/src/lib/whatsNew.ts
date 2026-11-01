@@ -5,7 +5,7 @@ export type WhatsNewEntry = {
 }
 
 /** Newest first. Keep in sync with AppVersion / Git tags when cutting a release. */
-export const WHATS_NEW: WhatsNewEntry[] = [
+const WHATS_NEW: WhatsNewEntry[] = [
   {
     version: "0.7.0",
     title: "Sunset — a compositor for the board, and an area read field by field",

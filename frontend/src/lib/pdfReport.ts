@@ -22,7 +22,7 @@ import type { Season, SeasonMark } from "@/lib/season"
 import type { Bounds, ModelKind } from "@/lib/types"
 import type { PdfReportSettings } from "@/lib/pdfReportSettings"
 
-export const PDF_REPORT_SCHEMA = 1
+const PDF_REPORT_SCHEMA = 1
 
 export { PDF_REPORT_DEFAULT, type PdfReportSettings } from "@/lib/pdfReportSettings"
 

@@ -148,8 +148,8 @@ const BASE_OPTIONS: readonly {
   },
 ]
 
-export const GLOBE_BASEMAP: BasemapKind = "esri"
-export const GLOBE_WIDE_BASEMAP: BasemapKind = "eox"
+const GLOBE_BASEMAP: BasemapKind = "esri"
+const GLOBE_WIDE_BASEMAP: BasemapKind = "eox"
 const ESRI_FIRST_LEVEL = 12
 const HANDOVER_ZOOM = zoomOfLevel(ESRI_FIRST_LEVEL)
 

@@ -140,7 +140,7 @@ export async function openStudio(id: string): Promise<OpenedStudio> {
  * the value a fresh board would have -- not an exception thrown while opening
  * something the user asked for.
  */
-export function parseSnapshot(text: string | undefined): BoardSnapshot | null {
+function parseSnapshot(text: string | undefined): BoardSnapshot | null {
   if (!text) return null
   let raw: Partial<BoardSnapshot>
   try {

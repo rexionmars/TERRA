@@ -27,14 +27,14 @@ import { TOKENS, contrast, type Channels, type ThemeName } from "./contrast"
 
 const HEX = /^#?([0-9a-f]{6})$/i
 
-export function parseHex(hex: string): Channels | null {
+function parseHex(hex: string): Channels | null {
   const m = HEX.exec(hex.trim())
   if (!m) return null
   const n = parseInt(m[1], 16)
   return [(n >> 16) & 255, (n >> 8) & 255, n & 255]
 }
 
-export function toHex([r, g, b]: Channels): string {
+function toHex([r, g, b]: Channels): string {
   const h = (v: number) =>
     Math.max(0, Math.min(255, Math.round(v)))
       .toString(16)
@@ -43,7 +43,7 @@ export function toHex([r, g, b]: Channels): string {
 }
 
 /** `fg` painted at `alpha` over `bg`, which is what a translucent panel is. */
-export function compositeOver(fg: Channels, bg: Channels, alpha: number): Channels {
+function compositeOver(fg: Channels, bg: Channels, alpha: number): Channels {
   return [0, 1, 2].map(
     (i) => fg[i] * alpha + bg[i] * (1 - alpha)
   ) as unknown as Channels
@@ -93,7 +93,7 @@ export function legibleOn(hex: string, ground: Channels, target = 3.0): string {
  * wraps and shares a pattern with the first, which is visible rather than
  * silent -- the alternative is inventing a pattern too close to one in use.
  */
-export const SERIES_DASHES: (string | undefined)[] = [
+const SERIES_DASHES: (string | undefined)[] = [
   undefined,
   "6 3",
   "2 3",

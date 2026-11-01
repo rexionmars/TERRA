@@ -347,7 +347,7 @@ export interface RunAssetInput {
  * has something to list, and which of the two supplied it has never been the
  * caller's business.
  */
-export function compositionList(i: {
+function compositionList(i: {
   composition: CompositionOverlay | null
   compositionGallery: CompositionOverlay[]
 }): CompositionOverlay[] {
