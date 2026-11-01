@@ -42,7 +42,7 @@ export function ShellPanel({
       ref={panelRef}
       aria-label={crumbs[crumbs.length - 1]?.label}
       className={cn(
-        "panel app-no-drag absolute bottom-10 right-[3.5rem] top-3 z-[450] flex max-w-[calc(100%-5rem)] flex-col overflow-hidden rounded-md shadow-[0_10px_32px_rgb(0_0_0/0.45)]",
+        "map-chrome map-chrome-panel app-no-drag absolute bottom-10 right-[3.5rem] top-3 z-[450] flex max-w-[calc(100%-5rem)] flex-col overflow-hidden rounded-md border border-[rgb(var(--p-line)/0.28)] shadow-[0_2px_8px_rgb(0_0_0/0.28)]",
         wide ? "w-[44rem]" : "w-[26rem]"
       )}
     >
@@ -157,8 +157,9 @@ export function PanelChoices<T extends string | number>({
             onClick={() => onChange(o.id)}
             className={cn(
               "rounded-sm px-2 py-1 text-label transition-colors disabled:cursor-not-allowed disabled:opacity-40",
+              // The tool column's lit button, in the accent's text colour.
               chosen
-                ? "bg-[rgb(var(--p-surface-raised))] text-foreground"
+                ? "bg-[rgb(var(--p-surface-raised)/0.92)] text-accent-quiet"
                 : "text-muted-foreground hover:bg-hover hover:text-foreground"
             )}
           >
@@ -173,7 +174,7 @@ export function PanelChoices<T extends string | number>({
 /** The limit on reading what is above it. */
 export function PanelLimit({ children }: { children: React.ReactNode }) {
   return (
-    <p className="rounded-sm border border-border bg-[rgb(var(--p-control))] px-3 py-2 text-label text-muted-foreground">
+    <p className="rounded-sm border border-border px-3 py-2 text-label text-muted-foreground">
       {children}
     </p>
   )

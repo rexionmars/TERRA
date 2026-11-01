@@ -46,7 +46,7 @@ function Figure({ label, value, wide = false }: { label: string; value: string; 
 
 function Figures({ children }: { children: React.ReactNode }) {
   return (
-    <dl className="grid grid-cols-2 gap-x-4 gap-y-3 rounded-sm border border-border bg-[rgb(var(--p-control))] p-3">
+    <dl className="grid grid-cols-2 gap-x-4 gap-y-3 rounded-sm border border-border p-3">
       {children}
     </dl>
   )

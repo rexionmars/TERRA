@@ -771,6 +771,18 @@
   */
   --panel: var(--s-panel);
   --panel-solid: var(--s-panel);
+
+  /*
+    WHAT FLOATS OVER THE MAP: the tool column, and the panel beside it.
+
+    Translucent, so what its text is read on is partly the imagery. Bright ground
+    behind plain ink at this alpha takes secondary text to 3.83, so the ground is
+    dimmed first, which is what brightness() is doing here and why it is not a
+    matter of taste: at 0.7 the worst case holds 4.71. Checked by checkMapChrome
+    in lib/contrast.ts, which reads these two lines.
+  */
+  --map-chrome-alpha: 0.82;
+  --map-chrome-filter: blur(18px) brightness(0.7);
   --card: var(--s-card);
   --card-foreground: rgb(var(--p-text));
   --popover: var(--s-float);
@@ -957,6 +969,13 @@
   */
   --s-hover: rgb(0 0 0 / 0.05);
   --s-selected: rgb(0 0 0 / 0.10);
+
+  /*
+    Nearly opaque, because here dark ground is the hazard and a filter cannot lift
+    it: pure black behind 0.82 takes the accent as text to 3.56. See checkMapChrome.
+  */
+  --map-chrome-alpha: 0.94;
+  --map-chrome-filter: blur(18px);
 
   --border: rgb(var(--p-line) / 0.45);
   --hairline: rgb(var(--p-line) / 0.35);
@@ -1400,6 +1419,26 @@
   border: 1px solid rgb(var(--p-line) / 0.28);
   backdrop-filter: blur(18px) saturate(1.05);
   -webkit-backdrop-filter: blur(18px) saturate(1.05);
+}
+
+/*
+  One material for what floats over the map, so a button and the panel it opens are
+  the same thing. In the components layer so a utility can still light a button.
+*/
+@layer components {
+  .map-chrome {
+    background-color: rgb(var(--p-ink) / var(--map-chrome-alpha));
+    backdrop-filter: var(--map-chrome-filter);
+    -webkit-backdrop-filter: var(--map-chrome-filter);
+  }
+}
+
+/* A panel's rows and hovers, in the tool column's lines and plate. */
+.map-chrome-panel {
+  --border: rgb(var(--p-line) / 0.22);
+  --hairline: rgb(var(--p-line) / 0.22);
+  --s-hover: rgb(var(--p-surface-raised) / 0.92);
+  --s-selected: rgb(var(--p-surface-raised) / 0.92);
 }
 
 

@@ -2,8 +2,8 @@
  * The map's own controls, at the measurements the map already used.
  *
  * Leaflet's zoom and draw bars were styled in index.css and those rules died
- * with the library, so the numbers live here: a 2.125rem square, `--p-ink` at
- * 0.82 behind an 18px blur, a hairline between buttons in a bar and a hairline
+ * with the library, so the numbers live here: a 2.125rem square, the `.map-chrome`
+ * material, a hairline between buttons in a bar and a hairline
  * around it.
  *
  * ONE COPY, because there were three -- the work map's stack, the board's
@@ -68,7 +68,7 @@ export function MapButton({
       className={cn(
         "flex size-[2.125rem] items-center justify-center transition-colors",
         "border-b border-[rgb(var(--p-line)/0.22)] last:border-b-0",
-        "bg-[rgb(var(--p-ink)/0.82)] backdrop-blur-[18px]",
+        "map-chrome",
         "focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring",
         active
           ? "bg-[rgb(var(--p-surface-raised)/0.92)] text-primary"
@@ -176,7 +176,7 @@ export function MapMenu<T extends string>({
         className={cn(
           "flex size-[2.125rem] items-center justify-center transition-colors",
           "border-b border-[rgb(var(--p-line)/0.22)] last:border-b-0",
-          "bg-[rgb(var(--p-ink)/0.82)] backdrop-blur-[18px]",
+          "map-chrome",
           "focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring",
           open
             ? "bg-[rgb(var(--p-surface-raised)/0.92)] text-primary"
