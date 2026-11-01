@@ -44,18 +44,3 @@ export function tileLevel(zoom: number): number {
 export function zoomOfLevel(level: number): number {
   return level - LEVEL_OFFSET
 }
-
-/**
- * The ground one CSS pixel covers at this zoom and latitude, in metres.
- *
- * THE FIGURE THAT DOES NOT DEPEND ON A CONVENTION. Web Mercator's scale is
- * 40075016.686 m around the equator over a world that is 512 * 2^zoom pixels
- * wide in MapLibre's units, narrowed by the cosine of the latitude. Where a z
- * has to be explained, this can be compared against the imagery itself: 10 m
- * Sentinel-2 is at its own scale while this reads 10 or more, and is being
- * magnified below that.
- */
-export function metresPerPixel(zoom: number, lat: number): number {
-  const EQUATOR_M = 40075016.686
-  return (EQUATOR_M * Math.cos((lat * Math.PI) / 180)) / (512 * 2 ** zoom)
-}

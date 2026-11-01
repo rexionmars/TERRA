@@ -17,7 +17,7 @@ import type { MineralAnalysis, MineralGroup, MineralLayer } from "@/lib/types"
  * The prefix every mineral layer id carries. The map has one layer per group,
  * and the prefix is what marks an id as one of them.
  */
-export const MINERAL_LAYER_PREFIX = "mineral:"
+const MINERAL_LAYER_PREFIX = "mineral:"
 
 /** The layer id of one group's class map. */
 export function mineralLayerId(group: number): string {

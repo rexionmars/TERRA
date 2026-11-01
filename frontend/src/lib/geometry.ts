@@ -7,7 +7,7 @@ export type LonLat = [number, number]
  * Outer ring of a Polygon, or the outer ring of the first part of a
  * MultiPolygon. Returns null for geometries without a usable ring.
  */
-export function polygonOuterRing(geometry: GeoJSONGeometry): LonLat[] | null {
+function polygonOuterRing(geometry: GeoJSONGeometry): LonLat[] | null {
   if (geometry.type === "Polygon") {
     return (geometry.coordinates[0] as LonLat[]) ?? null
   }
@@ -16,33 +16,6 @@ export function polygonOuterRing(geometry: GeoJSONGeometry): LonLat[] | null {
     return (multi[0]?.[0] as LonLat[]) ?? null
   }
   return null
-}
-
-/**
- * Whether two geometries describe the same ground.
- *
- * FOR RUNS WRITTEN BEFORE THEY RECORDED WHICH AREA THEY WERE OF. A run stores
- * the polygon it was made over, so a run and the catalogued drawing behind it
- * hold the same ring — the run was sent that exact geometry. Equality on the
- * ring is therefore the honest test, and this is not a spatial predicate: two
- * drawings of the same field by hand are different ground here, correctly, and
- * anything that wanted overlap would have to measure it.
- *
- * The tolerance is a float round trip through JSON and nothing more. 1e-9
- * degrees is about a tenth of a millimetre, far under the precision any of
- * these coordinates carry.
- */
-export function sameGround(
-  a: GeoJSONGeometry | null | undefined,
-  b: GeoJSONGeometry | null | undefined
-): boolean {
-  if (!a || !b) return false
-  const ra = polygonOuterRing(a)
-  const rb = polygonOuterRing(b)
-  if (!ra || !rb || ra.length !== rb.length) return false
-  return ra.every(
-    (p, i) => Math.abs(p[0] - rb[i][0]) < 1e-9 && Math.abs(p[1] - rb[i][1]) < 1e-9
-  )
 }
 
 /**
@@ -56,7 +29,7 @@ export function sameGround(
  * This is the vertex centroid, not the area centroid: it is used to pick a
  * camera target for flyTo, not for any area-weighted measurement.
  */
-export function ringCentroid(ring: LonLat[]): LonLat {
+function ringCentroid(ring: LonLat[]): LonLat {
   if (ring.length === 0) return [0, 0]
   const closed =
     ring.length > 1 &&
@@ -91,23 +64,6 @@ export function polygonParts(geometry: GeoJSONGeometry): LonLat[][][] {
     return (multi ?? []).filter((part) => part?.length)
   }
   return []
-}
-
-/** Longitude/latitude bounds over every part. */
-/**
- * How much a degree of longitude shrinks at a given latitude.
- *
- * A span in degrees is not a span on the ground: meridians converge, so a
- * degree of longitude covers cos(latitude) of what a degree of latitude does.
- * Normalising an extent without this draws a Brazilian parcel stretched
- * east-west by about a tenth, and a Nordic one by half.
- *
- * Named here rather than written where it is needed, because it is needed in
- * two places now -- the footprint thumbnail and the studio -- and this
- * repository has already been bitten by a value that existed twice.
- */
-export function lonScaleAtLat(lat: number): number {
-  return Math.cos((lat * Math.PI) / 180) || 1
 }
 
 export function geometryBounds(
@@ -146,7 +102,7 @@ const METRES_PER_DEGREE = (2 * Math.PI * EARTH_RADIUS_M) / 360
  * 110540 for latitude) instead introduces a systematic bias of about 0.48
  * percent, which is 0.34 ha on a 71 ha parcel.
  */
-export function geometryAreaM2(geometry: GeoJSONGeometry | null | undefined): number {
+function geometryAreaM2(geometry: GeoJSONGeometry | null | undefined): number {
   if (!geometry) return 0
   const bounds = geometryBounds(geometry)
   if (!bounds) return 0
@@ -190,115 +146,4 @@ export function geometryCentroid(
   const ring = polygonOuterRing(geometry)
   if (!ring?.length) return null
   return ringCentroid(ring)
-}
-
-/**
- * A stored `polygon_geojson` column as geometry, or null when it cannot be read.
- *
- * NAMED FOR A ROW IT NO LONGER READS. It was `resolveProjectGeometry`, and
- * resolved a project's AOI -- an inline polygon or a reference to one of three
- * embedded example areas. A project has no geometry now, and its only callers
- * pass RUN rows, which have always stored their polygon this way.
- *
- * Null for a column that is empty or holds text this cannot parse. A run whose
- * ground cannot be recovered is shown without one rather than refused.
- */
-export function polygonFromRow(row: {
-  polygon_geojson?: string
-}): GeoJSONGeometry | null {
-  const raw = row.polygon_geojson?.trim()
-  if (!raw) return null
-  try {
-    const parsed = JSON.parse(raw) as GeoJSONGeometry
-    if (parsed?.type === "Polygon" || parsed?.type === "MultiPolygon") {
-      return parsed
-    }
-  } catch {
-    /* stored text is opaque */
-  }
-  return null
-}
-
-/** Ray-cast point-in-polygon (lon/lat), for AOI right-click hit testing. */
-// Moved here from MapView when a second map surface needed the same test: a
-// hit test written twice is a hit test that can disagree with itself about
-// what is inside an area.
-export function pointInRing(lon: number, lat: number, ring: LonLat[]): boolean {
-  let inside = false
-  for (let i = 0, j = ring.length - 1; i < ring.length; j = i++) {
-    const xi = ring[i][0]
-    const yi = ring[i][1]
-    const xj = ring[j][0]
-    const yj = ring[j][1]
-    const intersect =
-      yi > lat !== yj > lat &&
-      lon < ((xj - xi) * (lat - yi)) / (yj - yi + Number.EPSILON) + xi
-    if (intersect) inside = !inside
-  }
-  return inside
-}
-
-export function pointInAoi(
-  lon: number,
-  lat: number,
-  geometry: GeoJSONGeometry
-): boolean {
-  if (geometry.type === "Polygon") {
-    const coords = geometry.coordinates as LonLat[][]
-    const outer = coords[0]
-    if (!outer || !pointInRing(lon, lat, outer)) return false
-    for (let h = 1; h < coords.length; h++) {
-      if (pointInRing(lon, lat, coords[h])) return false
-    }
-    return true
-  }
-  if (geometry.type === "MultiPolygon") {
-    const multi = geometry.coordinates as unknown as LonLat[][][]
-    return multi.some((poly) => {
-      const outer = poly[0]
-      if (!outer || !pointInRing(lon, lat, outer)) return false
-      for (let h = 1; h < poly.length; h++) {
-        if (pointInRing(lon, lat, poly[h])) return false
-      }
-      return true
-    })
-  }
-  return false
-}
-
-/** Longest edge in the southern band of the AOI — label glues to this segment. */
-export function pickContourEdge(geometry: GeoJSONGeometry): {
-  a: LonLat
-  b: LonLat
-  mid: LonLat
-} | null {
-  const ring = polygonOuterRing(geometry)
-  if (!ring || ring.length < 2) return null
-
-  let latMin = Infinity
-  let latMax = -Infinity
-  for (const [, lat] of ring) {
-    if (lat < latMin) latMin = lat
-    if (lat > latMax) latMax = lat
-  }
-  const southBand = latMin + (latMax - latMin) * 0.4
-
-  let best: { a: LonLat; b: LonLat; mid: LonLat; score: number } | null = null
-  for (let i = 0; i < ring.length - 1; i++) {
-    const a = ring[i]
-    const b = ring[i + 1]
-    const mid: LonLat = [(a[0] + b[0]) / 2, (a[1] + b[1]) / 2]
-    const dlon = b[0] - a[0]
-    const dlat = b[1] - a[1]
-    const len = Math.hypot(dlon, dlat)
-    if (len < 1e-12) continue
-    // Prefer southern long edges (Wheat Field labels sit on the bottom contour).
-    const southBonus = mid[1] <= southBand ? 3 : 1
-    const score = len * southBonus - (mid[1] - latMin) * 0.15
-    if (!best || score > best.score) {
-      best = { a, b, mid, score }
-    }
-  }
-  if (!best) return null
-  return { a: best.a, b: best.b, mid: best.mid }
 }

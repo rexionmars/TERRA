@@ -6,7 +6,6 @@ import {
   isJobKind,
   jobDuration,
   jobsInReadingOrder,
-  latestRuns,
   takeFinished,
   withJob,
   type Job,
@@ -81,32 +80,6 @@ describe("the job list", () => {
 })
 
 describe("finding the results again", () => {
-  const runs = [
-    {
-      id: "r1",
-      created_at: "2026-09-24T10:00:00Z",
-      area_id: "f1",
-      kind: "classification",
-    },
-    {
-      id: "r2",
-      created_at: "2026-09-25T10:00:00Z",
-      area_id: "f1",
-      kind: "classification",
-    },
-    { id: "r3", created_at: "2026-09-25T11:00:00Z", area_id: "f1", kind: "water" },
-    // Written before the kind column: a classification.
-    { id: "r4", created_at: "2026-09-20T10:00:00Z", area_id: "f2", kind: "" },
-  ]
-
-  it("takes the latest run of the product over each area, and counts the areas with none", () => {
-    expect(latestRuns(runs, ["f1", "f2", "f3"], "classify")).toEqual({
-      ids: ["r2", "r4"],
-      missing: 1,
-    })
-    expect(latestRuns(runs, ["f1", "f2"], "water")).toEqual({ ids: ["r3"], missing: 1 })
-  })
-
   it("hands each finished job over once", () => {
     const list = [
       job("t1", { state: "done", run_id: "run-1" }),

@@ -274,7 +274,7 @@ function App() {
        * The board's own id for the ground this run was over.
        *
        * THREE IDENTITIES HAD TO BE MADE ONE. The board keys its live area by the
-       * GROUND -- `liveAreaId` returns the area id whenever it knows it -- while
+       * GROUND, the area id whenever it is known, while
        * `runId` reaching it is `result.run_id || "current"`, which every product
        * but the classification then left on the sentinel, and this function
        * keyed what it kept by the run. Three names for one area, so the retained
@@ -350,7 +350,7 @@ function App() {
         identical hectares.
 
         THE GROUND WINS when it is offered. It is what the board files areas
-        under -- `liveAreaId` answers with it -- so an entry keyed by the run
+        under, so an entry keyed by the run
         is re-keyed rather than left to shadow the one that can be found.
       */
         const same = work ? prev.findIndex((r) => runWorkKey(r.result) === work) : -1

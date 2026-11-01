@@ -57,7 +57,7 @@ export interface Basemap {
   minLevel?: number
 }
 
-export const BASEMAPS: readonly Basemap[] = [
+const BASEMAPS: readonly Basemap[] = [
   {
     kind: "esri",
     name: "Satellite (Esri)",
@@ -159,10 +159,6 @@ export const BASEMAPS: readonly Basemap[] = [
 export const MAPLIBRE_CREDIT: CreditPart = {
   label: "MapLibre",
   href: "https://maplibre.org",
-}
-
-export function basemapByName(name: string): Basemap {
-  return BASEMAPS.find((b) => b.name === name) ?? BASEMAPS[0]
 }
 
 export function basemapByKind(kind: BasemapKind): Basemap {

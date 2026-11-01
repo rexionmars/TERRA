@@ -6,11 +6,11 @@ const PLACEHOLDER_AOI_LABELS = new Set([
   "New field",
 ])
 
-export function isPlaceholderAoiLabel(label: string | null | undefined): boolean {
+function isPlaceholderAoiLabel(label: string | null | undefined): boolean {
   return PLACEHOLDER_AOI_LABELS.has((label ?? "").trim())
 }
 
-export function isRunLabel(label: string | null | undefined): boolean {
+function isRunLabel(label: string | null | undefined): boolean {
   return (label ?? "").trim().toLowerCase().startsWith("run-")
 }
 

@@ -1,15 +1,10 @@
 /**
  * The two pieces every card on a node canvas is built from.
  *
- * Lifted out of `BoardRunGraph` when a second surface needed them, which has
- * since been removed; `BoardRunGraph` is their one caller again. They stay
- * apart because a surface that draws cards should reach for this header rather
- * than copy it: the same argument `lib/studioEditors.ts` makes for naming the
- * editors once, and `lib/mapTools.ts` for its own table. A header that exists
- * twice is a header that can disagree with itself.
+ * A surface that draws cards should reach for this header rather than copy it: a
+ * header that exists twice is a header that can disagree with itself.
  *
- * Nothing about runs is in here, as nothing about runs is in `NodeCanvas`. A
- * caller supplies what the card says.
+ * Nothing about runs is in here. A caller supplies what the card says.
  */
 import { cn } from "@/lib/utils"
 
@@ -93,7 +88,7 @@ export function Choice({
         dim does not need one.
 
         The two properties come from the card this chip is inside, which
-        declares them on its own box; see NodeCanvas. The fallbacks are what a
+        declares them on its own box; see SocketCanvas. The fallbacks are what a
         card with no part is drawn in, so a chip rendered outside one is quiet
         rather than invisible.
       */

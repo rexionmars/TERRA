@@ -139,7 +139,7 @@ export const FEATURED_STILL = "Sunset"
 /** Paths alone, for the places that only need to load them. */
 export const SPLASH_IMAGES = SPLASH_STILLS.map((s) => s.path)
 
-export const SPLASH_NEXT_KEY = "terra.splash.next"
+const SPLASH_NEXT_KEY = "terra.splash.next"
 export const SPLASH_CURRENT_KEY = "terra.splash.current"
 /** The version whose featured still has already been shown. */
 export const SPLASH_SEEN_VERSION_KEY = "terra.splash.seenVersion"

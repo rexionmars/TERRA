@@ -82,7 +82,7 @@
     A run graph draws one kind of card that feeds the run -- change it and the
     answer changes -- and one kind that does not. The layers card says what is
     DRAWN while the question is being set up and changes nothing about the
-    answer, which is why runGraph.ts wires it to nothing and calls the absent
+    answer, which is why the graph wires it to nothing and calls the absent
     edge the statement. Absence is the hardest thing to see on a graph, so the
     statement was one nobody read.
 
@@ -422,7 +422,6 @@
   */
   --b-catalogue-body: #23262c;
   --b-catalogue-head: #cb81bb;
-  --b-catalogue-edge: #3a3f47;
   --b-catalogue-ink: #23262c;
 
   /*
@@ -484,29 +483,6 @@
   --b-catalogue-node: #5d4059;
   --b-action-node: #6e3636;
   --b-aside-node: #34403f;
-
-  /*
-    THE STUDIO'S OWN THREE, and the reason they exist.
-
-    The 3D scenes used to read --p-ink and --p-line, the same tokens the panels
-    around them read. So the room the rasters sit in could never be set apart
-    from the interface: every attempt to deepen the studio deepened every panel
-    with it, and every attempt to hold the panels held the studio too. That is
-    one palette doing two jobs, and the jobs disagree -- the panels are a
-    reading surface, the studio is a room with photographs in it.
-
-    Lifted well clear of the chassis, and the grid is opaque and near-white
-    rather than a seventh of a mid grey. A raster is judged against the room it
-    hangs in, so the room is a deliberate grey rather than the darkest thing
-    available, and the grid is a rule to measure against rather than a texture.
-
-    No contrast rule covers these: nothing reads text on them, and what lands
-    on them is imagery. check-contrast has no opinion, which is the same
-    position --p-haze is in.
-  */
-  --v-ink: 51 51 51;
-  --v-line: 246 246 246;
-  --v-grid-alpha: 1;
 }
 
 /*
@@ -651,7 +627,6 @@
      hue was placed and why. */
   --b-catalogue-body: #f4f4f4;
   --b-catalogue-head: #cb81bb;
-  --b-catalogue-edge: #c2c3c5;
   --b-catalogue-ink: #23262c;
 
   /* The run card: where the request ends. Ringed in itself. Muted with the
@@ -675,16 +650,6 @@
   --b-catalogue-node: #5d4059;
   --b-action-node: #6e3636;
   --b-aside-node: #34403f;
-
-  /*
-    The light theme's studio is unchanged: the chassis tokens, at the alpha the
-    scenes have always drawn the grid with. The dark room above was set by eye
-    against real rasters and the light one has not been, so it stays where it
-    was rather than being guessed at from the dark values.
-  */
-  --v-ink: var(--p-ink);
-  --v-line: var(--p-line);
-  --v-grid-alpha: 0.14;
 }
 
 /*
@@ -876,38 +841,6 @@
   */
   --p-wire-failed: #f95831;
 
-  /*
-    The vegetation index series, one value per theme.
-    See docs/DESIGN.md, "Charts".
-
-    The previous triple (#22c55e / #38bdf8 / #f59e0b) was chosen at matched
-    perceptual weight for the dark ground, which is a reasonable aesthetic goal
-    and exactly what made it a weak scientific encoding: matched luminance means
-    no redundant channel. Its L* spread was 2.0, and the blue and the amber
-    converted to the SAME grey -- greyscale dE00 of 0.0. Desaturated, the
-    three-series chart became one line. It also failed WCAG's 3:1 for a
-    non-text graphic against the light theme on all three, at 2.17/2.04/2.04.
-
-    These were searched rather than picked, maximising the WORST pairwise dE00
-    across every condition at once -- normal vision, Vienot deuteranopia,
-    Vienot protanopia and full greyscale -- subject to >= 3:1 contrast on that
-    theme's own ground.
-
-    Measured, worst case in any condition: 18.7 dark and 18.7 light, against a
-    greyscale minimum of 0.0 for the palette they replace. Dichromat minimum is
-    34.9 and 31.0, against 26.7. So they clear the greyscale floor outright
-    rather than leaning on the dash patterns to carry it -- which matters,
-    because a dash survives a screenshot but not a thumbnail, and luminance
-    separation survives both.
-
-    The cost is chroma: the light-theme SAVI is a very dark brown and reads
-    more as "the dark line" than as an amber one. That is the honest trade for
-    a series that stays separable when the colour is gone.
-  */
-  --series-ndvi: #bae8c0;
-  --series-evi: #689fb6;
-  --series-savi: #8d5b35;
-
   /* Dust lines — quiet, never bright/white */
   --border: rgb(var(--p-line) / 0.28);
   --hairline: rgb(var(--p-line) / 0.22);
@@ -922,16 +855,6 @@
   --font-display: "Space Grotesk", ui-sans-serif, system-ui, sans-serif;
   --font-sans: "Inter", ui-sans-serif, system-ui, sans-serif;
   --font-telemetry: "JetBrains Mono", ui-monospace, "SF Mono", Menlo, monospace;
-
-  /*
-    Shapes for the map controls Leaflet renders outside React, where a React
-    icon component cannot go. Masks, not images: the colour stays in CSS, so these
-    follow the theme and the hover state. The stroke is fixed at black because a
-    mask reads only the alpha channel -- the colour in the path is discarded.
-  */
-  --icon-polygon: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='24' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M10.83 2.38a2 2 0 0 1 2.34 0l8 5.74a2 2 0 0 1 .73 2.25l-3.04 9.26a2 2 0 0 1-1.9 1.37H6.04a2 2 0 0 1-1.9-1.37L1.1 10.37a2 2 0 0 1 .73-2.25z'/%3E%3C/svg%3E");
-  --icon-edit: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='24' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M12 3H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7'/%3E%3Cpath d='M18.375 2.625a1 1 0 0 1 3 3l-9.013 9.014a2 2 0 0 1-.853.505l-2.873.84a.5.5 0 0 1-.62-.62l.84-2.873a2 2 0 0 1 .506-.852z'/%3E%3C/svg%3E");
-  --icon-trash: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='24' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M3 6h18'/%3E%3Cpath d='M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6'/%3E%3Cpath d='M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2'/%3E%3Cline x1='10' x2='10' y1='11' y2='17'/%3E%3Cline x1='14' x2='14' y1='11' y2='17'/%3E%3C/svg%3E");
 }
 
 :root[data-theme="light"] {
@@ -949,10 +872,6 @@
      and not the value. */
   --success: #006436;
   --p-wire-failed: #a43e26;
-  /* Darkened for the light ground; same four floors, same search. */
-  --series-ndvi: #4b9b55;
-  --series-evi: #315f72;
-  --series-savi: #291d14;
   /*
     The four surface aliases are NOT redeclared here any more. They resolve
     through the role layer, which resolves through the ramp, and the ramp is
@@ -1475,75 +1394,6 @@
 .hairline {
   border: none;
   border-top: 1px solid var(--hairline);
-}
-
-/*
-  A header that measures itself, and the labels that give way when it narrows.
-
-  Blender's rule is that an enum expands to icon buttons where its members can
-  be glyphed and stays named where they cannot. The run editor's header took
-  the first half and not the second: four tools and two modes were drawn as six
-  bare glyphs, and a droplet, a sun and a clock name nothing on their own --
-  the droplet could be water, humidity or precipitation, and the mode called
-  "Map" is a full temporal stack, which no glyph is going to say.
-
-  Names are therefore the default and the icon is the fallback, which is the
-  reverse of what it was. The header clips rather than scrolls, so the label
-  has to withdraw before it is cut: below the threshold the glyph stands alone
-  with its title, above it the name is written out. 34rem is the run editor's
-  own floor of 28rem plus the room four names and two modes need beyond it.
-
-  Container query rather than a viewport one, because what matters is the width
-  of THIS area and not of the window -- the same header sits in a 15rem column
-  and in a full-width strip.
-*/
-.studio-header {
-  container-type: inline-size;
-  container-name: studio-header;
-}
-
-.header-label {
-  display: none;
-}
-
-@container studio-header (min-width: 34rem) {
-  .header-label {
-    display: inline;
-  }
-}
-
-.status-pill {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.4rem;
-  font-family: var(--font-telemetry);
-  font-size: 10px;
-  letter-spacing: 0.04em;
-  color: rgb(var(--p-muted));
-}
-.status-pill::before {
-  content: "";
-  width: 6px;
-  height: 6px;
-  border-radius: 1px;
-  background: rgb(var(--p-accent));
-}
-
-.edge-fade-x {
-  -webkit-mask-image: linear-gradient(
-    to right,
-    transparent 0%,
-    #000 8%,
-    #000 92%,
-    transparent 100%
-  );
-  mask-image: linear-gradient(
-    to right,
-    transparent 0%,
-    #000 8%,
-    #000 92%,
-    transparent 100%
-  );
 }
 
 .overlay-thumb-crisp {

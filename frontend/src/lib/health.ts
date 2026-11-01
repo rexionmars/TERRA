@@ -18,11 +18,11 @@
 import type { HealthAnalysis } from "@/lib/types"
 
 /** The spread below which a departure is not divided further; the sidecar's SD_FLOOR. */
-export const SD_FLOOR = 0.02
+const SD_FLOOR = 0.02
 /** Days apart that still count as one acquisition across fields. */
-export const SAME_DATE_DAYS = 3
+const SAME_DATE_DAYS = 3
 /** Fields a group needs before a median and a spread mean anything. */
-export const MIN_GROUP = 3
+const MIN_GROUP = 3
 
 export type Band = "well below" | "below" | "typical" | "above" | "well above"
 
@@ -33,15 +33,6 @@ export function band(z: number): Band {
   if (z < 1) return "typical"
   if (z < 2) return "above"
   return "well above"
-}
-
-/** The latest departure a run reports against its earlier seasons, or null. */
-export function latestDeparture(
-  report: HealthAnalysis
-): { date: string; ndvi: number | null; ndre: number | null } | null {
-  const l = report.latest
-  if (!l) return null
-  return { date: l.date, ndvi: l.ndvi_z, ndre: l.ndre_z }
 }
 
 export interface FieldReport {

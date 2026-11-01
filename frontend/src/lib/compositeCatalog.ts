@@ -121,19 +121,6 @@ export const INDICES: IndexDef[] = [
   },
 ]
 
-/** Sidecar RdYlGn stops (approx) for legend gradient. */
-export const RDYLGN_STOPS = [
-  "#a60026",
-  "#f46d43",
-  "#fee08b",
-  "#ffffbf",
-  "#a6d96a",
-  "#66bd63",
-  "#1a9850",
-]
-
-export const BLUES_STOPS = ["#f7fbff", "#c6dbef", "#6baed6", "#3182bd", "#08519c"]
-
 export function findRgbPreset(
   bands: [string, string, string]
 ): RgbPresetDef | undefined {
@@ -141,7 +128,7 @@ export function findRgbPreset(
   return RGB_PRESETS.find((p) => p.bands.join(",") === key)
 }
 
-export function findIndexDef(id: CompositeIndex): IndexDef {
+function findIndexDef(id: CompositeIndex): IndexDef {
   return INDICES.find((i) => i.id === id) ?? INDICES[0]
 }
 

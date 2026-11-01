@@ -11,13 +11,11 @@ import { describe, expect, it } from "vitest"
 import { NO_CLASS } from "./classMask"
 import {
   changedPixels,
-  classCounts,
   closeClass,
   labelPatches,
   majorityFilter,
   openClass,
   sieveFilter,
-  transitionCounts,
   type ClassGrid,
 } from "./classFilters"
 
@@ -252,14 +250,10 @@ describe("closeClass", () => {
   })
 })
 
-describe("counting", () => {
-  it("counts classes, changes and transitions over classified pixels only", () => {
+describe("changedPixels", () => {
+  it("counts the changes over classified pixels only", () => {
     const a = grid(["aab.", "bbc."])
     const b = grid(["abb.", "bbb."])
-    expect([...classCounts(a, 3)]).toEqual([2, 3, 1])
     expect(changedPixels(a, b)).toBe(2)
-    const t = transitionCounts(a, b, 3)
-    // a -> a once, a -> b once, b -> b three times, c -> b once.
-    expect([...t]).toEqual([1, 1, 0, 0, 3, 0, 0, 1, 0])
   })
 })

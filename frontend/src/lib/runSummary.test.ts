@@ -20,7 +20,6 @@ import { describe, expect, it } from "vitest"
 import {
   classifiedAreaHa,
   datesByMonth,
-  dominantClass,
   formatHectares,
   modelDisplayName,
   parseRunSummary,
@@ -134,25 +133,6 @@ describe("parseRunSummary", () => {
     expect(parseRunSummary('{"n_dates":"12"}').nDates).toBeNull()
     expect(parseRunSummary('{"n_dates":null}').nDates).toBeNull()
     expect(parseRunSummary("{}").nDates).toBeNull()
-  })
-})
-
-describe("dominantClass", () => {
-  it("is null when the run recorded no classes", () => {
-    expect(dominantClass([])).toBeNull()
-  })
-
-  it("is the first entry, the sidecar's pixel-count order, not the largest pct", () => {
-    // The module documents that it trusts the order class_statistics emits and
-    // does not scan. Stats ordered by something else -- or reordered by a
-    // future caller -- would therefore report a different class, so the test
-    // states the dependency instead of hiding it behind an already sorted list.
-    const stats = [
-      stat({ class_id: 1, name: "Pasture", pct: 40 }),
-      stat({ class_id: 2, name: "Forest", pct: 55 }),
-    ]
-
-    expect(dominantClass(stats)).toBe(stats[0])
   })
 })
 

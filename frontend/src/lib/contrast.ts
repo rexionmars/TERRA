@@ -513,8 +513,7 @@ export const RULES: readonly ContrastRule[] = [
    *
    * The waiting states are absent from this list on purpose: a pending wire is
    * a translucent pane over whatever it crosses, so its ground is not a token
-   * and cannot be checked from one. Its floor is held in NodeCanvas instead,
-   * by PANE_TINT_HEAD, which is measured against the worst case there.
+   * and cannot be checked from one.
    */
   {
     fg: "ink",

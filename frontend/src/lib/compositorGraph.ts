@@ -520,7 +520,7 @@ export const RADAR_SOCKET = "radar:report"
 export const ZONES_SOCKET = "zones:report"
 
 /** The field filter's defaults: half a hectare, fifty 10 m cells, and no cropland floor. */
-export const FIELD_FILTER_DEFAULT = { minHa: 0.5, minCropland: 0 } as const
+const FIELD_FILTER_DEFAULT = { minHa: 0.5, minCropland: 0 } as const
 
 /** The Add menu's categories, in Blender's order where Blender has the same one. */
 export const CATEGORIES: readonly { id: NodeCategory; label: string }[] = [
@@ -744,7 +744,7 @@ export function outputType(
 }
 
 /** Whether `ancestor` feeds `id` through any chain of links. */
-export function feeds(graph: CompositorGraph, ancestor: string, id: string): boolean {
+function feeds(graph: CompositorGraph, ancestor: string, id: string): boolean {
   const seen = new Set<string>()
   const stack = [id]
   while (stack.length) {

@@ -45,46 +45,6 @@ export function isJobKind(id: string | null | undefined): id is JobKind {
 }
 
 /**
- * The run kind a job of each product records (store.RunKind*). A row written
- * before the column existed has none, and every such row is a classification.
- */
-export const JOB_RUN_KIND: Record<JobKind, string> = {
-  classify: "classification",
-  water: "water",
-  mineral: "mineral",
-  health: "health",
-  overlap: "overlap",
-  radar: "radar",
-  zones: "zones",
-}
-
-/**
- * The latest run of a product over each area, for the areas that have one, and
- * how many have none. What "Show" on the Run graph's area card puts on the board: the
- * queue forgets its jobs when the application closes, the runs they recorded
- * do not, and this finds them again by area.
- */
-export function latestRuns(
-  runs: readonly { id: string; created_at: string; area_id?: string; kind?: string }[],
-  areaIds: readonly string[],
-  kind: JobKind
-): { ids: string[]; missing: number } {
-  const want = JOB_RUN_KIND[kind]
-  const ids: string[] = []
-  let missing = 0
-  for (const areaId of areaIds) {
-    let best: { id: string; created_at: string } | null = null
-    for (const r of runs) {
-      if (r.area_id !== areaId || (r.kind || "classification") !== want) continue
-      if (!best || r.created_at > best.created_at) best = r
-    }
-    if (best) ids.push(best.id)
-    else missing += 1
-  }
-  return { ids, missing }
-}
-
-/**
  * The jobs finished since this was last asked, each returned once for the life
  * of the page.
  *
@@ -242,7 +202,7 @@ function subscribe(listener: () => void) {
   return () => listeners.delete(listener)
 }
 
-export function readJobs(): readonly Job[] {
+function readJobs(): readonly Job[] {
   return current
 }
 
