@@ -23,49 +23,49 @@ It is not a general-purpose GIS and does not set out to cover the ground that
 Earth Engine or QGIS already cover.
 
 <p align="center">
-  <img src="docs/img/v7/terra-v7-field-diagnosis.webp" alt="Three areas on one studio board: a raster from the compositor over its ground on the globe, the compositor graph reading radar series, management zones and register overlap into a PDF report, the browser and the scene tree below" width="900" />
+  <img src="docs/img/map/terra-map.webp" alt="A classification raster over farmland near Cascavel on the full-screen map, with the navigation rail on the left and the result panel on the right showing the period, the class areas and the limit on reading them" width="900" />
 </p>
 
-<p align="center"><em>Three areas on one board: the radar series, management zones and public-register overlap of each read as compositor nodes and gathered into one PDF report, with a compositor layer drawn over its ground on the globe</em></p>
+<p align="center"><em>A classification over farmland near Cascavel: the raster on the ground it was measured on, and its figures beside it with the limit on reading them</em></p>
 
-## The map, and the studio over it
+## The map, and what is held up in front of it
 
-Work starts on the map: an area drawn or imported, the acquisition window set
-on the track at the foot, and a run started.
+The application is a full-screen map. Work starts there: an area drawn, imported
+or taken from IBGE, a product chosen from a list, a period set, and a run started.
+Its result opens over the ground it was measured on, in one panel at a time, with
+the limit on reading it beside the figures.
 
-The **studio** opens over that map, and closes back onto it. It is where
-results are arranged: the screen divides into the panels a question needs
-(viewport, outliner, properties, comparison, domain shift, spectral response,
-library check, rover, data table, run band), and more than one area
-fits on the same board, so two farms or the same farm in two seasons sit side
-by side. Four arrangements ship ready: Layout, Compare, Diagnose and Data. The
-arrangement survives a restart; a set of readings survives it only if the board
-is saved under a name.
+**Compare** is where runs are set side by side, on a fixed grid. It exists because a
+map cannot do this: a map puts things where they are, so two areas hundreds of
+kilometres apart cannot be set beside each other on one. Each tile is drawn to its
+own scale and says how much ground it spans.
 
-It exists because a map cannot do this. A map puts things where they are, so
-two areas hundreds of kilometres apart cannot be set beside each other on one.
-Everything else the studio offers follows from that one constraint.
+<p align="center">
+  <img src="docs/img/map/terra-compare.webp" alt="The Compare screen: a fixed grid with a classification, management zones, vegetation health and radar over one farm and surface water over a city centre, each tile saying how much ground it spans" width="900" />
+</p>
 
-The **compositor** is where the products of a board are combined. Each run
+<p align="center"><em>Compare: four products over one farm and surface water over a city centre, each to its own scale</em></p>
+
+**Workflows** is the compositor, where the products of several runs are combined. Each run
 offers its outputs as sockets; nodes filter, mask, mix and tabulate them, and
 read each product as a card: the season of a classification, the departure of a
 health run, the hectares of an overlap, the passes of a radar series. A Globe
-node draws its result over the ground, a Viewer beside the graph, and a PDF
+node draws its result on the map, a Viewer beside the graph, and a PDF
 report node writes up whatever reaches it. Under a field set the same graph is
 evaluated once per field.
 
 <p align="center">
-  <img src="docs/img/v7/terra-v7-zones-sar.webp" alt="Crop classification with zones and SAR data" width="900" />
+  <img src="docs/img/map/terra-workflows.webp" alt="The compositor at full screen: a run node feeding a majority filter, a viewer, class areas and a change card" width="900" />
 </p>
 
-<p align="center"><em>Crop classification with zones and SAR data</em></p>
+<p align="center"><em>Workflows: a classification through a majority filter, with the raster, the class areas and what the filter changed read as cards</em></p>
 
-Comparison is the arrangement that answers where a classification is wrong
+Comparison answers where a classification is wrong
 rather than how much of it is right: the confusion against the reference, the
 accuracy delta per class, and the agreement read block by block instead of as
 one number over the whole area.
 
-Data is the arrangement for what a run leaves behind as numbers. The research
+A run's tables are what it leaves behind as numbers. The research
 pack's tables are read in place and copied out as CSV: the phenology metrics,
 the vegetation-index series date by date, and the predicted class shares against
 the reference.
@@ -98,13 +98,13 @@ Agreement is also broken into blocks across space. An average hides whether the
 disagreement sits in one corner of the area or throughout it, and disagreement
 throughout usually means the model is being asked about ground it did not learn.
 
-The Diagnose workspace measures that distance between two runs directly:
+Compare measures that distance between two runs directly:
 symmetric KL divergence on NDVI, change-vector magnitude in training standard
 deviations, RBF MMD, and a per-feature shift table, computed on standardised
 samples when both runs carry a classify-time fingerprint. It diagnoses; it does
 not adapt.
 
-The same arrangement reads a single run from the other side: the spectral
+The result panel reads a single run from the other side: the spectral
 response of each predicted class on one acquisition, each class's spectral angle
 to a leaf-level library, and how far each pair of classes can be told apart one
 band at a time.
@@ -140,10 +140,10 @@ compositor the fields of a set are also compared with each other on a date they
 share.
 
 <p align="center">
-  <img src="docs/img/v7/terra-v7-field-health.webp" alt="NDVI departure from earlier seasons over delineated fields on the globe, with the compositor graph that filters, tabulates and reports them" width="900" />
+  <img src="docs/img/map/terra-health.webp" alt="NDVI departure from earlier seasons drawn over one area on the map, with the NDVI and NDRE figures and the season chart in the result panel" width="900" />
 </p>
 
-<p align="center"><em>Vegetation health over delineated fields: NDVI on one date against the median of the same days in earlier seasons, draped over the ground with the field boundaries, and the graph that filters the fields, tabulates them and writes the report</em></p>
+<p align="center"><em>Vegetation health over one area: NDVI on one date against the median of the same days in earlier seasons, with the figures and the limit on reading them</em></p>
 
 ### Public-register overlap
 
@@ -164,10 +164,10 @@ ratio fall together between two passes of one orbit. Cloud does not interrupt
 it.
 
 <p align="center">
-  <img src="docs/img/v7/terra-v7-sar.webp" alt="Sentinel-1 backscatter composites over three areas on the globe, and a radar series card per area in the compositor" width="900" />
+  <img src="docs/img/map/terra-radar.webp" alt="A Sentinel-1 composite over one area on the map, with VH and cross-ratio series by orbit and the canopy losses in the result panel" width="900" />
 </p>
 
-<p align="center"><em>Sentinel-1 over three areas: the VV, VH and VH/VV composite on the globe, and per area the radar series card with its passes, cross ratio, open water and canopy losses</em></p>
+<p align="center"><em>Sentinel-1 over one area: the VV, VH and VV/VH composite of the latest pass on the map, and beside it the series by orbit, its canopy losses and open water</em></p>
 
 ### Management zones
 
@@ -176,6 +176,12 @@ Analyst: the 90th percentile of NDVI per season and 10 m cell, standardised over
 the field, clustered by fuzzy c-means (Bezdek, 1981) into three, four and five
 zones, with the number suggested by FPI and NCE (Odeh et al., 1992). The
 polygons export as GeoJSON.
+
+<p align="center">
+  <img src="docs/img/map/terra-zones.webp" alt="Three management zones over one area on the map, with the area, share and NDVI of each zone and the FPI and NCE of each partition in the result panel" width="900" />
+</p>
+
+<p align="center"><em>Management zones over one area: the partition the run suggests, with the figures of each zone and of each number of zones</em></p>
 
 ### Mineral map
 
@@ -193,7 +199,7 @@ required.
   <img src="docs/img/v7/terra-v7-mineral.webp" alt="EMIT mineral classes for 2.0 to 2.5 micrometres raised over one area on the globe, with the Al-OH and Fe3+ band positions and the mineral figures as compositor cards" width="900" />
 </p>
 
-<p align="center"><em>The mineral map of one area: the 2.0-2.5 µm classes on the globe beside the Al-OH and Fe3+ band positions, and the map's figures as compositor cards</em></p>
+<p align="center"><em>The mineral map of one area: the 2.0-2.5 µm classes on the globe beside the Al-OH and Fe3+ band positions, and the map's figures as compositor cards. Captured in the interface before the current one</em></p>
 
 ### Reports
 
@@ -230,8 +236,8 @@ Read these before trusting an output.
 - **The export package is partial.** It carries the run's tables, AOI geometry
   and classification raster; the accuracy assessment and the domain-shift report
   are not in it.
-- **A board's contents do not survive closing** unless the board is saved under
-  a name. The arrangement survives either way.
+- **The runs in hand do not survive closing** unless they are saved as a named
+  workflow. Saved runs stay in Analyses either way.
 - **Field boundaries are not measured here.** The delineation network reports
   pixel IoU 0.76 and object F1 0.47 on its own test set, which holds no Paraná
   field. Adjacent fields sown with one crop on one day come out as one.
@@ -255,10 +261,10 @@ Read these before trusting an output.
    Python 3.12 and `pip install -r requirements.txt`. See
    [Install](docs/INSTALL.md).
 2. Open TERRA. Set `TERRA_PYTHON` only for LITE or a custom interpreter.
-3. Draw an area on the map, or import one.
-4. Set the acquisition window on the track, pick a model, press **Classify**.
-5. Read the result on the map, or open the **studio** from the title bar to
-   arrange it beside another run.
+3. Create a project from the header, then draw an area on the map or import one.
+4. Open **Products**, choose **Classification**, set the period and the model, and
+   press **Classify**.
+5. Read the result on the map, or open **Compare** to set it beside another run.
 
 If the interpreter cannot import what the sidecar needs, TERRA says which
 package is missing and what it stops working, and offers to build its own

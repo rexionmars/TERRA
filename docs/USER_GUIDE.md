@@ -16,157 +16,155 @@ page is the short path through the current desktop app.
 - Network access to the Microsoft Planetary Computer STAC catalog (and Hugging
   Face if you use Prithvi).
 
-## 1. Open the map workspace
+## 1. The map
 
-On launch, TERRA shows a short boot/splash screen while it probes the Python
-sidecar, then reveals the map. After a version bump you may see a **What’s New**
-modal once; dismiss it to continue.
+On launch, TERRA shows a short boot screen while it probes the Python sidecar, then
+the map, with the start screen over it. After a version bump you may see **What's
+New** once.
 
-Main chrome:
+- **Left rail:** Explore, Areas, Analyses, Compare, Workflows, Activity, and your
+  account at the foot. The button at the top of the header shows the labels.
+- **Header:** the open project and area, each a menu; **Options** for project
+  files, the Python environment and storage.
+- **Right edge of the map:** Products, Visualization, Result, Points and Layers,
+  then the map's own tools: search, basemap, imagery date, relief, draw, edit,
+  import, delete.
 
-- **Project switcher** (title bar) — create / open projects
-- Left dock — **New classification** or **Compositions**
-- **Overlay Tools** (top-right) — overlays, swipe, opacity, export
-- Map, search, basemap controls
+One panel is open at a time. Opening another closes it.
 
 ## 2. Projects, areas, and runs
 
-The hierarchy is **project › area › run**. A **project** is a workspace — a
-farm, a study, a season. An **area** is one ground inside it. A **run** is one
-measurement over one area.
+The hierarchy is **project › area › run**. A **project** is a workspace: a farm, a
+study, a season. An **area** is one ground inside it. A **run** is one measurement
+over one area.
 
-- A project can hold as many areas as you work. It has no single AOI of its own.
-- Every run is filed under the area it was measured on and the project that
-  area is in, so a project holding a dozen fields lists a dozen grounds rather
-  than a hundred runs in one grid.
-- Deleting an area takes the runs measured on it. Deleting a project takes its
-  areas and theirs. Both ask first.
+- Every run is filed under the area it was measured on.
+- Deleting an area takes the runs measured on it and their rasters, and its fields
+  and theirs. Deleting a project takes its areas and theirs. Both ask first, and
+  neither can be undone.
 - Rename an area without renaming the runs made over it.
-- Each run carries a `run-…` label, unique per execution. Lists and Compare
-  show run names.
-- In the hub, open a project to land on **Areas**; open one to see its runs.
-  The **Compositions** tab holds the RGB / index compositions applied from the
-  map — click a card for a preview modal (export / View on map).
 
-**A project is required before drawing.** An area belongs to one, so with no
-project open the map refuses the shape rather than keeping it somewhere it does
-not belong. Create or open a project first, then keep it active while you work.
+**A project is required before drawing.** An area belongs to one, so with no project
+open the map refuses the shape. Create one from the project menu in the header.
 
-## 3. Draw an area
+## 3. Make an area
 
-| Method | When to use |
-|--------|-------------|
-| **Draw** | Digitize a polygon on the map or on the studio globe |
-| **Search** | Nominatim place search, then draw or refine |
-| **Import** | Load a KML or GeoJSON polygon |
+- **Draw:** the pencil on the map's right edge.
+- **Import:** a `.kml` or GeoJSON file, from Areas or the map's tools.
+- **Catalogue:** a Brazilian state or municipality from IBGE, under Areas.
 
-A new area is named `drawn`, `drawn 2` and so on, numbered against what the
-project already holds. Rename it from the areas list.
+Areas lists them with their hectares and runs. Pressing one goes to it; its rename
+and delete buttons appear on hover. Fields delineated in an area are listed under it.
 
-Keep areas modest for the first run (farm / field scale). Very large polygons
-increase STAC I/O and classification time, especially with Prithvi in pixel mode.
+**Shift-press** several areas or fields, on the map or in the list, to select them.
+A product started over a selection is queued once per area.
 
-Right-click inside the area for rename, contour colors, fit, or clear (also
-reachable from Overlay Tools for contours).
+## 4. Run a product
 
-Keep AOIs modest for the first run (farm / field scale). Very large polygons
-increase STAC I/O and classification time, especially with Prithvi in pixel mode.
+Open **Products**, choose one, and fill in its form. The button says why it cannot
+run, where it cannot. Each product states the limit on reading it beside its form
+and its result; read that first. **Method** says what the run will do and, during a
+run, what it has said so far.
 
-Right-click inside the AOI for rename, contour colors, fit, or clear (also
-reachable from Overlay Tools for contours).
+| Product | Reads | Runs |
+|---------|-------|------|
+| Classification | Sentinel-2 series, in five MapBiomas classes | Directly |
+| Surface water | Spectral index, Otsu per date | Directly |
+| Mineral map | EMIT reflectance. Needs an Earthdata token | Directly |
+| Field boundaries | Two Sentinel-2 scenes | Directly |
+| Vegetation health | NDVI and NDRE against earlier seasons | Queued |
+| Socio-environmental overlap | Public registers, on the day it runs | Queued |
+| Sentinel-1 radar | VV and VH through the period | Queued |
+| Management zones | Per-season NDVI | Queued |
 
-## 4. Set the acquisition window
+**Land cover**, beside Classification's Method, reads MapBiomas over the area without
+running a model.
 
-1. Choose **start** and **end** dates (`YYYY-MM-DD`).
-2. Set **max cloud cover** (percent).
-3. Leave **monthly best** enabled unless you need every qualifying scene
-   (monthly best keeps the lowest-cloud scene per month).
+A queued product runs over a saved area, one job after another, and the queue is
+listed in its form. A running product keeps a progress strip over the map when its
+panel is closed. When a run finishes, its result opens.
 
-## 5. Preview the data cube (optional)
+Runs are saved locally, so you can reopen them from **Analyses**.
 
-Open the data-cube inventory to list Sentinel-2 L2A scenes that match the AOI
-and filters (date, cloud, optional MGRS tiles). Use this to confirm that enough
-scenes exist before Classify. Zero scenes usually means a tighter cloud filter
-or a period with no coverage — see [TROUBLESHOOTING.md](TROUBLESHOOTING.md).
+## 5. Read a result
 
-## 6. Select a model and mode
+**Result** holds what is on the map. With more than one product on it, choose which
+at the top.
 
-| Model | Notes |
-|-------|--------|
-| **Spectral Random Forest** (default) | 80 spectro-temporal features; matches the reference method; supports **temporal** soybean-retention mode |
-| **Temporal Transformer** | Series model over the Sentinel-2 stack (`tt_mapbiomas.pt`) |
-| **Prithvi-EO 2.0** | Foundation-model embeddings + RF head; needs `requirements-prithvi.txt`; first run downloads ~1.2 GB from Hugging Face |
+- **Classification:** Summary (figures, classes, agreement with MapBiomas), Spectra,
+  Separability, Library and Tables. The panel widens for those that need it.
+  **Research pack** exports the run's tables and figures.
+- **Field boundaries:** filter by size and cropland, make the fields areas of the
+  saved area, or save them as GeoJSON.
+- **Management zones:** choose the number of zones; the map follows.
 
-Mode:
+**Take off the map** removes a result from the session; a saved run stays saved.
 
-- **Single / map** — one classification over the full selected stack
-- **Temporal** — cumulative stacks with soybean retention (spectral RF only)
+## 6. Layers and Points
 
-## 7. Classify
+**Layers** lists every raster of the result, top of the stack first, with its switch
+and opacity, and saves it as PNG or GeoTIFF where one exists. The classification also
+has a majority filter here. Right-click a raster on the map to frame it or hide it.
 
-Click **Classify**. Progress messages stream from the sidecar. When finished,
-the Result strip shows class shares; the map shows the prediction overlay.
+**Points** places A and B on the map and reads the class under each, in one pixel or
+a neighbourhood. Its graph is the mean spectrum of each point's **class**: a run keeps
+no spectrum per pixel, so it is not what the point itself reflects.
 
-Runs are saved locally (guest user if you are not signed in) so you can reopen
-them later from Analysis / Projects.
+## 7. Visualization
 
-## 8. Overlay Tools
+One Sentinel-2 scene as a band composite or a spectral index. List the scenes of the
+period, choose one, pick RGB or an index, set the stretch, and **Apply**. It is a way
+of looking at one acquisition and measures nothing over the period. Compositions of
+the area are listed under the form, each with its exports.
 
-Open **Overlay Tools** (button under the basemap control) to:
+## 8. Compare
 
-- Show / hide prediction, confidence, and composition overlays
-- **Swipe** imagery ↔ overlay
-- Smooth prediction / opacity for prediction and composition
-- AOI contour schemes
-- Export PNG / GeoTIFF when available
-- Preview overlay thumbnails
+Runs of any area and any product, side by side on a fixed grid. **Add a run** brings
+in a saved one. Each tile is drawn to its own scale and says how much ground it spans.
 
-Visibility and opacity are **not** controlled from the Result strip or the
-Classify / Compositions panels — use Overlay Tools only.
+Mark two classifications **A** and **B**, then read:
 
-## 9. Band compositions (optional)
+- **Differences:** what differs between the runs, agreement, class transitions and
+  share deltas. **Copy deltas** puts them on the clipboard as CSV.
+- **Domain shift** and **Cohort:** how far apart runs sit in what the model saw.
+- **Spectra**, **Separability**, **Library** and **Tables**, in both runs.
 
-Switch the left dock to **Compositions**, list scenes for the period, pick RGB
-or an index, set percentile stretch, then **Apply**. Applying a composition
-hides the prediction overlay so the composite is visible; toggle both again in
-Overlay Tools.
+## 9. Workflows
 
-## 10. Analysis and Compare
+The compositor, full screen. Each run in hand offers its outputs as sockets; nodes
+filter, mask, mix and tabulate them. A Viewer shows a result beside the graph, a Globe
+node draws it on the map, under Layers, and a PDF report node writes up what reaches
+it. Use **Add** or Shift+A for nodes.
 
-Open **Analysis** for:
+**Save** stores the graph and its runs under a name, and the menu by that name opens
+another. A saved workflow is kept in the project and in its `.terra` file. Closing
+with unsaved changes asks first.
 
-- Cover map tiles (satellite, NDVI mean, MapBiomas, prediction, confidence)
-- Class statistics, VI series, phenology
-- Project hub (Areas tab by default, runs one level in; Compositions tab for map composites)
-- Open a band composition card for a preview modal (export / View on map)
-- **Export tables** — ZIP with CSVs (class stats, VI series, phenology, MapBiomas compare), AOI GeoJSON, and classification GeoTIFF when available — for notebooks / training workspaces
-- Export GeoTIFF from the analysis header when available
+## 10. Project files
 
-From saved runs, select two and **Compare** for side-by-side prediction /
-confidence, class distribution, and phenology / NDVI when both runs provide them.
+Under **Options**: open, save, save as and reveal a `.terra` file. **Save** in
+Workflows, or Cmd/Ctrl+S, also writes the project's file when it has one.
 
-## 11. Settings
+## 11. Finding a command
 
-**Settings** (sidebar) covers account, default model / opacity preferences,
-appearance (theme, dock tabs), and recent runs. Preferences auto-save for the
-local or signed-in user.
+**F3** or **Cmd/Ctrl+K** finds every command by name. **Settings › Keymap** lists them
+with their keys.
 
-## 12. Accounts (optional)
+## 12. Settings and accounts
 
-Local accounts (email/password) store preferences and tie saved runs to a
-profile. Avatars and display names are optional. Everything stays on disk under
-the app config directory (e.g. `~/Library/Application Support/geosense-infer/`
-on macOS); there is no cloud sync.
+Your account at the foot of the rail opens **Settings**: account, appearance, system
+and keymap. Preferences auto-save.
+
+Local accounts store preferences and tie saved runs to a profile. Everything stays on
+disk under the application's config directory; there is no cloud sync.
 
 ## Suggested first run
 
-1. Create or open a **Project**. Drawing needs one: an area belongs to a
-   project, and a run belongs to an area.
-2. Draw an **area** on the map. It is saved under the open project and named
-   `drawn`, `drawn 2` and so on; rename it from the areas list.
-3. Use a one-year agricultural window with monthly best and a moderate cloud
-   threshold (e.g. 30%).
-4. Model: **spectral**, mode: single.
-5. Classify, then adjust overlays in **Overlay Tools**.
-6. Open **Analysis**, then optionally run Temporal Transformer on the same AOI
-   and **Compare**.
+1. Create a **project** from the project menu in the header.
+2. Draw an **area** with the pencil. It is saved under the project.
+3. Open **Products › Classification**. Use a period of a few months with the clearest
+   scene per month and a moderate cloud limit.
+4. **Classify**. The result opens when it finishes.
+5. Adjust the rasters under **Layers**, and read the limit in **Result**.
+6. Run it again over another period or model, then open **Compare** and mark the two
+   runs A and B.

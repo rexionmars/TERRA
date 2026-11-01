@@ -3,10 +3,10 @@
 Neutral near-black surfaces with the hue left to the accent, monospace
 telemetry, and a density chosen on purpose.
 
-Two families preceded this one and both put the hue in the surfaces: Mars sand
-under an orange accent, then cool greys under a blue one. This puts none there,
-which makes the accent the only colour on screen that is not data -- and lets
-the accent change again without the chassis being rebuilt.
+Three families preceded this one: Mars sand under an orange accent, cool greys
+under a blue one, and neutral greys under blue. This keeps the surfaces free of hue
+and takes its accent and its warm paper from a reference, Tangerine Alloy, so the
+accent is the only colour on screen that is not data.
 
 The implementation is the source of truth. This file describes it; where the two
 disagree, the code is right and this file is stale.
@@ -45,79 +45,73 @@ from `--p-*` in a plain `:root` block, and `@theme inline` maps those to
 
 ### Dark
 
+The greys carry no hue at all. The reference's near-black, `#0B120E`, is tinted
+green, which its hex code hides and a screen does not, so it was not taken.
+
 | Token | RGB | Hex | Role |
 | --- | --- | --- | --- |
-| `--p-ink` | `33 33 33` | `#212121` | App background |
-| `--p-surface` | `47 47 47` | `#2F2F2F` | Panel |
-| `--p-surface-raised` | `67 67 67` | `#434343` | Card, field |
-| `--p-line` | `75 75 75` | `#4B4B4B` | Divider |
-| `--p-line-strong` | `142 142 142` | `#8E8E8E` | Component boundary |
-| `--p-text` | `221 221 221` | `#DDDDDD` | Text |
-| `--p-muted` | `175 175 175` | `#AFAFAF` | Secondary text |
-| `--p-accent` | `237 135 68` | `#ED8744` | Fill, focus, active state |
-| `--p-accent-quiet` | `240 155 99` | `#F09B63` | The accent **as text** |
-| `--p-accent-dim` | `83 40 12` | `#53280C` | The plate a chosen value lights on |
-
-`--p-line-strong` is 142, and every digit of it is a measurement rather than a
-choice. The value has been re-derived four times, each time by the same check
-catching the same mistake: 120 gave **2.78** against the raised surface, 126 held
-**3.02** while that surface was 53 and fell to **2.98** at 54, and 127 gave
-**2.47** once it reached 67. Lifting a surface does not lift what has to be seen
-against it.
-
-The same lift moved three more tokens, and none of them was chosen either.
-`--p-muted` is 175 because 161 read **3.83** on the raised surface, under the 4.5
-floor for body-adjacent text. `--destructive-quiet` moved from `#E08A78` to
-`#E59E8F` because it read **3.80** there — a failure only `check:contrast`
-covers, since status colours take no part in the accent family's rules.
-`--p-accent-quiet` and `--p-accent-dim` were derived with the rest of that
-family, in a development-only panel that has since been removed.
+| `--p-sunk` | `14 14 14` | `#0E0E0E` | Under everything |
+| `--p-ink` | `20 20 20` | `#141414` | App background, rail and header |
+| `--p-control` | `27 27 27` | `#1B1B1B` | Field, inset figure |
+| `--p-surface` | `33 33 33` | `#212121` | Panel |
+| `--p-head` | `39 39 39` | `#272727` | Header of a panel or a card |
+| `--p-surface-raised` | `50 50 50` | `#323232` | Raised card, active plate |
+| `--p-line` | `85 85 85` | `#555555` | Divider |
+| `--p-line-strong` | `133 133 133` | `#858585` | Component boundary |
+| `--p-muted` | `155 155 155` | `#9B9B9B` | Secondary text |
+| `--p-text` | `217 211 209` | `#D9D3D1` | Text, the reference's warm paper |
+| `--p-accent` | `236 102 45` | `#EC662D` | Fill, focus, active state |
+| `--p-accent-quiet` | `250 115 60` | `#FA733C` | The accent **as text** |
+| `--p-accent-dim` | `74 32 15` | `#4A200F` | The plate a chosen value lights on |
 
 ### Light
 
-The light theme derives on its own path and inherits nothing from the dark
-block, so every ratio is measured there too. Neutral for the same reason, at the
-luminances the sand family was measured at. The accent is darkened rather than
-reused: `#ED8744` on a light surface reads as a highlight and carries no label
-at all.
+The light theme derives on its own path and inherits nothing from the dark block,
+so every ratio is measured there too. Its base is the same warm paper. The accent
+is darkened rather than reused, so the label on a filled button clears 4.5.
 
 | Token | RGB | Hex |
 | --- | --- | --- |
-| `--p-ink` | `241 241 241` | `#F1F1F1` |
-| `--p-surface` | `249 249 249` | `#F9F9F9` |
-| `--p-surface-raised` | `227 227 227` | `#E3E3E3` |
-| `--p-line` | `177 177 177` | `#B1B1B1` |
-| `--p-line-strong` | `121 121 121` | `#797979` |
-| `--p-text` | `31 31 31` | `#1F1F1F` |
-| `--p-muted` | `92 92 92` | `#5C5C5C` |
-| `--p-accent` | `186 58 18` | `#BA3A12` |
-| `--p-accent-quiet` | `158 48 14` | `#9E300E` |
-| `--p-accent-dim` | `240 214 198` | `#F0D6C6` |
+| `--p-sunk` | `217 211 209` | `#D9D3D1` |
+| `--p-ink` | `228 223 222` | `#E4DFDE` |
+| `--p-control` | `236 232 230` | `#ECE8E6` |
+| `--p-surface` | `243 240 239` | `#F3F0EF` |
+| `--p-head` | `249 247 245` | `#F9F7F5` |
+| `--p-surface-raised` | `255 253 252` | `#FFFDFC` |
+| `--p-line` | `176 174 172` | `#B0AEAC` |
+| `--p-line-strong` | `118 116 115` | `#767473` |
+| `--p-muted` | `82 80 79` | `#52504F` |
+| `--p-text` | `20 20 20` | `#141414` |
+| `--p-accent` | `171 65 16` | `#AB4110` |
+| `--p-accent-quiet` | `154 57 11` | `#9A390B` |
+| `--p-accent-dim` | `253 221 208` | `#FDDDD0` |
+
+**Show an image of a palette before applying it.** Hex codes alone hid the green
+tint above; a screenshot of the application in it did not.
 
 ---
 
-## Three rules the measurements impose
+## Rules the measurements impose
 
 These are not style preferences. Each one is a ratio that fails.
 
-**1. The accent is not a text colour.** It happens to measure 3.84 on the raised
-surface, which is a property of this accent being a light one rather than a rule
-the token holds — the blue before it measured 3.01 there. It is a fill, a focus
-ring and an active state, and text that has to read as the accent uses
-`--p-accent-quiet` either way, which clears 4.5 on every surface
-(6.39 / 5.63 / 4.51 dark).
+**1. The accent is not a text colour.** It measures 3.97 on the raised surface, and
+it is a fill, a focus ring and an active state. Text that has to read as the accent
+uses `--p-accent-quiet`, which clears 4.5 on every surface (6.65 / 5.81 / 4.63 on
+ink, panel and raised in the dark theme).
 
-**2. A filled accent button takes the ink.** `--primary-foreground` is
-`--p-ink`, near-black in the dark theme and near-white in the light one: **6.25**
-dark, 5.02 light. White on the dark fill is 2.58. The label is a consequence of
-the fill and not a constant — under the blue accent, which was a mid tone, it was
-white at 4.43 and that was a stated exception. There is no exception now.
+**2. A filled accent button takes the ink.** `--primary-foreground` is `--p-ink`:
+**5.71** dark and 4.55 light. White on the dark fill is 3.23.
 
-**3. Adjacent surfaces need a border.** Surface separation is 1.20 and 1.35 —
-wider than any earlier reading of this family, because the surfaces were lifted
-apart rather than merely lifted. Two panels are still told apart by their border
-rather than by luminance, which is why `--p-line-strong` exists and why it has to
-clear 3.0 against *both* surfaces: 4.09 on surface, 3.02 on the raised one.
+**3. Adjacent surfaces need a border.** Surface separation against the ink is 1.14
+and 1.44, so two panels are told apart by their border rather than by luminance,
+which is why `--p-line-strong` exists and why it clears 3.0 against both: 4.36 on a
+panel and 3.47 on a raised surface.
+
+**4. Over the map, orange needs a casing.** A line in the accent measures 2.44 on
+red soil and 2.25 on grass, under the 3.0 a boundary needs. So an area's outline has
+a dark line under it (`AREA_CASING` in `GlobeSurface.tsx`), and a pin carries a dark
+ring. The accent marks controls; a raster's colours come from its legend.
 
 ### Destructive splits the same way
 
@@ -127,33 +121,28 @@ to be both failed in both jobs at once: **3.12** as a label on its own fill,
 
 | Token | Dark | Light | Role |
 | --- | --- | --- | --- |
-| `--destructive` | `#A02C2C` | `#B33A1A` | The fill |
+| `--destructive` | `#9F2B3A` | `#B23645` | The fill |
 | `--destructive-foreground` | `--p-text` | `--p-surface` | Its label — a *different* palette token per theme |
-| `--destructive-quiet` | `#E08A78` | `#9E2B25` | Error text, a delete row, a hover state |
+| `--destructive-quiet` | `#F8989E` | `#A32B3B` | Error text, a delete row, a hover state |
 
 The foreground being a different token per theme is why the contrast check
 resolves it rather than assuming one: a rule that assumed `--p-text` passed in
 dark and failed in light by 2.76.
 
-### Warning stopped following the accent
+### Warning is not the accent
 
-`--warning` was `--p-accent-quiet`. That held only while the accent was orange —
-the warning mark and the accent were the same hue by accident, and no other hue
-competed for the meaning — and it broke the moment the accent moved, which is
-the whole argument for not deriving a status colour from a brand one. It is an
-amber of its own per theme now, `#D9A441` dark and `#8A5A10` light, and it joins
-the check, because a literal that derives from nothing is unchecked by default.
-
-It stays independent now that the accent is orange again, which is when the
-separation is hardest to see and most worth keeping.
+A status colour derived from a brand colour breaks the moment the brand colour
+moves, and an orange warning beside an orange accent would say nothing. It is a
+yellow of its own per theme, `#F0CF4C` dark and `#6D5900` light, and it is in the
+check, because a literal that derives from nothing is unchecked by default.
 
 ### Focus
 
 `--ring` is the **full** accent, not a wash of it. At 0.55 alpha the composited
 ring fell under the 3.0 WCAG 1.4.11 asks of a focus indicator, and under the
 figure the check reported, because the check read the token and the token was
-not what got painted. At full strength the two agree: 6.25 on ink, 5.20 on a
-panel, 3.84 on a raised surface.
+not what got painted. At full strength the two agree: 5.71 on ink, 4.99 on a
+panel, 3.97 on a raised surface.
 
 Every control gets a ring from one rule in `@layer base` covering `button`,
 `summary` and the `button`, `slider` and `tab` roles. It uses `outline` rather
@@ -182,47 +171,22 @@ rather than following the accent to blue.
 
 ---
 
-## The 3D viewport is chassis, and repaints live
+## The map repaints live
 
-The studio's WebGL surfaces are the interface, not the data, and they are
-painted from the palette: `--p-ink` is the background and the fog, `--p-line` is
-the ground grid and an empty area's footprint, `--p-accent` is the selected
-plane's outline, the links between corresponding rasters, and the path and
-arrowheads through a selection.
+The map's outlines are painted from the palette, and MapLibre reads a colour once
+into a paint property it then holds as its own number. So the globe subscribes
+through `frontend/src/lib/paletteWatch.ts` and repaints in place, without rebuilding
+the style, which would decode every raster again.
 
-**They re-read the tokens when the palette moves.** A CSS custom property
-re-resolves for free; a WebGL scene cannot, because it reads the tokens once at
-build into colours it then holds as its own numbers. So the studio kept whichever
-palette it opened in until something unrelated rebuilt it. Both scenes now
-subscribe through `frontend/src/lib/paletteWatch.ts` and repaint **in place** — a
-rebuild would decode every raster again and send
-dragged planes back to the layout's first answer, all for a colour.
-
-One attribute is watched: `data-theme`, which next-themes writes with the
-resolved theme — "dark" or "light", never "system" — so it covers a reader left
-on the system setting whose machine flips at dusk.
-
-`style` was watched alongside it, because the accent lab wrote candidate `--p-*`
-channels inline on the same element. That panel is gone, and with it the only
-writer, so watching the attribute would have meant waking every scene whenever
-anything else touched an inline style on the root. The override the lab used to
-pin the scenes off the tokens went the same way, for the same reason: it was a
-lever with no hand left on it.
-
-### What inside the viewport is not chassis
-
-Three groups stay literal, and each is data or an instrument rather than chrome:
-
-| What | Where | Why it does not follow the theme |
-| --- | --- | --- |
-| Rover lens and echo rings | `boardScene.ts` | Drawn **over a raster**, not over a surface. Their ground is the imagery, so `--p-text` would invert them to near-black on it in the light theme. White with the surroundings dimmed is the measure that works against any scene. |
+One attribute is watched: `data-theme`, which next-themes writes with the resolved
+theme, so it covers a reader left on the system setting whose machine flips at dusk.
 
 ---
 
 ## Type scale
 
-Five steps, each named for its role. Declared in `@theme inline`, so they are
-real Tailwind utilities.
+Each step is named for its role. Declared in `@theme inline`, so they are real
+Tailwind utilities.
 
 | Utility | Size | Leading | Use for |
 | --- | --- | --- | --- |
@@ -231,6 +195,9 @@ real Tailwind utilities.
 | `text-body` | 11px | 1.5 | Body and control labels |
 | `text-emphasis` | 12px | 1.5 | Row titles, field values |
 | `text-heading` | 14px | 1.4 | Section and page headings |
+| `text-label` | 12px | 1.45 | A panel's labels and captions |
+| `text-read` | 13px | 1.5 | What is read in a panel |
+| `text-title` | 15px | 1.35 | A panel's title |
 
 `micro` is a floor, not a size to reach for. It is legible only because every use
 of it is uppercase monospace with wide tracking.
@@ -324,5 +291,5 @@ Go and the sidecar are **control** — a chassis change should not move them. If
 The checks cannot see everything. Two things need eyes:
 
 - **Both themes.** The light theme derives separately and inherits nothing.
-- **The map area.** Open a spectral-index composition and a classification
-  raster and confirm the frame does not compete with the ramp.
+- **The map.** Open a spectral-index composition and a classification raster and
+  confirm the chrome does not compete with the ramp.
