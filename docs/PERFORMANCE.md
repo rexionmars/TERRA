@@ -5,6 +5,9 @@ turned out to cause it, and what was cleared. Written after an investigation
 that spent most of its time in the wrong places, so the record of what is *not*
 the cause is as much of the point as the record of what is.
 
+Measured on the interface before the map shell: "the studio" and "the board" below
+are the surface it replaced, and figures taken on them were not repeated since.
+
 ---
 
 ## The window, not the page

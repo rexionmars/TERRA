@@ -31,6 +31,10 @@ Source of truth: [`app.go`](../app.go), [`internal/analysis/types.go`](../intern
 
 ### Projects, areas and studios
 
+A studio is what the interface calls a **workflow**: a saved name, a compositor
+graph and the runs it reads. The store and the `.terra` format keep the older name,
+so files written before the rename still open.
+
 The hierarchy is **project › area › run**. A project holds the grounds worked on
 it; an area holds the runs measured over it. Deleting an area takes its runs and
 their rasters; deleting a project takes its areas and theirs. None of that is

@@ -82,15 +82,6 @@ application is also slow beside TERRA and fast away from it, the cause is the
 window rather than anything on screen inside it. That symptom had one cause
 here, and it is fixed; see [Performance](PERFORMANCE.md).
 
-### The studio stutters while orbiting
-
-Switch on **Profile → Telemetry → Page frame rate** first. It measures how fast
-the browser is delivering frames at all, which is what says whether the studio
-is the cause. A low page rate with the frame work near zero means nothing being
-drawn in the studio is the reason.
-
-Leave it off afterwards: it is the one figure that costs something to have on.
-
 ### It is slow when run from source but not from a build
 
 Expected, and worth measuring past. `wails dev` serves modules one at a time,
