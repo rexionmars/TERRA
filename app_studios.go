@@ -68,7 +68,7 @@ func (a *App) DeleteStudio(studioID string) error {
 	return st.DeleteStudio(a.effectiveUserID(), studioID)
 }
 
-// SetBoardDirty records whether the board holds changes no saved studio does.
+// SetBoardDirty records whether the workflow holds changes that were never saved.
 // The interface owns the board and so is the only side that knows; the shell
 // needs the answer at close, when there is no time to ask the webview.
 func (a *App) SetBoardDirty(dirty bool) {
@@ -124,9 +124,9 @@ func closeQuestion(boardDirty bool, pendingJobs int) (title, message string) {
 	}
 	switch {
 	case boardDirty && jobs != "":
-		return "Unsaved studio", "The board has changes no saved studio holds. " + jobs + " Quit anyway?"
+		return "Unsaved workflow", "This workflow has changes that were never saved. " + jobs + " Quit anyway?"
 	case boardDirty:
-		return "Unsaved studio", "The board has changes no saved studio holds. Quit without saving them?"
+		return "Unsaved workflow", "This workflow has changes that were never saved. Quit without saving them?"
 	case jobs != "":
 		return "Analyses in progress", jobs + " Quit anyway?"
 	}

@@ -8,14 +8,11 @@
  */
 import { describe, expect, it } from "vitest"
 
-import { STUDIO_EDITORS } from "./studioEditors"
 import {
   OPERATORS,
   OPERATOR_IDS,
-  findOperator,
   formatKeys,
   keyMatches,
-  operatorCompletions,
   operatorForKey,
   searchOperators,
   type KeyEventLike,
@@ -32,27 +29,19 @@ const key = (code: string, mods: Partial<KeyEventLike> = {}, k = ""): KeyEventLi
 })
 
 describe("the table", () => {
-  it("binds no key twice in the same scope", () => {
-    // A narrower scope over a wider one is the override the keymap is built
-    // to allow; the same scope twice is a clash, on either platform.
+  it("binds no key twice", () => {
+    // A clash on either platform.
     for (const mac of [true, false]) {
       const seen = new Map<string, string>()
       for (const id of OPERATOR_IDS) {
-        const scope = OPERATORS[id].scope ?? "window"
         for (const spec of OPERATORS[id].keys ?? []) {
-          const slot = `${scope} ${formatKeys(spec, mac)}`
+          const slot = formatKeys(spec, mac)
           const other = seen.get(slot)
           expect(other === undefined || other === id, `${slot}: ${other} and ${id}`).toBe(true)
           seen.set(slot, id)
         }
       }
     }
-  })
-
-  it("scopes only to editors the studio has", () => {
-    const ids = new Set<string>(STUDIO_EDITORS.map((e) => e.id))
-    expect(ids.has("viewport")).toBe(true)
-    expect(ids.has("outliner")).toBe(true)
   })
 
   it("gives every operator a label, a description and a menu", () => {
@@ -90,23 +79,12 @@ describe("keyMatches", () => {
 })
 
 describe("operatorForKey", () => {
-  it("runs a plane key only with the pointer over the planes", () => {
-    const a = key("KeyA")
-    expect(operatorForKey(a, "viewport", true)).toBe("SELECT_ALL")
-    expect(operatorForKey(a, "outliner", true)).toBe("SELECT_ALL")
-    expect(operatorForKey(a, "globe", true)).toBeNull()
-    expect(operatorForKey(a, null, true)).toBeNull()
+  it("resolves a window key", () => {
+    expect(operatorForKey(key("KeyS", { metaKey: true }), true)).toBe("WORKFLOW_SAVE")
   })
 
-  it("keeps the window keys anywhere", () => {
-    const save = key("KeyS", { metaKey: true })
-    expect(operatorForKey(save, null, true)).toBe("STUDIO_SAVE")
-    expect(operatorForKey(save, "globe", true)).toBe("STUDIO_SAVE")
-  })
-
-  it("frames only over the viewport", () => {
-    expect(operatorForKey(key("Period", {}, "."), "viewport", true)).toBe("FRAME_SELECTED")
-    expect(operatorForKey(key("Period", {}, "."), "outliner", true)).toBeNull()
+  it("leaves alone a key nothing is bound to", () => {
+    expect(operatorForKey(key("KeyA"), true)).toBeNull()
   })
 })
 
@@ -119,32 +97,17 @@ describe("formatKeys", () => {
   })
 })
 
-describe("the Console's names", () => {
-  it("finds an operator by its id in any case, and nothing else", () => {
-    expect(findOperator(" select_all ")).toBe("SELECT_ALL")
-    expect(findOperator("toString")).toBeNull()
-    expect(findOperator("")).toBeNull()
-  })
-
-  it("completes a prefix, and nothing once a space is typed", () => {
-    expect(operatorCompletions("studio_s")).toEqual(["STUDIO_SAVE"])
-    expect(operatorCompletions("SELECT_")).toEqual(["SELECT_ALL", "SELECT_NONE"])
-    expect(operatorCompletions("SELECT ALL")).toEqual([])
-    expect(operatorCompletions("")).toEqual([])
-  })
-})
-
 describe("searchOperators", () => {
   it("lists everything for an empty query", () => {
     expect(searchOperators("  ")).toEqual(OPERATOR_IDS)
   })
 
   it("puts a label that starts with the query first", () => {
-    expect(searchOperators("save")[0]).toBe("STUDIO_SAVE")
+    expect(searchOperators("save")[0]).toBe("WORKFLOW_SAVE")
   })
 
   it("needs every word, in any field", () => {
-    expect(searchOperators("hide planes")).toContain("HIDE_SELECTED")
-    expect(searchOperators("hide xyzzy")).toEqual([])
+    expect(searchOperators("save project")).toContain("PROJECT_SAVE")
+    expect(searchOperators("save xyzzy")).toEqual([])
   })
 })

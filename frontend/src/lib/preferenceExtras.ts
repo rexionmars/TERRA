@@ -48,39 +48,10 @@ export interface PreferenceExtras {
   /** Project files opened or saved, newest first. */
   recent_project_files?: string[]
   /**
-   * Whether the studio's panels are separated by a gap.
-   *
-   * A chrome preference and not a layout one: `studio_layout` below records
-   * WHERE the divisions are, and this records how the areas either side of one
-   * are told apart. A reader who prefers a denser board turns it off and gets
-   * a border in its place -- see lib/studioGutter for why the two are one
-   * decision rather than a setting and a fallback.
-   */
-  studio_panel_gap?: boolean
-  /**
    * Where the map was left. Restored on start so a session resumes at the last
    * place worked on rather than at the continental default.
    */
   map_view?: { lat: number; lon: number; zoom: number }
-  /**
-   * The studio's arrangement: which workspace, and each one's area tree.
-   *
-   * A preference, stored for the reason the others here are: a reader who
-   * widens a column and finds it narrow again tomorrow reads it as the
-   * application having changed rather than as a setting having persisted. The
-   * board's CONTENTS are not here; those live in
-   * boardMemory, which states why they should not outlive a restart.
-   */
-  studio_layout?: import("@/lib/studioLayout").StudioLayout
-  /**
-   * Which figures the studio's status bar reports.
-   *
-   * A preference rather than a build flag because one of the figures costs
-   * something to have on -- it keeps the page animating -- and the reader who
-   * accepts that cost is the one diagnosing a stall. Absent means none, which
-   * is what a reader who has never opened the setting should get.
-   */
-  studio_telemetry?: import("@/lib/studioTelemetry").StudioTelemetry
 }
 
 export function parsePreferenceExtras(

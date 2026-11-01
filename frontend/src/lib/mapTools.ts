@@ -8,7 +8,15 @@
  * a set of table columns.
  */
 
-import type { StudioGroup } from "@/lib/studioEditors"
+/** What kind of work a product is for. */
+export type StudioGroup = "board" | "crop" | "water"
+
+/** The groups in the order every menu lists them, and what each is called. */
+export const STUDIO_GROUPS: readonly { id: StudioGroup; label: string }[] = [
+  { id: "board", label: "Board" },
+  { id: "crop", label: "Land cover" },
+  { id: "water", label: "Water" },
+]
 
 /**
  * The three ids a stored panel selection can name, as values.

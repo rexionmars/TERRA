@@ -1,6 +1,6 @@
 import { CaretRight, CircleNotch, Play } from "@/components/icons"
-import { MethodPanel } from "@/components/studio/MethodPanel"
-import { RunQueue } from "@/components/studio/RunQueue"
+import { MethodPanel } from "@/components/workspace/MethodPanel"
+import { RunQueue } from "@/components/workspace/RunQueue"
 import { btnGhost, btnPrimaryCommit } from "@/components/ui/buttons"
 import { MODE_OPTIONS, MODEL_OPTIONS, modeBlockedBy } from "@/lib/classifyOptions"
 import { isJobKind } from "@/lib/jobs"
@@ -20,7 +20,7 @@ import type { MineralRunOptions } from "@/lib/mineral"
  * The parameters each product reads, beside what starts it.
  *
  * Every value is the application's own state passed straight through, so a run
- * started here and one started from the studio are made of the same inputs.
+ * started here is made of the inputs the rest of the application shows.
  */
 export interface ProductsPanelProps extends ProductRunProps {
   maxCloud: number
@@ -46,9 +46,8 @@ export interface ProductsPanelProps extends ProductRunProps {
 }
 
 /*
-  Compositions wait for the Visualization panel, which is what the same request
-  is under this shell: a way of looking at a scene rather than a run of a
-  product. Until then they are reached in the studio.
+  Compositions have a panel of their own, Visualization: a way of looking at a
+  scene rather than a run of a product.
 */
 const LISTED = BOARD_TOOLS.filter((t) => t.id !== "compose")
 

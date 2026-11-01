@@ -324,7 +324,7 @@ export const RULES: readonly ContrastRule[] = [
     fg: "accentQuiet",
     on: ["sunk", "ink", "control", "surface", "head", "surfaceRaised", "accentDim"],
     min: 4.5,
-    why: "the accent where it is read rather than filled; accentDim is the plate the studio band lights a chosen value on, and the label sits on it",
+    why: "the accent where it is read rather than filled; accentDim is the plate a chosen value lights on, and the label sits on it",
   },
   {
     fg: "accent",
@@ -491,7 +491,7 @@ export const RULES: readonly ContrastRule[] = [
     fg: "text",
     on: ["boardCard", "sourceBody", "whenBody", "methodBody", "valueBody"],
     min: 4.5,
-    why: "a card's own readings, on the body of every kind of card the board draws",
+    why: "a card's own readings, on the body of every kind of card a workflow draws",
   },
   {
     fg: "muted",

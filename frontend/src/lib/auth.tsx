@@ -32,7 +32,7 @@ import type { InferenceRun, Preferences, Project, User } from "@/lib/types"
   studio itself. What is left beside the studio is the account: signing in,
   and settings.
 */
-export type AppScreen = "studio" | "auth" | "profile"
+export type AppScreen = "map" | "auth" | "profile"
 
 /**
  * A page of the settings screen, when something wants to open a particular one.
@@ -51,7 +51,7 @@ interface AuthContextValue {
   projects: Project[]
   loading: boolean
   screen: AppScreen
-  goStudio: () => void
+  goMap: () => void
   goAuth: () => void
   goProfile: (page?: SettingsPage) => void
   /** Which settings page to open on arrival, consumed once by ProfilePage. */
@@ -88,7 +88,7 @@ export function AuthProvider({
   const [runs, setRuns] = useState<InferenceRun[]>([])
   const [projects, setProjects] = useState<Project[]>([])
   const [loading, setLoading] = useState(true)
-  const [screen, setScreen] = useState<AppScreen>("studio")
+  const [screen, setScreen] = useState<AppScreen>("map")
 
   const refreshRuns = useCallback(async () => {
     try {
@@ -153,7 +153,7 @@ export function AuthProvider({
       const u = (await Login(email, password)) as unknown as User
       setUser(u)
       await loadPrefsAndRuns(u)
-      setScreen("studio")
+      setScreen("map")
       notifySuccess(`Welcome back, ${u.display_name}.`)
     },
     [loadPrefsAndRuns]
@@ -164,7 +164,7 @@ export function AuthProvider({
       const u = (await Register(email, password, displayName)) as unknown as User
       setUser(u)
       await loadPrefsAndRuns(u)
-      setScreen("studio")
+      setScreen("map")
       notifySuccess("Account created.")
     },
     [loadPrefsAndRuns]
@@ -174,7 +174,7 @@ export function AuthProvider({
     await Logout()
     setUser(null)
     setPrefs(null)
-    setScreen("studio")
+    setScreen("map")
     notifySuccess("Signed out.")
     await Promise.all([refreshRuns(), refreshProjects()])
   }, [refreshRuns, refreshProjects])
@@ -255,7 +255,7 @@ export function AuthProvider({
    * remembering what you had been doing and landing somewhere adjacent to it
    * rather than back in it.
    */
-  const [settingsReturnTo, setSettingsReturnTo] = useState<AppScreen>("studio")
+  const [settingsReturnTo, setSettingsReturnTo] = useState<AppScreen>("map")
 
   const goProfile = useCallback(
     (page?: SettingsPage) => {
@@ -295,7 +295,7 @@ export function AuthProvider({
     cannot join them: it reads `user` and `screen` to decide where to land and
     what to record, so its identity properly follows those.
   */
-  const goStudio = useCallback(() => setScreen("studio"), [])
+  const goMap = useCallback(() => setScreen("map"), [])
   const goAuth = useCallback(() => setScreen("auth"), [])
 
   const value = useMemo<AuthContextValue>(
@@ -306,7 +306,7 @@ export function AuthProvider({
       projects,
       loading,
       screen,
-      goStudio,
+      goMap,
       goAuth,
       goProfile,
       settingsPage,
@@ -335,7 +335,7 @@ export function AuthProvider({
       consumeSettingsPage,
       settingsReturnTo,
       leaveSettings,
-      goStudio,
+      goMap,
       goAuth,
       goProfile,
       login,

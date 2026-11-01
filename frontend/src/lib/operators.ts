@@ -10,8 +10,8 @@
  *
  * DEFINITIONS HERE, IMPLEMENTATIONS WHERE THE STATE IS. Solara's operators are
  * module functions over module stores. This application keeps its state in the
- * components that own it -- the board's selection and arrangement live in
- * BoardSurface -- so an operator's `run` is registered by that component with
+ * components that own it -- what a workflow is called lives in MapShell -- so an
+ * operator's `run` is registered by that component with
  * `useOperators`, and withdrawn when it unmounts. The definition outlives it:
  * the search and the keymap list a command on every screen, and one whose
  * owner is not mounted says so instead of disappearing.
@@ -22,16 +22,6 @@
  */
 import { useEffect, useRef } from "react"
 import {
-  ArrowCounterClockwise,
-  ArrowFatLinesLeft,
-  ArrowFatLinesRight,
-  ArrowUUpLeft,
-  ArrowUUpRight,
-  ArrowsOut,
-  Crosshair,
-  Eraser,
-  Eye,
-  EyeSlash,
   FileArrowDown,
   FloppyDisk,
   FolderOpen,
@@ -43,10 +33,8 @@ import {
   Info,
   Keyboard,
   MagnifyingGlass,
-  PaintBrush,
   PencilSimple,
   Plus,
-  Selection,
   SlidersHorizontal,
   Sparkle,
   Terminal,
@@ -56,21 +44,10 @@ import {
 import { notifyError, notifyInfo } from "@/lib/notify"
 import { report } from "@/lib/reports"
 
-/**
- * Where an operator's keys work.
- *
- * `window` anywhere; the others only with the pointer over those editors,
- * because the pointer is the only thing that says which area a keystroke is
- * meant for -- no area holds focus. `objects` is the two editors that show the
- * board's planes, the viewport and the outliner, as Blender's object keys work
- * in both the 3D view and the outliner.
- */
-export type OperatorScope = "window" | "viewport" | "objects"
-
 export interface OperatorDef {
   label: string
   description: string
-  /** Where its row lives, for the operator search: "Studio", "Viewport › Select". */
+  /** Where its row lives, for the operator search: "Options". */
   menu: string
   icon?: Icon
   /**
@@ -79,55 +56,40 @@ export interface OperatorDef {
    * key, so Alt+A is A with Alt and not the character macOS types for it.
    */
   keys?: readonly string[]
-  scope?: OperatorScope
   /** Whether its keys work while the focus is in a text field. */
   inFields?: boolean
 }
 
 const DEFS = {
   // ---- Studio: the application menu ----------------------------------------
-  STUDIO_SAVE: {
-    label: "Save studio",
+  WORKFLOW_SAVE: {
+    label: "Save workflow",
     description:
-      "Save this arrangement under its name, or ask for one, and the project file when the project has one",
-    menu: "Studio",
+      "Save this workflow under its name, or ask for one, and the project file when the project has one",
+    menu: "Options",
     icon: FloppyDisk,
     keys: ["Mod+S"],
     inFields: true,
   },
-  STUDIO_RENAME: {
+  WORKFLOW_RENAME: {
     label: "Save under another name\u2026",
-    description: "Give the open studio a new name",
-    menu: "Studio",
+    description: "Give the open workflow a new name",
+    menu: "Options",
     icon: PencilSimple,
     keys: ["Shift+Mod+S"],
     inFields: true,
   },
-  STUDIO_NEW: {
-    label: "New studio",
-    description: "Clear the board and start an empty studio",
-    menu: "Studio",
+  WORKFLOW_NEW: {
+    label: "New workflow",
+    description: "Clear the graph and the runs in hand, and start an empty workflow",
+    menu: "Options",
     icon: Plus,
     keys: ["Mod+N"],
-  },
-  UNDO: {
-    label: "Undo",
-    description: "Take back the last change to what is on the board",
-    menu: "Studio",
-    icon: ArrowUUpLeft,
-    keys: ["Mod+Z"],
-  },
-  REDO: {
-    label: "Redo",
-    description: "Put back what Undo took back",
-    menu: "Studio",
-    icon: ArrowUUpRight,
-    keys: ["Shift+Mod+Z", "Mod+Y"],
   },
   PROJECT_OPEN: {
     label: "Open project file\u2026",
     description: "Bring a .terra project file into this installation and open it",
-    menu: "Studio \u203a Project file",
+    menu: "Options \u203a Project file",
     icon: FolderOpen,
     keys: ["Mod+O"],
     inFields: true,
@@ -135,7 +97,7 @@ const DEFS = {
   PROJECT_SAVE: {
     label: "Save project file",
     description: "Write the open project to its .terra file",
-    menu: "Studio \u203a Project file",
+    menu: "Options \u203a Project file",
     icon: FileArrowDown,
     keys: ["Alt+Mod+S"],
     inFields: true,
@@ -143,7 +105,7 @@ const DEFS = {
   PROJECT_SAVE_AS: {
     label: "Save project file as\u2026",
     description: "Write the open project to a new .terra file",
-    menu: "Studio \u203a Project file",
+    menu: "Options \u203a Project file",
     icon: FileArrowDown,
     keys: ["Shift+Alt+Mod+S"],
     inFields: true,
@@ -151,39 +113,19 @@ const DEFS = {
   PROJECT_REVEAL: {
     label: "Reveal project file",
     description: "Show the open project's .terra file in the file manager",
-    menu: "Studio \u203a Project file",
+    menu: "Options \u203a Project file",
     icon: FolderSimpleUser,
   },
-  STUDIO_MANAGE: {
-    label: "Manage studios\u2026",
-    description: "Rename or delete saved studios",
-    menu: "Studio",
+  WORKFLOW_MANAGE: {
+    label: "Manage workflows\u2026",
+    description: "Rename or delete saved workflows",
+    menu: "Options",
     icon: SlidersHorizontal,
-  },
-  WORKSPACE_RESET: {
-    label: "Reset this workspace",
-    description: "Put the arrangement back the way it ships",
-    menu: "Studio",
-    icon: ArrowCounterClockwise,
-  },
-  WORKSPACE_NEXT: {
-    label: "Next workspace",
-    description: "Open the workspace after this one",
-    menu: "Studio",
-    icon: ArrowFatLinesRight,
-    keys: ["Ctrl+PageDown"],
-  },
-  WORKSPACE_PREV: {
-    label: "Previous workspace",
-    description: "Open the workspace before this one",
-    menu: "Studio",
-    icon: ArrowFatLinesLeft,
-    keys: ["Ctrl+PageUp"],
   },
   SEARCH: {
     label: "Search operators\u2026",
     description: "Find any command by name and run it",
-    menu: "Studio",
+    menu: "Options",
     icon: MagnifyingGlass,
     keys: ["F3", "Mod+K"],
     inFields: true,
@@ -191,7 +133,7 @@ const DEFS = {
   PREFERENCES: {
     label: "Settings\u2026",
     description: "Account, telemetry, keymap and the Python environment",
-    menu: "Studio",
+    menu: "Options",
     icon: Gear,
     keys: ["Mod+Comma"],
     inFields: true,
@@ -199,108 +141,49 @@ const DEFS = {
   KEYMAP: {
     label: "Keymap",
     description: "Every command and the keys that run it",
-    menu: "Studio",
+    menu: "Options",
     icon: Keyboard,
   },
   START: {
     label: "Start screen",
-    description: "What to begin and what to reopen, as the studio opens with",
-    menu: "Studio",
+    description: "What to begin and what to reopen, as the application opens with",
+    menu: "Options",
     icon: House,
   },
   SPLASH: {
     label: "Splash screen",
     description: "Show the splash again",
-    menu: "Studio",
+    menu: "Options",
     icon: ImageSquare,
   },
   RELEASE_NOTES: {
     label: "What\u2019s new",
     description: "The notes for the release that is running",
-    menu: "Studio",
+    menu: "Options",
     icon: Sparkle,
   },
   ENVIRONMENT: {
     label: "Python environment\u2026",
     description: "The interpreter the analyses run in, and what is installed in it",
-    menu: "Studio",
+    menu: "Options",
     icon: Terminal,
   },
   STORAGE: {
     label: "Storage\u2026",
     description: "What the application keeps on disk, and what can be cleared",
-    menu: "Studio",
+    menu: "Options",
     icon: HardDrive,
   },
   ABOUT: {
     label: "About TERRA",
     description: "The version, the licence and where the source is",
-    menu: "Studio",
+    menu: "Options",
     icon: Info,
   },
 
   // ---- Areas ---------------------------------------------------------------
-  AREA_MAXIMIZE: {
-    label: "Maximise area",
-    description: "Give the area under the pointer the whole board, or restore the areas",
-    menu: "Area",
-    icon: ArrowsOut,
-    /*
-      Ctrl first, because it is what reaches the window on every platform:
-      Cmd-Space opens Spotlight on a default macOS, and a menu cannot promise a
-      key the system takes first. Cmd-Space stays bound for a machine where
-      Spotlight has been moved, since it worked here before this table existed.
-    */
-    keys: ["Ctrl+Space", "Mod+Space"],
-  },
 
   // ---- The planes, in the viewport and the outliner ------------------------
-  SELECT_ALL: {
-    label: "Select all planes",
-    description: "Select every plane on the board",
-    menu: "Viewport › Select",
-    icon: Selection,
-    keys: ["A"],
-    scope: "objects",
-  },
-  SELECT_NONE: {
-    label: "Clear selection",
-    description: "Select nothing",
-    menu: "Viewport › Select",
-    icon: Eraser,
-    keys: ["Alt+A"],
-    scope: "objects",
-  },
-  HIDE_SELECTED: {
-    label: "Hide selected planes",
-    description: "Hide the selected planes, or show them again if all are hidden",
-    menu: "Viewport",
-    icon: EyeSlash,
-    keys: ["H"],
-    scope: "objects",
-  },
-  SHOW_ALL: {
-    label: "Show every plane",
-    description: "Make every plane on the board visible",
-    menu: "Viewport",
-    icon: Eye,
-    keys: ["Alt+H"],
-    scope: "objects",
-  },
-  FRAME_SELECTED: {
-    label: "Frame selected plane",
-    description: "Bring the last selected plane into view",
-    menu: "Viewport",
-    icon: Crosshair,
-    keys: ["Period", "NumpadDecimal"],
-    scope: "viewport",
-  },
-  BRUSH: {
-    label: "Brush",
-    description: "Read the class under the lens on a prediction plane",
-    menu: "Viewport",
-    icon: PaintBrush,
-  },
 } satisfies Record<string, OperatorDef>
 
 export type OperatorId = keyof typeof DEFS
@@ -466,51 +349,14 @@ export function keyMatches(spec: string, e: KeyEventLike, mac = IS_MAC): boolean
   )
 }
 
-export function inScope(scope: OperatorScope | undefined, editor: string | null): boolean {
-  switch (scope ?? "window") {
-    case "window":
-      return true
-    case "viewport":
-      return editor === "viewport"
-    case "objects":
-      return editor === "viewport" || editor === "outliner"
-  }
-}
-
 /**
- * The operator a keystroke runs, given the editor under the pointer.
+ * The operator a keystroke runs.
  *
  * An editor's own binding wins over a window binding for the same keys, so a
  * key can mean one thing over the viewport and another elsewhere.
  */
-export function operatorForKey(
-  e: KeyEventLike,
-  editor: string | null,
-  mac = IS_MAC
-): OperatorId | null {
-  const candidates = OPERATOR_IDS.filter((id) =>
-    OPERATORS[id].keys?.some((k) => keyMatches(k, e, mac))
-  )
-  const scoped = candidates.find((id) => {
-    const scope = OPERATORS[id].scope
-    return scope && scope !== "window" && inScope(scope, editor)
-  })
-  return scoped ?? candidates.find((id) => inScope(OPERATORS[id].scope, editor)) ?? null
-}
-
-/*
-  Which editor the pointer is over, asked at the moment a key arrives rather
-  than tracked on every move: the board already keeps the pointer and the area
-  rectangles, and the lookup is a walk of a handful of leaves.
-*/
-let editorUnderPointer: () => string | null = () => null
-
-/** Set by the board while it is mounted; returns the function that withdraws it. */
-export function setEditorUnderPointer(resolve: () => string | null): () => void {
-  editorUnderPointer = resolve
-  return () => {
-    if (editorUnderPointer === resolve) editorUnderPointer = () => null
-  }
+export function operatorForKey(e: KeyEventLike, mac = IS_MAC): OperatorId | null {
+  return OPERATOR_IDS.find((id) => OPERATORS[id].keys?.some((k) => keyMatches(k, e, mac))) ?? null
 }
 
 /**
@@ -526,7 +372,7 @@ export function installKeymap(): () => void {
   const onKey = (e: KeyboardEvent) => {
     if (e.defaultPrevented || e.repeat || e.isComposing) return
     if (document.querySelector('[aria-modal="true"]')) return
-    const id = operatorForKey(e, editorUnderPointer())
+    const id = operatorForKey(e)
     if (!id || !current(id)) return
     const target = e.target as HTMLElement | null
     const typing = !!target?.closest?.(
@@ -538,26 +384,6 @@ export function installKeymap(): () => void {
   }
   window.addEventListener("keydown", onKey)
   return () => window.removeEventListener("keydown", onKey)
-}
-
-// ---- By name, for the Console -------------------------------------------------
-
-/** The operator an id names, typed in any case; null for a name that is not one. */
-export function findOperator(name: string): OperatorId | null {
-  const id = name.trim().toUpperCase()
-  return Object.hasOwn(DEFS, id) ? (id as OperatorId) : null
-}
-
-/** Ids that begin with what has been typed, for the Console's completion. */
-export function operatorCompletions(prefix: string): OperatorId[] {
-  const p = prefix.trimStart().toUpperCase()
-  if (!p || /\s/.test(p)) return []
-  return OPERATOR_IDS.filter((id) => id.startsWith(p))
-}
-
-/** Whether an operator has an owner on the screen that is up. */
-export function operatorHere(id: OperatorId): boolean {
-  return !!current(id)
 }
 
 // ---- Search -------------------------------------------------------------------
@@ -580,9 +406,3 @@ export function searchOperators(query: string): OperatorId[] {
   )
 }
 
-/** Where an operator's keys work, as the keymap writes it. */
-export const SCOPE_NAMES: Record<OperatorScope, string> = {
-  window: "Anywhere",
-  viewport: "Viewport",
-  objects: "Viewport, Outliner",
-}

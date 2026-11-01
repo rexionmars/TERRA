@@ -21,7 +21,7 @@ import {
   RenameStudio,
 } from "../../wailsjs/go/main/App"
 import type { store } from "../../wailsjs/go/models"
-import type { BoardSnapshot } from "@/components/studio/boardMemory"
+import type { BoardSnapshot } from "@/components/workspace/boardMemory"
 import { parseGraph } from "@/lib/compositorGraph"
 
 export type Studio = store.Studio

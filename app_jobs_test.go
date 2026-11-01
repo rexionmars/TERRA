@@ -113,7 +113,7 @@ func TestCloseQuestion(t *testing.T) {
 	if _, m := closeQuestion(false, 1); !strings.Contains(m, "One queued analysis") {
 		t.Fatalf("got %q", m)
 	}
-	if title, m := closeQuestion(true, 2); title != "Unsaved studio" || !strings.Contains(m, "no saved studio") || !strings.Contains(m, "2 queued") {
+	if title, m := closeQuestion(true, 2); title != "Unsaved workflow" || !strings.Contains(m, "never saved") || !strings.Contains(m, "2 queued") {
 		t.Fatalf("got %q, %q", title, m)
 	}
 }

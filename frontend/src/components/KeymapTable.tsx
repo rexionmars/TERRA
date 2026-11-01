@@ -8,7 +8,7 @@
  */
 import { useState } from "react"
 
-import { OPERATORS, OPERATOR_IDS, SCOPE_NAMES, formatKeys } from "@/lib/operators"
+import { OPERATORS, OPERATOR_IDS, formatKeys } from "@/lib/operators"
 
 export function KeymapTable() {
   const [query, setQuery] = useState("")
@@ -23,12 +23,9 @@ export function KeymapTable() {
   return (
     <div className="flex flex-col gap-3 px-4 pb-4 pt-3">
       <p className="text-body leading-relaxed text-muted-foreground">
-        Keys marked Viewport or Outliner work with the pointer over that editor,
-        since no area holds the keyboard. None of them work while typing in a
-        field, except the ones that save, search and open settings. Every
-        command here can also be found by name with{" "}
-        <span className="telemetry text-foreground">{formatKeys("F3")}</span>,
-        or typed in the Console by the name in its last column.
+        None of these work while typing in a field, except the ones that save,
+        search and open settings. Every command here can also be found by name
+        with <span className="telemetry text-foreground">{formatKeys("F3")}</span>.
       </p>
       <input
         value={query}
@@ -43,9 +40,7 @@ export function KeymapTable() {
           <tr className="eyebrow !text-[9px]">
             <th className="py-1 pr-2 font-normal">Command</th>
             <th className="py-1 pr-2 font-normal">Keys</th>
-            <th className="py-1 pr-2 font-normal">Where</th>
-            <th className="py-1 pr-2 font-normal">Menu</th>
-            <th className="py-1 font-normal">Console</th>
+            <th className="py-1 font-normal">Menu</th>
           </tr>
         </thead>
         <tbody>
@@ -65,19 +60,13 @@ export function KeymapTable() {
                     </span>
                   ))}
                 </td>
-                <td className="py-1 pr-2 text-muted-foreground">
-                  {o.keys?.length ? SCOPE_NAMES[o.scope ?? "window"] : ""}
-                </td>
-                <td className="py-1 pr-2 text-muted-foreground">{o.menu}</td>
-                <td className="telemetry selectable py-1 text-meta text-muted-foreground">
-                  {id}
-                </td>
+                <td className="py-1 text-muted-foreground">{o.menu}</td>
               </tr>
             )
           })}
           {rows.length === 0 && (
             <tr>
-              <td colSpan={5} className="py-2 text-muted-foreground">
+              <td colSpan={3} className="py-2 text-muted-foreground">
                 No command matches.
               </td>
             </tr>
