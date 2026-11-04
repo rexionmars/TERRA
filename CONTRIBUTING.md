@@ -41,11 +41,13 @@ wails dev
 
 1. Branch from an up-to-date `main` with a focused name (`feat/…`, `fix/…`, `docs/…`).
 2. Keep the PR to one theme; avoid mixing unrelated UI and pipeline changes.
-3. Run the automated tests before opening the PR:
+3. Follow [docs/CODE_STYLE.md](docs/CODE_STYLE.md), and run the checks before opening
+   the PR. [AGENTS.md](AGENTS.md) lists them in full; the short set is:
 
 ```bash
-go test ./...
+go test -race ./...
 pytest sidecar/tests -q
+(cd sidecar && ruff check . && mypy terra)
 (cd frontend && npm test && npm run lint && npm run check:format)
 ```
 
@@ -54,8 +56,9 @@ reformats goes in `.git-blame-ignore-revs`, and `git config blame.ignoreRevsFile
 .git-blame-ignore-revs` makes a local blame skip it as GitHub's does.
 
 4. Describe the motivation and how you verified the change.
-5. Prefer small, reviewable commits with imperative messages
-   (e.g. `fix: handle empty STAC results`).
+5. Prefer small, reviewable commits. Messages follow Conventional Commits, and the
+   subject says what is true after the change, as the changelog will show it
+   (e.g. `fix(stac): an empty search is reported as empty`).
 
 ## Releases
 
