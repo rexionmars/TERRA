@@ -88,6 +88,7 @@ an empty list or a default value later surfaces as a different bug.
 | `frontend/wailsjs/` | `wails build` / `wails dev`, from the methods bound in Go | the build |
 | `frontend/src/components/icons.tsx` | `npm run build:icons`, from `frontend/vendor/breeze-icons` | `check:icons` |
 | `frontend/src/cursors.css` | `npm run build:cursors`, from `frontend/vendor/aosp-pointers` | `check:cursors` |
+| `frontend/src/lib/palettes.ts` | `python sidecar/tools/gen_palettes.py`, from the sidecar's `CONTINUOUS_STOPS` | `sidecar/tests/test_palette_sync.py` |
 | `CHANGELOG.md`, the version in `version.go`, `CITATION.cff` and `wails.json` | release-please, from the commit messages | `check:version` |
 | `requirements*.lock.txt` | `uv pip compile`, with the command in each file's header | pip `--require-hashes` |
 | `frontend/dist/` | `npm run build`, never committed | |
