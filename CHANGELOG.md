@@ -19,6 +19,27 @@ hand-written "unreleased" section beside a generated one is the same list twice,
 and only one of them is kept current.
 
 
+## [0.8.0](https://github.com/rexionmars/TERRA/compare/v0.7.0...v0.8.0) (2026-11-04)
+
+
+### Features
+
+* **browser:** the editor fits an area narrower than two columns ([beb9f68](https://github.com/rexionmars/TERRA/commit/beb9f68e1ac2345589b2e589ca01f55bd7bc22f7))
+* **icons:** five more Breeze drawings, for the navigation rail ([489481d](https://github.com/rexionmars/TERRA/commit/489481dcc9f0d07ac6e4aa139814fe8fd78acea4))
+* **palette:** neutral greys under an orange accent ([851db11](https://github.com/rexionmars/TERRA/commit/851db1155d5d03facfbb92027012cebf33fc9744))
+* **shell:** every product read on the map, with Compare and Workflows as destinations ([4bf5b3f](https://github.com/rexionmars/TERRA/commit/4bf5b3f31553c4a2f845aa89dc8853312570c8c2))
+* **shell:** the application as a map, with one panel held up in front of it ([ac1d44c](https://github.com/rexionmars/TERRA/commit/ac1d44c7dbe9101c80aa19ace8f5f5fcbe4eb226))
+
+
+### Bug fixes
+
+* **compositor:** the default graph's cards do not overlap ([ba9946e](https://github.com/rexionmars/TERRA/commit/ba9946ec6dc1c36dfa0e5ea88b74d4474eb4e641))
+* **globe:** an imported .kml draws its outline, and the globe has a button for it ([2edd440](https://github.com/rexionmars/TERRA/commit/2edd440b2c7e17691e90883f2309ce1fd5af0872))
+* **map:** a raster is pinned to its corners rather than stretched over a box ([837fa62](https://github.com/rexionmars/TERRA/commit/837fa62fdda4191e55b8dc859a6e1e13884af269))
+* **phenology:** a series of six dates no longer stops a classification ([70ada3f](https://github.com/rexionmars/TERRA/commit/70ada3ff5f54c4379f8e7fc18d30f0dae75fca2d))
+* **runs:** a run opened from the list makes its area the one in hand ([595c4e1](https://github.com/rexionmars/TERRA/commit/595c4e1257f6b8706a984aa878a5a31154dc1f48))
+* **shell:** what floats over the map is measured over the ground ([f1513dd](https://github.com/rexionmars/TERRA/commit/f1513dd4e0cc54447c4dee48cc1854e7b4d9009e))
+
 ## [0.7.0](https://github.com/rexionmars/TERRA/compare/v0.6.0...v0.7.0) (2026-10-03)
 
 
