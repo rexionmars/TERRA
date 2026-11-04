@@ -95,8 +95,8 @@ A change to what is drawn is looked at, not only tested.
 ## Never
 
 - Edit a generated file: `frontend/wailsjs/`, `frontend/src/components/icons.tsx`,
-  `frontend/src/cursors.css`, `CHANGELOG.md`, the lock files. Change what generates it;
-  docs/CODE_STYLE.md lists each generator.
+  `frontend/src/cursors.css`, `frontend/src/lib/palettes.ts`, `CHANGELOG.md`, the lock
+  files. Change what generates it; docs/CODE_STYLE.md lists each generator.
 - Write to stdout from `sidecar/terra/`. Stdout carries the result.
 - Silence a check to make it pass. A suppression is a last resort, and gives its reason
   on the line above it.
