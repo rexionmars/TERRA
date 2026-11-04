@@ -1,9 +1,10 @@
 # Roadmap
 
 This roadmap describes work that is still open. The application already ships
-the Studio, compositor, land-cover comparison and domain-shift diagnostics,
-water, field delineation, vegetation health, public-register overlap,
-Sentinel-1, management zones, EMIT mineral products and PDF reports. See
+the map interface, the Workflows compositor, land-cover comparison and
+domain-shift diagnostics, water, field delineation, vegetation health,
+public-register overlap, Sentinel-1, management zones, EMIT mineral products
+and PDF reports. See
 [README.md](../README.md) for the delivered products and their interpretation
 limits, and [TODO.md](../TODO.md) for the product inventory and research
 backlog.
@@ -29,11 +30,8 @@ and proposals through [GitHub Issues](https://github.com/rexionmars/TERRA/issues
 
 ### 2. Make the research workflow easier to enter and reproduce
 
-- [ ] Update the user guide to the current Studio-first workflow, including
-      project/area/run setup, task workspaces, compositor and reports.
-- [ ] Provide a task-based first-use path for a complete area-to-report
-      workflow, without requiring users to assemble editors before they know
-      what each one answers.
+- [ ] Provide a task-based first-use path in the application for a complete
+      area-to-report workflow.
 - [ ] Extend exports with accuracy and domain-shift outputs and a manifest of
       selected scenes, model/version, parameters, geometry and data sources.
 - [ ] Publish the general and academic/researcher manuals after the short guide

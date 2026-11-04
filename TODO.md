@@ -40,9 +40,9 @@ validated for every region or use.
 - **Management zones:** per-field NDVI zones exported as GeoJSON.
 - **Surface mineral map:** EMIT-based products and associated spectral
   diagnostics.
-- **Analysis workspace:** projects, areas and runs; saved Studio boards and
-  task-oriented workspaces; comparisons, domain-shift diagnostics, data
-  tables, field-level compositor runs and PDF reports.
+- **Map interface:** projects, areas and runs, with every result read on the
+  map; Compare for comparisons, domain-shift diagnostics and data tables;
+  Workflows for saved compositor graphs, field-level runs and PDF reports.
 
 See [README.md](README.md) for the product descriptions and current
 limitations. The application remains local-first and is intended for focused
@@ -65,9 +65,8 @@ These address the reliability and usability of results already produced.
 - [ ] **Reproducible exports.** Extend the research pack to include the
   accuracy and domain-shift results and a manifest of inputs, selected scenes,
   model/version, parameters and output geometry.
-- [ ] **Task-based onboarding.** Make the first useful workflow discoverable
-  without requiring users to know which Studio editors to assemble. Update
-  the user guide to match the current Studio-first application.
+- [ ] **Task-based onboarding.** Make the first useful workflow, from an area
+  to a report, discoverable in the application.
 
 ## Research and product candidates
 
