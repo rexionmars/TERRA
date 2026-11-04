@@ -1,47 +1,21 @@
-import {
-  Suspense,
-  lazy,
-  useCallback,
-  useEffect,
-  useMemo,
-  useRef,
-  useState,
-} from "react"
-
-import {
-  Sparkle,
-  ChartLine,
-  Crosshair,
-  Image as ImageGlyph,
-  Stack,
-} from "@/components/icons"
-import { MapButton } from "@/components/globe/MapChrome"
+import { Suspense, lazy, useEffect, useMemo, useRef, useState } from "react"
 import { toGlobeArea, type GlobeArea } from "@/components/globe/globeArea"
-import type { OverlayCaption } from "@/components/globe/OverlayCallout"
 import { ActivityPanel } from "@/components/shell/ActivityPanel"
+import { useMapLayers, useRunAssets } from "@/components/shell/mapLayerState"
+import { MapTools } from "@/components/shell/MapTools"
+import { RunStatus } from "@/components/shell/RunStatus"
+import { useRunsInHand, withRun } from "@/components/shell/runsInHand"
+import { useRunWatch } from "@/components/shell/runWatch"
+import { useShellNavigation } from "@/components/shell/shellNavigation"
+import { useWorkflowBoard } from "@/components/shell/workflowBoard"
 import { AreasPanel } from "@/components/shell/AreasPanel"
 import { LayersPanel } from "@/components/shell/LayersPanel"
 import { PointsPanel, type PointSlot } from "@/components/shell/PointsPanel"
 import { ProductsPanel } from "@/components/shell/ProductsPanel"
 import type { ClassificationView, ResultProduct } from "@/components/shell/ResultPanel"
-import {
-  ShellRail,
-  ShellTopBar,
-  keepRailOpen,
-  readRailOpen,
-} from "@/components/shell/ShellChrome"
+import { ShellRail, ShellTopBar, keepRailOpen } from "@/components/shell/ShellChrome"
 import { VisualizationPanel } from "@/components/shell/VisualizationPanel"
-import {
-  COMPOSITOR,
-  boardIsDirty,
-  clearBoardDirty,
-  markBoardDirty,
-  onBoardDirtyChange,
-  readBoardMemory,
-  snapshotBoard,
-  writeBoardMemory,
-} from "@/components/workspace/boardMemory"
-import type { CompositorGlobeOverlay } from "@/components/workspace/CompositorEditor"
+import { writeBoardMemory } from "@/components/workspace/boardMemory"
 import { claimLaunchStart, StartScreen } from "@/components/workspace/StartScreen"
 import { WorkflowManager } from "@/components/workspace/WorkflowManager"
 import { ConfirmDelete } from "@/components/ui/ConfirmDelete"
@@ -55,33 +29,15 @@ import type { Area } from "@/lib/areas"
 import { useAppSurfaces } from "@/lib/appSurfaces"
 import { useAuth } from "@/lib/auth"
 import { geometryBounds } from "@/lib/geometry"
-import {
-  EMPTY_GRAPH,
-  linkInto,
-  withFieldNodes,
-  withMineralNodes,
-  type CompositorGraph,
-} from "@/lib/compositorGraph"
-import { fieldSets as fieldSetsOf } from "@/lib/fieldSets"
-import type { FieldsTarget } from "@/lib/fields"
-import type { PdfReportRun } from "@/lib/pdfReport"
-import { applyLayerPatch, mergeLayerPatch, type LayerPatch } from "@/lib/layerPatch"
-import { legendFor } from "@/lib/layerLegend"
-import type { ClassLayer, MapPoint } from "@/lib/mapProbe"
-import { rasterLayers, type RasterLayer } from "@/lib/mapLayers"
+import type { MapPoint } from "@/lib/mapProbe"
 import { countJobs, takeFinished, useJobs, type JobKind } from "@/lib/jobs"
-import { notifyError, notifySuccess } from "@/lib/notify"
+import { notifyError } from "@/lib/notify"
 import { mergePreferenceExtras, parsePreferenceExtras } from "@/lib/preferenceExtras"
 import { openProjectFile } from "@/lib/projectFiles"
-import { sessionRuns, type SessionRun } from "@/lib/sessionRuns"
-import { saveStudio, type Studio } from "@/lib/studios"
 import { useReports } from "@/lib/reports"
 import { cn } from "@/lib/utils"
-import { useRunLog } from "@/lib/runLog"
-import { majoritySmoothOverlay } from "@/lib/smoothOverlay"
-import { pollOperator, runOperator, useOperators } from "@/lib/operators"
-import { loadedRunAssets, runAssets } from "@/lib/runAssets"
-import { jobReadingOf, withAssetLayers, type JobReading } from "@/lib/shellLayers"
+import { useOperators } from "@/lib/operators"
+import { jobReadingOf, type JobReading } from "@/lib/shellLayers"
 import type { BoardToolId } from "@/lib/mapTools"
 import type { AreaProps } from "@/session/areas"
 import type { ClassificationProps } from "@/session/classification"
@@ -92,9 +48,8 @@ import type { OverlayDisplayProps, RunParameterProps } from "@/session/runParame
 import type { SurfaceWaterProps } from "@/session/surfaceWater"
 import type { WorkflowProps } from "@/session/workflows"
 import { DEFAULT_MINERAL_RUN_OPTIONS } from "@/lib/mineral"
-import { activeRuns } from "@/lib/productRun"
 import type { Bounds, InferenceRun, PredictResult } from "@/lib/types"
-import { ListProjectRuns, LoadAnalysis } from "../../wailsjs/go/main/App"
+import { ListProjectRuns } from "../../wailsjs/go/main/App"
 
 /*
   Lazy: MapLibre is 945 kB, and the result panel
@@ -114,10 +69,6 @@ const WorkflowsScreen = lazy(() =>
     default: m.WorkflowsScreen,
   }))
 )
-
-/** Which panel is held up over the map. One value, so there is only ever one. */
-type ShellPanelId =
-  "areas" | "products" | "visualization" | "result" | "points" | "layers" | "activity"
 
 /**
  * The whole contract between App and the surface it draws: App owns the parameters,
@@ -149,13 +100,6 @@ export interface MapShellProps
   onOpenReading?: (run: InferenceRun) => void | Promise<PredictResult | null>
   onQueueJobs?: (kind: JobKind) => void
 }
-
-/** The list with this run in it, once. */
-const withRun = (
-  list: readonly { run: InferenceRun; result: PredictResult }[],
-  run: InferenceRun,
-  result: PredictResult
-) => (list.some((x) => x.run.id === run.id) ? [...list] : [...list, { run, result }])
 
 /** The panel's width, and the tool column's, as the camera has to clear them. */
 const PANEL_CLEARANCE_PX = 480
@@ -190,34 +134,24 @@ export function MapShell(props: MapShellProps) {
   })
   const pageRef = useRef<HTMLDivElement>(null)
 
-  // Over the map at launch, and gone as soon as the reader begins something.
-  const [startOpen, setStartOpen] = useState(false)
-  const [destination, setDestination] = useState<
-    "explore" | "analyses" | "compare" | "workflows"
-  >("explore")
-  /*
-    Each stays mounted once opened, hidden behind the map. The grid's choices survive
-    a look at the ground that way, and a graph's Globe nodes go on drawing on it.
-  */
-  const [compareOpened, setCompareOpened] = useState(false)
-  const [workflowsOpened, setWorkflowsOpened] = useState(false)
-  const [analysesOpened, setAnalysesOpened] = useState(false)
-  const goAnalyses = () => {
-    setStartOpen(false)
-    setAnalysesOpened(true)
-    setDestination("analyses")
-  }
-  const goCompare = () => {
-    setStartOpen(false)
-    setCompareOpened(true)
-    setDestination("compare")
-  }
-  const goWorkflows = () => {
-    setStartOpen(false)
-    setWorkflowsOpened(true)
-    setDestination("workflows")
-  }
-  const [railOpen, setRailOpen] = useState(readRailOpen)
+  const nav = useShellNavigation()
+  const {
+    startOpen,
+    setStartOpen,
+    destination,
+    setDestination,
+    compareOpened,
+    workflowsOpened,
+    analysesOpened,
+    goAnalyses,
+    goCompare,
+    goWorkflows,
+    railOpen,
+    setRailOpen,
+    panel,
+    setPanel,
+    togglePanel,
+  } = nav
   /*
     How many reports had been read when the activity panel was last open, so the
     rail can say there is something new. A count and not a flag: the log only
@@ -225,15 +159,9 @@ export function MapShell(props: MapShellProps) {
   */
   const reports = useReports()
   const [seenReports, setSeenReports] = useState(0)
-  const [panel, setPanel] = useState<ShellPanelId | null>(null)
   const [product, setProduct] = useState<BoardToolId | null>(null)
   const [frame, setFrame] = useState<{ key: number; bounds: Bounds } | null>(null)
   const [coords, setCoords] = useState(props.initialView ?? null)
-  const [mineralLayerState, setMineralLayerState] = useState<
-    Record<string, LayerPatch>
-  >({})
-  const [fieldLayerState, setFieldLayerState] = useState<Record<string, LayerPatch>>({})
-  const [assetLayerState, setAssetLayerState] = useState<Record<string, LayerPatch>>({})
   const [spreadM, setSpreadM] = useState(0)
   /*
     A queued product's run, which App holds no state for: it reads a classification,
@@ -246,14 +174,6 @@ export function MapShell(props: MapShellProps) {
   const [placing, setPlacing] = useState<PointSlot | null>(null)
   const [opening, setOpening] = useState(false)
   const [overlayMenu, setOverlayMenu] = useState<GlobeOverlayTarget | null>(null)
-  /* The prediction with the majority filter applied, which decides where a class boundary is. */
-  const [smoothed, setSmoothed] = useState<{ from: string; uri: string } | null>(null)
-
-  const togglePanel = (id: ShellPanelId) => {
-    setStartOpen(false)
-    setPanel((p) => (p === id ? null : id))
-  }
-
   const areas = useMemo<readonly Area[]>(() => props.areas ?? [], [props.areas])
 
   /** Choosing an area also goes to it, which a press on the map has no need to do. */
@@ -272,6 +192,149 @@ export function MapShell(props: MapShellProps) {
     })
   }
 
+  const areaId = props.activeAreaId ?? "current"
+  const areaName =
+    areas.find((a) => a.id === props.activeAreaId)?.name ??
+    (props.customPolygon ? props.areaLabel || "Drawn area" : "No area")
+
+  const {
+    setExtraRuns,
+    loadingRuns,
+    addRuns,
+    session,
+    dropRun,
+    sessionRunIds,
+    fieldSets,
+    fieldsTargetOf,
+    runRecordOf,
+  } = useRunsInHand(props, areas, areaName)
+
+  const {
+    assets,
+    mineralLayerState,
+    fieldLayerState,
+    assetLayerState,
+    setAssetLayerState,
+    showZones,
+    changeLayer,
+  } = useRunAssets(props, job)
+
+  const board = useWorkflowBoard({
+    props,
+    assets,
+    session,
+    loadingRuns,
+    addRuns,
+    setExtraRuns,
+    setJob,
+    destination,
+    goWorkflows,
+    goCompare,
+    setStartOpen,
+  })
+  const {
+    compositor,
+    setCompositor,
+    compositorGlobe,
+    setCompositorGlobe,
+    savedId,
+    setSavedId,
+    savedName,
+    setSavedName,
+    naming,
+    setNaming,
+    pendingOpen,
+    setPendingOpen,
+    managing,
+    setManaging,
+    dirty,
+    confirmName,
+    askName,
+    openWorkflow,
+  } = board
+
+  const extras = parsePreferenceExtras(prefs?.extras_json)
+  const startAtLaunch = extras.start_screen !== false
+  useEffect(() => {
+    if (prefs && claimLaunchStart() && startAtLaunch) setStartOpen(true)
+    // Once, on the first preferences: the claim makes any later run a no-op.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [prefs])
+
+  const { layers, classLayers, overlays } = useMapLayers({
+    props,
+    assets,
+    mineralLayerState,
+    fieldLayerState,
+    assetLayerState,
+    compositor,
+    compositorGlobe,
+    sessionRunIds,
+    areaId,
+    areaName,
+  })
+  const pins = useMemo(
+    () =>
+      (["A", "B"] as const).flatMap((slot) => {
+        const p = points[slot]
+        return p ? [{ id: slot, label: slot, lon: p.lon, lat: p.lat }] : []
+      }),
+    [points]
+  )
+  const placePin =
+    panel === "points" && placing
+      ? (lon: number, lat: number) => {
+          setPoints((held) => ({ ...held, [placing]: { lon, lat } }))
+          setPlacing(null)
+        }
+      : null
+
+  const removeResult = (product: ResultProduct) => {
+    switch (product) {
+      case "classify":
+        props.onCloseResult()
+        break
+      case "water":
+        props.onClearWater()
+        break
+      case "mineral":
+        props.onClearMineral?.()
+        break
+      case "fields":
+        props.onClearFields?.()
+        break
+      default:
+        setJob(null)
+        setAssetLayerState({})
+    }
+  }
+
+  const globeAreas = useMemo<GlobeArea[]>(() => {
+    const selected = new Set(props.selectedAreaIds ?? [])
+    return areas
+      .map((a) => {
+        const g = toGlobeArea(`aoi:${a.id}`, a.name, a.geometry, !!a.parent_id)
+        return g && selected.has(a.id) ? { ...g, selected: true } : g
+      })
+      .filter((a): a is GlobeArea => a !== null)
+  }, [areas, props.selectedAreaIds])
+
+  // A delineation's polygons while they are only proposed.
+  const fieldDrafts = useMemo<GeoJSON.FeatureCollection | null>(() => {
+    const f = props.fields
+    if (!f?.fields_geojson) return null
+    if (f.run_id && areas.some((a) => a.source_run_id === f.run_id)) return null
+    try {
+      return JSON.parse(f.fields_geojson) as GeoJSON.FeatureCollection
+    } catch {
+      return null
+    }
+  }, [props.fields, areas])
+
+  const { running, busy, runLog, wasBusy } = useRunWatch(props, (focus) => {
+    setResultFocus(focus)
+    setPanel("result")
+  })
   /*
     A saved run, opened. App loads it and hands it back, so its queued
     products can be read: one load, not a second one here for what the first
@@ -306,29 +369,6 @@ export function MapShell(props: MapShellProps) {
       notifyError("Could not open the run", e)
     }
   }
-  /*
-    Runs brought in by name, or by opening a saved workflow. A session's: they
-    survive a look at the map and not a restart.
-  */
-  const [extraRuns, setExtraRuns] = useState<
-    { run: InferenceRun; result: PredictResult }[]
-  >([])
-  const [loadingRuns, setLoadingRuns] = useState(false)
-  const addRuns = useCallback(async (list: readonly InferenceRun[]) => {
-    setLoadingRuns(true)
-    try {
-      for (const run of list) {
-        try {
-          const result = (await LoadAnalysis(run.id)) as unknown as PredictResult
-          setExtraRuns((prev) => withRun(prev, run, result))
-        } catch (e) {
-          notifyError("Could not load that run", e)
-        }
-      }
-    } finally {
-      setLoadingRuns(false)
-    }
-  }, [])
 
   /*
     A queue that has run out opens the last thing it finished. Not each one as it
@@ -346,584 +386,6 @@ export function MapShell(props: MapShellProps) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [jobs])
 
-  const areaId = props.activeAreaId ?? "current"
-  const areaName =
-    areas.find((a) => a.id === props.activeAreaId)?.name ??
-    (props.customPolygon ? props.areaLabel || "Drawn area" : "No area")
-
-  const liveRunId =
-    props.result?.run_id ||
-    props.water?.run_id ||
-    props.mineral?.run_id ||
-    props.fields?.run_id ||
-    "current"
-  const session = useMemo<SessionRun[]>(() => {
-    const anything = props.result || props.water || props.mineral || props.fields
-    return sessionRuns({
-      live: anything
-        ? {
-            id: liveRunId,
-            label: areaName,
-            model: props.modelKind,
-            result: {
-              ...props.result,
-              water: props.water ?? props.result?.water,
-              mineral: props.mineral ?? props.result?.mineral,
-              fields: props.fields ?? props.result?.fields,
-            } as PredictResult,
-          }
-        : null,
-      retained: props.retainedRuns ?? [],
-      extra: extraRuns,
-      saved: savedRuns,
-      areas,
-    })
-  }, [
-    props.result,
-    props.water,
-    props.mineral,
-    props.fields,
-    props.modelKind,
-    props.retainedRuns,
-    liveRunId,
-    areaName,
-    extraRuns,
-    savedRuns,
-    areas,
-  ])
-  const dropRun = (run: SessionRun) => {
-    const held = props.retainedRuns?.find((x) => (x.result.run_id || x.id) === run.id)
-    if (held) props.onDropRetainedRun?.(held.id)
-    setExtraRuns((prev) => prev.filter((x) => x.run.id !== run.id))
-  }
-
-  const sessionRunIds = session.map((r) => r.id)
-  const fieldSets = useMemo(() => fieldSetsOf(areas, savedRuns), [areas, savedRuns])
-  const fieldsTargetOf = (runId: string): FieldsTarget | null => {
-    const areaOfRun = savedRuns.find((r) => r.id === runId)?.area_id
-    const area = areas.find((a) => a.id === areaOfRun && !a.parent_id)
-    if (!area) return null
-    const adopted = areas.filter((a) => a.parent_id === area.id && a.source_run_id)
-    return {
-      name: area.name,
-      adopted: adopted.length,
-      adoptedWithRuns: adopted.filter((a) => a.run_count > 0).length,
-    }
-  }
-  const runRecordOf = (runId: string): PdfReportRun | null => {
-    const r =
-      savedRuns.find((x) => x.id === runId) ??
-      extraRuns.find((x) => x.run.id === runId)?.run
-    if (!r) return null
-    return {
-      id: r.id,
-      kind: r.kind || "classification",
-      title: r.label || r.id,
-      modelKind: r.model_kind,
-      periodStart: r.period_start,
-      periodEnd: r.period_end,
-      created: r.created_at,
-    }
-  }
-
-  /* ---- Workflows: the graph, and the name it is saved under ---------------- */
-
-  const [compositor, setCompositorState] = useState<CompositorGraph | null>(() =>
-    readBoardMemory<CompositorGraph | null>(COMPOSITOR, null)
-  )
-  const setCompositor = (next: CompositorGraph) => {
-    writeBoardMemory(COMPOSITOR, next)
-    markBoardDirty()
-    setCompositorState(next)
-  }
-  const [compositorGlobe, setCompositorGlobe] = useState<CompositorGlobeOverlay[]>([])
-  const [savedId, setSavedId] = useState<string | null>(() =>
-    readBoardMemory("savedId", null)
-  )
-  const [savedName, setSavedName] = useState<string | null>(() =>
-    readBoardMemory("savedName", null)
-  )
-  const [naming, setNaming] = useState<string | null>(null)
-  const namingNew = useRef(false)
-  const [pendingOpen, setPendingOpen] = useState<Studio | "new" | null>(null)
-  const [managing, setManaging] = useState(false)
-  const [dirty, setDirty] = useState(boardIsDirty)
-  useEffect(() => onBoardDirtyChange(setDirty), [])
-
-  /*
-    A finished delineation's and mineral map's nodes are placed for it, once per run:
-    what is done with them is graph work, and a run whose nodes had to be built by
-    hand would leave those actions out of sight.
-  */
-  const placedRuns = useRef(new Set<string>())
-  const mineralRunId = props.mineral?.run_id
-  useEffect(() => {
-    const m = props.mineral
-    if (!m || !mineralRunId || placedRuns.current.has(mineralRunId)) return
-    placedRuns.current.add(mineralRunId)
-    setCompositor(
-      withMineralNodes(compositor ?? EMPTY_GRAPH, mineralRunId, {
-        cover: !!m.cover,
-        bands: (m.positions ?? [])
-          .map((p) => p.key)
-          .filter((k): k is "fe3" | "aloh" => k === "fe3" || k === "aloh"),
-        acid: (m.acid_sulfate ?? []).length > 0,
-        agreement: (m.agreement ?? [])
-          .map((a) => a.group)
-          .filter((g): g is 1 | 2 => g === 1 || g === 2),
-      })
-    )
-    // The run id is what decides; the graph is read as it stands then.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [mineralRunId])
-  const fieldsRunId = props.fields?.run_id
-  useEffect(() => {
-    if (!fieldsRunId || placedRuns.current.has(fieldsRunId)) return
-    placedRuns.current.add(fieldsRunId)
-    const classOutput = assets.some((a) => a.id === "fields-classes")
-      ? "fields-classes"
-      : null
-    setCompositor(withFieldNodes(compositor ?? EMPTY_GRAPH, fieldsRunId, classOutput))
-    // As above.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [fieldsRunId])
-
-  /*
-    What opening a saved workflow left in the board's memory: its name, its graph and
-    the runs it is made of. App wrote them; the nonce says when. A board saved with no
-    graph was arranging rasters, which is what the grid is for now.
-  */
-  const takeOpened = () => {
-    setSavedId(readBoardMemory<string | null>("savedId", null))
-    setSavedName(readBoardMemory<string | null>("savedName", null))
-    const graph = readBoardMemory<CompositorGraph | null>(COMPOSITOR, null)
-    setCompositorState(graph)
-    const ids = readBoardMemory<string[]>("pendingRunIds", [])
-    writeBoardMemory("pendingRunIds", [])
-    setExtraRuns([])
-    setJob(null)
-    void addRuns(ids.flatMap((id) => savedRuns.filter((r) => r.id === id)))
-    return { graph, ids }
-  }
-  const seenNonce = useRef(props.openBoardNonce)
-  useEffect(() => {
-    if (props.openBoardNonce === seenNonce.current) return
-    seenNonce.current = props.openBoardNonce
-    const { graph, ids } = takeOpened()
-    if (graph || !ids.length || destination === "workflows") goWorkflows()
-    else goCompare()
-    // Once per opening.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [props.openBoardNonce])
-  // Runs sent here before this surface mounted.
-  useEffect(() => {
-    if (readBoardMemory<string[]>("pendingRunIds", []).length) takeOpened()
-    // Once, on mount: the list is emptied as it is taken.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [])
-
-  const saveWorkflow = async (name: string) => {
-    const trimmed = name.trim()
-    if (!trimmed) return
-    if (loadingRuns) {
-      notifyError(
-        "Still opening this workflow",
-        new Error(
-          "its runs are still being fetched, and saving now would store it without them"
-        )
-      )
-      return
-    }
-    const members = session
-      .filter((r) => r.record)
-      .map((r) => ({
-        runId: r.id,
-        layerIds: (r.live ? assets : loadedRunAssets(r.result)).map((a) => a.sceneId),
-      }))
-    if (!members.length && !compositor?.nodes.length) {
-      notifyError(
-        "Nothing to save yet",
-        new Error(
-          "a workflow is a graph and the saved runs it reads, and this has neither. Run a product, or add a saved run"
-        )
-      )
-      return
-    }
-    try {
-      const board = await saveStudio(
-        trimmed,
-        snapshotBoard(members),
-        savedId ?? undefined,
-        props.activeProjectId
-      )
-      writeBoardMemory("savedId", board.id)
-      writeBoardMemory("savedName", board.name)
-      setSavedId(board.id)
-      setSavedName(board.name)
-      setNaming(null)
-      clearBoardDirty()
-      notifySuccess(`Workflow "${board.name}" saved.`)
-      void props.onStudiosMenu?.()
-      // The project's file too, or the two would say different things.
-      if (pollOperator("PROJECT_SAVE") === true) runOperator("PROJECT_SAVE")
-    } catch (e) {
-      notifyError("Could not save this workflow", e)
-    }
-  }
-  const confirmName = (name: string) => {
-    const trimmed = name.trim()
-    if (!trimmed) return
-    if (namingNew.current) {
-      namingNew.current = false
-      setNaming(null)
-      void props.onNewStudio?.(trimmed)
-      return
-    }
-    void saveWorkflow(trimmed)
-  }
-  const askName = (forNew: boolean, initial = "") => {
-    goWorkflows()
-    namingNew.current = forNew
-    setNaming(initial)
-  }
-  const openWorkflow = (board: Studio) => {
-    if (board.id === savedId) {
-      goWorkflows()
-      return
-    }
-    if (boardIsDirty()) setPendingOpen(board)
-    else props.onOpenStudio?.(board)
-  }
-  const newWorkflow = () => {
-    if (boardIsDirty()) setPendingOpen("new")
-    else askName(true)
-  }
-
-  const extras = parsePreferenceExtras(prefs?.extras_json)
-  const startAtLaunch = extras.start_screen !== false
-  useEffect(() => {
-    if (prefs && claimLaunchStart() && startAtLaunch) setStartOpen(true)
-    // Once, on the first preferences: the claim makes any later run a no-op.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [prefs])
-
-  useOperators({
-    WORKFLOW_SAVE: {
-      run: () => {
-        if (savedName) {
-          void saveWorkflow(savedName)
-          return
-        }
-        // Nothing to name, and a project file to write: the save is the file's.
-        if (
-          !session.some((r) => r.record) &&
-          !compositor?.nodes.length &&
-          pollOperator("PROJECT_SAVE") === true
-        ) {
-          runOperator("PROJECT_SAVE")
-          return
-        }
-        askName(false)
-      },
-    },
-    WORKFLOW_RENAME: {
-      run: () => askName(false, savedName ?? ""),
-      poll: () => (savedName ? true : "This workflow has no name yet"),
-    },
-    WORKFLOW_NEW: { run: newWorkflow },
-    WORKFLOW_MANAGE: { run: () => setManaging(true) },
-    START: { run: () => setStartOpen(true) },
-  })
-
-  const assets = useMemo(
-    () =>
-      runAssets({
-        result: props.result,
-        composition: props.composition,
-        compositionGallery: props.compositionGallery ?? [],
-        areaId: props.activeAreaId,
-        water: props.water,
-        areaLabel: props.areaLabel,
-        modelKind: props.modelKind,
-        showCompositionOverlay: props.showCompositionOverlay,
-        showWaterOverlay: props.showWaterOverlay,
-        composeOpacity: props.composeOpacity,
-        waterOpacity: props.waterOpacity,
-        mineral: props.mineral,
-        mineralLayers: mineralLayerState,
-        fields: props.fields,
-        fieldLayers: fieldLayerState,
-        health: job?.health,
-        overlap: job?.overlap,
-        radar: job?.radar,
-        zones: job?.zones,
-      }),
-    [
-      props.result,
-      props.composition,
-      props.compositionGallery,
-      props.activeAreaId,
-      props.water,
-      props.areaLabel,
-      props.modelKind,
-      props.showCompositionOverlay,
-      props.showWaterOverlay,
-      props.composeOpacity,
-      props.waterOpacity,
-      props.mineral,
-      mineralLayerState,
-      props.fields,
-      fieldLayerState,
-      job,
-    ]
-  )
-
-  const stateLayers = useMemo(
-    () =>
-      rasterLayers({
-        result: props.result,
-        showPredictionOverlay: props.showPredictionOverlay,
-        overlayOpacity: props.overlayOpacity,
-        showConfidence: props.showConfidence,
-        confidenceOnTop: props.confidenceOnTop,
-        smoothOverlay: props.smoothOverlay,
-        composition: props.composition,
-        showCompositionOverlay: props.showCompositionOverlay,
-        composeOpacity: props.composeOpacity,
-        water: props.water,
-        showWaterOverlay: props.showWaterOverlay,
-        waterOpacity: props.waterOpacity,
-        mineral: props.mineral,
-        mineralLayers: mineralLayerState,
-        fields: props.fields,
-        fieldLayers: fieldLayerState,
-      }),
-    [
-      props.result,
-      props.showPredictionOverlay,
-      props.overlayOpacity,
-      props.showConfidence,
-      props.confidenceOnTop,
-      props.smoothOverlay,
-      props.composition,
-      props.showCompositionOverlay,
-      props.composeOpacity,
-      props.water,
-      props.showWaterOverlay,
-      props.waterOpacity,
-      props.mineral,
-      mineralLayerState,
-      props.fields,
-      fieldLayerState,
-    ]
-  )
-  const layersBeforeGraph = useMemo(
-    () => withAssetLayers(stateLayers, assets, assetLayerState),
-    [stateLayers, assets, assetLayerState]
-  )
-
-  /*
-    What a graph's Globe nodes draw, as rows of the same list. The node may have been
-    removed since it sent them and the run may have left the session, so each is
-    checked here, where both are known.
-  */
-  const graphLayers = useMemo<RasterLayer[]>(() => {
-    const inHand = new Set(sessionRunIds)
-    return compositorGlobe
-      .filter(
-        (o) =>
-          !!compositor &&
-          !!linkInto(compositor, o.nodeId, o.socket) &&
-          o.runIds.every((id) => inHand.has(id))
-      )
-      .map((o) => ({
-        ...o.layer,
-        id: o.key,
-        title: `${o.layer.title}, from the workflow`,
-        visible: assetLayerState[o.key]?.visible ?? true,
-        opacity: assetLayerState[o.key]?.opacity ?? o.layer.opacity,
-      }))
-    // sessionRunIds is rebuilt each render; its joined text says when it changed.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [compositorGlobe, compositor, assetLayerState, sessionRunIds.join("|")])
-  const layers = useMemo(
-    () => [...layersBeforeGraph, ...graphLayers],
-    [layersBeforeGraph, graphLayers]
-  )
-
-  /* The class rasters drawn now. A hidden one is not what a reader is looking at. */
-  const classLayers = useMemo<ClassLayer[]>(() => {
-    const out: ClassLayer[] = []
-    for (const l of layers) {
-      const legend = assets.find((a) => a.sceneId === l.id)?.classes?.legend
-      if (l.visible && legend?.length) {
-        out.push({ id: l.id, title: l.title, uri: l.uri, extent: l.extent, legend })
-      }
-    }
-    return out
-  }, [layers, assets])
-  const pins = useMemo(
-    () =>
-      (["A", "B"] as const).flatMap((slot) => {
-        const p = points[slot]
-        return p ? [{ id: slot, label: slot, lon: p.lon, lat: p.lat }] : []
-      }),
-    [points]
-  )
-  const placePin =
-    panel === "points" && placing
-      ? (lon: number, lat: number) => {
-          setPoints((held) => ({ ...held, [placing]: { lon, lat } }))
-          setPlacing(null)
-        }
-      : null
-
-  /** One partition of the zones on the map at a time; two would hide each other. */
-  const showZones = (k: number) =>
-    setAssetLayerState((held) => {
-      let next = held
-      for (const p of job?.zones?.partitions ?? []) {
-        next = mergeLayerPatch(next, `zones-${p.k}`, { visible: p.k === k })
-      }
-      return next
-    })
-
-  const removeResult = (product: ResultProduct) => {
-    switch (product) {
-      case "classify":
-        props.onCloseResult()
-        break
-      case "water":
-        props.onClearWater()
-        break
-      case "mineral":
-        props.onClearMineral?.()
-        break
-      case "fields":
-        props.onClearFields?.()
-        break
-      default:
-        setJob(null)
-        setAssetLayerState({})
-    }
-  }
-
-  const changeLayer = (id: string, patch: LayerPatch) =>
-    applyLayerPatch(id, patch, {
-      setCompositionVisible: props.onShowCompositionOverlayChange,
-      setCompositionOpacity: props.onComposeOpacityChange,
-      setWaterVisible: props.onShowWaterOverlayChange,
-      setWaterOpacity: props.onWaterOpacityChange,
-      setConfidenceVisible: props.onShowConfidenceChange,
-      setPredictionVisible: props.onShowPredictionOverlayChange,
-      setOverlayOpacity: props.onOpacityChange,
-      patchFieldLayer: (l, p) =>
-        setFieldLayerState((held) => mergeLayerPatch(held, l, p)),
-      patchMineralLayer: (l, p) =>
-        setMineralLayerState((held) => mergeLayerPatch(held, l, p)),
-      patchAssetLayer: (l, p) =>
-        setAssetLayerState((held) => mergeLayerPatch(held, l, p)),
-    })
-
-  const smoothFrom = layers.find((l) => l.smooth)?.uri
-  useEffect(() => {
-    if (!smoothFrom) return
-    let live = true
-    majoritySmoothOverlay(smoothFrom)
-      .then((uri) => live && setSmoothed({ from: smoothFrom, uri }))
-      .catch(() => live && setSmoothed(null))
-    return () => {
-      live = false
-    }
-  }, [smoothFrom])
-
-  const overlays = useMemo(() => {
-    const sources = {
-      result: props.result,
-      water: props.water,
-      composition: props.composition,
-      mineral: props.mineral,
-    }
-    return layers
-      .filter((l) => l.visible && !!l.uri)
-      .map((l) => {
-        // A ramp is drawn beside its raster. Class legends run long, so they are
-        // read in the result panel instead.
-        const legend = legendFor(l.id, sources)
-        const caption: OverlayCaption | undefined =
-          legend?.kind === "ramp" ? { legend, area: areaName, detail: null } : undefined
-        const drawn =
-          l.smooth && smoothed?.from === l.uri ? { ...l, uri: smoothed.uri } : l
-        return { key: l.id, areaId, layer: drawn, caption }
-      })
-  }, [
-    layers,
-    props.result,
-    props.water,
-    props.composition,
-    props.mineral,
-    areaId,
-    areaName,
-    smoothed,
-  ])
-
-  const globeAreas = useMemo<GlobeArea[]>(() => {
-    const selected = new Set(props.selectedAreaIds ?? [])
-    return areas
-      .map((a) => {
-        const g = toGlobeArea(`aoi:${a.id}`, a.name, a.geometry, !!a.parent_id)
-        return g && selected.has(a.id) ? { ...g, selected: true } : g
-      })
-      .filter((a): a is GlobeArea => a !== null)
-  }, [areas, props.selectedAreaIds])
-
-  // A delineation's polygons while they are only proposed.
-  const fieldDrafts = useMemo<GeoJSON.FeatureCollection | null>(() => {
-    const f = props.fields
-    if (!f?.fields_geojson) return null
-    if (f.run_id && areas.some((a) => a.source_run_id === f.run_id)) return null
-    try {
-      return JSON.parse(f.fields_geojson) as GeoJSON.FeatureCollection
-    } catch {
-      return null
-    }
-  }, [props.fields, areas])
-
-  const running = activeRuns(props)
-  const busy = running.length > 0
-  const runLog = useRunLog({
-    running: running[0]?.running ?? false,
-    progress: running[0]?.progress ?? 0,
-    message: running[0]?.progressMsg ?? "",
-  })
-  /*
-    A run that finishes opens what it produced. Watched as an edge, so opening
-    another panel while a result is on the map is not undone by the next render.
-  */
-  const wasBusy = useRef(false)
-  const lastProduct = useRef<ResultProduct | null>(null)
-  if (props.running) lastProduct.current = "classify"
-  else if (props.waterRunning) lastProduct.current = "water"
-  else if (props.mineralBusy) lastProduct.current = "mineral"
-  else if (props.fieldsBusy) lastProduct.current = "fields"
-  else if (props.lulcRunning) lastProduct.current = "classify"
-  /*
-    What was on the map when the run began. A run that fails has said why in its
-    notification, and changing the panel under the reader would only hide the form
-    they have to correct.
-  */
-  const before = useRef<readonly unknown[]>([])
-  useEffect(() => {
-    const now = [props.result, props.water, props.mineral, props.fields]
-    if (!wasBusy.current && busy) before.current = now
-    if (wasBusy.current && !busy && now.some((v, i) => v !== before.current[i])) {
-      setResultFocus(lastProduct.current)
-      setPanel("result")
-    }
-    wasBusy.current = busy
-    // Read at the edge of the run; the results themselves say nothing about when.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [busy])
   /*
     What the camera has to clear. The ref is read here on purpose: a finishing
     run's raster arrives in the render before the effect above opens its panel,
@@ -1051,45 +513,7 @@ export function MapShell(props: MapShellProps) {
               rightInsetPx={rightInsetPx}
               pins={pins}
               onPlacePin={placePin}
-              leadingTools={
-                <>
-                  <MapButton
-                    label="Products"
-                    active={panel === "products"}
-                    onClick={() => togglePanel("products")}
-                  >
-                    <Sparkle className="size-4" />
-                  </MapButton>
-                  <MapButton
-                    label="Visualization"
-                    active={panel === "visualization"}
-                    onClick={() => togglePanel("visualization")}
-                  >
-                    <ImageGlyph className="size-4" />
-                  </MapButton>
-                  <MapButton
-                    label="Result"
-                    active={panel === "result"}
-                    onClick={() => togglePanel("result")}
-                  >
-                    <ChartLine className="size-4" />
-                  </MapButton>
-                  <MapButton
-                    label="Points"
-                    active={panel === "points"}
-                    onClick={() => togglePanel("points")}
-                  >
-                    <Crosshair className="size-4" />
-                  </MapButton>
-                  <MapButton
-                    label="Layers"
-                    active={panel === "layers"}
-                    onClick={() => togglePanel("layers")}
-                  >
-                    <Stack className="size-4" />
-                  </MapButton>
-                </>
-              }
+              leadingTools={<MapTools panel={panel} togglePanel={togglePanel} />}
             />
           </Suspense>
 
@@ -1240,36 +664,7 @@ export function MapShell(props: MapShellProps) {
             </span>
           )}
 
-          {/*
-            What is running, wherever the reader has gone. A classification takes
-            minutes, and the product panel it started from may be closed long
-            before it ends.
-          */}
-          {busy && panel !== "products" && (
-            <div
-              role="status"
-              className="map-chrome app-no-drag absolute bottom-10 left-1/2 z-440 w-[24rem] max-w-[60%] -translate-x-1/2 rounded-md border border-[rgb(var(--p-line)/0.28)] px-3 py-2 shadow-[0_2px_8px_rgb(0_0_0/0.28)]"
-            >
-              {running.map((r) => (
-                <div key={r.label}>
-                  <div className="flex items-baseline justify-between gap-3 text-label">
-                    <span className="truncate text-foreground">
-                      {r.progressMsg || r.label}
-                    </span>
-                    <span className="shrink-0 text-muted-foreground tabular-nums">
-                      {Math.round(r.progress)} %
-                    </span>
-                  </div>
-                  <div className="mt-1 h-1 overflow-hidden rounded-sm bg-[rgb(var(--p-control))]">
-                    <div
-                      className="h-full bg-primary transition-[width] duration-300"
-                      style={{ width: `${Math.min(100, Math.max(0, r.progress))}%` }}
-                    />
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
+          {busy && panel !== "products" && <RunStatus running={running} />}
 
           {compareOpened && (
             <Suspense fallback={null}>
