@@ -2,6 +2,10 @@ module geosense-infer
 
 go 1.25.0
 
+// What npm installs is not this module's code, and some of it ships Go source
+// (flatted does). Without this line ./... would vet, lint and test it.
+ignore ./frontend/node_modules
+
 require (
 	github.com/google/uuid v1.6.0
 	github.com/wailsapp/wails/v2 v2.13.0
