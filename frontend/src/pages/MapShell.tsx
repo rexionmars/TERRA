@@ -172,7 +172,9 @@ export function MapShell(props: MapShellProps) {
   const [resultFocus, setResultFocus] = useState<ResultProduct | null>(null)
   const [points, setPoints] = useState<Partial<Record<PointSlot, MapPoint>>>({})
   const [placing, setPlacing] = useState<PointSlot | null>(null)
-  const [opening, setOpening] = useState(false)
+  /** The area of the saved analysis being opened, while it loads. */
+  const [opening, setOpening] = useState<string | null>(null)
+  const openingRef = useRef(false)
   const [overlayMenu, setOverlayMenu] = useState<GlobeOverlayTarget | null>(null)
   const areas = useMemo<readonly Area[]>(() => props.areas ?? [], [props.areas])
 
@@ -358,12 +360,26 @@ export function MapShell(props: MapShellProps) {
     already fetched and did not keep.
   */
   const openRun = async (run: InferenceRun) => {
+    /*
+      ONE AT A TIME. The load takes seconds, and a second open started meanwhile
+      raced the first for the map and the panel: whichever answered last won,
+      which was not always the one pressed last. A ref, because two presses can
+      land before a render would show the state.
+    */
+    if (openingRef.current) return
+    openingRef.current = true
     setStartOpen(false)
-    // Before the load, since its raster is what the globe frames as it arrives.
-    setOpening(true)
+    // Before the load, since its raster is what the globe frames as it arrives,
+    // and so the map says what it is waiting for instead of standing still.
+    setOpening(areaNameOf(run))
     setDestination("explore")
-    const opened = await props.onOpenReading?.(run)
-    setOpening(false)
+    let opened: PredictResult | null | void
+    try {
+      opened = await props.onOpenReading?.(run)
+    } finally {
+      openingRef.current = false
+      setOpening(null)
+    }
     setAssetLayerState({})
     const reading = opened ? jobReadingOf(run.id, areaNameOf(run), opened) : null
     setJob(reading)
@@ -682,7 +698,13 @@ export function MapShell(props: MapShellProps) {
             </span>
           )}
 
-          {busy && panel !== "products" && <RunStatus running={running} />}
+          {/* Hidden under Products, which shows the same runs in its own form. */}
+          {((busy && panel !== "products") || opening) && (
+            <RunStatus
+              running={busy && panel !== "products" ? running : []}
+              opening={opening}
+            />
+          )}
 
           {compareOpened && (
             <Suspense fallback={null}>
@@ -812,6 +834,7 @@ export function MapShell(props: MapShellProps) {
                   onActivateProject={props.onActivateProject}
                   onOpenRun={(run) => void openRun(run)}
                   onOpenReading={(run) => void openRun(run)}
+                  busy={opening !== null}
                 />
               </div>
             </div>
