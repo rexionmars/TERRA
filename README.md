@@ -391,5 +391,9 @@ Interpreter resolution: `TERRA_PYTHON` → bundled `python/` (FULL) → `.venv` 
 GNU General Public License v3.0, in [LICENSE](LICENSE). TERRA is copyleft: a
 distributed work built on it carries the same terms.
 
+The golden parakeet (*Guaruba guarouba*) in the logo is traced from a
+[photograph by Christoph Moning](https://commons.wikimedia.org/wiki/File:Guaruba_guarouba_442618436.jpg),
+licensed [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/).
+
 Contributions: [CONTRIBUTING.md](CONTRIBUTING.md) ·
 [Issues](https://github.com/rexionmars/TERRA/issues).
