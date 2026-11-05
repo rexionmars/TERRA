@@ -1,13 +1,6 @@
 import { useEffect, useState } from "react"
 import { EventsOn, EventsOff } from "../../wailsjs/runtime/runtime"
 import { GetAppVersion, GetBootLogs, GetBootState } from "../../wailsjs/go/main/App"
-import {
-  SPLASH_CURRENT_KEY,
-  SPLASH_IMAGES,
-  SPLASH_SEEN_VERSION_KEY,
-  SPLASH_STILLS,
-  claimSplashSlideForLaunch,
-} from "@/lib/splashBackground"
 import { BRAND_TAGLINE } from "@/lib/brand"
 
 /** What the status reads; set by the Go side once the sidecar probe answers. */
@@ -23,6 +16,24 @@ function asBootState(s: string): BootState {
   return s === "ready" || s === "failed" ? s : "booting"
 }
 
+/**
+ * How long the pre-bundle splash has been animating, in milliseconds.
+ *
+ * index.html stamps its copy with the time it painted, and this copy starts
+ * every animation that far in, so the cross-fade between the two is between
+ * two copies of one frame; see "One clock" in splash.css. Zero once that copy
+ * has gone, which is how the menu's replay starts the entrance from the
+ * beginning rather than an hour into it.
+ */
+function preBundleElapsed(): number {
+  const stamp = document.getElementById("splash")?.dataset.t0
+  const t0 = stamp ? Number.parseFloat(stamp) : Number.NaN
+  return Number.isFinite(t0) ? Math.max(0, performance.now() - t0) : 0
+}
+
+/** The three orbits of the scene; splash.css gives each its size and rate. */
+const ORBITS = [1, 2, 3] as const
+
 type SplashScreenProps = {
   /** When true, fade/scale out before the main window opens. */
   exiting?: boolean
@@ -32,7 +43,7 @@ type SplashScreenProps = {
    * The application menu shows this screen again on request, and at that
    * moment nothing is booting: the boot events have long since stopped and the
    * last line would read "booting…" over a window that has been open for an
-   * hour. A still shown deliberately drops the status and the boot line rather
+   * hour. A splash shown deliberately drops the status and the boot line rather
    * than claim either, and does not subscribe to a stream that will never
    * speak again.
    */
@@ -42,28 +53,17 @@ type SplashScreenProps = {
 /**
  * Compact boot UI for the small splash window, before the main shell.
  *
- * The website's hero at the size of this window: a full-bleed still with a
- * slow pan, a status bar with the boot state and the version, the website header's lockup
- * over its outlined wordmark, and the boot log's last line in the foot. The
- * styles are in splash.css, shared with the copy index.html paints first. One
- * still per launch and never a change during one: the window is up for about a
- * second. The manifest currently holds a single still, so every launch is that
- * one; the claim below is what walks the manifest whenever it holds more.
+ * The Earth at night under three turning orbits, after the constellation
+ * section of pixxel.space: a status bar with the boot state and the version,
+ * the website header's lockup over its wordmark, and the boot log's last line
+ * in the foot. The styles are in splash.css, shared with the copy index.html
+ * paints first, and this renders the same markup so the handoff between the
+ * two does not show.
  */
 export function SplashScreen({ exiting = false, live = true }: SplashScreenProps) {
   const [logs, setLogs] = useState<string[]>(["booting…"])
-  /*
-    Claimed once, and never advanced.
-
-    There used to be a 7-second carousel here. The splash lives for about a
-    second now, so the interval never fired and the Ken Burns pan -- 16 seconds
-    with `forwards` -- never reached its second keyframe either. A rotation
-    nobody can see is a still, so this is a still: one image per launch, the
-    next one next time.
-  */
-  const [slide, setSlide] = useState(() =>
-    claimSplashSlideForLaunch(SPLASH_IMAGES.length)
-  )
+  // Read once, at mount: the moment the two copies have to agree on.
+  const [elapsed] = useState(preBundleElapsed)
 
   /*
     Null until the Go side answers, so the line renders without it and gains it
@@ -72,43 +72,11 @@ export function SplashScreen({ exiting = false, live = true }: SplashScreenProps
   const [version, setVersion] = useState<string | null>(null)
   const [state, setState] = useState<BootState>("booting")
 
-  /*
-    The featured still, on the first launch after an update.
-
-    THE CLAIM IS NOT DISCARDED. This used to clear SPLASH_CURRENT_KEY before
-    re-claiming, on the reasoning that re-claiming would be a no-op except
-    after an update. It was the opposite: clearing the key is what removed the
-    evidence of index.html's claim, so every single launch re-picked and the
-    image visibly swapped a moment after the window opened. The HTML paints
-    first and its choice is the one that stands.
-
-    Only a genuinely new version overrides it, and that is decided by reading
-    the stored version rather than by throwing the claim away and seeing what
-    comes back.
-  */
   useEffect(() => {
     let cancelled = false
     GetAppVersion()
       .then((version) => {
-        if (cancelled || !version) return
-        setVersion(version)
-
-        let seen: string | null = null
-        try {
-          seen = localStorage.getItem(SPLASH_SEEN_VERSION_KEY)
-        } catch {
-          /* storage unavailable: keep what the HTML chose */
-        }
-        if (seen === version) return
-
-        // First launch on this version: the release's own still takes over,
-        // and claiming records the version so this does not repeat.
-        try {
-          sessionStorage.removeItem(SPLASH_CURRENT_KEY)
-        } catch {
-          /* storage unavailable: keep what the HTML chose */
-        }
-        setSlide(claimSplashSlideForLaunch(SPLASH_IMAGES.length, version))
+        if (!cancelled && version) setVersion(version)
       })
       .catch(() => {})
     return () => {
@@ -157,36 +125,25 @@ export function SplashScreen({ exiting = false, live = true }: SplashScreenProps
   }, [live])
 
   const statusLine = logs[logs.length - 1] ?? "booting…"
-  const still = SPLASH_STILLS[slide] ?? SPLASH_STILLS[0]
-  const activeImage = still?.path ?? SPLASH_IMAGES[0]
 
   return (
     <div
       className={`splash app-draggable ${exiting ? "splash--exit" : ""}`}
-      data-scrim={still?.scrim}
+      style={{ ["--sp-elapsed" as string]: `${Math.round(elapsed)}ms` }}
     >
-      {/*
-        One layer, for the still this launch claimed.
-
-        All three used to render at once, each with its own background-image, so
-        the browser fetched every one -- two of three downloads thrown away on a
-        window that shows one, pulled at exactly the moment the bundle it is
-        covering wants the network. The HTML preloads this one before any of
-        this runs, so by here it is already in cache.
-      */}
-      <div
-        key={activeImage}
-        className={`splash__still splash__still--${(slide % 3) + 1}`}
-        style={{
-          backgroundImage: `url(${activeImage})`,
-          // The still's own frame, where the default does not suit it; see
-          // SplashStill in lib/splashBackground.ts.
-          inset: still?.inset,
-          transformOrigin: still?.origin,
-        }}
-        aria-hidden
-      />
-      <div className="splash__scrim" aria-hidden />
+      <div className="splash__scene" aria-hidden>
+        <div className="splash__sky">
+          <div className="splash__stars splash__stars--a" />
+          <div className="splash__stars splash__stars--b" />
+          <div className="splash__stars splash__stars--c" />
+        </div>
+        {ORBITS.map((n) => (
+          <div key={n} className={`splash__orbit splash__orbit--${n}`}>
+            <img className="splash__sat" src="/terra-splash-satellite.svg" alt="" />
+          </div>
+        ))}
+        <img className="splash__earth" src="/terra-splash-earth.webp" alt="" />
+      </div>
 
       <div className="splash__bar">
         {live && (
@@ -199,7 +156,7 @@ export function SplashScreen({ exiting = false, live = true }: SplashScreenProps
         {/*
           The version alone. The release's code name used to follow it here;
           it was taken off the splash, which now carries nothing over the
-          photograph but the version, the lockup and the wordmark.
+          scene but the version, the lockup and the wordmark.
         */}
         {version && <span>v{version}</span>}
       </div>
@@ -211,7 +168,7 @@ export function SplashScreen({ exiting = false, live = true }: SplashScreenProps
         </div>
         <img
           className="splash__word"
-          src="/terra-wordmark.svg"
+          src="/terra-wordmark-filled.svg"
           alt="TERRA"
           width={4669}
           height={728}

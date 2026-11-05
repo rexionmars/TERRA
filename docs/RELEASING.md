@@ -219,12 +219,11 @@ changelog already on the page. It publishes with `make_latest: legacy`, so
 building an older release does not move "Latest" back to it. `v0.5.0` is the
 release this exists for.
 
-## Code names and the splash still
+## Code names and the release still
 
 Each release has a code name, fixed for the version the way Sierra and Sonoma
-are. It is shown in the splash's status bar, beside the version number, and
-does not change from launch to launch. It also opens the release's What's
-New entry and titles the GitHub release.
+are. It opens the release's What's New entry and titles the GitHub release,
+and the start screen shows the photograph it is named for.
 
 Names come from one set: **what is observable from orbit**. `Ember`, `Amazon`
 and `Stockpile` have been used; `Meander`, `Terraces`, `Vortex`, `Windfarm` and
@@ -274,15 +273,11 @@ decision standing between a fix and the user who needed it.
 `FEATURED_STILL` in
 [`splashBackground.ts`](../frontend/src/lib/splashBackground.ts) name the same
 entry, and `npm run check:version` fails when they do not. They disagreed once,
-silently, which is why it is now checked rather than described: the splash would
-have printed one release's name over another release's photograph, and nothing
-in the build had an opinion about it.
+silently, which is why it is now checked rather than described: nothing in the
+build had an opinion about it.
 
-With one entry in the manifest the splash is fixed. Add a second and the
-rotation resumes on its own: the featured still is what the first launch after
-an update shows and what every second launch after it shows, and the walk covers
-the rest. Which photograph a given launch lands on is not the release's name —
-the name is fixed for the version.
+The start screen shows the featured still. The splash does not show a still: it
+draws the Earth under its orbits, the same at every launch.
 
 ### Adding one
 
@@ -290,9 +285,9 @@ Images are photographs from [Pexels](https://www.pexels.com), which needs no
 attribution. The manifest records the photographer and URL anyway: it is the
 only route back to the original if the file ever needs re-encoding.
 
-Downloads are full-resolution — 24 megapixels is normal — and the splash window
-is 420x280. Resize and convert before committing, or the binary grows by
-megabytes for an image shown for about a second:
+Downloads are full-resolution — 24 megapixels is normal — and the start
+screen's card is 500 px wide. Resize and convert before committing, or the
+binary grows by megabytes for an image shown at that size:
 
 ```bash
 sips -Z 1600 original.jpg --out /tmp/resized.jpg
@@ -307,8 +302,7 @@ Then add an entry to `SPLASH_STILLS` in
 [`splashBackground.ts`](../frontend/src/lib/splashBackground.ts), point
 `FEATURED_STILL` at it, and set `RELEASE_NAME` in
 [`brand.ts`](../frontend/src/lib/brand.ts) to match. Nothing else needs
-editing: `index.html` receives both at build time, a path with no file on disk
-fails the build, and `npm run check:version` fails if the two names differ.
+editing: `npm run check:version` fails if the two names differ.
 
 ## Current line
 

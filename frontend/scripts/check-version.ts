@@ -200,8 +200,8 @@ if (releaseName !== featured) {
   console.error(
     `  DRIFT splashBackground.ts FEATURED_STILL  ${featured}\n` +
       `        The release is named for the still it features. These name ` +
-      `different\n        entries, so the splash would print "${releaseName}" ` +
-      `over the "${featured}" photograph.`
+      `different\n        entries, so the start screen would show the ` +
+      `"${featured}" photograph for "${releaseName}".`
   )
   failed++
 } else {
