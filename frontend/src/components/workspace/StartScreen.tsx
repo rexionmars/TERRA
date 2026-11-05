@@ -1,7 +1,7 @@
 /**
- * The start screen, as Blender's splash and Solara's: the release's still across
- * the top, then what to begin and what to reopen side by side, then the ways to
- * the keymap, the settings and the release.
+ * The start screen, as Blender's splash and Solara's: a picture across the top,
+ * then what to begin and what to reopen side by side, then the ways to the
+ * keymap, the settings and the release.
  *
  * Opened once per launch when the studio first mounts, unless turned off from
  * its own foot, and again from the Options menu (START). It goes on a press
@@ -15,6 +15,7 @@ import { useEffect, useRef, useState } from "react"
 import { File, FolderOpen, Stack, type Icon } from "@/components/icons"
 
 import { GetAppVersion } from "../../../wailsjs/go/main/App"
+import { BrowserOpenURL } from "../../../wailsjs/runtime/runtime"
 import { BRAND_TAGLINE } from "@/lib/brand"
 import {
   OPERATORS,
@@ -24,12 +25,38 @@ import {
   type OperatorId,
 } from "@/lib/operators"
 import { projectFileName } from "@/lib/projectFiles"
-import { FEATURED_STILL, SPLASH_STILLS } from "@/lib/splashBackground"
 import type { Studio } from "@/lib/studios"
 import { cn } from "@/lib/utils"
 
 /** As many as Blender lists; the rest are behind Manage workflows. */
 const RECENT_SHOWN = 5
+
+/*
+  The picture across the top: the ararajuba, the golden parakeet the mark is
+  drawn from. It is not a release still. The release's code name stays in
+  RELEASE_NAME and FEATURED_STILL, which this card does not show.
+
+  CC BY-SA 3.0, from Wikimedia Commons, where it is also offered under the
+  GFDL. The licence asks for the author, the licence and a way to the source.
+  The card names the first two and links to the file's page, which states all
+  three. The file here is cropped and resized from the original, so it is an
+  adaptation and carries the same licence. That binds this one file and not
+  the code around it.
+
+  Produced as docs/RELEASING.md encodes the stills. The 3197x2530 original was
+  cropped at full width to the card's 500:210, from y 253 to 1596, then resized
+  to 1600x672 with Lanczos and passed through cwebp -q 82, giving 67 KB.
+*/
+const START_PICTURE = {
+  path: "/terra-start-ararajuba.webp",
+  subject:
+    "a golden parakeet (Guaruba guarouba) on a branch, facing right, its " +
+    "head in the upper right of the frame, on a dark brown ground",
+  author: "H. Zell",
+  license: "CC BY-SA 3.0",
+  source:
+    "https://commons.wikimedia.org/wiki/File:Guaruba_guarouba_-_Karlsruhe_Zoo_01.jpg",
+}
 
 /*
   Claimed once per launch, not per mount: the studio screen remounts whenever a
@@ -120,7 +147,7 @@ export function StartScreen({
   onOpenFile: (path: string) => void
 }) {
   const [version, setVersion] = useState<string | null>(null)
-  const card = useRef<HTMLDivElement>(null)
+  const rows = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
     let cancelled = false
@@ -135,8 +162,10 @@ export function StartScreen({
   }, [])
 
   // The first row takes the focus, so the keyboard starts where the eye does.
+  // The rows are searched, not the card, because the picture's credit is a
+  // button and comes before them.
   useEffect(() => {
-    card.current
+    rows.current
       ?.querySelector<HTMLElement>("button:not(:disabled)")
       ?.focus({ preventScroll: true })
   }, [])
@@ -153,7 +182,6 @@ export function StartScreen({
     return () => window.removeEventListener("keydown", onKey, true)
   }, [onClose])
 
-  const still = SPLASH_STILLS.find((s) => s.name === FEATURED_STILL) ?? SPLASH_STILLS[0]
   const act = (run: () => unknown) => () => {
     onClose()
     run()
@@ -178,7 +206,6 @@ export function StartScreen({
       onPointerDown={(e) => e.target === e.currentTarget && onClose()}
     >
       <div
-        ref={card}
         role="dialog"
         aria-label="Start"
         className="w-[500px] max-w-full overflow-hidden rounded-md border shadow-[0_16px_48px_rgba(0,0,0,0.55)]"
@@ -188,26 +215,32 @@ export function StartScreen({
         }}
       >
         {/*
-          The release's still, at the card's width, under the void scrim,
-          with the splash's lockup and the outlined wordmark. Fixed dark, as
-          the splash is, whatever the theme.
+          The picture at the card's width, under the void scrim, with the
+          lockup and the outlined wordmark over it. It stays dark in either
+          theme, as the splash does.
         */}
         <div
           className="relative h-[210px] overflow-hidden"
           style={{ background: "#04060b" }}
         >
           <img
-            src={still.path}
+            src={START_PICTURE.path}
             alt=""
             className="absolute inset-0 size-full object-cover"
             draggable={false}
           />
           {/*
             Dark at the top for the two lines set there, dark at the foot for
-            the wordmark. Measured over Cumulus at the card's size, the
-            brightest pixel under each line against bone at 92%: the tagline
-            5.96, the version 6.53. At 0.82 over the top and bone at 85% the
-            tagline read 4.41, under WCAG's 4.5, where the cloud is brightest.
+            the wordmark and the credit. Measured over the ararajuba at the
+            card's size, against the brightest pixel under each line, in the
+            line's own colour:
+            - the tagline, bone at 92%: 12.06;
+            - the version, bone at 92%: 8.03;
+            - the credit, bone at 70%: 6.33;
+            - the wordmark: 4.49, over the 3.0 that large type needs.
+            The three lines clear WCAG's 4.5. The stops were set over Cumulus,
+            a bright cloud, where the tagline read 5.96. They stay at that
+            strength so that a lighter picture does not need them redone.
           */}
           <div
             className="absolute inset-0"
@@ -245,16 +278,18 @@ export function StartScreen({
             className="absolute bottom-4 left-5 h-auto w-[300px]"
             draggable={false}
           />
-          <span
-            className="absolute right-4 bottom-3.5 text-meta"
+          <button
+            type="button"
+            className="absolute right-4 bottom-3.5 cursor-pointer text-meta hover:underline focus-visible:ring-1 focus-visible:ring-ring focus-visible:outline-none"
             style={{ color: "rgb(236 232 223 / 0.7)" }}
-            title={still.source}
+            title="Cropped and resized from the original on Wikimedia Commons"
+            onClick={() => BrowserOpenURL(START_PICTURE.source)}
           >
-            {still.photographer}
-          </span>
+            Photo: {START_PICTURE.author} · {START_PICTURE.license}
+          </button>
         </div>
 
-        <div className="grid grid-cols-2 gap-x-6 px-6 pt-4 pb-2">
+        <div ref={rows} className="grid grid-cols-2 gap-x-6 px-6 pt-4 pb-2">
           <section className="min-w-0">
             <p className="mb-1 px-1.5 text-body text-muted-foreground">Start</p>
             {opRow("WORKFLOW_NEW")}
