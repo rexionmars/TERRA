@@ -43,7 +43,7 @@ export function SearchBar({
         notifyInfo("No location found.")
       }
     } catch (e) {
-      notifyError("Falha na busca", e)
+      notifyError("Could not search for the place", e)
     } finally {
       setLoading(false)
     }
