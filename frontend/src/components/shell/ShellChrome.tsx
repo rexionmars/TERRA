@@ -39,18 +39,22 @@ export type RailPlace =
   "explore" | "areas" | "analyses" | "compare" | "workflows" | "activity"
 
 /*
-  THE RAIL IS NARROWER THAN THE TRAFFIC LIGHTS ARE WIDE. They end about 61px in and
-  the rail is 52, as the layout this follows has it, so on macOS they sit across the
-  seam. The strip at the head of the rail and the header are one band for that
-  reason: one ground, one line under it and no rail edge through the third light.
-  The strip is drawn on every platform, so that the band runs the width of the
-  window wherever it is. Only the header's left padding depends on the platform:
-  it starts its contents clear of the lights.
+  THE TRAFFIC LIGHTS ARE WIDER THAN THE RAIL. On macOS 26 they end 68.5px in,
+  measured on a screenshot of the window; on earlier versions they ended about
+  61px in. The rail is 52, so the lights cannot sit over it alone. The bar runs
+  the width of the window instead, over the rail and the map: one ground, one
+  line under it and no rail edge through the third light.
+
+  The rail's toggle has a fixed place in the bar: 80px in on macOS, 11.5px
+  clear of the lights, and centred over the rail's column elsewhere. It does not
+  follow the rail's edge, so the press that opens the rail leaves the button
+  under the pointer for the press that closes it. The crumbs follow the edge,
+  so they start where the map does.
 
   Read off the navigator rather than asked of the runtime, as the title bar does.
   A wrong answer there is a window with no controls and is worth a round trip; here
   it is a few pixels of padding, and an answer that arrives late would slide the
-  header's contents on every launch.
+  bar's contents on every launch.
 */
 const RESERVES_TRAFFIC_LIGHTS = /Mac/i.test(navigator.platform)
 
@@ -162,7 +166,8 @@ function NewProject({ onCreated }: { onCreated: (id: string) => void }) {
 }
 
 /**
- * Where the reader is, beside the rail rather than over it.
+ * Where the reader is, in a bar across the top of the window, over the rail and
+ * the map.
  *
  * The crumbs carry no arrow: each opens its menu when pressed, and the row reads as
  * a path to the current place rather than as two more controls.
@@ -210,22 +215,31 @@ export function ShellTopBar({
     />
   )
   return (
-    <header
-      className={cn(
-        "app-draggable relative z-500 flex h-11 shrink-0 items-center gap-1.5 border-b border-border bg-[rgb(var(--p-ink))] pr-2",
-        RESERVES_TRAFFIC_LIGHTS && !railOpen ? "pl-[1.125rem]" : "pl-2"
-      )}
-    >
-      <button
-        type="button"
-        onClick={onToggleRail}
-        aria-pressed={railOpen}
-        aria-label={railOpen ? "Hide the labels" : "Show the labels"}
-        title={railOpen ? "Hide the labels" : "Show the labels"}
-        className="app-no-drag flex size-8 shrink-0 items-center justify-center rounded-sm text-muted-foreground transition-colors hover:bg-hover hover:text-foreground"
+    <header className="app-draggable relative z-500 flex h-11 shrink-0 items-center gap-1.5 border-b border-border bg-[rgb(var(--p-ink))] pr-2">
+      {/*
+        The part of the bar over the rail, as wide as the rail is, or as wide
+        as the lights and the toggle need when that is wider. Its width moves
+        with the rail's, at the rail's pace, so the crumbs keep to the map's
+        edge. The toggle inside it does not move.
+      */}
+      <div
+        className={cn(
+          "flex h-full shrink-0 items-center transition-[width] duration-150",
+          RESERVES_TRAFFIC_LIGHTS ? "pl-20" : "pl-2.5",
+          railOpen ? "w-52" : RESERVES_TRAFFIC_LIGHTS ? "w-28" : "w-[3.25rem]"
+        )}
       >
-        <SidebarSimple className="size-4" />
-      </button>
+        <button
+          type="button"
+          onClick={onToggleRail}
+          aria-pressed={railOpen}
+          aria-label={railOpen ? "Hide the labels" : "Show the labels"}
+          title={railOpen ? "Hide the labels" : "Show the labels"}
+          className="app-no-drag flex size-8 shrink-0 items-center justify-center rounded-sm text-muted-foreground transition-colors hover:bg-hover hover:text-foreground"
+        >
+          <SidebarSimple className="size-4" />
+        </button>
+      </div>
       <nav
         aria-label="Project and area"
         className="flex min-w-0 flex-1 items-center gap-0.5"
@@ -422,8 +436,8 @@ function initials(name: string): string {
 /**
  * Where a reader can go, as against what they can do where they are.
  *
- * The full height of the window. Its head is a blank strip that continues the
- * header's band; the mark is in the header, as the Options menu.
+ * Down the left of the window, under the bar. The mark is in the bar, as the
+ * Options menu.
  */
 export function ShellRail({
   place,
@@ -456,11 +470,14 @@ export function ShellRail({
         open ? "w-52" : "w-[3.25rem]"
       )}
     >
-      <div className="app-draggable h-11 shrink-0 border-b border-border" />
       <div className="flex min-h-0 flex-1 flex-col border-r border-border">
+        {/*
+          8px above the first button, as on either side of it, so its ground
+          does not sit against the bar's line.
+        */}
         <div
           className={cn(
-            "flex min-h-0 flex-1 flex-col overflow-y-auto py-1",
+            "flex min-h-0 flex-1 flex-col overflow-y-auto pt-2 pb-1",
             open ? "px-2" : "items-center"
           )}
         >

@@ -442,55 +442,60 @@ export function MapShell(props: MapShellProps) {
   }, [panel, reports.length])
 
   return (
-    <div className="absolute inset-0 flex bg-app">
+    <div className="absolute inset-0 flex flex-col bg-app">
       {app.surfaces}
-      <ShellRail
-        place={
-          destination === "analyses"
-            ? "analyses"
-            : destination === "compare" || destination === "workflows"
-              ? destination
-              : panel === "areas"
-                ? "areas"
-                : panel === "activity"
-                  ? "activity"
-                  : "explore"
-        }
-        open={railOpen}
-        unseen={reports.length > seenReports}
-        onExplore={() => {
-          setDestination("explore")
-          setPanel((p) => (p === "areas" || p === "activity" ? null : p))
+      {/*
+        The bar runs the width of the window, over the rail and the map, so
+        the window's own buttons, the rail's toggle and the crumbs share one
+        band whatever the rail's width.
+      */}
+      <ShellTopBar
+        projectName={props.activeProjectName ?? "No project"}
+        projects={projects}
+        activeProjectId={props.activeProjectId}
+        onActivateProject={props.onActivateProject}
+        areas={areas}
+        areaName={areaName}
+        activeAreaId={props.activeAreaId}
+        onPickArea={pickArea}
+        railOpen={railOpen}
+        onToggleRail={() => {
+          keepRailOpen(!railOpen)
+          setRailOpen(!railOpen)
         }}
-        onAreas={() => {
-          setDestination("explore")
-          togglePanel("areas")
-        }}
-        onAnalyses={goAnalyses}
-        onCompare={goCompare}
-        onWorkflows={goWorkflows}
-        onActivity={() => {
-          setDestination("explore")
-          togglePanel("activity")
-        }}
+        app={app}
+        recentFiles={extras.recent_project_files ?? []}
       />
-      <div className="flex min-h-0 min-w-0 flex-1 flex-col">
-        <ShellTopBar
-          projectName={props.activeProjectName ?? "No project"}
-          projects={projects}
-          activeProjectId={props.activeProjectId}
-          onActivateProject={props.onActivateProject}
-          areas={areas}
-          areaName={areaName}
-          activeAreaId={props.activeAreaId}
-          onPickArea={pickArea}
-          railOpen={railOpen}
-          onToggleRail={() => {
-            keepRailOpen(!railOpen)
-            setRailOpen(!railOpen)
+      <div className="flex min-h-0 min-w-0 flex-1">
+        <ShellRail
+          place={
+            destination === "analyses"
+              ? "analyses"
+              : destination === "compare" || destination === "workflows"
+                ? destination
+                : panel === "areas"
+                  ? "areas"
+                  : panel === "activity"
+                    ? "activity"
+                    : "explore"
+          }
+          open={railOpen}
+          unseen={reports.length > seenReports}
+          onExplore={() => {
+            setDestination("explore")
+            setPanel((p) => (p === "areas" || p === "activity" ? null : p))
           }}
-          app={app}
-          recentFiles={extras.recent_project_files ?? []}
+          onAreas={() => {
+            setDestination("explore")
+            togglePanel("areas")
+          }}
+          onAnalyses={goAnalyses}
+          onCompare={goCompare}
+          onWorkflows={goWorkflows}
+          onActivity={() => {
+            setDestination("explore")
+            togglePanel("activity")
+          }}
         />
         <main className="relative min-h-0 min-w-0 flex-1">
           <Suspense fallback={null}>
