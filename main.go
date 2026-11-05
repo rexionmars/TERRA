@@ -117,17 +117,20 @@ func main() {
 		},
 		Mac: &mac.Options{
 			/*
-				Hidden, not hidden-inset. The two differ by one field --
-				UseToolbar -- and the toolbar is what pushes the traffic lights
-				in from the corner, right and down, past the 4.5rem the header
-				reserves for them. That reservation is the standard position,
-				so the standard position is what to ask for rather than a new
-				number guessed to match an offset macOS controls.
+				Hidden-inset, not hidden. The two differ by one field,
+				UseToolbar, and the toolbar is what places the traffic lights.
+				Measured on captures of the window on macOS 26: with it they are
+				centred 26pt down and end 79pt in, which is the centre of a 52pt
+				bar, the height of the Finder's. Without it they are centred 16pt
+				down, the centre of a bar too short for the header's 32pt
+				buttons. So the bars are 52pt tall and start their contents clear
+				of the 79pt: ShellChrome.tsx, TitleBar.tsx and the splash's bar
+				in splash.css.
 
 				Both keep NSWindowStyleMaskTitled, which is the part that
 				matters for compositing -- see Frameless above.
 			*/
-			TitleBar:   mac.TitleBarHidden(),
+			TitleBar:   mac.TitleBarHiddenInset(),
 			Appearance: mac.NSAppearanceNameDarkAqua,
 			// A .terra file opened from the Finder; see app_projectfile.go.
 			OnFileOpen: app.fileOpened,

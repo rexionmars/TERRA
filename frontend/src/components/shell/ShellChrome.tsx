@@ -39,14 +39,15 @@ export type RailPlace =
   "explore" | "areas" | "analyses" | "compare" | "workflows" | "activity"
 
 /*
-  THE TRAFFIC LIGHTS ARE WIDER THAN THE RAIL. On macOS 26 they end 68.5px in,
-  measured on a screenshot of the window; on earlier versions they ended about
-  61px in. The rail is 52, so the lights cannot sit over it alone. The bar runs
-  the width of the window instead, over the rail and the map: one ground, one
-  line under it and no rail edge through the third light.
+  THE TRAFFIC LIGHTS ARE WIDER THAN THE RAIL. In the inset title bar main.go
+  asks for, on macOS 26, they end 79px in and are centred 26px down, measured
+  on captures of the window. The rail is 52, so the lights cannot sit over it
+  alone. The bar runs the width of the window instead, over the rail and the
+  map: one ground, one line under it and no rail edge through the third
+  light. It is 52px tall so that the lights sit on its centre line.
 
-  The rail's toggle has a fixed place in the bar: 80px in on macOS, 11.5px
-  clear of the lights, and centred over the rail's column elsewhere. It does not
+  The rail's toggle has a fixed place in the bar: 92px in on macOS, 13px clear
+  of the lights, and centred over the rail's column elsewhere. It does not
   follow the rail's edge, so the press that opens the rail leaves the button
   under the pointer for the press that closes it. The crumbs follow the edge,
   so they start where the map does.
@@ -215,7 +216,7 @@ export function ShellTopBar({
     />
   )
   return (
-    <header className="app-draggable relative z-500 flex h-11 shrink-0 items-center gap-1.5 border-b border-border bg-[rgb(var(--p-ink))] pr-2">
+    <header className="app-draggable relative z-500 flex h-13 shrink-0 items-center gap-1.5 border-b border-border bg-[rgb(var(--p-ink))] pr-2">
       {/*
         The part of the bar over the rail, as wide as the rail is, or as wide
         as the lights and the toggle need when that is wider. Its width moves
@@ -225,8 +226,8 @@ export function ShellTopBar({
       <div
         className={cn(
           "flex h-full shrink-0 items-center transition-[width] duration-150",
-          RESERVES_TRAFFIC_LIGHTS ? "pl-20" : "pl-2.5",
-          railOpen ? "w-52" : RESERVES_TRAFFIC_LIGHTS ? "w-28" : "w-[3.25rem]"
+          RESERVES_TRAFFIC_LIGHTS ? "pl-23" : "pl-2.5",
+          railOpen ? "w-52" : RESERVES_TRAFFIC_LIGHTS ? "w-31" : "w-[3.25rem]"
         )}
       >
         <button
