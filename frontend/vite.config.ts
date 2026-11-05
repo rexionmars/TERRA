@@ -10,62 +10,21 @@ import fs from "fs"
 import path from "path"
 
 /**
- * Give index.html the values it cannot import: the splash image list and the
- * brand tagline.
+ * Give index.html the value it cannot import: the brand tagline.
  *
- * The HTML paints a background before any bundle loads, so it cannot import
- * anything -- which is why the paths were duplicated into a script tag with a
- * "keep in sync" comment on both copies. Nothing enforced that: a renamed image
- * meant the HTML painted one photo and React swapped to another on mount.
- *
- * Both are read out of the modules that own them and substituted for
- * placeholders at transform time, so one edit reaches both copies.
- *
- * The image paths are checked to exist here, because nothing else would catch
- * a renamed file -- the symptom would be a splash that paints nothing. The
- * tagline needs no such check: the React splash imports it, so `tsc` fails the
- * build first and names the module.
+ * The HTML paints a splash before any bundle loads, so it cannot import
+ * anything, and a copy of the line typed into it would be one more that nobody
+ * remembers to change. It is read out of the module that owns it and
+ * substituted for a placeholder at transform time, so one edit reaches both
+ * copies of the splash. No check that it took is needed: the React splash
+ * imports the same constant, so `tsc` fails the build first and names the
+ * module.
  */
 function htmlConstants(): Plugin {
   return {
     name: "terra-html-constants",
-    transformIndexHtml(input) {
-      let html = input
-      const source = path.resolve(__dirname, "src/lib/splashBackground.ts")
-      const text = fs.readFileSync(source, "utf8")
-
-      // Read off the manifest's fields rather than a plain array, since each
-      // still carries a code name and its provenance beside its path. The
-      // pre-bundle splash takes the path and the three fields that set how the
-      // still is drawn: the scrim over it, its box and what the pan zooms about.
-      const block = text.match(
-        /export const SPLASH_STILLS: SplashStill\[\] = \[([\s\S]*?)\n\]/
-      )
-      if (!block) {
-        throw new Error(
-          "SPLASH_STILLS not found in splashBackground.ts; the splash HTML " +
-            "cannot be given its image list"
-        )
-      }
-      const field = (entry: string, name: string) =>
-        entry.match(new RegExp(`\\b${name}:\\s*"([^"]+)"`))?.[1]
-      const stills = block[1]
-        .split(/\n  \{/)
-        .map((entry) => ({
-          path: field(entry, "path"),
-          scrim: field(entry, "scrim") ?? "bright",
-          inset: field(entry, "inset") ?? null,
-          origin: field(entry, "origin") ?? null,
-        }))
-        .filter((s): s is typeof s & { path: string } => !!s.path)
-      if (stills.length === 0) {
-        throw new Error("SPLASH_STILLS declares no paths")
-      }
-      const images = stills.map((s) => s.path)
-
-      // The subtitle, from the module that owns it. Hard-coded here it was one
-      // more copy nobody would remember to change -- and the line it replaced
-      // had already outlived the product it described.
+    transformIndexHtml(html) {
+      // The line it replaced had already outlived the product it described.
       const brandSource = path.resolve(__dirname, "src/lib/brand.ts")
       const brand = fs
         .readFileSync(brandSource, "utf8")
@@ -73,17 +32,7 @@ function htmlConstants(): Plugin {
       if (!brand) {
         throw new Error("BRAND_TAGLINE not found in brand.ts")
       }
-      html = html.replace("__BRAND_TAGLINE__", brand[1])
-
-      // Every path must exist, or the splash paints nothing and the only
-      // symptom is a dark window at launch.
-      for (const img of images) {
-        const file = path.resolve(__dirname, "public", img.replace(/^\//, ""))
-        if (!fs.existsSync(file)) {
-          throw new Error(`splash image missing: ${img}`)
-        }
-      }
-      return html.replace("__SPLASH_STILLS__", JSON.stringify(stills))
+      return html.replace("__BRAND_TAGLINE__", brand[1])
     },
   }
 }

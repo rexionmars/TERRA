@@ -1,5 +1,5 @@
 /**
- * The splash stills: what they are, where they came from, and which one shows.
+ * The release stills: what they are, where they came from, and which one shows.
  *
  * A MANIFEST, NOT A LIST OF PATHS. This was three URLs whose filenames were
  * their upload IDs -- pexels-andrey-kwin-145997290-10436186 says nothing about
@@ -12,21 +12,15 @@
  * point of the code name: a version focused on solar and wind ships an image of
  * turbines at dusk, and the name is how the release is referred to afterwards.
  *
- * ONE STILL, BY DECISION, NOT BY ACCIDENT. The manifest held six and the splash
- * walked them; it now holds the one the splash shows. The machinery below still
- * describes a rotation because a rotation is what this becomes again the moment
- * a second entry is added -- with one entry every path through it resolves to
- * that entry, and nothing here special-cases the count. The seven that have
- * been removed, with their sources and photographers, are in the history of
- * this file; their files are still in public/terra-splash-images.
+ * THE START SCREEN SHOWS IT, NOT THE SPLASH. The splash showed the still and
+ * walked the manifest from launch to launch; it now draws the Earth under its
+ * orbits (splash.css), and the still is what the start screen's card shows for
+ * the release. With nothing left to walk, the rotation went with it. The
+ * stills that have been removed, with their sources and photographers, are in
+ * the history of this file; their files are still in public/terra-splash-images.
  *
- * THE ONE SOURCE. index.html paints a background before any bundle loads, so it
- * cannot import this -- the paths used to be duplicated into a script tag with
- * "keep in sync" comments on both copies, which is the admission that nothing
- * did. A Vite plugin now substitutes them at build time from here.
- *
- * WebP sized for the window rather than for print: the originals are 24-megapixel
- * photographs, and the window is 420x280.
+ * WebP sized for a window rather than for print: the originals are
+ * 24-megapixel photographs, and the start screen's card is 500 px wide.
  */
 
 export type SplashStill = {
@@ -44,20 +38,6 @@ export type SplashStill = {
   photographer: string
   /** The application version that introduced it. */
   since: string
-  /**
-   * The scrim the splash lays over it; see splash.css. "bright" is the one
-   * measured over cloud, "dark" the lighter one for a frame that is already
-   * dark and would be buried under the other.
-   */
-  scrim: "bright" | "dark"
-  /**
-   * The still's box as a CSS inset, when -8% on every side does not suit it:
-   * a frame whose subject is a line near its foot needs the box raised so the
-   * line clears the boot bar.
-   */
-  inset?: string
-  /** What the pan zooms about, as a CSS transform-origin; the centre if absent. */
-  origin?: string
 }
 
 /**
@@ -104,162 +84,16 @@ export const SPLASH_STILLS: SplashStill[] = [
       violet and the orange band, and measured for block edges -- the mean
       horizontal step on the 8 px grid is 1.002 times the step inside the
       blocks, so the encoder's grid does not show.
-
-      FRAMED ON ITS HORIZON. Under the default frame the ridge line, 85% down
-      the photograph, sat at y 259 of the 280 px window and the pan carried
-      it to 271, behind the boot bar that starts at 232 -- the glow, which is
-      the subject, was hidden. The box is raised to put the ridge at 230, and
-      the zoom is anchored on it so the pan holds it there (221 on the last
-      frame of variant 1).
-
-      AGAINST THE SCRIM every line of the splash clears WCAG's 4.5 at its
-      brightest pixel on both frames; the figures are beside the dark scrim
-      in splash.css. Under the bright scrim the frame was near black.
     */
     source: "https://www.pexels.com — upload 8533828",
     photographer: "bertellifotografia",
     since: "0.7.0",
-    scrim: "dark",
-    inset: "-25% -12% -1%",
-    origin: "50% 85%",
   },
 ]
 
 /**
- * The still this release is named for.
- *
- * With one entry in the manifest it is also the only still there is, so the
- * splash is fixed and this names what is on it. With more than one it is what
- * the first launch after an update shows, and what half the launches after it
- * show; the rest walk the others, so featuring a still neither discards them
- * nor makes the code name decorative.
+ * The still this release is named for, and the one the start screen shows.
+ * RELEASE_NAME in brand.ts names the same entry; check-version.ts fails when
+ * the two differ.
  */
 export const FEATURED_STILL = "Sunset"
-
-/** Paths alone, for the places that only need to load them. */
-export const SPLASH_IMAGES = SPLASH_STILLS.map((s) => s.path)
-
-const SPLASH_NEXT_KEY = "terra.splash.next"
-export const SPLASH_CURRENT_KEY = "terra.splash.current"
-/** The version whose featured still has already been shown. */
-export const SPLASH_SEEN_VERSION_KEY = "terra.splash.seenVersion"
-
-/**
- * Pick the still for this launch and advance the counter for the next open.
- *
- * Safe to call once per boot: index.html claims the index first and writes it
- * to sessionStorage, and React reads that back rather than advancing again --
- * otherwise the image would change under the user between the two splashes.
- *
- * `version` opts into the featured-first behaviour. Without it -- which is how
- * the pre-bundle HTML calls it, since it has no version to compare -- this is
- * the plain rotation it always was.
- */
-export function claimSplashSlideForLaunch(
-  count: number = SPLASH_IMAGES.length,
-  version?: string
-): number {
-  if (count <= 0) return 0
-
-  // Already claimed this launch.
-  try {
-    const existing = sessionStorage.getItem(SPLASH_CURRENT_KEY)
-    if (existing != null) {
-      const parsed = Number.parseInt(existing, 10)
-      if (Number.isFinite(parsed)) {
-        return ((parsed % count) + count) % count
-      }
-    }
-  } catch {
-    /* sessionStorage unavailable */
-  }
-
-  // First launch on a new version: show what the release is named for.
-  if (version) {
-    try {
-      if (localStorage.getItem(SPLASH_SEEN_VERSION_KEY) !== version) {
-        const featured = SPLASH_STILLS.findIndex((s) => s.name === FEATURED_STILL)
-        if (featured >= 0 && featured < count) {
-          localStorage.setItem(SPLASH_SEEN_VERSION_KEY, version)
-          // The rotation resumes after it rather than repeating it.
-          // Next launch is a rotation slot, so the featured still does not
-          // appear twice in a row right after an update.
-          localStorage.setItem(SPLASH_NEXT_KEY, "0")
-          sessionStorage.setItem(SPLASH_CURRENT_KEY, String(featured))
-          return featured
-        }
-      }
-    } catch {
-      /* storage unavailable: fall through to the plain rotation */
-    }
-  }
-
-  let next = 0
-  try {
-    const raw = localStorage.getItem(SPLASH_NEXT_KEY)
-    const parsed = Number.parseInt(raw ?? "0", 10)
-    if (Number.isFinite(parsed)) next = parsed
-  } catch {
-    /* localStorage unavailable */
-  }
-
-  /*
-    The counter counts LAUNCHES, not images.
-
-    It runs over twice the number of stills because every second launch is the
-    featured slot, so a full cycle takes two launches per still. The image
-    index is derived from it below; conflating the two is what broke the first
-    attempt at this.
-  */
-  const featuredIndex = SPLASH_STILLS.findIndex((s) => s.name === FEATURED_STILL)
-  /*
-    Alternation needs a featured still and something to alternate with. Below
-    three stills, or with FEATURED_STILL naming nothing, the cycle collapses to
-    the plain rotation -- otherwise every image would simply show twice in a
-    row, which is a repeat rather than a rotation.
-  */
-  const alternating = featuredIndex >= 0 && featuredIndex < count && count > 2
-
-  const cycle = alternating ? count * 2 : count
-  const tick = ((next % cycle) + cycle) % cycle
-  const index = alternating ? Math.floor(tick / 2) % count : tick
-
-  /*
-    The release's own still, every other launch.
-
-    A flat rotation gave it one launch in five, which is little presence for
-    the image the version is named for. Every second launch shows it; the ones
-    between walk the rotation, so the whole set still appears.
-
-    The counter advances on EVERY launch, including the featured ones, and the
-    parity is read off the counter rather than off a separate flag. An earlier
-    version advanced only on the rotation launches, which meant the counter
-    visited even indices exclusively -- two of the five stills were never
-    reachable and the featured one landed twice in a row whenever the walk
-    passed over its own index.
-
-    Alternating rather than weighted-random keeps the sequence derivable from
-    the stored counter alone, which is what makes it testable and what stops
-    the same image landing twice by chance. The featured index is skipped in
-    the walk, since showing it as "one of the others" would waste a slot that
-    is already half the launches.
-  */
-  let shown = index
-  if (alternating) {
-    if (tick % 2 === 1) {
-      shown = featuredIndex
-    } else if (index === featuredIndex) {
-      // The walk landed on the featured still on a rotation launch. Take the
-      // next one instead, so its extra presence comes only from its own slot.
-      shown = (featuredIndex + 1) % count
-    }
-  }
-
-  try {
-    localStorage.setItem(SPLASH_NEXT_KEY, String((tick + 1) % cycle))
-    sessionStorage.setItem(SPLASH_CURRENT_KEY, String(shown))
-  } catch {
-    /* ignore quota / private mode */
-  }
-  return shown
-}
