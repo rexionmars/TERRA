@@ -468,10 +468,18 @@ export function ShellRail({
   const { user, loading, goProfile, goAuth } = useAuth()
   const link = (path: string) => () => BrowserOpenURL(`${REPO_URL}${path}`)
   return (
+    /*
+      THE WIDTH CHANGES AT ONCE, NOT OVER A TRANSITION. The map beside the rail
+      takes the width the rail leaves, and a WebGL canvas cannot follow a width
+      that moves every frame: MapLibre resizes its drawing buffer and renders
+      the globe again on each change, at most every 50ms, and between two of
+      those the browser stretches the previous frame to the new box. Changed at
+      once, the map resizes a single time, in the frame the rail changes.
+    */
     <nav
       aria-label="Application"
       className={cn(
-        "app-no-drag relative z-500 flex h-full shrink-0 flex-col bg-[rgb(var(--p-ink))] transition-[width] duration-150",
+        "app-no-drag relative z-500 flex h-full shrink-0 flex-col bg-[rgb(var(--p-ink))]",
         open ? "w-52" : "w-[3.25rem]"
       )}
     >
