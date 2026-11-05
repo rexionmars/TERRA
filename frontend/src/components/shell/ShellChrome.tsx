@@ -46,11 +46,11 @@ export type RailPlace =
   map: one ground, one line under it and no rail edge through the third
   light. It is 52px tall so that the lights sit on its centre line.
 
-  The rail's toggle has a fixed place in the bar: 92px in on macOS, 13px clear
-  of the lights, and centred over the rail's column elsewhere. It does not
-  follow the rail's edge, so the press that opens the rail leaves the button
-  under the pointer for the press that closes it. The crumbs follow the edge,
-  so they start where the map does.
+  Nothing in the bar moves with the rail. The toggle has a fixed place, 92px in
+  on macOS, 13px clear of the lights, and centred over the rail's column
+  elsewhere, so the press that opens the rail leaves the button under the
+  pointer for the press that closes it. The crumbs keep their place after it,
+  so a press changes the rail and not the line being read.
 
   Read off the navigator rather than asked of the runtime, as the title bar does.
   A wrong answer there is a window with no controls and is worth a round trip; here
@@ -218,16 +218,14 @@ export function ShellTopBar({
   return (
     <header className="app-draggable relative z-500 flex h-13 shrink-0 items-center gap-1.5 border-b border-border bg-[rgb(var(--p-ink))] pr-2">
       {/*
-        The part of the bar over the rail, as wide as the rail is, or as wide
-        as the lights and the toggle need when that is wider. Its width moves
-        with the rail's, at the rail's pace, so the crumbs keep to the map's
-        edge. The toggle inside it does not move.
+        The part of the bar before the crumbs: the lights and the toggle on
+        macOS, the rail's column elsewhere. Its width does not follow the
+        rail's; see RESERVES_TRAFFIC_LIGHTS.
       */}
       <div
         className={cn(
-          "flex h-full shrink-0 items-center transition-[width] duration-150",
-          RESERVES_TRAFFIC_LIGHTS ? "pl-23" : "pl-2.5",
-          railOpen ? "w-52" : RESERVES_TRAFFIC_LIGHTS ? "w-31" : "w-[3.25rem]"
+          "flex h-full shrink-0 items-center",
+          RESERVES_TRAFFIC_LIGHTS ? "w-31 pl-23" : "w-[3.25rem] pl-2.5"
         )}
       >
         <button
