@@ -21,7 +21,7 @@
  * Defined here because it appears in two places that cannot import from each
  * other: the React splash, and the static markup in index.html that paints
  * before any bundle loads. The HTML copy is substituted at build time from this
- * value -- the same treatment the splash image list needed, for the same reason.
+ * value.
  */
 export const BRAND_TAGLINE = "earth observation"
 
@@ -41,10 +41,8 @@ export const BRAND_TAGLINE = "earth observation"
  * arrives. The changelog describes the release.
  *
  * It equals FEATURED_STILL in splashBackground.ts, and check-version.ts fails
- * when it does not -- they disagreed once, silently, and the splash would have
- * printed one release's name over another release's photograph. What the name
- * does NOT follow is the rotation: whichever still a given launch lands on,
- * the release keeps this name.
+ * when it does not: the release is named for the still the start screen shows,
+ * and the two disagreed once, silently.
  *
  * IT BELONGS TO THE MINOR LINE. A MINOR takes the next name from the set; a
  * PATCH keeps the one it has, the way 14.0 through 14.7 are all Sonoma. So

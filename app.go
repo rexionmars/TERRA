@@ -311,10 +311,10 @@ func (a *App) probeSidecar(ctx context.Context) {
 		With the fade and reveal after it, every launch cost about 5.6 seconds
 		of watching a screen that had finished.
 
-		Three seconds is the deliberate choice: long enough to read the release
-		name and see the still it is named for, short enough that nobody is
-		waiting on it. The Ken Burns pan is timed against this -- see
-		.splash__still in frontend/src/splash.css.
+		Three seconds is the deliberate choice: long enough to watch the scene
+		come in and hold, short enough that nobody is waiting on it. The
+		entrance is timed against this -- see "One clock" in
+		frontend/src/splash.css.
 	*/
 	const minSplash = 3 * time.Second
 	if a.bootStarted.IsZero() {

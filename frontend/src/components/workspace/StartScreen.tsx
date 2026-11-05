@@ -188,9 +188,9 @@ export function StartScreen({
         }}
       >
         {/*
-          The splash's own picture, at the card's width: the release's still
-          under the void scrim, the lockup, and the outlined wordmark.
-          Fixed dark, as the splash is, whatever the theme.
+          The release's still, at the card's width, under the void scrim,
+          with the splash's lockup and the outlined wordmark. Fixed dark, as
+          the splash is, whatever the theme.
         */}
         <div
           className="relative h-[210px] overflow-hidden"

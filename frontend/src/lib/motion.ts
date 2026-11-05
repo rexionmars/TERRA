@@ -14,7 +14,7 @@
  * dialog takes. A name like `fast` would have to be re-decided every time
  * something new is animated, and two callers would answer differently.
  *
- * WHAT IS NOT HERE: the splash. Its Ken Burns and its cross-fade are in
+ * WHAT IS NOT HERE: the splash. Its scene, its entrance and its cross-fade are in
  * splash.css, run before any bundle loads, and cannot import this. They are also
  * the one place in the application that already honours prefers-reduced-motion
  * on its own, with the argument written beside them.

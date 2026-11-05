@@ -2,7 +2,7 @@
  * The surfaces the application menu opens, and the state that keeps them.
  *
  * WHAT THEY HAVE IN COMMON. Four things here could be reached exactly once and
- * then never again: the splash still is shown while the window boots and
+ * then never again: the splash is shown while the window boots and
  * replaced, the release notes appear on the first launch after an upgrade and
  * mark themselves seen, and the storage report and the Python environment live
  * inside the account page, which is a different screen from wherever the reader
@@ -128,7 +128,7 @@ export function useAppSurfaces(): AppSurfaces {
 /**
  * The splash, shown because it was asked for.
  *
- * Over everything and dismissed by anything: this is a still, not a dialog --
+ * Over everything and dismissed by anything: this is a picture, not a dialog --
  * there is nothing in it to decide, so any press or key puts it away. `live`
  * is false, which is what stops it claiming to be booting something.
  */

@@ -310,7 +310,7 @@ which can be installed from Settings › System into the environment already in 
 | [Architecture](docs/ARCHITECTURE.md) | Wails shell, sidecar, STAC/COG |
 | [API](docs/API.md) | Go bindings and sidecar JSON |
 | [Roadmap](docs/ROADMAP.md) | Packaging and research themes |
-| [Releasing](docs/RELEASING.md) | SemVer, code names, the splash still |
+| [Releasing](docs/RELEASING.md) | SemVer, code names, the release still |
 | [Troubleshooting](docs/TROUBLESHOOTING.md) | Python, STAC, models, macOS |
 | [Contributing](CONTRIBUTING.md) | Issues, PRs, tests |
 | [Design](docs/DESIGN.md) | Visual tokens |
