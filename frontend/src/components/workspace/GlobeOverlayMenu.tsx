@@ -54,7 +54,7 @@ function Entries({
         }
         title={
           !entry.hasLegend
-            ? "Only a colour ramp is drawn beside its raster; a class legend is listed in the Result panel"
+            ? "Only a colour ramp is drawn beside its raster"
             : entry.legendOnMap
               ? "The map keeps the raster and stops drawing its legend"
               : "Its legend, tied to the ground it measures"
