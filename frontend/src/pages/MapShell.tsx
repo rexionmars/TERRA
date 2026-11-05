@@ -273,6 +273,23 @@ export function MapShell(props: MapShellProps) {
     areaId,
     areaName,
   })
+  /*
+    The rasters whose legend the reader took off the map, from the raster's own
+    menu. A ramp's legend is drawn beside it by default (mapLayerState says
+    why); this is the way to put one away, and to bring it back.
+  */
+  const [legendsOff, setLegendsOff] = useState<ReadonlySet<string>>(() => new Set())
+  const shownOverlays = useMemo(
+    () =>
+      overlays.map((o) => (legendsOff.has(o.key) ? { ...o, caption: undefined } : o)),
+    [overlays, legendsOff]
+  )
+  const toggleLegend = (key: string) =>
+    setLegendsOff((prev) => {
+      const next = new Set(prev)
+      if (!next.delete(key)) next.add(key)
+      return next
+    })
   const pins = useMemo(
     () =>
       (["A", "B"] as const).flatMap((slot) => {
@@ -485,13 +502,14 @@ export function MapShell(props: MapShellProps) {
               onOverlayContext={(hits, at) => {
                 const entries = hits.flatMap(({ key, fit }) => {
                   const l = layers.find((x) => x.id === key)
+                  const hasLegend = !!overlays.find((o) => o.key === key)?.caption
                   return l
                     ? [
                         {
                           key,
                           title: l.title,
-                          hasLegend: false,
-                          propertyOnMap: false,
+                          hasLegend,
+                          legendOnMap: hasLegend && !legendsOff.has(key),
                           fit,
                         },
                       ]
@@ -500,7 +518,7 @@ export function MapShell(props: MapShellProps) {
                 if (entries.length) setOverlayMenu({ at, entries })
               }}
               onImportPolygon={props.onImportPolygon}
-              overlays={overlays}
+              overlays={shownOverlays}
               fieldDrafts={fieldDrafts}
               spreadM={spreadM}
               onSpreadChange={setSpreadM}
@@ -654,7 +672,7 @@ export function MapShell(props: MapShellProps) {
             target={overlayMenu}
             surface={document.body}
             onClose={() => setOverlayMenu(null)}
-            onToggleProperty={() => {}}
+            onToggleLegend={toggleLegend}
             onTakeOff={(key) => changeLayer(key, { visible: false })}
           />
 

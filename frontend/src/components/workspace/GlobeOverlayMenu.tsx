@@ -1,12 +1,6 @@
 /**
- * What can be done to a raster on the globe, offered on the raster.
- *
- * The plane menu (PlaneContextMenu) answers this in the studio's viewport. The
- * same raster drawn on the globe had no menu at all, so its legend could be
- * shown from the viewport and not from the place it is drawn over. These are
- * the entries that mean something on the globe: its legend beside it, taking
- * it off, and framing it. Hiding, solo and the drop to base level act on the
- * viewport's planes and stay in that menu.
+ * What can be done to a raster on the map, offered on the raster: its legend
+ * beside it, framing it, and taking it off.
  *
  * A PRESS CAN LAND ON A STACK. The globe resolves a right-click to the ground
  * (GlobeSurface, onOverlayContext), and every raster of one area covers the
@@ -21,10 +15,13 @@ export interface GlobeOverlayEntry {
   /** The overlay's key on the globe. */
   key: string
   title: string
-  /** Whether anything published what its colours mean. */
+  /**
+   * Whether it has a legend the map can draw beside it. Only a ramp does: a
+   * class legend runs long and is read in the Result panel.
+   */
   hasLegend: boolean
-  /** Whether its legend is drawn on the globe beside it. */
-  propertyOnMap: boolean
+  /** Whether that legend is drawn on the map now. */
+  legendOnMap: boolean
   /** Frame it on the globe. */
   fit: () => void
 }
@@ -38,12 +35,12 @@ export interface GlobeOverlayTarget {
 function Entries({
   entry,
   onClose,
-  onToggleProperty,
+  onToggleLegend,
   onTakeOff,
 }: {
   entry: GlobeOverlayEntry
   onClose: () => void
-  onToggleProperty: (key: string) => void
+  onToggleLegend: (key: string) => void
   onTakeOff: (key: string) => void
 }) {
   return (
@@ -51,21 +48,21 @@ function Entries({
       <MenuItem
         icon={Note}
         label={
-          entry.propertyOnMap
-            ? "Hide the property on the map"
-            : "Show the property on the map"
+          entry.legendOnMap
+            ? "Hide the legend on the map"
+            : "Show the legend on the map"
         }
         title={
           !entry.hasLegend
-            ? "Nothing published what this raster's colours mean"
-            : entry.propertyOnMap
-              ? "The globe keeps the raster and stops drawing its legend"
+            ? "Only a colour ramp is drawn beside its raster; a class legend is listed in the Result panel"
+            : entry.legendOnMap
+              ? "The map keeps the raster and stops drawing its legend"
               : "Its legend, tied to the ground it measures"
         }
-        checked={entry.propertyOnMap}
+        checked={entry.legendOnMap}
         disabled={!entry.hasLegend}
         onSelect={() => {
-          onToggleProperty(entry.key)
+          onToggleLegend(entry.key)
           onClose()
         }}
       />
@@ -94,14 +91,14 @@ export function GlobeOverlayMenu({
   target,
   surface,
   onClose,
-  onToggleProperty,
+  onToggleLegend,
   onTakeOff,
 }: {
   target: GlobeOverlayTarget | null
   /** Portalled here and clamped inside it, as every studio panel is. */
   surface: HTMLElement | null
   onClose: () => void
-  onToggleProperty: (key: string) => void
+  onToggleLegend: (key: string) => void
   onTakeOff: (key: string) => void
 }) {
   const one = target?.entries.length === 1 ? target.entries[0] : null
@@ -117,7 +114,7 @@ export function GlobeOverlayMenu({
           <Entries
             entry={one}
             onClose={onClose}
-            onToggleProperty={onToggleProperty}
+            onToggleLegend={onToggleLegend}
             onTakeOff={onTakeOff}
           />
         ) : (
@@ -126,7 +123,7 @@ export function GlobeOverlayMenu({
               <Entries
                 entry={e}
                 onClose={onClose}
-                onToggleProperty={onToggleProperty}
+                onToggleLegend={onToggleLegend}
                 onTakeOff={onTakeOff}
               />
             </MenuGroup>
