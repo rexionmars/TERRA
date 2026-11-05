@@ -14,6 +14,7 @@ import {
   Graph,
   Lifebuoy,
   Polygon,
+  SidebarCollapse,
   SidebarSimple,
   User,
   type Icon,
@@ -50,7 +51,8 @@ export type RailPlace =
   on macOS, 13px clear of the lights, and centred over the rail's column
   elsewhere, so the press that opens the rail leaves the button under the
   pointer for the press that closes it. The crumbs keep their place after it,
-  so a press changes the rail and not the line being read.
+  so a press changes the rail and not the line being read. Only the toggle's
+  glyph changes, to point the way the next press goes.
 
   Read off the navigator rather than asked of the runtime, as the title bar does.
   A wrong answer there is a window with no controls and is worth a round trip; here
@@ -236,7 +238,11 @@ export function ShellTopBar({
           title={railOpen ? "Hide the labels" : "Show the labels"}
           className="app-no-drag flex size-8 shrink-0 items-center justify-center rounded-sm text-muted-foreground transition-colors hover:bg-hover hover:text-foreground"
         >
-          <SidebarSimple className="size-4" />
+          {railOpen ? (
+            <SidebarCollapse className="size-4" />
+          ) : (
+            <SidebarSimple className="size-4" />
+          )}
         </button>
       </div>
       <nav

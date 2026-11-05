@@ -120,6 +120,7 @@ const ICONS: Record<string, string> = {
   Prohibit: "actions/16/dialog-cancel",
   RoadHorizon: "actions/16/routeplanning",
   Shapes: "actions/16/shapes",
+  SidebarCollapse: "actions/16/sidebar-collapse-left",
   SidebarSimple: "actions/16/sidebar-expand-left",
   SignIn: "actions/16/system-switch-user", // Breeze has system-log-out and no system-log-in
   SignOut: "actions/16/system-log-out",
