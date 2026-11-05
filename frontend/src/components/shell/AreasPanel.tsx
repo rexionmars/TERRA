@@ -9,14 +9,13 @@ import {
   Upload,
   X,
 } from "@/components/icons"
-import { ConfirmDelete } from "@/components/ui/ConfirmDelete"
 import type { Area } from "@/lib/areas"
 import type { GeoJSONGeometry } from "@/lib/types"
 import { geometryAreaHectares } from "@/lib/geometry"
-import { notifyError, notifySuccess } from "@/lib/notify"
 import { formatHectares } from "@/lib/runSummary"
 import { cn } from "@/lib/utils"
 import { btnGhost } from "@/components/ui/buttons"
+import { AreaDeleteDialog } from "@/components/shell/AreaDeleteDialog"
 import { BoundaryCatalogue } from "@/components/shell/BoundaryCatalogue"
 import { PanelEmpty, ShellPanel } from "@/components/shell/ShellPanel"
 
@@ -217,37 +216,6 @@ export function AreasPanel({
     else onActivate(a)
   }
   const [deleting, setDeleting] = useState<Area | null>(null)
-  const [busy, setBusy] = useState(false)
-
-  /*
-    DeleteArea removes the runs of the area and their rasters, and a field's
-    with it, which cannot be taken back. So the dialog says how many.
-  */
-  const confirmDelete = async () => {
-    if (!deleting || !onDelete) return
-    setBusy(true)
-    try {
-      await onDelete(deleting.id)
-      notifySuccess(`${deleting.name} deleted.`)
-      setDeleting(null)
-    } catch (e) {
-      notifyError("Could not delete the area", e)
-    } finally {
-      setBusy(false)
-    }
-  }
-  const lost = (a: Area) => {
-    const fields = fieldsOf(a.id)
-    const runs = a.run_count + fields.reduce((n, f) => n + f.run_count, 0)
-    const parts = [
-      runs > 0 && `${runs} ${runs === 1 ? "run" : "runs"} and their rasters`,
-      fields.length > 0 &&
-        `${fields.length} ${fields.length === 1 ? "field" : "fields"}`,
-    ].filter(Boolean)
-    return parts.length
-      ? `This also deletes ${parts.join(" and ")}. It cannot be undone.`
-      : "It holds no runs. This cannot be undone."
-  }
 
   if (catalogue && onPickBoundary) {
     return (
@@ -366,15 +334,12 @@ export function AreasPanel({
           })}
         </ul>
       )}
-      {deleting && (
-        <ConfirmDelete
-          eyebrow="DELETE AREA"
-          title={deleting.name}
-          subtitle={lost(deleting)}
-          confirmLabel="Delete area"
-          busy={busy}
-          onCancel={() => setDeleting(null)}
-          onConfirm={() => void confirmDelete()}
+      {deleting && onDelete && (
+        <AreaDeleteDialog
+          area={deleting}
+          areas={areas}
+          onDelete={onDelete}
+          onClose={() => setDeleting(null)}
         />
       )}
     </ShellPanel>

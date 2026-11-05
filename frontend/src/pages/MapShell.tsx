@@ -4,6 +4,7 @@ import { ActivityPanel } from "@/components/shell/ActivityPanel"
 import { useMapLayers, useRunAssets } from "@/components/shell/mapLayerState"
 import { MapTools } from "@/components/shell/MapTools"
 import { RunStatus } from "@/components/shell/RunStatus"
+import { AreaDeleteDialog } from "@/components/shell/AreaDeleteDialog"
 import { useRunsInHand, withRun } from "@/components/shell/runsInHand"
 import { useRunWatch } from "@/components/shell/runWatch"
 import { useShellNavigation } from "@/components/shell/shellNavigation"
@@ -176,7 +177,11 @@ export function MapShell(props: MapShellProps) {
   const [opening, setOpening] = useState<string | null>(null)
   const openingRef = useRef(false)
   const [overlayMenu, setOverlayMenu] = useState<GlobeOverlayTarget | null>(null)
+  /** The area the map's bin asked to delete, while the question is open. */
+  const [deletingArea, setDeletingArea] = useState<Area | null>(null)
   const areas = useMemo<readonly Area[]>(() => props.areas ?? [], [props.areas])
+  /** The saved area in hand, when the shape on the map is one. */
+  const activeArea = areas.find((a) => a.id === props.activeAreaId)
 
   /** Choosing an area also goes to it, which a press on the map has no need to do. */
   const pickArea = (area: Area) => {
@@ -534,6 +539,11 @@ export function MapShell(props: MapShellProps) {
                 if (entries.length) setOverlayMenu({ at, entries })
               }}
               onImportPolygon={props.onImportPolygon}
+              onDeleteArea={
+                activeArea && props.onDeleteArea
+                  ? () => setDeletingArea(activeArea)
+                  : undefined
+              }
               overlays={shownOverlays}
               fieldDrafts={fieldDrafts}
               spreadM={spreadM}
@@ -765,6 +775,21 @@ export function MapShell(props: MapShellProps) {
                 setSavedId(null)
                 setSavedName(null)
               }}
+            />
+          )}
+
+          {/*
+            The map's bin, asking as the Areas panel asks. Clearing afterwards
+            drops what was made over the area, as the bin did when it only
+            cleared.
+          */}
+          {deletingArea && props.onDeleteArea && (
+            <AreaDeleteDialog
+              area={deletingArea}
+              areas={areas}
+              onDelete={props.onDeleteArea}
+              onDeleted={props.onClearArea}
+              onClose={() => setDeletingArea(null)}
             />
           )}
 

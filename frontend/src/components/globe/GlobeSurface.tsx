@@ -352,6 +352,7 @@ export function GlobeSurface({
   polygon = null,
   onPolygonDrawn,
   onImportPolygon,
+  onDeleteArea,
   initialView = null,
   onViewChange,
   overlays = [],
@@ -421,6 +422,14 @@ export function GlobeSurface({
    * project this surface knows nothing about. Absent, the control is withheld.
    */
   onImportPolygon?: () => void
+  /**
+   * Deletes the area in hand, asking first; the caller owns the question,
+   * since what the deletion takes with it is the project's to say.
+   *
+   * The bin calls this when it is given. Without it -- a shape that is not a
+   * saved area -- the bin clears the drawing, which is all there is to delete.
+   */
+  onDeleteArea?: () => void
   /**
    * Where to open, when the session remembers.
    *
@@ -1892,9 +1901,12 @@ export function GlobeSurface({
                   <UploadSimple className="size-4" />
                 </MapButton>
               )}
-              <MapButton label="Delete the area" onClick={clear}>
-                <Trash className="size-4" />
-              </MapButton>
+              {/* Withheld with nothing to delete, rather than shown doing nothing. */}
+              {polygon && (
+                <MapButton label="Delete the area" onClick={onDeleteArea ?? clear}>
+                  <Trash className="size-4" />
+                </MapButton>
+              )}
             </>
           )}
         </MapBar>
