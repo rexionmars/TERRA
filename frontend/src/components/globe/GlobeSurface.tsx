@@ -1682,8 +1682,16 @@ export function GlobeSurface({
       */}
       {ready && !failure && (
         <div className="telemetry pointer-events-none absolute right-3 bottom-3 left-3 flex flex-wrap items-center gap-x-2 gap-y-0.5 text-meta text-muted-foreground">
-          <span className="text-foreground tabular-nums">z{zoom.toFixed(1)}</span>
           {/*
+            ON THE MAP CHROME, both the readout and the credits. Muted type laid
+            straight on the imagery vanished wherever the ground was bright: a
+            roof or a road under "imagery" took the word out. check:contrast
+            measures muted type on .map-chrome over the brightest ground (4.71
+            dark, 5.33 light), and nothing measures it on bare imagery.
+          */}
+          <span className="map-chrome flex items-center gap-x-2 rounded-sm px-1.5 py-0.5">
+            <span className="text-foreground tabular-nums">z{zoom.toFixed(1)}</span>
+            {/*
             AHEAD OF `busy`, ALONE AMONG THESE. The others are answers to "why
             is the picture not changing", and while tiles are in flight the
             true answer is that they are in flight. This one answers a
@@ -1691,22 +1699,23 @@ export function GlobeSurface({
             and it is asked at the moment of pressing, which is exactly when
             something is always loading.
           */}
-          {!wide && recent && !recentDrawn ? (
-            <span>
-              recent imagery ends at z{RECENT_MAX_ZOOM}; below 10 m this is Esri
-            </span>
-          ) : busy ? (
-            <span>loading imagery</span>
-          ) : ceiling !== null ? (
-            /* Not an error. The imagery ends and the picture is magnified from
+            {!wide && recent && !recentDrawn ? (
+              <span>
+                recent imagery ends at z{RECENT_MAX_ZOOM}; below 10 m this is Esri
+              </span>
+            ) : busy ? (
+              <span>loading imagery</span>
+            ) : ceiling !== null ? (
+              /* Not an error. The imagery ends and the picture is magnified from
                its last real level, which is what a map does; saying so is the
                difference between a limit and a fault. */
-            <span>magnified past z{ceiling}, the finest this imagery has here</span>
-          ) : !wide && zoom > nativeMax(shownBasemap) ? (
-            <span>
-              magnified past z{nativeMax(shownBasemap)}, the finest this imagery has
-            </span>
-          ) : null}
+              <span>magnified past z{ceiling}, the finest this imagery has here</span>
+            ) : !wide && zoom > nativeMax(shownBasemap) ? (
+              <span>
+                magnified past z{nativeMax(shownBasemap)}, the finest this imagery has
+              </span>
+            ) : null}
+          </span>
           {/*
             WHO THE GROUND BELONGS TO, in the title bar's own order and with its
             own separators, so the two surfaces credit one set of providers one
@@ -1729,7 +1738,7 @@ export function GlobeSurface({
             `pointer-events-auto` on the credits alone, because the line around
             them is a readout that must not take the pointer off the planet.
           */}
-          <span className="pointer-events-auto rounded-sm bg-[rgb(var(--p-ink)/0.72)] px-1.5 py-0.5 font-sans normal-case">
+          <span className="map-chrome pointer-events-auto rounded-sm px-1.5 py-0.5 font-sans normal-case">
             <Credit part={MAPLIBRE_CREDIT} />
             {/* The title bar's own order and wording, so the date reads the
                 same on both surfaces. */}
