@@ -47,7 +47,10 @@ import { report } from "@/lib/reports"
 export interface OperatorDef {
   label: string
   description: string
-  /** Where its row lives, for the operator search: "Options". */
+  /**
+   * Where its row lives, as the operator search and the keymap print it:
+   * "Options" for the header's menu, "Workflows" for the Workflows screen.
+   */
   menu: string
   icon?: Icon
   /**
@@ -61,12 +64,12 @@ export interface OperatorDef {
 }
 
 const DEFS = {
-  // ---- Studio: the application menu ----------------------------------------
+  // ---- The workflow, on the Workflows screen --------------------------------
   WORKFLOW_SAVE: {
     label: "Save workflow",
     description:
       "Save this workflow under its name, or ask for one, and the project file when the project has one",
-    menu: "Options",
+    menu: "Workflows",
     icon: FloppyDisk,
     keys: ["Mod+S"],
     inFields: true,
@@ -74,7 +77,7 @@ const DEFS = {
   WORKFLOW_RENAME: {
     label: "Save under another name\u2026",
     description: "Give the open workflow a new name",
-    menu: "Options",
+    menu: "Workflows",
     icon: PencilSimple,
     keys: ["Shift+Mod+S"],
     inFields: true,
@@ -82,14 +85,22 @@ const DEFS = {
   WORKFLOW_NEW: {
     label: "New workflow",
     description: "Clear the graph and the runs in hand, and start an empty workflow",
-    menu: "Options",
+    menu: "Workflows",
     icon: Plus,
     keys: ["Mod+N"],
   },
+  WORKFLOW_MANAGE: {
+    label: "Manage workflows\u2026",
+    description: "Rename or delete saved workflows",
+    menu: "Workflows",
+    icon: SlidersHorizontal,
+  },
+
+  // ---- The header's Options menu -------------------------------------------
   PROJECT_OPEN: {
     label: "Open project file\u2026",
     description: "Bring a .terra project file into this installation and open it",
-    menu: "Options \u203a Project file",
+    menu: "Options",
     icon: FolderOpen,
     keys: ["Mod+O"],
     inFields: true,
@@ -97,7 +108,7 @@ const DEFS = {
   PROJECT_SAVE: {
     label: "Save project file",
     description: "Write the open project to its .terra file",
-    menu: "Options \u203a Project file",
+    menu: "Options",
     icon: FileArrowDown,
     keys: ["Alt+Mod+S"],
     inFields: true,
@@ -105,7 +116,7 @@ const DEFS = {
   PROJECT_SAVE_AS: {
     label: "Save project file as\u2026",
     description: "Write the open project to a new .terra file",
-    menu: "Options \u203a Project file",
+    menu: "Options",
     icon: FileArrowDown,
     keys: ["Shift+Alt+Mod+S"],
     inFields: true,
@@ -113,14 +124,8 @@ const DEFS = {
   PROJECT_REVEAL: {
     label: "Reveal project file",
     description: "Show the open project's .terra file in the file manager",
-    menu: "Options \u203a Project file",
-    icon: FolderSimpleUser,
-  },
-  WORKFLOW_MANAGE: {
-    label: "Manage workflows\u2026",
-    description: "Rename or delete saved workflows",
     menu: "Options",
-    icon: SlidersHorizontal,
+    icon: FolderSimpleUser,
   },
   SEARCH: {
     label: "Search operators\u2026",
@@ -180,10 +185,6 @@ const DEFS = {
     menu: "Options",
     icon: Info,
   },
-
-  // ---- Areas ---------------------------------------------------------------
-
-  // ---- The planes, in the viewport and the outliner ------------------------
 } satisfies Record<string, OperatorDef>
 
 export type OperatorId = keyof typeof DEFS

@@ -4,7 +4,7 @@
  * the keymap, the settings and the release.
  *
  * Opened once per launch when the studio first mounts, unless turned off from
- * its own foot, and again from the Studio menu (START). It goes on a press
+ * its own foot, and again from the Options menu (START). It goes on a press
  * outside it, on Escape, on any of its own actions, and when the work starts
  * without it -- a studio opened or a plane put on the board some other way.
  *

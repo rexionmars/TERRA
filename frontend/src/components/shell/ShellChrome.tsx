@@ -317,6 +317,16 @@ export function ShellTopBar({
           />
         ))}
         <MenuRule />
+        {/*
+          The commands with no other menu. Their keys, the rail and the start
+          screen reach them too, but a command is also a row somewhere, and
+          the operator search and the keymap name this menu as the place.
+        */}
+        <OperatorMenuItem id="SEARCH" onDone={() => setMenu(null)} />
+        <OperatorMenuItem id="PREFERENCES" onDone={() => setMenu(null)} />
+        <OperatorMenuItem id="KEYMAP" onDone={() => setMenu(null)} />
+        <OperatorMenuItem id="START" onDone={() => setMenu(null)} />
+        <MenuRule />
         {appItem(app.items.environment)}
         {appItem(app.items.storage)}
         {appItem(app.items.releaseNotes)}
