@@ -45,14 +45,21 @@
     in the boot window.
 
     The type is placed from the Earth too, and not from the status bar above
-    it. The bar is 30 px in both windows, so type set below it sat higher
+    it. The bar is 52 px in both windows, so type set below it sat higher
     against the orbits in the full window, where the outer satellite passed
     under the lockup within a second of opening. In vh, since every copy of
     this is fixed to the viewport, so the sky's clearing can be placed in the
     same terms.
+
+    The status bar is as tall as the window's title bar, so that the traffic
+    lights sit on its centre line (see splash__bar). The scene hangs below it:
+    the Earth's centre is 73vh less 30 px under the bar's foot, which is where
+    the composition was set and measured, under a bar 30 px tall. In the boot
+    window that keeps the lockup 14 px clear of the bar's rule.
   */
+  --sp-bar: 52px;
   --sp-earth: 74vmin;
-  --sp-earth-y: 73vh;
+  --sp-earth-y: calc(var(--sp-bar) + 73vh - 30px);
   --sp-type-y: calc(var(--sp-earth-y) - var(--sp-earth) * 0.773);
   /* Set by SplashScreen.tsx; see "One clock" below. */
   --sp-elapsed: 0s;
@@ -152,23 +159,23 @@
   MEASURED at 420x280 and at 1440x900, at 1, 2, 3, 4, 6, 8 and 9 s: the
   brightest pixel of the scene under each line, with the type made transparent,
   against that line's colour. Status 16.58, version 9.03, tagline 7.57 at its
-  worst, the BOOT label 5.28, the boot line 14.62 (16.36 in the full window).
+  worst, the BOOT label 5.15, the boot line 14.62 (16.36 in the full window).
   The wordmark reads 0.94 and 0.84: its brightest pixel is a city light between
   two letters, and it is recorded so that a new Earth can be compared against
   it. Satellites are left out of this only because none reaches the type in
   that time; see the orbits below.
 */
 .splash__sky {
-  top: 30px;
+  top: var(--sp-bar);
   -webkit-mask-image: radial-gradient(
     calc(var(--sp-earth) * 0.6) calc(var(--sp-earth) * 0.2) at 50%
-      calc(var(--sp-type-y) + var(--sp-earth) * 0.07 - 30px),
+      calc(var(--sp-type-y) + var(--sp-earth) * 0.07 - var(--sp-bar)),
     transparent 70%,
     #000
   );
   mask-image: radial-gradient(
     calc(var(--sp-earth) * 0.6) calc(var(--sp-earth) * 0.2) at 50%
-      calc(var(--sp-type-y) + var(--sp-earth) * 0.07 - 30px),
+      calc(var(--sp-type-y) + var(--sp-earth) * 0.07 - var(--sp-bar)),
     transparent 70%,
     #000
   );
@@ -657,16 +664,17 @@
 /*
   The status bar, at the height of the title bar it shares.
 
-  The window keeps macOS's traffic lights over its content (TitleBarHidden in
-  main.go), so the bar starts clear of them rather than under them.
+  The window keeps macOS's traffic lights over its content (TitleBarHiddenInset
+  in main.go), centred 26px down and ending 79px in. The bar is 52px tall so
+  that they sit on its centre line, and it starts its text clear of them.
 */
 .splash__bar {
   display: flex;
   flex: none;
   align-items: center;
   gap: 14px;
-  height: 30px;
-  padding: 0 16px 0 80px;
+  height: var(--sp-bar);
+  padding: 0 16px 0 92px;
   border-bottom: 1px solid var(--sp-rule);
   color: rgb(var(--sp-dust));
   font-size: var(--sp-label);

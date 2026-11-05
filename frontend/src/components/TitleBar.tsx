@@ -45,13 +45,18 @@ export function TitleBar() {
   return (
     <header
       className={cn(
-        "app-draggable relative flex h-11 shrink-0 items-center justify-between border-b border-border/60 bg-app/70 pr-2 backdrop-blur-md",
         /*
-          The window's traffic lights own the first 4.5rem, and the wordmark keeps
-          a centimetre clear of them: a physical distance between two things seen
-          side by side, so it is written as one.
+          52pt tall, the height at which macOS centres the traffic lights in
+          an inset title bar; see main.go.
         */
-        "pl-[calc(4.5rem+1cm)]"
+        "app-draggable relative flex h-13 shrink-0 items-center justify-between border-b border-border/60 bg-app/70 pr-2 backdrop-blur-md",
+        /*
+          The window's traffic lights own the first 5rem (they end 79pt in),
+          and the wordmark keeps a centimetre clear of them: a physical
+          distance between two things seen side by side, so it is written as
+          one.
+        */
+        "pl-[calc(5rem+1cm)]"
       )}
     >
       <div className="flex items-center gap-2">
