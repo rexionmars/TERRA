@@ -49,7 +49,8 @@ export interface OperatorDef {
   description: string
   /**
    * Where its row lives, as the operator search and the keymap print it:
-   * "Options" for the header's menu, "Workflows" for the Workflows screen.
+   * "Options" for the menu under the mark in the header, "Workflows" for the
+   * Workflows screen.
    */
   menu: string
   icon?: Icon

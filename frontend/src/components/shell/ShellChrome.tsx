@@ -41,14 +41,16 @@ export type RailPlace =
 /*
   THE RAIL IS NARROWER THAN THE TRAFFIC LIGHTS ARE WIDE. They end about 61px in and
   the rail is 52, as the layout this follows has it, so on macOS they sit across the
-  seam. The strip above the mark and the header are one band for that reason: one
-  ground, one line under it and no rail edge through the third light. The header
-  then starts its contents clear of them.
+  seam. The strip at the head of the rail and the header are one band for that
+  reason: one ground, one line under it and no rail edge through the third light.
+  The strip is drawn on every platform, so that the band runs the width of the
+  window wherever it is. Only the header's left padding depends on the platform:
+  it starts its contents clear of the lights.
 
   Read off the navigator rather than asked of the runtime, as the title bar does.
   A wrong answer there is a window with no controls and is worth a round trip; here
-  it is a blank strip, and an answer that arrives late would slide the mark on every
-  launch.
+  it is a few pixels of padding, and an answer that arrives late would slide the
+  header's contents on every launch.
 */
 const RESERVES_TRAFFIC_LIGHTS = /Mac/i.test(navigator.platform)
 
@@ -280,6 +282,15 @@ export function ShellTopBar({
         </Crumb>
       </nav>
 
+      {/*
+        The mark opens the Options menu. The menu holds what belongs to the
+        application rather than to the place: project files, settings, the
+        environment, the release notes, About. The application's name is the
+        label for that. "Options" stays as the tooltip and the accessible name,
+        because the operator search and the keymap print "Options ›" as the way
+        to these commands. The caret marks the logo as a menu and not a
+        picture.
+      */}
       <MenuPopover
         open={menu === "options"}
         onOpenChange={open("options")}
@@ -293,9 +304,19 @@ export function ShellTopBar({
             onClick={p.onClick}
             aria-expanded={p["aria-expanded"]}
             aria-haspopup="menu"
-            className="app-no-drag flex h-7 items-center gap-1 rounded-sm border border-border px-2 text-read text-foreground transition-colors hover:bg-hover"
+            aria-label="Options"
+            title="Options"
+            className={cn(
+              "app-no-drag flex h-8 items-center gap-0.5 rounded-sm pr-1 pl-0.5 transition-colors hover:bg-hover",
+              p["aria-expanded"] && "bg-hover"
+            )}
           >
-            Options
+            <img
+              src="/terra-logo.png"
+              alt=""
+              draggable={false}
+              className="size-7 shrink-0 object-contain"
+            />
             <CaretDown className="size-3 text-muted-foreground" />
           </button>
         )}
@@ -401,7 +422,8 @@ function initials(name: string): string {
 /**
  * Where a reader can go, as against what they can do where they are.
  *
- * The full height of the window, with the mark at its head.
+ * The full height of the window. Its head is a blank strip that continues the
+ * header's band; the mark is in the header, as the Options menu.
  */
 export function ShellRail({
   place,
@@ -434,28 +456,8 @@ export function ShellRail({
         open ? "w-52" : "w-[3.25rem]"
       )}
     >
-      {RESERVES_TRAFFIC_LIGHTS && (
-        <div className="app-draggable h-11 shrink-0 border-b border-border" />
-      )}
+      <div className="app-draggable h-11 shrink-0 border-b border-border" />
       <div className="flex min-h-0 flex-1 flex-col border-r border-border">
-        <div
-          className={cn(
-            "flex h-11 shrink-0 items-center",
-            open ? "gap-3 px-3" : "justify-center"
-          )}
-        >
-          <img
-            src="/terra-logo.png"
-            alt="TERRA"
-            className="size-7 shrink-0 rounded-md object-contain"
-          />
-          {open && (
-            <span className="font-display text-heading font-semibold tracking-[0.14em] text-foreground">
-              TERRA
-            </span>
-          )}
-        </div>
-
         <div
           className={cn(
             "flex min-h-0 flex-1 flex-col overflow-y-auto py-1",

@@ -24,8 +24,9 @@ New** once.
 
 - **Left rail:** Explore, Areas, Analyses, Compare, Workflows, Activity, and your
   account at the foot. The button at the top of the header shows the labels.
-- **Header:** the open project and area, each a menu; **Options** for project
-  files, the Python environment and storage.
+- **Header:** the open project and area, each a menu. The TERRA mark at the right
+  end opens **Options**: project files, settings, the Python environment and
+  storage.
 - **Right edge of the map:** Products, Visualization, Result, Points and Layers,
   then the map's own tools: search, basemap, imagery date, relief, draw, edit,
   import, delete.
@@ -142,8 +143,9 @@ with unsaved changes asks first.
 
 ## 10. Project files
 
-Under **Options**: open, save, save as and reveal a `.terra` file. **Save** in
-Workflows, or Cmd/Ctrl+S, also writes the project's file when it has one.
+Under **Options**, the TERRA mark in the header: open, save, save as and reveal a
+`.terra` file. **Save** in Workflows, or Cmd/Ctrl+S, also writes the project's file
+when it has one.
 
 ## 11. Finding a command
 
