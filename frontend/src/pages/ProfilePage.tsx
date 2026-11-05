@@ -904,10 +904,10 @@ export function ProfilePage({
           >
             {/*
               THE MARK, NOT THE ICON, AND THEY ARE TWO DIFFERENT IMAGES. The
-              icon is the wordless circle in frontend/public/terra-logo.png,
+              icon is the wordless triangle in frontend/public/terra-logo.png,
               drawn by the title bar and the splash and generated into the
               .icns and the .ico -- it is what the operating system shows when
-              it has 32 px to show it in. The mark is the hexagonal badge
+              it has 32 px to show it in. The mark is the triangular badge
               carrying TERRA and EARTH OBSERVATION, which is what the README
               opens with and what the LaTeX manual references. This paragraph
               is the project speaking about itself as a project, to a reader
