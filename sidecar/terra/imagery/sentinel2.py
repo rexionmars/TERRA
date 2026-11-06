@@ -66,6 +66,16 @@ def list_sentinel_products(data_path, tile_list=None):
     return sorted(products.values(), key=lambda x: x['date'])
 
 
+# B02/B03/B04/B08 are required by the spectral model; B8A/B11/B12 are also
+# collected (present in Planetary Computer assets) so the Prithvi path has its
+# six bands, and the red edge B05/B06/B07 because a composition can read any
+# band of composite.ALLOWED_BANDS (NDRE reads B05, PSRI B06). Only the asset
+# hrefs are kept; nothing is read until a band is asked for. A scene missing an
+# extra band is kept, and fails only if that band is asked for.
+REQUIRED_BANDS = ('B02', 'B03', 'B04', 'B08')
+EXTRA_BANDS = ('B05', 'B06', 'B07', 'B8A', 'B11', 'B12')
+
+
 def list_stac_products(polygon, start, end, tile_list=None, max_cloud=100.0,
                        monthly_best=True,
                        collection='sentinel-2-l2a',
@@ -98,11 +108,6 @@ def list_stac_products(polygon, start, end, tile_list=None, max_cloud=100.0,
         url=stac_url,
     )
 
-    # B02/B03/B04/B08 are required by the spectral model; B8A/B11/B12 are also
-    # collected (present in Planetary Computer assets) so the Prithvi path has
-    # its six bands. Missing extra bands do not drop the scene.
-    required_bands = ['B02', 'B03', 'B04', 'B08']
-    extra_bands = ['B8A', 'B11', 'B12']
     products = {}
     for item in items:
         props = item.properties
@@ -119,14 +124,14 @@ def list_stac_products(polygon, start, end, tile_list=None, max_cloud=100.0,
 
         assets = {}
         ok = True
-        for band in required_bands:
+        for band in REQUIRED_BANDS:
             if band not in item.assets:
                 ok = False
                 break
             assets[band] = item.assets[band].href
         if not ok:
             continue
-        for band in extra_bands:
+        for band in EXTRA_BANDS:
             if band in item.assets:
                 assets[band] = item.assets[band].href
 

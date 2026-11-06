@@ -70,6 +70,15 @@ def test_presets_and_allowed():
     assert "B11" in composite.ALLOWED_BANDS
 
 
+def test_every_band_a_composition_can_ask_for_is_collected_from_stac():
+    # A band left out of the scene's assets fails at render time, with the
+    # area drawn and the scene chosen: "Band B06 not in STAC assets".
+    from terra.imagery import sentinel2
+
+    collected = set(sentinel2.REQUIRED_BANDS) | set(sentinel2.EXTRA_BANDS)
+    assert set(composite.ALLOWED_BANDS) <= collected
+
+
 def test_write_rgba_geotiff(tmp_path):
     from rasterio.transform import from_bounds
 
