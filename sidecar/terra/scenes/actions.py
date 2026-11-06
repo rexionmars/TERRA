@@ -14,7 +14,7 @@ import sys
 from pathlib import Path
 
 from terra import protocol
-from terra.imagery import cog, indices, sentinel2
+from terra.imagery import cog, sentinel2
 from terra.scenes import lookup
 
 
@@ -159,33 +159,22 @@ def render_composite(req, work_dir):
         meta['bands'] = bands
     elif kind == 'index':
         index_name = (req.get('index') or 'ndvi').strip().lower()
-        if index_name not in comp.ALLOWED_INDICES:
-            protocol.fail(f'unsupported index: {index_name}')
+        spec = comp.COMPOSITE_INDICES.get(index_name)
+        if spec is None:
+            protocol.fail(
+                f'unsupported index: {index_name}; '
+                f'this sidecar draws {", ".join(comp.ALLOWED_INDICES)}'
+            )
         protocol.emit_progress(50, f'computing {index_name}')
         try:
-            if index_name == 'ndvi':
-                nir = load_band('B08')
-                red = load_band('B04')
-                idx = indices.calculate_ndvi(nir, red)
-                mask = mask & (nir > 0) & (red > 0)
-            elif index_name == 'ndwi':
-                green = load_band('B03')
-                nir = load_band('B08')
-                idx = comp.calculate_ndwi(green, nir)
-                mask = mask & (green > 0) & (nir > 0)
-            elif index_name == 'ndmi':
-                nir = load_band('B08')
-                swir = load_band('B11')
-                idx = comp.calculate_ndmi(nir, swir)
-                mask = mask & (nir > 0) & (swir > 0)
-            else:  # evi
-                nir = load_band('B08')
-                red = load_band('B04')
-                blue = load_band('B02')
-                idx = indices.calculate_evi(nir, red, blue)
-                mask = mask & (nir > 0) & (red > 0) & (blue > 0)
+            arrays = [load_band(b) for b in spec.bands]
         except Exception as e:
             protocol.fail(f'index bands failed: {e}')
+        # A cell with no reflectance in any band the formula reads is outside
+        # the scene's footprint, not a value of the index.
+        for band in arrays:
+            mask = mask & (band > 0)
+        idx = spec.formula(*arrays)
         rgba = comp.index_to_rgba(idx, mask, index_name, stretch_lo, stretch_hi)
         meta['index'] = index_name
     else:

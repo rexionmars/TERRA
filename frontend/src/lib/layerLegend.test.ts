@@ -20,6 +20,7 @@
 import { describe, expect, it } from "vitest"
 import { legendFor, type LayerLegend } from "./layerLegend"
 import { MAPBIOMAS_CLASS_LEGEND } from "./classPalette"
+import { paletteGradient } from "./palettes"
 import type {
   ClassStat,
   CompositionOverlay,
@@ -384,13 +385,27 @@ describe("legendFor, composition", () => {
     expect(legend.high).toBe("Water")
   })
 
+  it("draws an index whose high end is stress on inferno, not on a green ramp", () => {
+    // PSRI rises with senescence; on RdYlGn its senescent end would be green.
+    const composition = payload<CompositionOverlay>({
+      kind: "index",
+      index: "psri",
+    })
+
+    const legend = asRamp(legendFor("composition", { composition }))
+
+    expect(legend.subject).toBe("PSRI")
+    expect(legend.gradient).toBe(paletteGradient("inferno"))
+    expect(legend.high).toBe("Senescent")
+  })
+
   it("returns null for an index the catalogue does not list", () => {
     // A wire value outside the union: a composition made by a sidecar carrying
     // an index this build has no entry for. Drawing it under some other index's
     // ramp is the failure the whole module exists to avoid.
     const composition = {
       kind: "index",
-      index: "savi",
+      index: "ndsi",
     } as unknown as CompositionOverlay
 
     expect(legendFor("composition", { composition })).toBeNull()

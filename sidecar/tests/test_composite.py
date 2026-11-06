@@ -79,6 +79,56 @@ def test_every_band_a_composition_can_ask_for_is_collected_from_stac():
     assert set(composite.ALLOWED_BANDS) <= collected
 
 
+def test_every_catalogued_index_reads_loadable_bands_and_names_a_ramp():
+    for name, spec in composite.COMPOSITE_INDICES.items():
+        assert set(spec.bands) <= set(composite.ALLOWED_BANDS), name
+        assert spec.ramp in composite.CONTINUOUS_STOPS, name
+
+
+def test_the_first_four_indices_keep_the_ramps_they_were_drawn_with():
+    # NDVI and EVI on RdYlGn, NDWI and NDMI on Blues, as before the catalogue.
+    idx = np.linspace(-0.5, 0.9, 16, dtype=np.float32).reshape(4, 4)
+    mask = np.ones((4, 4), dtype=bool)
+    for name, stops in (("ndvi", "rdylgn"), ("evi", "rdylgn"), ("ndwi", "blues"), ("ndmi", "blues")):
+        drawn = composite.index_to_rgba(idx, mask, name)
+        low = composite.CONTINUOUS_STOPS[stops][0]
+        assert tuple(drawn[0, 0, :3]) == tuple(int(c * 255) for c in low), name
+
+
+def _one(value: float) -> np.ndarray:
+    return np.array([[value]], dtype=np.float32)
+
+
+def test_msavi_at_a_known_canopy():
+    # NIR 0.5, red 0.05: (2 - sqrt(4 - 3.6)) / 2 = 0.6838.
+    assert abs(float(composite.calculate_msavi(_one(0.5), _one(0.05))[0, 0]) - 0.6838) < 1e-3
+
+
+def test_msavi_over_negative_red_is_finite():
+    assert np.isfinite(composite.calculate_msavi(_one(0.5), _one(-0.2))).all()
+
+
+def test_gci_is_nir_over_green_less_one():
+    assert abs(float(composite.calculate_gci(_one(0.4), _one(0.1))[0, 0]) - 3.0) < 1e-5
+
+
+def test_gci_is_zero_where_green_is_zero():
+    assert float(composite.calculate_gci(_one(0.4), _one(0.0))[0, 0]) == 0.0
+
+
+def test_psri_is_red_less_blue_over_red_edge():
+    psri = composite.calculate_psri(_one(0.1), _one(0.05), _one(0.4))
+    assert abs(float(psri[0, 0]) - 0.125) < 1e-5
+
+
+def test_a_moisture_stress_ratio_above_one_is_not_clipped():
+    assert float(composite.band_ratio(_one(0.5), _one(0.2))[0, 0]) == 2.5
+
+
+def test_a_normalized_difference_of_two_zeros_is_zero():
+    assert float(composite.normalized_difference(_one(0.0), _one(0.0))[0, 0]) == 0.0
+
+
 def test_write_rgba_geotiff(tmp_path):
     from rasterio.transform import from_bounds
 

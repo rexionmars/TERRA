@@ -424,9 +424,13 @@ visible features that a true-colour composition does not distinguish.
   \item Select a scene. With none selected the request answers \msg{Select a
         scene first.}
   \item Choose the composition. The presets are \texttt{True color},
-        \texttt{False color IR}, \texttt{Agriculture} and \texttt{SWIR}; the
-        available indices are \texttt{NDVI}, \texttt{NDWI}, \texttt{NDMI} and
-        \texttt{EVI}.
+        \texttt{False color IR}, \texttt{Agriculture} and \texttt{SWIR}, and
+        any of the ten bands from \texttt{B02} to \texttt{B12} can be put in
+        each channel. The indices are, for vegetation, \texttt{NDVI},
+        \texttt{EVI}, \texttt{SAVI}, \texttt{MSAVI}, \texttt{NDRE},
+        \texttt{GCI} and \texttt{PSRI}; for water and moisture, \texttt{NDWI},
+        \texttt{MNDWI}, \texttt{NDMI} and \texttt{MSI}; for fire,
+        \texttt{NBR}. The panel shows the formula of the one chosen.
 \end{enumerate}
 
 \terrafig{png-images/impressao/map-composition.png}
