@@ -268,10 +268,15 @@ export function useMapLayers({
       .filter((l) => l.visible && !!l.uri)
       .map((l) => {
         // A ramp is drawn beside its raster. Class legends run long, so they are
-        // read in the result panel instead.
+        // read in the result panel instead -- except a composition's, which the
+        // sidecar computed with it and which is short: at most seven clusters,
+        // or a ramp with four figures.
         const legend = legendFor(l.id, sources)
+        const tied =
+          legend?.kind === "ramp" ||
+          (l.id === "composition" && !!props.composition?.legend)
         const caption: OverlayCaption | undefined =
-          legend?.kind === "ramp" ? { legend, area: areaName, detail: null } : undefined
+          legend && tied ? { legend, area: areaName, detail: null } : undefined
         const drawn =
           l.smooth && smoothed?.from === l.uri ? { ...l, uri: smoothed.uri } : l
         return { key: l.id, areaId, layer: drawn, caption }

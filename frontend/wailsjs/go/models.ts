@@ -139,6 +139,11 @@ export namespace analysis {
 	    bands?: string[];
 	    index?: string;
 	    stretch_pct?: number[];
+	    median?: boolean;
+	    scene_id_before?: string;
+	    clusters?: number;
+	    variable?: string;
+	    year?: number;
 	
 	    static createFrom(source: any = {}) {
 	        return new CompositeRequest(source);
@@ -157,6 +162,11 @@ export namespace analysis {
 	        this.bands = source["bands"];
 	        this.index = source["index"];
 	        this.stretch_pct = source["stretch_pct"];
+	        this.median = source["median"];
+	        this.scene_id_before = source["scene_id_before"];
+	        this.clusters = source["clusters"];
+	        this.variable = source["variable"];
+	        this.year = source["year"];
 	    }
 	
 		convertValues(a: any, classs: any, asMap: boolean = false): any {

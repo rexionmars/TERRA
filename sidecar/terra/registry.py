@@ -41,6 +41,7 @@ ACTIONS: dict[str, str] = {
     'radar_series': 'terra.radar.actions:radar',
     'management_zones': 'terra.zones.actions:zones',
     'pdf_report': 'terra.report.actions:pdf_report',
+    'biomass_map': 'terra.biomass.actions:biomass_map',
 }
 
 DEFAULT_ACTION = 'predict'

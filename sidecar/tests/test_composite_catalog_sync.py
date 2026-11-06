@@ -54,3 +54,25 @@ def test_the_channel_picker_offers_the_bands_the_sidecar_loads():
     body = _block(CATALOG_TS.read_text(encoding='utf-8'), 'S2_BANDS')
     assert tuple(re.findall(r'id: "(B\w+)"', body)) == comp.ALLOWED_BANDS
 
+
+def test_the_panel_offers_the_kinds_the_sidecar_draws():
+    from terra.scenes import actions
+
+    body = _block(CATALOG_TS.read_text(encoding='utf-8'), 'KINDS')
+    offered = re.findall(r'^    id: "(\w+)",', body, re.M)
+    # biomass is answered by its own action, biomass_map.
+    assert offered == [*actions.KINDS, 'biomass']
+
+
+def test_the_canopy_variables_offered_are_the_networks_there_are():
+    from terra.scenes import sl2p
+
+    body = _block(CATALOG_TS.read_text(encoding='utf-8'), 'BIOPHYSICAL_VARIABLES')
+    assert set(re.findall(r'id: "(\w+)"', body)) == set(sl2p.VARIABLES)
+
+
+def test_the_biomass_years_offered_are_the_years_the_map_covers():
+    from terra.biomass import cci
+
+    body = _block(CATALOG_TS.read_text(encoding='utf-8'), 'BIOMASS_YEARS')
+    assert sorted(int(y) for y in re.findall(r'\d{4}', body)) == list(cci.YEARS)

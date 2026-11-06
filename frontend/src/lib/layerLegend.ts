@@ -23,6 +23,7 @@
  * apart because the split is the finding, the dates that survived masking.
  */
 import { INDICES } from "@/lib/compositeCatalog"
+import { layerLegendOfComposition } from "@/lib/compositionLegend"
 import { MAPBIOMAS_CLASS_LEGEND } from "@/lib/classPalette"
 import { predictionSource } from "@/lib/mapLayers"
 import { paletteGradient } from "@/lib/palettes"
@@ -225,6 +226,8 @@ export function legendFor(layerId: string, src: LegendSources): LayerLegend {
   if (layerId === "composition") {
     const c = src.composition
     if (!c) return null
+    // The kinds whose scale is set when drawn bring their own legend.
+    if (c.legend) return layerLegendOfComposition(c.legend)
     if (c.kind === "index" && c.index) {
       const spec = INDICES.find((i) => i.id === c.index)
       if (!spec) return null

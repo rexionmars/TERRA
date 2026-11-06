@@ -622,15 +622,52 @@ func (r *Runner) ListDataCube(ctx context.Context, req DataCubeRequest) (*DataCu
 }
 
 // RenderComposite builds an RGB or index PNG overlay for one STAC scene.
+/*
+compositeAction is the sidecar action a composition request runs, once what it
+needs has been checked.
+
+A biomass map is read over the area and needs neither a scene nor a period, so
+it has an action of its own; everything else is a view of imagery and needs
+the period. A view from the period's median needs no scene, a change needs two,
+and the rest need one. Checked here, before a process is started, so a missing
+choice is answered with what to choose rather than with the sidecar's exit.
+*/
+func compositeAction(req CompositeRequest) (string, error) {
+	kind := strings.TrimSpace(req.Kind)
+	if kind == "biomass" {
+		return "biomass_map", nil
+	}
+	if strings.TrimSpace(req.Start) == "" || strings.TrimSpace(req.End) == "" {
+		return "", fmt.Errorf("set the acquisition period (start and end dates)")
+	}
+	if req.Median {
+		if kind == "change" || kind == "biophysical" {
+			return "", fmt.Errorf("a %s view reads single scenes: choose a scene rather than the period median", kind)
+		}
+		return "render_composite", nil
+	}
+	if strings.TrimSpace(req.SceneID) == "" {
+		return "", fmt.Errorf("select a scene first")
+	}
+	if kind == "change" {
+		before := strings.TrimSpace(req.SceneIDBefore)
+		if before == "" {
+			return "", fmt.Errorf("select the earlier scene of the change")
+		}
+		if before == strings.TrimSpace(req.SceneID) {
+			return "", fmt.Errorf("a change needs two different scenes")
+		}
+	}
+	return "render_composite", nil
+}
+
 func (r *Runner) RenderComposite(ctx context.Context, req CompositeRequest) (*CompositeResult, error) {
 	if _, err := os.Stat(r.sidecar); err != nil {
 		return nil, fmt.Errorf("sidecar not found at %s", r.sidecar)
 	}
-	if strings.TrimSpace(req.SceneID) == "" {
-		return nil, fmt.Errorf("select a scene first")
-	}
-	if strings.TrimSpace(req.Start) == "" || strings.TrimSpace(req.End) == "" {
-		return nil, fmt.Errorf("set the acquisition period (start and end dates)")
+	action, err := compositeAction(req)
+	if err != nil {
+		return nil, err
 	}
 
 	maxCloud := req.MaxCloud
@@ -661,7 +698,7 @@ func (r *Runner) RenderComposite(ctx context.Context, req CompositeRequest) (*Co
 	defer os.RemoveAll(workDir)
 
 	sReq := sidecarRequest{
-		Action:         "render_composite",
+		Action:         action,
 		ModelDir:       r.modelDir,
 		Source:         "stac",
 		Start:          req.Start,
@@ -676,6 +713,11 @@ func (r *Runner) RenderComposite(ctx context.Context, req CompositeRequest) (*Co
 		Bands:          req.Bands,
 		Index:          req.Index,
 		StretchPct:     stretch,
+		Median:         req.Median,
+		SceneIDBefore:  req.SceneIDBefore,
+		Clusters:       req.Clusters,
+		Variable:       req.Variable,
+		Year:           req.Year,
 	}
 	reqBytes, err := json.Marshal(sReq)
 	if err != nil {

@@ -426,7 +426,8 @@ function Ramp({
  * them, a legend over a soybean field could report five classes covering four
  * percent of it and omit the one covering ninety.
  */
-function LegendBody({ legend }: { legend: NonNullable<LayerLegend> }) {
+/** One legend's body: a ramp, classes, a note, or figures with their ramp. */
+export function LegendBody({ legend }: { legend: NonNullable<LayerLegend> }) {
   if (legend.kind === "ramp") {
     return <Ramp gradient={legend.gradient} low={legend.low} high={legend.high} />
   }

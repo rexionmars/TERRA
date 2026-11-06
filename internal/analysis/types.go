@@ -70,11 +70,16 @@ type sidecarRequest struct {
 	PrithviMode    string           `json:"prithvi_mode"`
 	WorkDir        string           `json:"work_dir"`
 	// Composite / index render (action=render_composite).
-	SceneID    string    `json:"scene_id,omitempty"`
-	Kind       string    `json:"kind,omitempty"`
-	Bands      []string  `json:"bands,omitempty"`
-	Index      string    `json:"index,omitempty"`
-	StretchPct []float64 `json:"stretch_pct,omitempty"`
+	SceneID       string    `json:"scene_id,omitempty"`
+	Kind          string    `json:"kind,omitempty"`
+	Bands         []string  `json:"bands,omitempty"`
+	Index         string    `json:"index,omitempty"`
+	StretchPct    []float64 `json:"stretch_pct,omitempty"`
+	Median        bool      `json:"median,omitempty"`
+	SceneIDBefore string    `json:"scene_id_before,omitempty"`
+	Clusters      int       `json:"clusters,omitempty"`
+	Variable      string    `json:"variable,omitempty"`
+	Year          int       `json:"year,omitempty"`
 }
 
 // ClassStat is a per-class statistic from the classification result.
@@ -432,10 +437,21 @@ type CompositeRequest struct {
 	MonthlyBest    bool             `json:"monthly_best"`
 	Tiles          []string         `json:"tiles"`
 	SceneID        string           `json:"scene_id"`
-	Kind           string           `json:"kind"` // "rgb" | "index"
-	Bands          []string         `json:"bands,omitempty"`
-	Index          string           `json:"index,omitempty"`
-	StretchPct     []float64        `json:"stretch_pct,omitempty"`
+	// "rgb" | "index" | "pca" | "clusters" | "change" | "biophysical" | "biomass"
+	Kind       string    `json:"kind"`
+	Bands      []string  `json:"bands,omitempty"`
+	Index      string    `json:"index,omitempty"`
+	StretchPct []float64 `json:"stretch_pct,omitempty"`
+	// Drawn from the period's cloud-free median rather than from SceneID.
+	Median bool `json:"median,omitempty"`
+	// The earlier scene of a change; SceneID is the later.
+	SceneIDBefore string `json:"scene_id_before,omitempty"`
+	// How many groups a clustering forms.
+	Clusters int `json:"clusters,omitempty"`
+	// The canopy variable a biophysical view estimates: lai, fapar, fcover, ccc, cwc.
+	Variable string `json:"variable,omitempty"`
+	// The year of the biomass map.
+	Year int `json:"year,omitempty"`
 }
 
 // CompositeResult is a PNG overlay for map display (+ optional GeoTIFF path).

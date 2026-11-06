@@ -429,14 +429,45 @@ visible features that a true-colour composition does not distinguish.
         each channel. The indices are, for vegetation, \texttt{NDVI},
         \texttt{EVI}, \texttt{SAVI}, \texttt{MSAVI}, \texttt{NDRE},
         \texttt{GCI} and \texttt{PSRI}; for water and moisture, \texttt{NDWI},
-        \texttt{MNDWI}, \texttt{NDMI} and \texttt{MSI}; for fire,
+        \texttt{MNDWI}, \texttt{NDMI} and \texttt{MSI}; for water quality,
+        read over open water only, \texttt{NDCI} and \texttt{NDTI}; for fire,
         \texttt{NBR}. The panel shows the formula of the one chosen.
   \item To compare two compositions of the area, press \texttt{Compare} on a
         second one in the list. It is drawn under the one on the map, and a
         curtain divides them: the upper to the right of the line, the lower to
-        its left. Each scene is stretched to its own percentiles, so one
-        colour on the two sides is not one value.
+        its left. Unless both are the same canopy variable, each is scaled on
+        its own, so one colour on the two sides is not one value.
 \end{enumerate}
+
+Besides \texttt{RGB} and \texttt{Index}, the panel draws five other views,
+each with its limit stated under it:
+
+\begin{itemize}[leftmargin=*,itemsep=.25em]
+  \item \texttt{Components}: the first three principal components of the ten
+        bands, as red, green and blue. They are directions of variance in that
+        scene alone.
+  \item \texttt{Clusters}: two to seven groups of cells whose bands are alike,
+        by k-means. They are not classes, and their numbers change from scene
+        to scene.
+  \item \texttt{Change}: an index on a later scene minus the same index on an
+        earlier one, on a diverging ramp centred on no change. It says where
+        the index moved, not why.
+  \item \texttt{Canopy}: leaf area index, fAPAR, green cover, canopy
+        chlorophyll or canopy water, estimated by ESA's SL2P network from eight
+        bands and the scene's angles. The network is not validated against
+        field measurements here; the panel reports the share of cells outside
+        its domain.
+  \item \texttt{Biomass}: above-ground biomass from ESA CCI Biomass 6.0, at
+        100\,m, for a year from 2007 to 2022. It is made for forest.
+\end{itemize}
+
+\texttt{RGB}, \texttt{Index}, \texttt{Components} and \texttt{Clusters} can be
+drawn from one scene or from the \texttt{Period median}: each cell's median
+over the clear observations of up to twelve of the period's least cloudy
+acquisitions. The legend of every view but the first two is computed with the
+raster and shown under \texttt{On the map}; for \texttt{Change},
+\texttt{Canopy} and \texttt{Biomass} the GeoTIFF holds the values, not the
+colours.
 
 \terrafig{png-images/impressao/map-composition.png}
   {\texttt{Map} $\rightarrow$ \texttt{Compositions}. The layer legend states

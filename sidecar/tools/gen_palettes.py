@@ -15,7 +15,7 @@ sys.path.insert(0, str(SIDECAR))
 
 from terra.imagery import composite as comp  # noqa: E402
 
-ORDER = ["rdylgn", "blues", "inferno", "viridis", "rdbu_r"]
+ORDER = ["rdylgn", "blues", "inferno", "viridis", "rdbu_r", "rdbu"]
 OUT = SIDECAR.parent / "frontend" / "src" / "lib" / "palettes.ts"
 
 

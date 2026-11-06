@@ -2,11 +2,13 @@
 import { useCallback, useMemo, useState } from "react"
 
 import { useAuth } from "@/lib/auth"
-import { resolveCompositionMeta } from "@/lib/compositeCatalog"
+import { kindDef, resolveCompositionMeta } from "@/lib/compositeCatalog"
+import { compositionLegendOf } from "@/lib/compositionLegend"
 import { geometryBounds } from "@/lib/geometry"
 import { notifyError, notifyInfo, notifySuccess } from "@/lib/notify"
 import { scopeCompositionsToView } from "@/lib/projectOverlays"
 import type {
+  BiophysicalVariable,
   CompositeIndex,
   CompositeKind,
   CompositeRequest,
@@ -44,6 +46,18 @@ export interface CompositionProps {
   composeStretchLow: number
   composeStretchHigh: number
   composeOpacity: number
+  /** Drawn from the period's cloud-free median rather than from one scene. */
+  composeMedian: boolean
+  /** The earlier scene of a change; selectedSceneId is the later. */
+  composeSceneBefore: string
+  composeClusters: number
+  composeVariable: BiophysicalVariable
+  composeYear: number
+  onComposeMedianChange: (v: boolean) => void
+  onSelectSceneBefore: (id: string) => void
+  onComposeClustersChange: (k: number) => void
+  onComposeVariableChange: (v: BiophysicalVariable) => void
+  onComposeYearChange: (y: number) => void
   onShowCompositionOverlayChange: (v: boolean) => void
   onSelectScene: (id: string) => void
   onComposeKindChange: (k: CompositeKind) => void
@@ -126,6 +140,11 @@ export function useComposition({
   const [composeStretchLow, setComposeStretchLow] = useState(2)
   const [composeStretchHigh, setComposeStretchHigh] = useState(98)
   const [composeOpacity, setComposeOpacity] = useState(0.85)
+  const [composeMedian, setComposeMedian] = useState(false)
+  const [composeSceneBefore, setComposeSceneBefore] = useState("")
+  const [composeClusters, setComposeClusters] = useState(5)
+  const [composeVariable, setComposeVariable] = useState<BiophysicalVariable>("lai")
+  const [composeYear, setComposeYear] = useState(2022)
 
   const handleListComposeScenes = async () => {
     if (!start || !end) {
@@ -164,11 +183,20 @@ export function useComposition({
   }
 
   const handleApplyComposition = async () => {
-    if (!selectedSceneId) {
+    // A biomass map reads the area alone; a view of the median needs the period
+    // and no scene; a change needs two scenes. internal/analysis compositeAction
+    // asks the same, and this answers first without starting a process.
+    const biomass = composeKind === "biomass"
+    const fromMedian = kindDef(composeKind).median && composeMedian
+    if (!biomass && !fromMedian && !selectedSceneId) {
       notifyError("Select a scene first.")
       return
     }
-    if (!start || !end) {
+    if (composeKind === "change" && !composeSceneBefore) {
+      notifyError("Select the earlier scene of the change.")
+      return
+    }
+    if (!biomass && (!start || !end)) {
       notifyError("Set the acquisition period.")
       return
     }
@@ -183,11 +211,17 @@ export function useComposition({
       max_cloud: maxCloud,
       monthly_best: monthlyBest,
       tiles: [],
-      scene_id: selectedSceneId,
+      scene_id: biomass || fromMedian ? "" : selectedSceneId,
       kind: composeKind,
       bands: composeKind === "rgb" ? [...composeBands] : undefined,
-      index: composeKind === "index" ? composeIndex : undefined,
+      index:
+        composeKind === "index" || composeKind === "change" ? composeIndex : undefined,
       stretch_pct: [composeStretchLow, composeStretchHigh],
+      median: fromMedian || undefined,
+      scene_id_before: composeKind === "change" ? composeSceneBefore : undefined,
+      clusters: composeKind === "clusters" ? composeClusters : undefined,
+      variable: composeKind === "biophysical" ? composeVariable : undefined,
+      year: biomass ? composeYear : undefined,
     }
     setComposeRunning(true)
     setComposeProgress(5)
@@ -200,9 +234,21 @@ export function useComposition({
         kind: composeKind,
         bands: composeBands,
         index: composeIndex,
+        variable: composeVariable,
+        clusters: composeClusters,
       })
+      const legend = compositionLegendOf(res.meta)
+      // What the sidecar says it drew from: a scene's date, "median of 7 clear
+      // scenes, ...", two dates for a change, or a year for biomass.
+      const drawnFrom = typeof res.meta?.date === "string" ? res.meta.date : undefined
       const sceneDate =
-        composeScenes.find((s) => s.id === selectedSceneId)?.date ?? undefined
+        drawnFrom ??
+        composeScenes.find((s) => s.id === selectedSceneId)?.date ??
+        undefined
+      const variable = composeKind === "biophysical" ? composeVariable : undefined
+      const clusters = composeKind === "clusters" ? composeClusters : undefined
+      const year = biomass ? composeYear : undefined
+      const median = fromMedian || undefined
       const entry: CompositionOverlay = {
         id:
           typeof crypto !== "undefined" && "randomUUID" in crypto
@@ -219,6 +265,11 @@ export function useComposition({
         index: meta.index,
         presetId: meta.presetId,
         sceneDate,
+        legend,
+        variable,
+        clusters,
+        year,
+        median,
         raster_tif: res.raster_tif,
         /*
           Both, as the saved row carries them. The entry in hand used to carry
@@ -242,6 +293,11 @@ export function useComposition({
             index: meta.index,
             presetId: meta.presetId,
             sceneDate,
+            legend,
+            variable,
+            clusters,
+            year,
+            median,
             opacity: composeOpacity,
             extent: res.extent,
             label: meta.label,
@@ -331,6 +387,16 @@ export function useComposition({
     composeStretchLow,
     composeStretchHigh,
     composeOpacity,
+    composeMedian,
+    composeSceneBefore,
+    composeClusters,
+    composeVariable,
+    composeYear,
+    onComposeMedianChange: setComposeMedian,
+    onSelectSceneBefore: setComposeSceneBefore,
+    onComposeClustersChange: setComposeClusters,
+    onComposeVariableChange: setComposeVariable,
+    onComposeYearChange: setComposeYear,
     onShowCompositionOverlayChange: setShowCompositionOverlay,
     onSelectScene: setSelectedSceneId,
     onComposeKindChange: setComposeKind,
