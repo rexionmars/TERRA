@@ -748,7 +748,30 @@ export interface DataCubeResult {
   max_cloud: number
 }
 
-export type CompositeKind = "rgb" | "index"
+/** What a composition draws; composite.py's KINDS, and biomass_map for the last. */
+export type CompositeKind =
+  "rgb" | "index" | "pca" | "clusters" | "change" | "biophysical" | "biomass"
+
+/** The SL2P variables a canopy view estimates (sidecar terra/scenes/sl2p.py). */
+export type BiophysicalVariable = "lai" | "fapar" | "fcover" | "ccc" | "cwc"
+
+/**
+ * A legend the sidecar computed with the raster it drew, as it sends it.
+ *
+ * For the kinds whose scale is set when they are drawn -- a change, a canopy
+ * variable, a biomass map, the components and the clusters -- the numbers come
+ * from the sidecar and nowhere else. The palette is a CONTINUOUS_STOPS name.
+ */
+export interface CompositionLegend {
+  kind: "stats" | "classes" | "note"
+  subject: string
+  palette?: string
+  low?: string
+  high?: string
+  rows?: { label: string; value: string }[]
+  entries?: { name: string; color: string; pct?: number; area_ha?: number }[]
+  note?: string
+}
 /** The names composite.py's COMPOSITE_INDICES draws; compositeCatalog.ts describes each. */
 export type CompositeIndex =
   | "ndvi"
@@ -763,6 +786,8 @@ export type CompositeIndex =
   | "ndmi"
   | "msi"
   | "nbr"
+  | "ndci"
+  | "ndti"
 
 export interface CompositeRequest {
   polygon_geojson: GeoJSONGeometry | null
@@ -776,6 +801,13 @@ export interface CompositeRequest {
   bands?: string[]
   index?: CompositeIndex
   stretch_pct?: number[]
+  /** Drawn from the period's cloud-free median rather than from scene_id. */
+  median?: boolean
+  /** The earlier scene of a change; scene_id is the later. */
+  scene_id_before?: string
+  clusters?: number
+  variable?: BiophysicalVariable
+  year?: number
 }
 
 export interface CompositeResult {
@@ -800,8 +832,17 @@ export interface CompositionOverlay {
   bands?: [string, string, string]
   index?: CompositeIndex
   presetId?: string
-  /** Scene acquisition date captured at apply time. */
+  /**
+   * Scene acquisition date captured at apply time; for a view of the period
+   * median, a change or a biomass map, what the sidecar says it was drawn from.
+   */
   sceneDate?: string
+  /** The legend the sidecar computed, for the kinds whose scale it sets. */
+  legend?: CompositionLegend
+  variable?: BiophysicalVariable
+  clusters?: number
+  year?: number
+  median?: boolean
   /** Local GeoTIFF path for export (when available). */
   raster_tif?: string
   /** The run this was made under; empty for a project-level composition. */

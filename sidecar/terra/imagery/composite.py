@@ -135,6 +135,11 @@ class CompositeIndex:
     bands: tuple[str, ...]
     formula: Callable[..., np.ndarray]
     ramp: str
+    # Drawn only over open water, where MNDWI (Xu 2006) is above zero. An index
+    # of a water property read over land is a number about nothing, and a
+    # percentile stretch over an area that is mostly land would spend the whole
+    # ramp on the land and leave the water one colour.
+    water_only: bool = False
 
 
 def _lerp_cmap(t: np.ndarray, stops: list[tuple[float, float, float]]) -> np.ndarray:
@@ -247,6 +252,10 @@ _RDBU_R = [
     (0.4039, 0.0000, 0.1216),
 ]
 
+# The same diverging ramp the other way round, for a change between two dates:
+# a fall is red and a rise blue, which is how a loss of canopy is read.
+_RDBU = list(reversed(_RDBU_R))
+
 # Named ramps, so a response can say which one drew its raster and the client can
 # build the matching legend instead of keeping its own transcription.
 CONTINUOUS_STOPS = {
@@ -255,7 +264,22 @@ CONTINUOUS_STOPS = {
     "inferno": _INFERNO,
     "viridis": _VIRIDIS,
     "rdbu_r": _RDBU_R,
+    "rdbu": _RDBU,
 }
+
+# Colours for groups that have no order, such as clusters. The first seven of
+# Okabe and Ito (2008), "Color Universal Design", chosen to stay apart under the
+# common colour-vision deficiencies; their eighth, black, is left out because
+# over dark imagery it reads as no data.
+CATEGORICAL = (
+    "#e69f00",
+    "#56b4e9",
+    "#009e73",
+    "#f0e442",
+    "#0072b2",
+    "#d55e00",
+    "#cc79a7",
+)
 
 # The indices a composition can draw, keyed by the name a request sends.
 #
@@ -291,6 +315,12 @@ COMPOSITE_INDICES: dict[str, CompositeIndex] = {
     "msi": CompositeIndex(("B11", "B08"), band_ratio, "inferno"),
     # Key and Benson (2006), FIREMON, USDA Forest Service RMRS-GTR-164-CD, LA-1-55.
     "nbr": CompositeIndex(("B08", "B12"), normalized_difference, "rdylgn"),
+    # Mishra and Mishra (2012), Remote Sensing of Environment 117, 394-406:
+    # (R708 - R665) / (R708 + R665), a proxy for chlorophyll-a in turbid water.
+    "ndci": CompositeIndex(("B05", "B04"), normalized_difference, "viridis", water_only=True),
+    # Lacaux et al. (2007), Remote Sensing of Environment 106, 66-74: red against
+    # green, which rises with suspended sediment.
+    "ndti": CompositeIndex(("B04", "B03"), normalized_difference, "viridis", water_only=True),
 }
 
 ALLOWED_INDICES = tuple(COMPOSITE_INDICES)
@@ -313,6 +343,35 @@ def index_to_rgba(
     rgba[..., 1] = (rgb[..., 1] * 255).astype(np.uint8)
     rgba[..., 2] = (rgb[..., 2] * 255).astype(np.uint8)
     rgba[..., 3] = np.where(mask, 255, 0).astype(np.uint8)
+    return rgba
+
+
+def scaled_to_rgba(t: np.ndarray, mask: np.ndarray, ramp: str) -> np.ndarray:
+    """
+    Values already scaled to [0, 1], drawn on a named ramp, as RGBA uint8.
+
+    For a quantity drawn against a scale fixed beforehand (a range in physical
+    units, or a change centred on zero), where a percentile stretch would make
+    the same colour mean a different value in every raster.
+    """
+    rgb = _lerp_cmap(np.where(mask, t, 0.0).astype(np.float32), CONTINUOUS_STOPS[ramp])
+    h, w = t.shape
+    rgba = np.zeros((h, w, 4), dtype=np.uint8)
+    rgba[..., :3] = (rgb * 255).astype(np.uint8)
+    rgba[..., 3] = np.where(mask, 255, 0).astype(np.uint8)
+    return rgba
+
+
+def classes_to_rgba(labels: np.ndarray, mask: np.ndarray, colors: tuple[str, ...]) -> np.ndarray:
+    """Class labels 0..n-1 drawn in `colors` (hex), transparent outside `mask`."""
+    table = np.array(
+        [[int(c[i : i + 2], 16) for i in (1, 3, 5)] for c in colors], dtype=np.uint8
+    )
+    h, w = labels.shape
+    rgba = np.zeros((h, w, 4), dtype=np.uint8)
+    inside = mask & (labels >= 0) & (labels < len(colors))
+    rgba[inside, :3] = table[labels[inside]]
+    rgba[..., 3] = np.where(inside, 255, 0).astype(np.uint8)
     return rgba
 
 
@@ -375,6 +434,32 @@ def write_rgba_geotiff(rgba: np.ndarray, ref_profile: dict, out_path) -> None:
     with rasterio.open(out_path, "w", **profile) as dst:
         for i in range(4):
             dst.write(rgba[:, :, i], i + 1)
+
+
+def write_float_geotiff(values: np.ndarray, ref_profile: dict, out_path) -> None:
+    """
+    One float32 band of values, NaN as no data, on the reference grid.
+
+    For a composition whose colours stand for a quantity -- a change, a canopy
+    variable, a biomass -- the export is the quantity, which a reader can
+    measure, rather than the colours, which they cannot.
+    """
+    import rasterio
+
+    h, w = values.shape
+    profile = {
+        "driver": "GTiff",
+        "height": h,
+        "width": w,
+        "count": 1,
+        "dtype": "float32",
+        "crs": ref_profile.get("crs"),
+        "transform": ref_profile["transform"],
+        "compress": "lzw",
+        "nodata": float("nan"),
+    }
+    with rasterio.open(out_path, "w", **profile) as dst:
+        dst.write(values.astype(np.float32), 1)
 
 
 def extent_from_profile(profile: dict) -> dict:

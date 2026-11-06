@@ -1,5 +1,5 @@
 import type { PaletteName } from "@/lib/palettes"
-import type { CompositeIndex, CompositeKind } from "@/lib/types"
+import type { BiophysicalVariable, CompositeIndex, CompositeKind } from "@/lib/types"
 
 export type RgbChannelHints = {
   /** Short meaning for what the R/G/B mapping emphasizes on the map. */
@@ -18,7 +18,7 @@ export type IndexDef = {
   id: CompositeIndex
   label: string
   /** What the index is read for, the heading it is listed under. */
-  group: "Vegetation" | "Water and moisture" | "Fire"
+  group: "Vegetation" | "Water and moisture" | "Water quality" | "Fire"
   description: string
   /** The formula over Sentinel-2 bands, as composite.py computes it. */
   formula: string
@@ -26,7 +26,7 @@ export type IndexDef = {
    * The ramp that drew the raster, named as COMPOSITE_INDICES in composite.py
    * names it. sidecar/tests/test_composite_catalog_sync.py compares the two.
    */
-  cmap: Extract<PaletteName, "rdylgn" | "blues" | "inferno">
+  cmap: Extract<PaletteName, "rdylgn" | "blues" | "inferno" | "viridis">
   lowLabel: string
   highLabel: string
 }
@@ -235,6 +235,28 @@ export const INDICES: IndexDef[] = [
     highLabel: "Drier canopy",
   },
   {
+    id: "ndci",
+    label: "NDCI",
+    group: "Water quality",
+    description:
+      "Normalized Difference Chlorophyll Index. Rises with chlorophyll-a in turbid water. Read over open water only, where MNDWI is above zero; not calibrated to a concentration.",
+    formula: "(B05 - B04) / (B05 + B04)",
+    cmap: "viridis",
+    lowLabel: "Less chlorophyll",
+    highLabel: "More chlorophyll",
+  },
+  {
+    id: "ndti",
+    label: "NDTI",
+    group: "Water quality",
+    description:
+      "Normalized Difference Turbidity Index. Rises with suspended sediment. Read over open water only, where MNDWI is above zero; not calibrated to a concentration.",
+    formula: "(B04 - B03) / (B04 + B03)",
+    cmap: "viridis",
+    lowLabel: "Clearer",
+    highLabel: "More turbid",
+  },
+  {
     id: "nbr",
     label: "NBR",
     group: "Fire",
@@ -245,6 +267,129 @@ export const INDICES: IndexDef[] = [
     lowLabel: "Burned / bare",
     highLabel: "Vegetated",
   },
+]
+
+/** What each kind of composition is, and the limit on reading it. */
+export interface KindDef {
+  id: CompositeKind
+  label: string
+  description: string
+  limit: string
+  /** Whether it can be drawn from the period's cloud-free median. */
+  median: boolean
+  /** Whether the percentile stretch applies to it. */
+  stretch: boolean
+}
+
+export const KINDS: readonly KindDef[] = [
+  {
+    id: "rgb",
+    label: "RGB",
+    description: "Three bands in the red, green and blue channels.",
+    limit: "A way of looking at one acquisition. It measures nothing over the period.",
+    median: true,
+    stretch: true,
+  },
+  {
+    id: "index",
+    label: "Index",
+    description: "A spectral index, stretched to the scene's own percentiles.",
+    limit:
+      "A way of looking at one acquisition. Each raster is stretched to its own percentiles, so one colour in two rasters is not one value.",
+    median: true,
+    stretch: true,
+  },
+  {
+    id: "pca",
+    label: "Components",
+    description:
+      "The first three principal components of the ten bands, as red, green and blue.",
+    limit:
+      "Components are directions of variance in this scene alone. Their colours mean nothing outside it.",
+    median: true,
+    stretch: true,
+  },
+  {
+    id: "clusters",
+    label: "Clusters",
+    description: "Groups of cells whose ten bands are alike, by k-means.",
+    limit:
+      "Groups of similar reflectance, not classes. Their numbers change from scene to scene, and a field can split or join with its neighbour.",
+    median: true,
+    stretch: false,
+  },
+  {
+    id: "change",
+    label: "Change",
+    description:
+      "An index on a later scene minus the same index on an earlier one, centred on no change.",
+    limit:
+      "Where the index moved, not why. A harvest, a later sowing, haze, or cloud in either scene all move it: neither scene is cloud-masked.",
+    median: false,
+    stretch: false,
+  },
+  {
+    id: "biophysical",
+    label: "Canopy",
+    description:
+      "A canopy variable estimated by ESA's SL2P network from eight bands and the scene's angles.",
+    limit:
+      "Estimated by a network trained on simulated canopies, not validated against field measurements here. A value outside the network's domain is drawn and counted, and cloud is not masked.",
+    median: false,
+    stretch: false,
+  },
+  {
+    id: "biomass",
+    label: "Biomass",
+    description:
+      "Above-ground biomass from ESA CCI Biomass 6.0, estimated from radar backscatter at 100 m.",
+    limit:
+      "Made for forest. Over crops and pasture the figure is not a measurement of them, and a field narrower than a few hundred metres is not resolved.",
+    median: false,
+    stretch: false,
+  },
+]
+
+export function kindDef(id: CompositeKind): KindDef {
+  return KINDS.find((k) => k.id === id) ?? KINDS[0]
+}
+
+/** The SL2P variables, in sidecar terra/scenes/views.py's units. */
+export const BIOPHYSICAL_VARIABLES: readonly {
+  id: BiophysicalVariable
+  label: string
+  description: string
+}[] = [
+  {
+    id: "lai",
+    label: "Leaf area index",
+    description: "Leaf area per area of ground, m²/m².",
+  },
+  {
+    id: "fapar",
+    label: "Fraction of absorbed PAR",
+    description: "Share of photosynthetically active radiation the canopy absorbs.",
+  },
+  {
+    id: "fcover",
+    label: "Fraction of green cover",
+    description: "Share of the ground covered by green vegetation, seen from above.",
+  },
+  {
+    id: "ccc",
+    label: "Canopy chlorophyll content",
+    description: "Leaf chlorophyll times leaf area index, g/m² of ground.",
+  },
+  {
+    id: "cwc",
+    label: "Canopy water content",
+    description: "Leaf water times leaf area index, kg/m² of ground.",
+  },
+]
+
+/** The years ESA CCI Biomass 6.0 maps (sidecar terra/biomass/cci.py YEARS), newest first. */
+export const BIOMASS_YEARS: readonly number[] = [
+  2022, 2021, 2020, 2019, 2018, 2017, 2016, 2015, 2010, 2007,
 ]
 
 /** The headings of the index list, in the order INDICES first reaches each. */
@@ -273,6 +418,8 @@ export function resolveCompositionMeta(input: {
   kind: CompositeKind
   bands: [string, string, string]
   index: CompositeIndex
+  variable?: BiophysicalVariable
+  clusters?: number
 }): {
   title: string
   label: string
@@ -284,6 +431,37 @@ export function resolveCompositionMeta(input: {
   rgbHints?: RgbChannelHints
   indexDef?: IndexDef
 } {
+  if (input.kind === "change") {
+    const def = findIndexDef(input.index)
+    return {
+      kind: "change",
+      index: input.index,
+      title: `Change in ${def.label}`,
+      label: `Change in ${def.label}`,
+      description: kindDef("change").description,
+    }
+  }
+  if (input.kind === "biophysical") {
+    const v =
+      BIOPHYSICAL_VARIABLES.find((x) => x.id === input.variable) ??
+      BIOPHYSICAL_VARIABLES[0]
+    return {
+      kind: "biophysical",
+      title: v.label,
+      label: v.label,
+      description: v.description,
+    }
+  }
+  if (input.kind === "pca" || input.kind === "clusters" || input.kind === "biomass") {
+    const def = kindDef(input.kind)
+    const title =
+      input.kind === "pca"
+        ? "Principal components"
+        : input.kind === "clusters"
+          ? `${input.clusters ?? 5} clusters`
+          : "Above-ground biomass"
+    return { kind: input.kind, title, label: title, description: def.description }
+  }
   if (input.kind === "index") {
     const def = findIndexDef(input.index)
     return {

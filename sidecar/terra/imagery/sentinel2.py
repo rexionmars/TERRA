@@ -165,6 +165,13 @@ def list_stac_products(polygon, start, end, tile_list=None, max_cloud=100.0,
                 if 'rendered_preview' in item.assets
                 else ''
             ),
+            # The tile's metadata, which holds the sun and viewing angle grids
+            # that a canopy model needs and the band assets do not carry.
+            'granule_metadata': (
+                item.assets['granule-metadata'].href
+                if 'granule-metadata' in item.assets
+                else ''
+            ),
         }
 
     result = sorted(products.values(), key=lambda x: x['date'])

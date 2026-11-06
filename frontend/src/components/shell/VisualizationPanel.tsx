@@ -1,17 +1,24 @@
 import { CircleNotch, Eye, Trash } from "@/components/icons"
+import { LegendBody } from "@/components/globe/OverlayCallout"
 import { btnGhost, btnPrimaryCommit } from "@/components/ui/buttons"
 import {
+  BIOMASS_YEARS,
+  BIOPHYSICAL_VARIABLES,
   INDEX_GROUPS,
   INDICES,
+  KINDS,
   RGB_PRESETS,
   S2_BANDS,
   bandName,
   findRgbPreset,
+  kindDef,
 } from "@/lib/compositeCatalog"
+import { layerLegendOfComposition } from "@/lib/compositionLegend"
 import { compositionTitle } from "@/lib/mapLayers"
 import { PRODUCT_NOTES } from "@/lib/productNotes"
 import { exportPng, exportTif, type RunAsset } from "@/lib/runAssets"
 import type {
+  BiophysicalVariable,
   CompositeIndex,
   CompositeKind,
   CompositionOverlay,
@@ -37,12 +44,65 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
 const clamp = (v: number, lo: number, hi: number) =>
   Math.min(hi, Math.max(lo, Number.isFinite(v) ? v : lo))
 
+/** The most groups a clustering forms: the categorical colours there are. */
+const MAX_CLUSTERS = 7
+
+function SceneSelect({
+  label,
+  scenes,
+  value,
+  onChange,
+}: {
+  label: string
+  scenes: readonly DataCubeScene[]
+  value: string
+  onChange: (id: string) => void
+}) {
+  return (
+    <select
+      aria-label={label}
+      className="field-input min-w-0 flex-1"
+      value={value}
+      onChange={(e) => onChange(e.target.value)}
+    >
+      {!value && <option value="">Choose a scene</option>}
+      {scenes.map((s) => (
+        <option key={s.id} value={s.id}>
+          {s.date} · {Math.round(s.cloud_cover)} % cloud
+        </option>
+      ))}
+    </select>
+  )
+}
+
 /**
- * One scene as a band composite or a spectral index.
+ * What a reader must hold when two compositions are set side by side.
+ *
+ * A colour means one value on both sides only where both are drawn on one fixed
+ * scale: a canopy variable of one kind. Everything else sets its scale per
+ * raster, and clusters number their groups per scene.
+ */
+function compareNote(a: CompositionOverlay, b: CompositionOverlay): string {
+  if (
+    a.kind === "biophysical" &&
+    b.kind === "biophysical" &&
+    a.variable === b.variable
+  ) {
+    return "Both are drawn on one fixed scale, so one colour on the two sides is one value."
+  }
+  if (a.kind === "clusters" || b.kind === "clusters") {
+    return "Cluster numbers are not shared between two scenes: read the groups, not their colours."
+  }
+  return "Each is scaled on its own, so one colour on the two sides is not one value. Read each against its own legend."
+}
+
+/**
+ * Ways of looking at the area: one scene, two, the period's cloud-free median,
+ * or a published biomass map.
  *
  * A panel of its own rather than a product in the list. It answers a different
- * request from the others: a way of looking at an acquisition, which measures
- * nothing over the period and leaves no run behind.
+ * request from the others: a way of looking, which leaves no run behind, and
+ * each kind states its limit under it.
  */
 export function VisualizationPanel({
   hasArea,
@@ -53,13 +113,23 @@ export function VisualizationPanel({
   scenesError,
   selectedSceneId,
   onSelectScene,
+  sceneBefore,
+  onSelectSceneBefore,
   onListScenes,
   kind,
   onKindChange,
+  median,
+  onMedianChange,
   bands,
   onBandsChange,
   index,
   onIndexChange,
+  clusters,
+  onClustersChange,
+  variable,
+  onVariableChange,
+  year,
+  onYearChange,
   stretchLow,
   stretchHigh,
   onStretchChange,
@@ -85,13 +155,25 @@ export function VisualizationPanel({
   scenesError: string | null
   selectedSceneId: string
   onSelectScene: (id: string) => void
+  /** The earlier scene of a change; selectedSceneId is the later. */
+  sceneBefore: string
+  onSelectSceneBefore: (id: string) => void
   onListScenes: () => void
   kind: CompositeKind
   onKindChange: (k: CompositeKind) => void
+  /** Drawn from the period's cloud-free median, where the kind allows it. */
+  median: boolean
+  onMedianChange: (v: boolean) => void
   bands: [string, string, string]
   onBandsChange: (b: [string, string, string]) => void
   index: CompositeIndex
   onIndexChange: (i: CompositeIndex) => void
+  clusters: number
+  onClustersChange: (k: number) => void
+  variable: BiophysicalVariable
+  onVariableChange: (v: BiophysicalVariable) => void
+  year: number
+  onYearChange: (y: number) => void
   stretchLow: number
   stretchHigh: number
   onStretchChange: (low: number, high: number) => void
@@ -110,16 +192,33 @@ export function VisualizationPanel({
   onClearAll: () => void
   onClose: () => void
 }) {
+  const def = kindDef(kind)
+  const fromMedian = def.median && median
+  const needsScene = kind !== "biomass" && !fromMedian
   const preset = findRgbPreset(bands)
   const indexDef = INDICES.find((i) => i.id === index)
+  const variableDef = BIOPHYSICAL_VARIABLES.find((v) => v.id === variable)
   const beneath = gallery.find((c) => c.id === beneathId) ?? null
   const canList = hasArea && !!start && !!end
   // Why the button is off, since a greyed button leaves that to be worked out.
   const blocked = !hasArea
     ? "Draw an area on the map, or choose one under Areas."
-    : !selectedSceneId
-      ? "List the scenes of the period and choose one."
-      : null
+    : kind === "biomass"
+      ? null
+      : !start || !end
+        ? "Set both dates of the period, under Products."
+        : !needsScene
+          ? null
+          : !selectedSceneId
+            ? "List the scenes of the period and choose one."
+            : kind === "change" && !sceneBefore
+              ? "Choose the earlier scene of the change."
+              : kind === "change" && sceneBefore === selectedSceneId
+                ? "Choose two different scenes."
+                : null
+  const reading = composition?.legend
+    ? layerLegendOfComposition(composition.legend)
+    : null
   return (
     <ShellPanel
       crumbs={[{ label: "Visualization" }]}
@@ -163,59 +262,106 @@ export function VisualizationPanel({
         <p className="text-read text-muted-foreground">{PRODUCT_NOTES.compose.hint}</p>
 
         <section className="flex flex-col gap-2">
-          <PanelHeading>Scene</PanelHeading>
-          <div className="flex gap-2">
-            <button
-              type="button"
-              disabled={!canList || scenesLoading}
-              onClick={onListScenes}
-              title={
-                !canList
-                  ? "Needs an area and both dates of the period, under Products."
-                  : undefined
-              }
-              className={cn(btnGhost, "shrink-0")}
-            >
-              {scenesLoading && <CircleNotch className="size-3.5 animate-spin" />}
-              {scenes.length ? "Refresh scenes" : "List scenes"}
-            </button>
-            {scenes.length > 0 && (
-              <select
-                aria-label="Scene"
-                className="field-input min-w-0 flex-1"
-                value={selectedSceneId}
-                onChange={(e) => onSelectScene(e.target.value)}
-              >
-                {scenes.map((s) => (
-                  <option key={s.id} value={s.id}>
-                    {s.date} · {Math.round(s.cloud_cover)} % cloud
-                  </option>
-                ))}
-              </select>
-            )}
-          </div>
-          {start && end && (
-            <p className="text-label text-muted-foreground">
-              Period {start} to {end}
-            </p>
-          )}
-          {scenesError && (
-            <p className="text-label text-destructive-quiet">{scenesError}</p>
-          )}
-        </section>
-
-        <section className="flex flex-col gap-2">
-          <PanelHeading>Composite</PanelHeading>
+          <PanelHeading>View</PanelHeading>
           <PanelChoices
-            label="Composite kind"
+            label="Kind of view"
             value={kind}
-            options={[
-              { id: "rgb", label: "RGB" },
-              { id: "index", label: "Index" },
-            ]}
+            options={KINDS.map((k) => ({ id: k.id, label: k.label }))}
             onChange={onKindChange}
           />
-          {kind === "rgb" ? (
+          <p className="text-label text-muted-foreground">{def.description}</p>
+        </section>
+
+        {kind !== "biomass" && (
+          <section className="flex flex-col gap-2">
+            <PanelHeading>{kind === "change" ? "Scenes" : "Scene"}</PanelHeading>
+            {/*
+              THE MEDIAN IS A SOURCE, NOT A KIND. Any view that reads one scene's
+              bands as a picture can read the period's cloud-free median instead;
+              a change is two scenes and a canopy model needs one scene's angles,
+              so those two do not offer it.
+            */}
+            {def.median && (
+              <PanelChoices
+                label="Drawn from"
+                value={median ? "median" : "scene"}
+                options={[
+                  { id: "scene", label: "One scene" },
+                  { id: "median", label: "Period median" },
+                ]}
+                onChange={(v) => onMedianChange(v === "median")}
+              />
+            )}
+            {fromMedian ? (
+              <p className="text-label text-muted-foreground">
+                Each cell is the median of its clear observations over the period, from
+                up to 12 of the least cloudy acquisitions. Cells differ in how many
+                observations they rest on, and in which dates. Over a period with a
+                rainy season the clearest dates fall in the dry one, so the median is of
+                the dry season: the dates it used are given with it.
+              </p>
+            ) : (
+              <>
+                <div className="flex gap-2">
+                  <button
+                    type="button"
+                    disabled={!canList || scenesLoading}
+                    onClick={onListScenes}
+                    title={
+                      !canList
+                        ? "Needs an area and both dates of the period, under Products."
+                        : undefined
+                    }
+                    className={cn(btnGhost, "shrink-0")}
+                  >
+                    {scenesLoading && <CircleNotch className="size-3.5 animate-spin" />}
+                    {scenes.length ? "Refresh scenes" : "List scenes"}
+                  </button>
+                  {scenes.length > 0 && kind !== "change" && (
+                    <SceneSelect
+                      label="Scene"
+                      scenes={scenes}
+                      value={selectedSceneId}
+                      onChange={onSelectScene}
+                    />
+                  )}
+                </div>
+                {scenes.length > 0 && kind === "change" && (
+                  <div className="flex gap-2">
+                    <Field label="Before">
+                      <SceneSelect
+                        label="Earlier scene"
+                        scenes={scenes}
+                        value={sceneBefore}
+                        onChange={onSelectSceneBefore}
+                      />
+                    </Field>
+                    <Field label="After">
+                      <SceneSelect
+                        label="Later scene"
+                        scenes={scenes}
+                        value={selectedSceneId}
+                        onChange={onSelectScene}
+                      />
+                    </Field>
+                  </div>
+                )}
+              </>
+            )}
+            {start && end && (
+              <p className="text-label text-muted-foreground">
+                Period {start} to {end}
+              </p>
+            )}
+            {scenesError && (
+              <p className="text-label text-destructive-quiet">{scenesError}</p>
+            )}
+          </section>
+        )}
+
+        <section className="flex flex-col gap-2">
+          <PanelHeading>{def.label}</PanelHeading>
+          {kind === "rgb" && (
             <>
               <select
                 aria-label="Band combination"
@@ -267,7 +413,8 @@ export function VisualizationPanel({
                   : bands.map((b, at) => `${"RGB"[at]} ${bandName(b)}`).join(" · ")}
               </p>
             </>
-          ) : (
+          )}
+          {(kind === "index" || kind === "change") && (
             <>
               <select
                 aria-label="Spectral index"
@@ -291,39 +438,117 @@ export function VisualizationPanel({
                     {indexDef.description}
                   </p>
                   <p className="telemetry text-label text-muted-foreground">
-                    {indexDef.formula}
+                    {kind === "change"
+                      ? `after - before, of ${indexDef.formula}`
+                      : indexDef.formula}
                   </p>
                 </>
               )}
             </>
           )}
-          <div className="flex gap-2">
-            <Field label="Stretch low (%)">
+          {kind === "clusters" && (
+            <Field label="Groups">
               <input
                 type="number"
-                min={0}
-                max={49}
+                min={2}
+                max={MAX_CLUSTERS}
                 className="field-input"
-                value={stretchLow}
+                value={clusters}
                 onChange={(e) =>
-                  onStretchChange(clamp(e.target.valueAsNumber, 0, 49), stretchHigh)
+                  onClustersChange(
+                    Math.round(clamp(e.target.valueAsNumber, 2, MAX_CLUSTERS))
+                  )
                 }
               />
             </Field>
-            <Field label="Stretch high (%)">
-              <input
-                type="number"
-                min={51}
-                max={100}
+          )}
+          {kind === "biophysical" && (
+            <>
+              <select
+                aria-label="Canopy variable"
                 className="field-input"
-                value={stretchHigh}
+                value={variable}
                 onChange={(e) =>
-                  onStretchChange(stretchLow, clamp(e.target.valueAsNumber, 51, 100))
+                  onVariableChange(e.target.value as BiophysicalVariable)
                 }
-              />
+              >
+                {BIOPHYSICAL_VARIABLES.map((v) => (
+                  <option key={v.id} value={v.id}>
+                    {v.label}
+                  </option>
+                ))}
+              </select>
+              {variableDef && (
+                <p className="text-label text-muted-foreground">
+                  {variableDef.description}
+                </p>
+              )}
+            </>
+          )}
+          {kind === "biomass" && (
+            <Field label="Year">
+              <select
+                aria-label="Year of the biomass map"
+                className="field-input"
+                value={year}
+                onChange={(e) => onYearChange(Number(e.target.value))}
+              >
+                {BIOMASS_YEARS.map((y) => (
+                  <option key={y} value={y}>
+                    {y}
+                  </option>
+                ))}
+              </select>
             </Field>
-          </div>
+          )}
+          {def.stretch && (
+            <div className="flex gap-2">
+              <Field label="Stretch low (%)">
+                <input
+                  type="number"
+                  min={0}
+                  max={49}
+                  className="field-input"
+                  value={stretchLow}
+                  onChange={(e) =>
+                    onStretchChange(clamp(e.target.valueAsNumber, 0, 49), stretchHigh)
+                  }
+                />
+              </Field>
+              <Field label="Stretch high (%)">
+                <input
+                  type="number"
+                  min={51}
+                  max={100}
+                  className="field-input"
+                  value={stretchHigh}
+                  onChange={(e) =>
+                    onStretchChange(stretchLow, clamp(e.target.valueAsNumber, 51, 100))
+                  }
+                />
+              </Field>
+            </div>
+          )}
         </section>
+
+        {/*
+          THE FIGURES OF WHAT IS ON THE MAP, where the sidecar computed them: the
+          mean, the share a model could not answer, the clusters' areas. The map
+          ties the same legend to the raster; here it is read in full.
+        */}
+        {composition && reading && (
+          <section className="flex flex-col gap-2">
+            <PanelHeading>On the map</PanelHeading>
+            <p className="text-read text-foreground">{reading.subject}</p>
+            <LegendBody legend={reading} />
+            {/* The caveat the map's card has no room for. */}
+            {composition.legend?.note && (
+              <p className="text-label text-muted-foreground">
+                {composition.legend.note}
+              </p>
+            )}
+          </section>
+        )}
 
         {gallery.length > 0 && (
           <section className="flex flex-col gap-1">
@@ -428,14 +653,14 @@ export function VisualizationPanel({
             {composition && beneath && (
               <p className="mt-1 text-label text-muted-foreground">
                 {compositionTitle(beneath)} is under {compositionTitle(composition)}.
-                Move the curtain on the map to compare them. Each scene is stretched to
-                its own percentiles, so one colour on the two sides is not one value.
+                Move the curtain on the map to compare them.{" "}
+                {compareNote(composition, beneath)}
               </p>
             )}
           </section>
         )}
 
-        <PanelLimit>{PRODUCT_NOTES.compose.limit}</PanelLimit>
+        <PanelLimit>{def.limit}</PanelLimit>
       </div>
     </ShellPanel>
   )

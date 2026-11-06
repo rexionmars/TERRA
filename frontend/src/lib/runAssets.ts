@@ -21,6 +21,7 @@
  * is drawing it. NDVI mean and the true-colour scene are assets and never
  * layers; the classification is both.
  */
+import { kindDef } from "@/lib/compositeCatalog"
 import { ExportClassification, ExportOverlayFile } from "../../wailsjs/go/main/App"
 import { notifyExportFail, notifyExportOk } from "@/lib/notify"
 import type { ClassLegendEntry } from "@/lib/classMask"
@@ -781,7 +782,7 @@ export function runAssets(i: RunAssetInput): RunAsset[] {
     if (!item.runId && !ownArea && item.id !== i.composition?.id) continue
     const title = item.title || item.label || "Composition"
     const bandOrIndex =
-      item.kind === "index" && item.index
+      (item.kind === "index" || item.kind === "change") && item.index
         ? item.index.toUpperCase()
         : item.bands?.join("-")
     out.push({
@@ -801,7 +802,10 @@ export function runAssets(i: RunAssetInput): RunAsset[] {
           ? "RGB composite"
           : item.kind === "index"
             ? "Spectral index"
-            : null,
+            : item.kind
+              ? kindDef(item.kind).label
+              : null,
+        item.median ? "period median" : null,
         `opacity ${Math.round((item.opacity ?? i.composeOpacity) * 100)}%`,
       ]
         .filter(Boolean)

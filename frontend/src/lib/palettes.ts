@@ -9,7 +9,7 @@
 // Values are truncated the same way the renderer truncates, so a legend
 // swatch and its pixel are the same byte.
 
-export type PaletteName = "rdylgn" | "blues" | "inferno" | "viridis" | "rdbu_r"
+export type PaletteName = "rdylgn" | "blues" | "inferno" | "viridis" | "rdbu_r" | "rdbu"
 
 export const PALETTE_STOPS: Record<PaletteName, string[]> = {
   rdylgn: [
@@ -84,6 +84,25 @@ export const PALETTE_STOPS: Record<PaletteName, string[]> = {
     "#b92732",
     "#930e26",
     "#66001f",
+  ],
+  rdbu: [
+    "#66001f",
+    "#930e26",
+    "#b92732",
+    "#d05447",
+    "#e48065",
+    "#f4aa88",
+    "#faccb4",
+    "#fae4d7",
+    "#f7f6f6",
+    "#dfecf2",
+    "#c2ddeb",
+    "#9ac9e0",
+    "#6bacd0",
+    "#3f8dc0",
+    "#2971b1",
+    "#165190",
+    "#042f61",
   ],
 }
 

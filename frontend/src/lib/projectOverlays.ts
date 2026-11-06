@@ -1,4 +1,6 @@
+import { compositionLegendOf } from "@/lib/compositionLegend"
 import type {
+  BiophysicalVariable,
   Bounds,
   CompositionOverlay,
   CompositeIndex,
@@ -16,6 +18,10 @@ type OverlayMeta = {
   opacity?: number
   extent?: CompositionOverlay["extent"]
   label?: string
+  variable?: BiophysicalVariable
+  clusters?: number
+  year?: number
+  median?: boolean
 }
 
 function parseOverlayMeta(raw?: string): OverlayMeta {
@@ -52,6 +58,12 @@ export function projectOverlayToComposition(
     index: meta.index,
     presetId: meta.presetId,
     sceneDate: meta.sceneDate,
+    // Read back through the same checks as a fresh response: the row is JSON too.
+    legend: compositionLegendOf(meta),
+    variable: meta.variable,
+    clusters: meta.clusters,
+    year: meta.year,
+    median: meta.median,
     raster_tif: o.raster_tif,
     runId: o.run_id || undefined,
     areaId: o.area_id || undefined,

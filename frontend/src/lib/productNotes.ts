@@ -41,7 +41,7 @@ export const PRODUCT_NOTES: Record<BoardToolId, ProductNote> = {
     icon: GridFour,
   },
   compose: {
-    hint: "One Sentinel-2 scene as a band composite or a spectral index.",
+    hint: "Ways of looking at the area: one Sentinel-2 scene, two of them, the period's cloud-free median, or a published biomass map.",
     limit: "A way of looking at one acquisition. It measures nothing over the period.",
     tint: "--p-kind-class",
     icon: ImageGlyph,

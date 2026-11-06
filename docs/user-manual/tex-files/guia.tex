@@ -491,15 +491,45 @@ n\~ao distingue.
         canal. Os \'indices s\~ao, para vegeta\c{c}\~ao, \texttt{NDVI},
         \texttt{EVI}, \texttt{SAVI}, \texttt{MSAVI}, \texttt{NDRE},
         \texttt{GCI} e \texttt{PSRI}; para \'agua e umidade, \texttt{NDWI},
-        \texttt{MNDWI}, \texttt{NDMI} e \texttt{MSI}; para fogo,
-        \texttt{NBR}. O painel mostra a f\'ormula do escolhido.
+        \texttt{MNDWI}, \texttt{NDMI} e \texttt{MSI}; para qualidade da
+        \'agua, lidos s\'o sobre \'agua aberta, \texttt{NDCI} e \texttt{NDTI};
+        para fogo, \texttt{NBR}. O painel mostra a f\'ormula do escolhido.
   \item Para comparar duas composi\c{c}\~oes da \'area, pressione
         \texttt{Compare} em uma segunda composi\c{c}\~ao da lista. Ela \'e
         desenhada sob a que est\'a no mapa, e uma cortina divide as duas: a de
-        cima \`a direita da linha, a de baixo \`a esquerda. Cada cena \'e
-        esticada pelos pr\'oprios percentis, ent\~ao uma cor igual dos dois
-        lados n\~ao \'e um valor igual.
+        cima \`a direita da linha, a de baixo \`a esquerda. A menos que as duas
+        sejam a mesma vari\'avel de dossel, cada uma tem a pr\'opria escala,
+        ent\~ao uma cor igual dos dois lados n\~ao \'e um valor igual.
 \end{enumerate}
+
+Al\'em de \texttt{RGB} e \texttt{Index}, o painel desenha outras cinco vistas,
+cada uma com o seu limite escrito abaixo dela:
+
+\begin{itemize}[leftmargin=*,itemsep=.25em]
+  \item \texttt{Components}: os tr\^es primeiros componentes principais das
+        dez bandas, em vermelho, verde e azul. S\~ao dire\c{c}\~oes de
+        vari\^ancia daquela cena apenas.
+  \item \texttt{Clusters}: de dois a sete grupos de c\'elulas com bandas
+        parecidas, por k-means. N\~ao s\~ao classes, e a numera\c{c}\~ao muda
+        de uma cena para outra.
+  \item \texttt{Change}: um \'indice numa cena posterior menos o mesmo
+        \'indice numa anterior, numa rampa divergente centrada em nenhuma
+        mudan\c{c}a. Diz onde o \'indice mudou, n\~ao por qu\^e.
+  \item \texttt{Canopy}: \'indice de \'area foliar, fAPAR, cobertura verde,
+        clorofila ou \'agua do dossel, estimados pela rede SL2P da ESA a partir
+        de oito bandas e dos \^angulos da cena. A rede n\~ao foi validada com
+        medidas de campo aqui; o painel informa a fra\c{c}\~ao de c\'elulas
+        fora do seu dom\'inio.
+  \item \texttt{Biomass}: biomassa a\'erea do ESA CCI Biomass 6.0, a 100\,m,
+        para um ano de 2007 a 2022. Foi feita para floresta.
+\end{itemize}
+
+\texttt{RGB}, \texttt{Index}, \texttt{Components} e \texttt{Clusters} podem
+vir de uma cena ou da \texttt{Period median}: a mediana de cada c\'elula sobre
+as observa\c{c}\~oes limpas de at\'e doze das aquisi\c{c}\~oes menos nubladas
+do per\'iodo. A legenda de toda vista al\'em das duas primeiras \'e calculada
+junto com o raster e aparece em \texttt{On the map}; em \texttt{Change},
+\texttt{Canopy} e \texttt{Biomass} o GeoTIFF guarda os valores, n\~ao as cores.
 
 \terrafig{png-images/impressao/map-composition.png}
   {\texttt{Map} $\rightarrow$ \texttt{Compositions}. A legenda da camada indica
