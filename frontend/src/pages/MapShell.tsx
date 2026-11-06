@@ -165,6 +165,17 @@ export function MapShell(props: MapShellProps) {
   const [coords, setCoords] = useState(props.initialView ?? null)
   const [spreadM, setSpreadM] = useState(0)
   /*
+    The curtain over the map, and the composition under the one on it that the
+    curtain compares it with. Held together because choosing a composition to
+    compare is what puts the curtain up.
+  */
+  const [curtain, setCurtain] = useState<number | null>(null)
+  const [beneathId, setBeneathId] = useState<string | null>(null)
+  const beneath =
+    props.compositionGallery?.find(
+      (c) => c.id === beneathId && c.id !== props.composition?.id
+    ) ?? null
+  /*
     A queued product's run, which App holds no state for: it reads a classification,
     water, a mineral map and a delineation.
   */
@@ -279,6 +290,7 @@ export function MapShell(props: MapShellProps) {
     sessionRunIds,
     areaId,
     areaName,
+    beneath,
   })
   /*
     The rasters whose legend the reader took off the map, from the raster's own
@@ -553,6 +565,9 @@ export function MapShell(props: MapShellProps) {
               fieldDrafts={fieldDrafts}
               spreadM={spreadM}
               onSpreadChange={setSpreadM}
+              curtain={curtain}
+              curtainKey={beneath ? "composition" : null}
+              onCurtainChange={setCurtain}
               initialView={props.initialView}
               onViewChange={(v) => {
                 setCoords(v)
@@ -639,7 +654,16 @@ export function MapShell(props: MapShellProps) {
               composition={props.composition}
               gallery={props.compositionGallery ?? []}
               assets={assets}
-              onSelect={(id) => props.onSelectComposition?.(id)}
+              beneathId={beneath?.id ?? null}
+              onBeneath={(id) => {
+                setBeneathId(id)
+                if (id) setCurtain((at) => at ?? 0.5)
+              }}
+              onSelect={(id) => {
+                // Put on the map, it is no longer the one under it.
+                if (id === beneathId) setBeneathId(null)
+                props.onSelectComposition?.(id)
+              }}
               onRemove={(id) => props.onRemoveComposition?.(id)}
               onClearAll={props.onClearComposition}
               onClose={() => setPanel(null)}

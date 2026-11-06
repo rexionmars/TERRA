@@ -8,6 +8,7 @@ import {
   bandName,
   findRgbPreset,
 } from "@/lib/compositeCatalog"
+import { compositionTitle } from "@/lib/mapLayers"
 import { PRODUCT_NOTES } from "@/lib/productNotes"
 import { exportPng, exportTif, type RunAsset } from "@/lib/runAssets"
 import type {
@@ -69,6 +70,8 @@ export function VisualizationPanel({
   composition,
   gallery,
   assets,
+  beneathId,
+  onBeneath,
   onSelect,
   onRemove,
   onClearAll,
@@ -99,6 +102,9 @@ export function VisualizationPanel({
   composition: CompositionOverlay | null
   gallery: readonly CompositionOverlay[]
   assets: readonly RunAsset[]
+  /** The composition drawn under the one on the map, to compare through the curtain. */
+  beneathId: string | null
+  onBeneath: (id: string | null) => void
   onSelect: (id: string) => void
   onRemove: (id: string) => void
   onClearAll: () => void
@@ -106,6 +112,7 @@ export function VisualizationPanel({
 }) {
   const preset = findRgbPreset(bands)
   const indexDef = INDICES.find((i) => i.id === index)
+  const beneath = gallery.find((c) => c.id === beneathId) ?? null
   const canList = hasArea && !!start && !!end
   // Why the button is off, since a greyed button leaves that to be worked out.
   const blocked = !hasArea
@@ -360,6 +367,30 @@ export function VisualizationPanel({
                           </span>
                         )}
                       </button>
+                      {/*
+                        Offered only with a composition on the map, since that is
+                        what this one would be compared with.
+                      */}
+                      {!on && composition && (
+                        <button
+                          type="button"
+                          aria-pressed={c.id === beneathId}
+                          onClick={() => onBeneath(c.id === beneathId ? null : c.id)}
+                          title={
+                            c.id === beneathId
+                              ? "Stop comparing"
+                              : "Draw under the composition on the map, and compare the two with the curtain"
+                          }
+                          className={cn(
+                            "text-label hover:text-foreground",
+                            c.id === beneathId
+                              ? "text-primary"
+                              : "text-muted-foreground"
+                          )}
+                        >
+                          Compare
+                        </button>
+                      )}
                       {asset && (
                         <>
                           <button
@@ -394,6 +425,13 @@ export function VisualizationPanel({
                 )
               })}
             </ul>
+            {composition && beneath && (
+              <p className="mt-1 text-label text-muted-foreground">
+                {compositionTitle(beneath)} is under {compositionTitle(composition)}.
+                Move the curtain on the map to compare them. Each scene is stretched to
+                its own percentiles, so one colour on the two sides is not one value.
+              </p>
+            )}
           </section>
         )}
 

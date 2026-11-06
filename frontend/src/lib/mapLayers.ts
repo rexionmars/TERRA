@@ -271,6 +271,19 @@ export function fieldsLayers(
   return out
 }
 
+/** Where a composition sits in the stack: over the imagery a run read, under its measurements. */
+export const COMPOSITION_ORDER = 350
+
+/**
+ * A composition's name in a list of layers: what it shows, and the day.
+ *
+ * The day is in the name because two compositions of one index are told apart
+ * by nothing else, and the curtain sets two of them side by side.
+ */
+export function compositionTitle(c: Pick<CompositionOverlay, "title" | "sceneDate">) {
+  return [c.title || "Composition", c.sceneDate].filter(Boolean).join(" · ")
+}
+
 /**
  * Every raster this run could draw, bottom of the stack first.
  *
@@ -289,11 +302,11 @@ export function rasterLayers(i: VisibleLayerInput): RasterLayer[] {
   ) {
     layers.push({
       id: "composition",
-      title: i.composition.title || "Composition",
+      title: compositionTitle(i.composition),
       uri: i.composition.overlay_uri,
       extent: i.composition.extent,
       opacity: i.composeOpacity,
-      order: 350,
+      order: COMPOSITION_ORDER,
       // A composite is continuous colour, not classes.
       pixelated: false,
       smooth: false,

@@ -35,6 +35,7 @@ import {
   Path,
   Pencil,
   ArrowsOutCardinal,
+  SquareSplitHorizontal,
   Trash,
   UploadSimple,
   Warning,
@@ -58,6 +59,7 @@ import {
   type RaisedRasterLayer,
 } from "@/components/globe/raisedRasters"
 import { SpreadHandle } from "@/components/globe/SpreadHandle"
+import { CurtainHandle } from "@/components/globe/CurtainHandle"
 import { OverlayCallouts, type OverlayCaption } from "@/components/globe/OverlayCallout"
 import { fetchEsriImageryHere, type ImageryHere } from "@/components/globe/imageryDate"
 import { isZeroExtent, type RasterLayer } from "@/lib/mapLayers"
@@ -358,6 +360,9 @@ export function GlobeSurface({
   overlays = [],
   spreadM = 0,
   onSpreadChange,
+  curtain = null,
+  curtainKey = null,
+  onCurtainChange,
   fieldDrafts = null,
   onOverlayContext,
   leadingTools,
@@ -488,6 +493,24 @@ export function GlobeSurface({
   /** Where the reader left it. Held by the caller, so it survives a remount. */
   onSpreadChange?: (m: number) => void
   /**
+   * The curtain over the top raster, as a fraction of the map's width from
+   * its left edge, or null for none. Left of it the top raster of each stack
+   * is not drawn, so what lies under it shows; see CurtainHandle.
+   *
+   * Held by the caller, as the spread is, because the caller is also what
+   * puts a second raster under the first to be compared through it.
+   */
+  curtain?: number | null
+  /**
+   * The raster the curtain cuts, by key, where it is not the top of the stack.
+   * Two compositions under a classification are compared by cutting the upper
+   * composition; cutting the classification would compare something else.
+   * Null, or a key not drawn, cuts the top of each area's stack.
+   */
+  curtainKey?: string | null
+  /** Withheld, the control is not offered. */
+  onCurtainChange?: (at: number | null) => void
+  /**
    * The caller's own tools, at the head of the map's column.
    *
    * In this column rather than a second one beside it, for the reason its own
@@ -595,34 +618,62 @@ export function GlobeSurface({
    * and two derivations of one rule is two rules that can disagree -- which is
    * how the legend for a raised raster came to sit on the ground under it.
    */
+  const curtainOn = curtain !== null
   const raisedRasters = useMemo(() => {
     const perArea = new Map<string, number>()
-    return overlays
-      .filter((o) => !isZeroExtent(o.layer.extent))
-      .map((o) => {
-        /*
+    const drawn = overlays.filter((o) => !isZeroExtent(o.layer.extent))
+    /* The last of each area's list is the top of its stack: the one the curtain cuts. */
+    const top = new Map<string, string>()
+    for (const o of drawn) top.set(o.areaId, o.key)
+    const named = drawn.find((o) => o.key === curtainKey)
+    if (named) top.set(named.areaId, named.key)
+    return drawn.map((o) => {
+      /*
           IN THE ORDER THE CALLER GIVES. The array already carries the reader's
           stack -- the board applies each area's stored order before building
           it -- so the index is what the scene tree says.
         */
-        const index = perArea.get(o.areaId) ?? 0
-        perArea.set(o.areaId, index + 1)
-        return {
-          id: `sent-${o.key}`,
-          key: o.key,
-          url: o.layer.uri,
-          bounds: o.layer.extent,
-          opacity: o.layer.opacity,
-          pixelated: o.layer.pixelated,
-          /*
+      const index = perArea.get(o.areaId) ?? 0
+      perArea.set(o.areaId, index + 1)
+      return {
+        id: `sent-${o.key}`,
+        key: o.key,
+        url: o.layer.uri,
+        bounds: o.layer.extent,
+        opacity: o.layer.opacity,
+        pixelated: o.layer.pixelated,
+        /*
             The lowest sits a metre up rather than at zero: at zero it shares a
             depth with the ground it is drawn over, and two surfaces at one
             depth flicker against each other as the camera moves.
           */
-          elevationM: BASE_LIFT_M + index * spreadM,
-        }
-      })
-  }, [overlays, spreadM])
+        elevationM: BASE_LIFT_M + index * spreadM,
+        cut: curtainOn && top.get(o.areaId) === o.key,
+      }
+    })
+  }, [overlays, spreadM, curtainOn, curtainKey])
+  /**
+   * The names either side of the curtain, from the first area's stack: what
+   * is beneath its top raster, and the top raster.
+   *
+   * Beneath is the next raster down or, with none, the base map, named as the
+   * base menu names it.
+   */
+  const curtainSides = useMemo(() => {
+    const first = raisedRasters.find((r) => r.cut)
+    if (!first) return null
+    const own = overlays.filter(
+      (o) => o.areaId === overlays.find((x) => x.key === first.key)?.areaId
+    )
+    const at = own.findIndex((o) => o.key === first.key)
+    const under = at > 0 ? own[at - 1] : null
+    return {
+      left: under?.layer.title ?? "Base map",
+      right: own[at]?.layer.title ?? "Top raster",
+    }
+  }, [raisedRasters, overlays])
+  const curtainRef = useRef(curtain)
+  curtainRef.current = curtain
   /* Read by the right-button listener, which is registered once with the map. */
   const raisedListRef = useRef(raisedRasters)
   raisedListRef.current = raisedRasters
@@ -1166,7 +1217,18 @@ export function GlobeSurface({
           return
         }
         const { lng, lat } = e.lngLat
-        const hits = rastersAt(raisedListRef.current, lng, lat)
+        /*
+          Left of the curtain the top raster is not drawn, so it is not offered:
+          the menu names what is under the pointer, and there it is not.
+        */
+        const at = curtainRef.current
+        const leftOfCurtain =
+          at !== null && e.point.x < at * map.getCanvas().clientWidth
+        const hits = rastersAt(
+          raisedListRef.current.filter((r) => !(leftOfCurtain && r.cut)),
+          lng,
+          lat
+        )
         if (!hits.length) return
         ev.preventDefault()
         open(
@@ -1354,6 +1416,15 @@ export function GlobeSurface({
       }
     }
   }, [raisedRasters, ready, styleNonce])
+
+  /*
+    The curtain's position, apart from the set: dragging it moves one uniform
+    and repaints, where a change to the set rebuilds the list it is drawn from.
+  */
+  useEffect(() => {
+    if (!ready) return
+    raisedRef.current?.setCurtain(curtain)
+  }, [curtain, ready, styleNonce])
 
   /*
     The pins. Markers rather than a layer, because a letter has to stay readable
@@ -1783,6 +1854,19 @@ export function GlobeSurface({
       )}
 
       {/*
+        Before the chrome in the document, at the same layer, so the column
+        stays over the line where the two cross.
+      */}
+      {ready && !failure && curtain !== null && curtainSides && onCurtainChange && (
+        <CurtainHandle
+          at={curtain}
+          onChange={onCurtainChange}
+          left={curtainSides.left}
+          right={curtainSides.right}
+        />
+      )}
+
+      {/*
         TOP RIGHT, NOT BOTTOM RIGHT WHERE DrawMap PUTS THEM. That corner is the
         camera's on this surface, and two bars stacked there would be one column
         of six glyphs with a seam somewhere in the middle -- which reads as one
@@ -1821,6 +1905,20 @@ export function GlobeSurface({
               onClick={() => setSpreadOpen((v) => !v)}
             >
               <ArrowsOutCardinal className="size-4" />
+            </MapButton>
+          )}
+          {/*
+            THE CURTAIN, beside the spread, because both answer one question:
+            how to read a raster that covers another. Offered only with a
+            raster on the map, since with none there is nothing to cut.
+          */}
+          {onCurtainChange && raisedRasters.length > 0 && (
+            <MapButton
+              label="Curtain: compare the top raster with what is under it"
+              active={curtainOn}
+              onClick={() => onCurtainChange(curtainOn ? null : 0.5)}
+            >
+              <SquareSplitHorizontal className="size-4" />
             </MapButton>
           )}
           {/*
