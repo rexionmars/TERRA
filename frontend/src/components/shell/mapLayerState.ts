@@ -6,11 +6,18 @@ import type { CompositorGlobeOverlay } from "@/components/workspace/CompositorEd
 import { linkInto, type CompositorGraph } from "@/lib/compositorGraph"
 import { applyLayerPatch, mergeLayerPatch, type LayerPatch } from "@/lib/layerPatch"
 import { legendFor } from "@/lib/layerLegend"
-import { rasterLayers, type RasterLayer } from "@/lib/mapLayers"
+import {
+  COMPOSITION_ORDER,
+  compositionTitle,
+  isZeroExtent,
+  rasterLayers,
+  type RasterLayer,
+} from "@/lib/mapLayers"
 import type { ClassLayer } from "@/lib/mapProbe"
 import { runAssets } from "@/lib/runAssets"
 import { withAssetLayers, type JobReading } from "@/lib/shellLayers"
 import { majoritySmoothOverlay } from "@/lib/smoothOverlay"
+import type { CompositionOverlay } from "@/lib/types"
 import type { MapShellProps } from "@/pages/MapShell"
 
 type Patches = Record<string, LayerPatch>
@@ -113,6 +120,7 @@ export function useMapLayers({
   sessionRunIds,
   areaId,
   areaName,
+  beneath = null,
 }: {
   props: MapShellProps
   assets: ReturnType<typeof runAssets>
@@ -124,6 +132,8 @@ export function useMapLayers({
   sessionRunIds: string[]
   areaId: string
   areaName: string
+  /** A composition of the gallery drawn just under the one on the map, to compare through the curtain. */
+  beneath?: CompositionOverlay | null
 }) {
   /* The prediction with the majority filter applied, which decides where a class boundary is. */
   const [smoothed, setSmoothed] = useState<{ from: string; uri: string } | null>(null)
@@ -167,9 +177,31 @@ export function useMapLayers({
       fieldLayerState,
     ]
   )
+  /*
+    The composition under the one on the map, one step below it, so the curtain
+    can set two scenes of one area side by side. Its id is its gallery id, which
+    is the asset's own, so its row in Layers finds the files it is saved from and
+    its switch and opacity are kept with the other assets'.
+  */
+  const beneathLayers = useMemo<RasterLayer[]>(() => {
+    if (!beneath?.overlay_uri || isZeroExtent(beneath.extent)) return []
+    return [
+      {
+        id: beneath.id,
+        title: compositionTitle(beneath),
+        uri: beneath.overlay_uri,
+        extent: beneath.extent,
+        opacity: assetLayerState[beneath.id]?.opacity ?? 1,
+        order: COMPOSITION_ORDER - 1,
+        pixelated: false,
+        smooth: false,
+        visible: assetLayerState[beneath.id]?.visible ?? true,
+      },
+    ]
+  }, [beneath, assetLayerState])
   const layersBeforeGraph = useMemo(
-    () => withAssetLayers(stateLayers, assets, assetLayerState),
-    [stateLayers, assets, assetLayerState]
+    () => withAssetLayers([...stateLayers, ...beneathLayers], assets, assetLayerState),
+    [stateLayers, beneathLayers, assets, assetLayerState]
   )
 
   /*

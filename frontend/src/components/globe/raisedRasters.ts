@@ -90,6 +90,11 @@ export interface RaisedRaster {
    * class colours names no class. RasterLayer carries the same flag.
    */
   pixelated?: boolean
+  /**
+   * Drawn only to the right of the curtain, while there is one, so what lies
+   * under it shows to the left. The top of each area's stack is the one cut.
+   */
+  cut?: boolean
 }
 
 /**
@@ -216,8 +221,16 @@ precision highp float;
 in vec2 v_uv;
 uniform sampler2D u_image;
 uniform float u_opacity;
+uniform float u_cut_x;
 out vec4 fragColor;
 void main() {
+  /*
+    The curtain, in framebuffer pixels from the left edge; negative when this
+    raster is not cut. In screen space rather than on the ground, so the line
+    stays straight and vertical whatever the camera's pitch, bearing or
+    projection, and lies over every raster at the same place.
+  */
+  if (gl_FragCoord.x < u_cut_x) discard;
   vec4 c = texture(u_image, v_uv);
   /*
     Premultiplied on the way out, because the blend below is ONE,
@@ -236,6 +249,7 @@ interface Program {
   uElevMerc: WebGLUniformLocation | null
   uImage: WebGLUniformLocation | null
   uOpacity: WebGLUniformLocation | null
+  uCutX: WebGLUniformLocation | null
   /** Every uniform the prelude declares, by name, so they can be fed. */
   projection: Record<string, WebGLUniformLocation | null>
 }
@@ -263,11 +277,17 @@ function compile(gl: WebGL2RenderingContext, src: string, kind: number): WebGLSh
 export interface RaisedRasterLayer extends CustomLayerInterface {
   /** Replace the set drawn. Images are fetched once and kept by url. */
   set(rasters: readonly RaisedRaster[]): void
+  /**
+   * Where the curtain stands, as a fraction of the map's width from its left
+   * edge, or null for none. Only the rasters marked `cut` are cut by it.
+   */
+  setCurtain(at: number | null): void
 }
 
 export function raisedRasterLayer(id: string, map: MapLibreMap): RaisedRasterLayer {
   let gl: WebGL2RenderingContext | null = null
   let rasters: readonly RaisedRaster[] = []
+  let curtain: number | null = null
   /** One program per projection variant, keyed by the name MapLibre gives. */
   const programs = new Map<string, Program>()
   const textures = new Map<string, WebGLTexture>()
@@ -343,6 +363,7 @@ export function raisedRasterLayer(id: string, map: MapLibreMap): RaisedRasterLay
       uElevMerc: ctx.getUniformLocation(program, "u_elevation_mercator"),
       uImage: ctx.getUniformLocation(program, "u_image"),
       uOpacity: ctx.getUniformLocation(program, "u_opacity"),
+      uCutX: ctx.getUniformLocation(program, "u_cut_x"),
       projection,
     }
     programs.set(shader.variantName, built)
@@ -396,6 +417,12 @@ export function raisedRasterLayer(id: string, map: MapLibreMap): RaisedRasterLay
       map.triggerRepaint()
     },
 
+    setCurtain(at) {
+      if (at === curtain) return
+      curtain = at
+      map.triggerRepaint()
+    },
+
     render(ctx, args) {
       if (!rasters.length || !buffer) return
       const prog = programFor(ctx, args.shaderData)
@@ -437,6 +464,13 @@ export function raisedRasterLayer(id: string, map: MapLibreMap): RaisedRasterLay
       ctx.activeTexture(ctx.TEXTURE0)
       ctx.uniform1i(prog.uImage, 0)
 
+      /*
+        The drawing buffer's own width, not the canvas's CSS width: the fragment
+        coordinate is in device pixels, and on a 2x display the CSS figure would
+        put the cut at half the distance the handle shows.
+      */
+      const cutX = curtain === null ? -1 : curtain * ctx.drawingBufferWidth
+
       // Lowest first: the painter's order for translucent quads.
       const order = [...rasters].sort((a, b) => a.elevationM - b.elevationM)
       for (const r of order) {
@@ -445,6 +479,7 @@ export function raisedRasterLayer(id: string, map: MapLibreMap): RaisedRasterLay
         ctx.bufferData(ctx.ARRAY_BUFFER, quad(r.bounds), ctx.DYNAMIC_DRAW)
         ctx.bindTexture(ctx.TEXTURE_2D, tex)
         ctx.uniform1f(prog.uOpacity, r.opacity)
+        ctx.uniform1f(prog.uCutX, r.cut ? cutX : -1)
         ctx.uniform1f(prog.uElevM, r.elevationM)
         ctx.uniform1f(prog.uElevMerc, r.elevationM * mercatorPerMetre(r.bounds))
         ctx.drawArrays(ctx.TRIANGLES, 0, 6)
