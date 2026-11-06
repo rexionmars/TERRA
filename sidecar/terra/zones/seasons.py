@@ -6,7 +6,7 @@ the field's grid, and one NDVI layer per season.
 from __future__ import annotations
 
 import warnings
-from datetime import date, datetime
+from datetime import date
 
 import numpy as np
 
@@ -37,16 +37,6 @@ def windows(start: str, end: str, earlier: int = EARLIER_SEASONS) -> list[tuple[
     return [(shift_years(start, -k), shift_years(end, -k)) for k in range(earlier + 1)]
 
 
-def _offset(scene: mosaic.Scene) -> float:
-    """The BOA offset the scene's digital numbers carry (sentinel2.boa_add_offset)."""
-    props = scene.items[0].properties if scene.items else {}
-    try:
-        acquired = datetime.fromisoformat(scene.date)
-    except ValueError:
-        acquired = None
-    return sentinel2.boa_add_offset({'processing_baseline': props.get('s2:processing_baseline'), 'date': acquired})
-
-
 def ndvi_map(scene: mosaic.Scene, grid: mosaic.Grid, inside: np.ndarray) -> np.ndarray | None:
     """
     One acquisition's NDVI over the field's clear cells, NaN elsewhere; None
@@ -67,7 +57,7 @@ def ndvi_map(scene: mosaic.Scene, grid: mosaic.Grid, inside: np.ndarray) -> np.n
         clear &= band > 0
     if float(clear.sum()) / n < MIN_CLEAR:
         return None
-    offset = _offset(scene)
+    offset = mosaic.boa_offset(scene)
     red = (dn['B04'] + offset) / sentinel2.QUANTIFICATION_VALUE
     nir = (dn['B08'] + offset) / sentinel2.QUANTIFICATION_VALUE
     with np.errstate(divide='ignore', invalid='ignore'):

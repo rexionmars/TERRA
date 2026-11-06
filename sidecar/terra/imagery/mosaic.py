@@ -240,3 +240,25 @@ def read_asset(items: list[Any], asset: str, grid: Grid, resampling, dtype) -> n
 def usable(scl: np.ndarray) -> np.ndarray:
     """True where the scene classification says the ground was seen clearly."""
     return ~np.isin(scl, SCL_UNUSABLE)
+
+
+def boa_offset(scene: Scene) -> float:
+    """
+    The BOA offset the scene's digital numbers carry (sentinel2.boa_add_offset).
+
+    Here rather than in each product that reads a mosaic, because the rule
+    is one rule: the health series, the zones' seasons and the period median
+    each carried a copy of it.
+    """
+    from datetime import datetime
+
+    from terra.imagery import sentinel2
+
+    props = scene.items[0].properties if scene.items else {}
+    try:
+        acquired = datetime.fromisoformat(scene.date)
+    except ValueError:
+        acquired = None
+    return sentinel2.boa_add_offset(
+        {'processing_baseline': props.get('s2:processing_baseline'), 'date': acquired}
+    )
