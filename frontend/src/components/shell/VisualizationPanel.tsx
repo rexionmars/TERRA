@@ -1,6 +1,13 @@
 import { CircleNotch, Eye, Trash } from "@/components/icons"
 import { btnGhost, btnPrimaryCommit } from "@/components/ui/buttons"
-import { INDICES, RGB_PRESETS, findRgbPreset } from "@/lib/compositeCatalog"
+import {
+  INDEX_GROUPS,
+  INDICES,
+  RGB_PRESETS,
+  S2_BANDS,
+  bandName,
+  findRgbPreset,
+} from "@/lib/compositeCatalog"
 import { PRODUCT_NOTES } from "@/lib/productNotes"
 import { exportPng, exportTif, type RunAsset } from "@/lib/runAssets"
 import type {
@@ -98,6 +105,7 @@ export function VisualizationPanel({
   onClose: () => void
 }) {
   const preset = findRgbPreset(bands)
+  const indexDef = INDICES.find((i) => i.id === index)
   const canList = hasArea && !!start && !!end
   // Why the button is off, since a greyed button leaves that to be worked out.
   const blocked = !hasArea
@@ -218,9 +226,39 @@ export function VisualizationPanel({
                   </option>
                 ))}
               </select>
-              {preset && (
-                <p className="text-label text-muted-foreground">{preset.description}</p>
-              )}
+              {/*
+                ONE PICKER PER CHANNEL, under the presets rather than instead of
+                them: a preset is the usual answer, and a band moved by hand
+                turns the list above to Custom, which is what it then is.
+              */}
+              <div className="flex gap-2">
+                {(["R", "G", "B"] as const).map((channel, at) => (
+                  <Field key={channel} label={channel}>
+                    <select
+                      aria-label={`Band in the ${channel} channel`}
+                      title={bandName(bands[at])}
+                      className="field-input"
+                      value={bands[at]}
+                      onChange={(e) => {
+                        const next: [string, string, string] = [...bands]
+                        next[at] = e.target.value
+                        onBandsChange(next)
+                      }}
+                    >
+                      {S2_BANDS.map((b) => (
+                        <option key={b.id} value={b.id} title={bandName(b.id)}>
+                          {b.id}
+                        </option>
+                      ))}
+                    </select>
+                  </Field>
+                ))}
+              </div>
+              <p className="text-label text-muted-foreground">
+                {preset
+                  ? preset.description
+                  : bands.map((b, at) => `${"RGB"[at]} ${bandName(b)}`).join(" · ")}
+              </p>
             </>
           ) : (
             <>
@@ -230,15 +268,26 @@ export function VisualizationPanel({
                 value={index}
                 onChange={(e) => onIndexChange(e.target.value as CompositeIndex)}
               >
-                {INDICES.map((i) => (
-                  <option key={i.id} value={i.id}>
-                    {i.label}
-                  </option>
+                {INDEX_GROUPS.map((group) => (
+                  <optgroup key={group} label={group}>
+                    {INDICES.filter((i) => i.group === group).map((i) => (
+                      <option key={i.id} value={i.id}>
+                        {i.label}
+                      </option>
+                    ))}
+                  </optgroup>
                 ))}
               </select>
-              <p className="text-label text-muted-foreground">
-                {INDICES.find((i) => i.id === index)?.description}
-              </p>
+              {indexDef && (
+                <>
+                  <p className="text-label text-muted-foreground">
+                    {indexDef.description}
+                  </p>
+                  <p className="telemetry text-label text-muted-foreground">
+                    {indexDef.formula}
+                  </p>
+                </>
+              )}
             </>
           )}
           <div className="flex gap-2">

@@ -749,7 +749,20 @@ export interface DataCubeResult {
 }
 
 export type CompositeKind = "rgb" | "index"
-export type CompositeIndex = "ndvi" | "ndwi" | "ndmi" | "evi"
+/** The names composite.py's COMPOSITE_INDICES draws; compositeCatalog.ts describes each. */
+export type CompositeIndex =
+  | "ndvi"
+  | "evi"
+  | "savi"
+  | "msavi"
+  | "ndre"
+  | "gci"
+  | "psri"
+  | "ndwi"
+  | "mndwi"
+  | "ndmi"
+  | "msi"
+  | "nbr"
 
 export interface CompositeRequest {
   polygon_geojson: GeoJSONGeometry | null

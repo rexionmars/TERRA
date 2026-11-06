@@ -2,7 +2,12 @@
 
 from __future__ import annotations
 
+from collections.abc import Callable
+from dataclasses import dataclass
+
 import numpy as np
+
+from terra.imagery import indices
 
 # Sentinel-2 L2A band → native resolution used when loading SAFE/STAC assets.
 BAND_RESOLUTION = {
@@ -26,7 +31,6 @@ RGB_PRESETS = {
 }
 
 ALLOWED_BANDS = tuple(BAND_RESOLUTION.keys())
-ALLOWED_INDICES = ("ndvi", "ndwi", "ndmi", "evi")
 
 
 def percentile_stretch(
@@ -64,6 +68,73 @@ def calculate_ndmi(nir: np.ndarray, swir: np.ndarray) -> np.ndarray:
         ndmi = (nir - swir) / (nir + swir)
         ndmi = np.where(np.isfinite(ndmi), ndmi, 0.0)
     return np.clip(ndmi, -1.0, 1.0)
+
+
+def normalized_difference(a: np.ndarray, b: np.ndarray) -> np.ndarray:
+    """(a - b) / (a + b), zero where undefined, clipped to [-1, 1] as NDWI is above."""
+    with np.errstate(divide="ignore", invalid="ignore"):
+        nd = (a - b) / (a + b)
+        nd = np.where(np.isfinite(nd), nd, 0.0)
+    return np.clip(nd, -1.0, 1.0)
+
+
+def band_ratio(a: np.ndarray, b: np.ndarray) -> np.ndarray:
+    """
+    a / b, zero where undefined, and not clipped.
+
+    A ratio has no range to clip to: MSI over dry canopy passes 2, and a
+    clip at 1 would flatten exactly the part of the scale it is read for.
+    """
+    with np.errstate(divide="ignore", invalid="ignore"):
+        r = a / b
+    return np.where(np.isfinite(r), r, 0.0)
+
+
+def calculate_msavi(nir: np.ndarray, red: np.ndarray) -> np.ndarray:
+    """
+    MSAVI2, the closed form given by Qi et al. (1994), Remote Sensing of
+    Environment 48, 119-126.
+
+    The term under the root is (2 NIR - 1)^2 + 8 Red, which is negative only
+    for negative red reflectance. L2A's offset allows that over dark water, so
+    the term is floored at zero rather than left to produce NaN.
+    """
+    term = (2.0 * nir + 1.0) ** 2 - 8.0 * (nir - red)
+    msavi = (2.0 * nir + 1.0 - np.sqrt(np.maximum(term, 0.0))) / 2.0
+    return np.clip(np.where(np.isfinite(msavi), msavi, 0.0), -1.0, 1.0)
+
+
+def calculate_gci(nir: np.ndarray, green: np.ndarray) -> np.ndarray:
+    """Green chlorophyll index, NIR / Green - 1 (Gitelson et al. 2003, J. Plant Physiol. 160, 271-282)."""
+    return np.where(green != 0, band_ratio(nir, green) - 1.0, 0.0)
+
+
+def calculate_psri(red: np.ndarray, blue: np.ndarray, red_edge: np.ndarray) -> np.ndarray:
+    """
+    Plant senescence reflectance index, (R678 - R500) / R750, after Merzlyak
+    et al. (1999), Physiologia Plantarum 106, 135-141.
+
+    On Sentinel-2 the three wavelengths are B04 (665 nm), B02 (492 nm) and
+    B06 (741 nm), the nearest bands to 678, 500 and 750 nm; the index is the
+    published one at those bands, not at the paper's own.
+    """
+    return band_ratio(red - blue, red_edge)
+
+
+@dataclass(frozen=True)
+class CompositeIndex:
+    """
+    One spectral index a composition can draw.
+
+    `bands` are the Sentinel-2 L2A bands the formula reads, in the order it
+    takes them. `ramp` names the CONTINUOUS_STOPS entry that colours it, and
+    frontend/src/lib/compositeCatalog.ts names the same one for the legend;
+    tests/test_composite_catalog_sync.py compares the two.
+    """
+
+    bands: tuple[str, ...]
+    formula: Callable[..., np.ndarray]
+    ramp: str
 
 
 def _lerp_cmap(t: np.ndarray, stops: list[tuple[float, float, float]]) -> np.ndarray:
@@ -186,6 +257,44 @@ CONTINUOUS_STOPS = {
     "rdbu_r": _RDBU_R,
 }
 
+# The indices a composition can draw, keyed by the name a request sends.
+#
+# The ramp follows what the index is read for. An index that rises with green
+# canopy keeps RdYlGn, so NDVI, EVI and their kin read alike beside each other;
+# water and moisture keep Blues. An index whose high end is the stressed or
+# senescent canopy (PSRI, MSI) cannot use either: RdYlGn would paint senescence
+# green, and Blues would paint the driest canopy the deepest blue. Those take
+# inferno, a magnitude ramp with no judgement in its hues.
+#
+# Bands are the published ones at their nearest Sentinel-2 equivalent. NDRE
+# uses B8A and B05 because terra.health computes it from those, and one index
+# under one name should not be two formulas in one application.
+COMPOSITE_INDICES: dict[str, CompositeIndex] = {
+    # Rouse et al. (1974), NASA SP-351, 309-317.
+    "ndvi": CompositeIndex(("B08", "B04"), indices.calculate_ndvi, "rdylgn"),
+    # Huete et al. (2002), Remote Sensing of Environment 83, 195-213.
+    "evi": CompositeIndex(("B08", "B04", "B02"), indices.calculate_evi, "rdylgn"),
+    # Huete (1988), Remote Sensing of Environment 25, 295-309, with L = 0.5.
+    "savi": CompositeIndex(("B08", "B04"), indices.calculate_savi, "rdylgn"),
+    "msavi": CompositeIndex(("B08", "B04"), calculate_msavi, "rdylgn"),
+    # Barnes et al. (2000), Fifth International Conference on Precision Agriculture.
+    "ndre": CompositeIndex(("B8A", "B05"), normalized_difference, "rdylgn"),
+    "gci": CompositeIndex(("B08", "B03"), calculate_gci, "rdylgn"),
+    "psri": CompositeIndex(("B04", "B02", "B06"), calculate_psri, "inferno"),
+    # McFeeters (1996), International Journal of Remote Sensing 17, 1425-1432.
+    "ndwi": CompositeIndex(("B03", "B08"), calculate_ndwi, "blues"),
+    # Xu (2006), International Journal of Remote Sensing 27, 3025-3033.
+    "mndwi": CompositeIndex(("B03", "B11"), normalized_difference, "blues"),
+    # Wilson and Sader (2002), Remote Sensing of Environment 80, 385-396.
+    "ndmi": CompositeIndex(("B08", "B11"), calculate_ndmi, "blues"),
+    # Hunt and Rock (1989), Remote Sensing of Environment 30, 43-54: SWIR over NIR.
+    "msi": CompositeIndex(("B11", "B08"), band_ratio, "inferno"),
+    # Key and Benson (2006), FIREMON, USDA Forest Service RMRS-GTR-164-CD, LA-1-55.
+    "nbr": CompositeIndex(("B08", "B12"), normalized_difference, "rdylgn"),
+}
+
+ALLOWED_INDICES = tuple(COMPOSITE_INDICES)
+
 
 def index_to_rgba(
     index: np.ndarray,
@@ -194,9 +303,9 @@ def index_to_rgba(
     stretch_low: float = 2.0,
     stretch_high: float = 98.0,
 ) -> np.ndarray:
-    """Colormap a spectral index to RGBA uint8."""
+    """Colormap a spectral index to RGBA uint8, on the ramp its catalogue entry names."""
     stretched = percentile_stretch(index.astype(np.float32), mask, stretch_low, stretch_high)
-    stops = _BLUES if name in ("ndwi", "ndmi") else _RDYLGN
+    stops = CONTINUOUS_STOPS[COMPOSITE_INDICES[name].ramp]
     rgb = _lerp_cmap(stretched, stops)
     h, w = index.shape
     rgba = np.zeros((h, w, 4), dtype=np.uint8)
