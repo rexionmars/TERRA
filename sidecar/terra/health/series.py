@@ -10,7 +10,7 @@ from __future__ import annotations
 
 import warnings
 from dataclasses import dataclass, field
-from datetime import date, datetime
+from datetime import date
 
 import numpy as np
 from rasterio.warp import Resampling
@@ -87,19 +87,6 @@ def normalized_difference(a: np.ndarray, b: np.ndarray) -> np.ndarray:
     return np.where(np.isfinite(out), out, np.nan).astype(np.float32)
 
 
-def _offset(scene: mosaic.Scene) -> float:
-    """The BOA offset the scene's digital numbers carry (sentinel2.boa_add_offset)."""
-    props = scene.items[0].properties if scene.items else {}
-    acquired = None
-    try:
-        acquired = datetime.fromisoformat(scene.date)
-    except ValueError:
-        pass
-    return sentinel2.boa_add_offset(
-        {'processing_baseline': props.get('s2:processing_baseline'), 'date': acquired}
-    )
-
-
 def observe(
     scene: mosaic.Scene, grid: mosaic.Grid, inside: np.ndarray, keep_map: bool
 ) -> Observation | None:
@@ -127,7 +114,7 @@ def observe(
     frac = float(clear.sum()) / n
     if frac < MIN_CLEAR:
         return None
-    offset = _offset(scene)
+    offset = mosaic.boa_offset(scene)
     refl = {b: (v + offset) / sentinel2.QUANTIFICATION_VALUE for b, v in dn.items()}
     ndvi = normalized_difference(refl['B08'], refl['B04'])
     ndre = normalized_difference(refl['B8A'], refl['B05'])
