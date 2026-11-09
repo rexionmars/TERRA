@@ -1,13 +1,20 @@
+import { BrowserOpenURL } from "../../../wailsjs/runtime/runtime"
 import { CaretRight, CircleNotch, Play } from "@/components/icons"
 import { MethodPanel } from "@/components/workspace/MethodPanel"
 import { RunQueue } from "@/components/workspace/RunQueue"
 import { btnGhost, btnPrimaryCommit } from "@/components/ui/buttons"
 import { MODE_OPTIONS, MODEL_OPTIONS, modeBlockedBy } from "@/lib/classifyOptions"
 import { isJobKind } from "@/lib/jobs"
-import { BOARD_TOOLS, type BoardToolId } from "@/lib/mapTools"
+import {
+  BOARD_TOOLS,
+  isProductId,
+  type BoardTool,
+  type ProductId,
+} from "@/lib/mapTools"
 import { methodBrief } from "@/lib/methodBrief"
 import { MAX_DRAWS, MAX_PASSES } from "@/lib/mineral"
 import { PRODUCT_NOTES } from "@/lib/productNotes"
+import { PRODUCT_PICTURES, pictureCredit } from "@/lib/productPictures"
 import { productOffered, productRun, type ProductRunProps } from "@/lib/productRun"
 import type { RunLogEntry } from "@/lib/runLog"
 import type { ModelKind, WaterIndex } from "@/lib/types"
@@ -49,17 +56,27 @@ export interface ProductsPanelProps extends ProductRunProps {
   Compositions have a panel of their own, Visualization: a way of looking at a
   scene rather than a run of a product.
 */
-const LISTED = BOARD_TOOLS.filter((t) => t.id !== "compose")
+const LISTED = BOARD_TOOLS.filter((t): t is BoardTool & { id: ProductId } =>
+  isProductId(t.id)
+)
 
-function Plate({ tool }: { tool: BoardToolId }) {
-  const { icon: Glyph, tint } = PRODUCT_NOTES[tool]
+/*
+  A crop of a published picture of the kind of result the product returns; see
+  productPictures.ts. Without alt text, because the label beside it names the
+  product. The edge keeps a dark picture from running into the panel.
+*/
+function Plate({ product }: { product: ProductId }) {
+  const picture = PRODUCT_PICTURES[product]
   return (
-    <span
-      className="flex size-11 shrink-0 items-center justify-center rounded-sm"
-      style={{ background: `rgb(var(${tint}) / 0.16)`, color: `rgb(var(${tint}))` }}
-    >
-      <Glyph className="size-5" />
-    </span>
+    <img
+      src={picture.path}
+      alt=""
+      title={pictureCredit(picture)}
+      width={44}
+      height={44}
+      draggable={false}
+      className="size-11 shrink-0 rounded-sm object-cover outline-1 -outline-offset-1 outline-[rgb(var(--p-line)/0.28)]"
+    />
   )
 }
 
@@ -83,8 +100,8 @@ export function ProductsPanel({
   onClose,
   ...p
 }: ProductsPanelProps & {
-  product: BoardToolId | null
-  onProductChange: (t: BoardToolId | null) => void
+  product: ProductId | null
+  onProductChange: (t: ProductId | null) => void
   onClose: () => void
 }) {
   if (!product) {
@@ -98,7 +115,7 @@ export function ProductsPanel({
                 onClick={() => onProductChange(t.id)}
                 className="flex w-full items-center gap-3 rounded-sm p-2 text-left transition-colors hover:bg-hover"
               >
-                <Plate tool={t.id} />
+                <Plate product={t.id} />
                 <span className="min-w-0 flex-1">
                   <span className="block text-read font-medium text-foreground">
                     {t.label}
@@ -118,6 +135,7 @@ export function ProductsPanel({
 
   const tool = BOARD_TOOLS.find((t) => t.id === product)
   const note = PRODUCT_NOTES[product]
+  const picture = PRODUCT_PICTURES[product]
   const run = productRun(product, p)
   const usesPeriod = product !== "overlap"
   const usesCloud = product === "classify" || product === "water"
@@ -195,8 +213,19 @@ export function ProductsPanel({
     >
       <div className="flex flex-col gap-4">
         <div className="flex items-start gap-3">
-          <Plate tool={product} />
-          <p className="text-read text-muted-foreground">{note.hint}</p>
+          <Plate product={product} />
+          <div className="flex min-w-0 flex-col gap-1">
+            <p className="text-read text-muted-foreground">{note.hint}</p>
+            {/* The credit the picture's licence asks for, next to the picture. */}
+            <button
+              type="button"
+              className="cursor-pointer self-start text-left text-meta text-muted-foreground hover:underline focus-visible:ring-1 focus-visible:ring-ring focus-visible:outline-none"
+              title="Cropped and resized from the original on Wikimedia Commons"
+              onClick={() => BrowserOpenURL(picture.source)}
+            >
+              {pictureCredit(picture)}
+            </button>
+          </div>
         </div>
 
         {usesPeriod && (

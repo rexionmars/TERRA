@@ -92,7 +92,6 @@ const ICONS: Record<string, string> = {
   Gear: "actions/16/configure", // Breeze draws settings as sliders, and its only cog is the spinner
   Globe: "actions/16/globe",
   Graph: "actions/22/distribute-graph-directed",
-  GridFour: "actions/16/view-grid",
   HardDrive: "devices/16/drive-harddisk",
   Heart: "actions/16/love",
   House: "actions/16/go-home",

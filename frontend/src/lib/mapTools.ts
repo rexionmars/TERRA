@@ -16,6 +16,16 @@ export type BoardToolId =
   | "radar"
   | "zones"
 
+/**
+ * A product the Products panel lists: every tool but compositions, which are a way
+ * of looking at one scene rather than a run and have the Visualization panel.
+ */
+export type ProductId = Exclude<BoardToolId, "compose">
+
+export function isProductId(id: BoardToolId): id is ProductId {
+  return id !== "compose"
+}
+
 export interface BoardTool {
   id: BoardToolId
   label: string

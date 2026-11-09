@@ -39,7 +39,7 @@ import { useReports } from "@/lib/reports"
 import { cn } from "@/lib/utils"
 import { useOperators } from "@/lib/operators"
 import { jobReadingOf, type JobReading } from "@/lib/shellLayers"
-import type { BoardToolId } from "@/lib/mapTools"
+import type { ProductId } from "@/lib/mapTools"
 import type { AreaProps } from "@/session/areas"
 import type { ClassificationProps } from "@/session/classification"
 import type { CompositionProps } from "@/session/composition"
@@ -160,7 +160,7 @@ export function MapShell(props: MapShellProps) {
   */
   const reports = useReports()
   const [seenReports, setSeenReports] = useState(0)
-  const [product, setProduct] = useState<BoardToolId | null>(null)
+  const [product, setProduct] = useState<ProductId | null>(null)
   const [frame, setFrame] = useState<{ key: number; bounds: Bounds } | null>(null)
   const [coords, setCoords] = useState(props.initialView ?? null)
   const [spreadM, setSpreadM] = useState(0)

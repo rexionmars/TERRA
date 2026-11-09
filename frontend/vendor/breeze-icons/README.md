@@ -19,7 +19,7 @@ Copied from the `icons/` tree of KDE's `breeze-icons` repository at commit
   containing the elements" that the clarification in that file asks for.
 - File contents are unmodified.
 
-Only the 128 files the generator's table names are taken, out of roughly
+Only the 127 files the generator's table names are taken, out of roughly
 eleven thousand. Each keeps its upstream path, `icons/<context>/<size>/<name>.svg`.
 
 ## Aliases are stored as copies
