@@ -195,12 +195,10 @@ function PredictionCompareBody({
   sides,
   compare,
   compareError,
-  compact = false,
 }: {
   sides: [PredictionCompareSide, PredictionCompareSide]
   compare: ClassMapCompare | null
   compareError: string | null
-  compact?: boolean
 }) {
   /*
     THE SHARED COLOUR DOMAIN, and why there is no control for it.
@@ -276,13 +274,14 @@ function PredictionCompareBody({
   ]
 
   return (
-    <div
-      className={cn(
-        "flex gap-3",
-        compact ? "min-w-max flex-row items-start" : "flex-col"
-      )}
-    >
-      <div className={cn("flex flex-col gap-2", compact && "w-[14rem] shrink-0")}>
+    /*
+      ONE COLUMN, read from the top. This was a band laid left to right under the
+      old board, a fixed width per part and as wide as their sum; in the Compare
+      panel that sum is wider than the panel and the reading scrolled sideways.
+      The parts that set two runs side by side wrap where the width runs out.
+    */
+    <div className="flex flex-col gap-3">
+      <div className="flex flex-col gap-2">
         <p className="eyebrow !text-micro">Prediction difference</p>
         <p className="text-meta leading-snug text-muted-foreground">
           Two prediction planes in the selection path. Shared pixels are compared
@@ -344,10 +343,7 @@ function PredictionCompareBody({
       */}
       {compare && (
         <div
-          className={cn(
-            "min-h-0 overflow-hidden rounded-sm",
-            compact ? "aspect-[4/3] h-full shrink-0" : "h-[18rem] w-full"
-          )}
+          className="h-[18rem] min-h-0 w-full overflow-hidden rounded-sm"
           style={{ background: "var(--s-card)" }}
         >
           <PlotSwipeView
@@ -382,7 +378,7 @@ function PredictionCompareBody({
         this says where each run's labels went against ground and needs none.
       */}
       {!compare && agreementA && agreementB && (
-        <div className={cn(compact && "shrink-0")}>
+        <div>
           <ReferenceConfusionPair
             a={agreementA}
             b={agreementB}
@@ -393,7 +389,7 @@ function PredictionCompareBody({
       )}
 
       {compare && (
-        <div className={cn(compact && "shrink-0")}>
+        <div>
           <CompactMatrix
             title="Class transitions"
             rowLabel="Rows = A"
@@ -425,7 +421,7 @@ function PredictionCompareBody({
         for, and it needs no shared pixels.
       */}
       {agreementA && agreementB && (
-        <div className={cn(compact && "w-[16rem] shrink-0")}>
+        <div>
           <AgreementDelta
             a={agreementA}
             b={agreementB}
@@ -441,7 +437,7 @@ function PredictionCompareBody({
         -- the same property that makes the confusion pair work for two areas.
       */}
       {agreementA && agreementB && (
-        <div className={cn(compact && "shrink-0")}>
+        <div>
           <BlockAgreementPair
             a={agreementA}
             b={agreementB}
@@ -452,7 +448,7 @@ function PredictionCompareBody({
       )}
 
       {statsA.length > 0 && statsB.length > 0 && (
-        <div className={cn("flex flex-col gap-1.5", compact && "w-[12rem] shrink-0")}>
+        <div className="flex flex-col gap-1.5">
           <p className="eyebrow !text-micro">Share delta (A → B)</p>
           <ul className="flex flex-col gap-1">
             {shareRows.map((r) => (
@@ -484,13 +480,11 @@ function PredictionCompareBody({
       )}
 
       {/*
-        Domain shift is not here any more. Under `compact` this band drew four
-        figures and withheld the histogram and the t-SNE that justify the
-        analysis -- they need width, and this band is what is left of the row
-        after a 15rem column. It moved to the compare modal, whole.
+        Domain shift is not here. Drawn inside this reading it lost the
+        histogram and the t-SNE that justify it, which need width of their own;
+        it is a node of its own on the Compare board, read whole.
 
-        What stays in the band is what the band is for: the A-to-B relation.
-        Composition delta above, class transitions below.
+        What stays here is what this reading is for: the A-to-B relation.
       */}
     </div>
   )
@@ -512,7 +506,6 @@ export function PredictionComparison({
         sides={sides}
         compare={compare}
         compareError={compareError}
-        compact
       />
     </div>
   )

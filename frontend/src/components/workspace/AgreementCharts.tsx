@@ -654,7 +654,7 @@ export function BlockAgreementPair({
         <br />
         Blank blocks held fewer than {grids[0].blocks.min_cells} reference cells.
       </p>
-      <div className="flex flex-row items-start gap-3">
+      <div className="flex flex-row flex-wrap items-start gap-3">
         {grids.map((g) => {
           const at = new Map(g.blocks.cells.map((c) => [`${c.row}:${c.col}`, c]))
           return (
@@ -813,7 +813,7 @@ export function ReferenceConfusionPair({
       <p className="text-meta leading-snug text-muted-foreground">
         Rows = MapBiomas reference, columns = the run.
       </p>
-      <div className="flex flex-row items-start gap-3">
+      <div className="flex flex-row flex-wrap items-start gap-3">
         {grids.map((g) => (
           <div key={g.letter} className="flex min-w-0 flex-col gap-1">
             <p className="telemetry truncate text-micro text-muted-foreground">
