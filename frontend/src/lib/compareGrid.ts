@@ -1,10 +1,11 @@
 /**
- * The arithmetic of the Compare screen, apart from what draws it.
+ * The arithmetic of the Compare board, apart from what draws it.
  *
  * Rasters of areas hundreds of kilometres apart cannot be set side by side on a
- * map, whose whole job is to keep them where they are. On a fixed grid they can,
- * at the price of each being drawn to its own scale, so every tile states how much
+ * map, whose whole job is to keep them where they are. On a board they can, at
+ * the price of each being drawn to its own scale, so every run states how much
  * ground it spans: two squares of one size are not two fields of one size.
+ * Which runs a reading compares is lib/compareBoard.ts's.
  */
 import type { DataTable } from "@/lib/analysisTables"
 import {
@@ -15,14 +16,6 @@ import {
 } from "@/lib/compareTables"
 import { cornersOf } from "@/lib/mapLayers"
 import type { Bounds, PredictResult } from "@/lib/types"
-
-/** Columns for this many tiles. Fixed by the count, so a tile never moves on its own. */
-export function gridColumns(n: number): number {
-  if (n <= 1) return 1
-  if (n <= 4) return 2
-  if (n <= 9) return 3
-  return 4
-}
 
 const EARTH_RADIUS_M = 6_371_008.8
 
@@ -47,39 +40,6 @@ export function groundWidthM(e: Bounds): number {
 export function formatGroundWidth(m: number): string {
   if (m < 1000) return `${Math.round(m)} m`
   return `${(m / 1000).toFixed(m < 10_000 ? 2 : 1)} km`
-}
-
-export interface ComparePins {
-  a?: string
-  b?: string
-}
-
-/**
- * The two runs being compared: those pinned, and otherwise the first free ones.
- * Null below two, since a run against itself is not a comparison. A pin to a run
- * that has left the grid is ignored rather than leaving a slot naming nothing.
- */
-export function comparePair(
-  ids: readonly string[],
-  pins: ComparePins
-): [string, string] | null {
-  const pinA = pins.a && ids.includes(pins.a) ? pins.a : undefined
-  const pinB = pins.b && ids.includes(pins.b) && pins.b !== pinA ? pins.b : undefined
-  const free = ids.filter((id) => id !== pinA && id !== pinB)
-  const a = pinA ?? free.shift()
-  const b = pinB ?? free.shift()
-  return a && b ? [a, b] : null
-}
-
-/** Pins after a run is put in a slot. Into the other slot's run, the two swap. */
-export function pinSlot(
-  pair: readonly [string, string] | null,
-  slot: "a" | "b",
-  id: string
-): ComparePins {
-  const [a, b] = pair ?? [undefined, undefined]
-  if (slot === "a") return { a: id, b: b === id ? a : b }
-  return { a: a === id ? b : a, b: id }
 }
 
 /** The pair's figures as tables, in the order they are drawn, for the clipboard. */

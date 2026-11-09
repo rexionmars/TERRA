@@ -1,24 +1,7 @@
 import { describe, expect, it } from "vitest"
 
-import {
-  comparePair,
-  comparePairTables,
-  formatGroundWidth,
-  gridColumns,
-  groundWidthM,
-  pinSlot,
-} from "@/lib/compareGrid"
+import { comparePairTables, formatGroundWidth, groundWidthM } from "@/lib/compareGrid"
 import type { PredictResult } from "@/lib/types"
-
-describe("gridColumns", () => {
-  it("fills a square as the count grows", () => {
-    expect([1, 2, 4, 5, 9, 10].map(gridColumns)).toEqual([1, 2, 2, 3, 3, 4])
-  })
-
-  it("does not divide by an empty grid", () => {
-    expect(gridColumns(0)).toBe(1)
-  })
-})
 
 describe("groundWidthM", () => {
   it("measures a degree of longitude at the equator", () => {
@@ -54,41 +37,6 @@ describe("formatGroundWidth", () => {
     expect(formatGroundWidth(950.4)).toBe("950 m")
     expect(formatGroundWidth(1234)).toBe("1.23 km")
     expect(formatGroundWidth(12_400)).toBe("12.4 km")
-  })
-})
-
-describe("comparePair", () => {
-  it("is null below two runs", () => {
-    expect(comparePair([], {})).toBeNull()
-    expect(comparePair(["r1"], {})).toBeNull()
-  })
-
-  it("takes the first two with nothing pinned", () => {
-    expect(comparePair(["r1", "r2", "r3"], {})).toEqual(["r1", "r2"])
-  })
-
-  it("holds a pin and fills the other slot with the first free run", () => {
-    expect(comparePair(["r1", "r2", "r3"], { b: "r1" })).toEqual(["r2", "r1"])
-    expect(comparePair(["r1", "r2", "r3"], { a: "r3" })).toEqual(["r3", "r1"])
-  })
-
-  it("ignores a pin to a run that has left", () => {
-    expect(comparePair(["r1", "r2"], { a: "gone" })).toEqual(["r1", "r2"])
-  })
-
-  it("never compares a run against itself", () => {
-    expect(comparePair(["r1", "r2"], { a: "r1", b: "r1" })).toEqual(["r1", "r2"])
-  })
-})
-
-describe("pinSlot", () => {
-  it("pins a third run without disturbing the other slot", () => {
-    expect(pinSlot(["r1", "r2"], "b", "r3")).toEqual({ a: "r1", b: "r3" })
-  })
-
-  it("swaps when a run is put in the slot of the other", () => {
-    expect(pinSlot(["r1", "r2"], "a", "r2")).toEqual({ a: "r2", b: "r1" })
-    expect(pinSlot(["r1", "r2"], "b", "r1")).toEqual({ a: "r2", b: "r1" })
   })
 })
 
