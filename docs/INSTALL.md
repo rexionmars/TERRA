@@ -109,7 +109,7 @@ saved and then overruled by it.
 
 | Tool | Version |
 |------|---------|
-| Go | 1.23+ |
+| Go | 1.25+ |
 | Node.js | 18+ (20 recommended) |
 | Python | 3.12 + `requirements.txt` |
 | [Wails CLI](https://wails.io) | `go install github.com/wailsapp/wails/v2/cmd/wails@latest` |
