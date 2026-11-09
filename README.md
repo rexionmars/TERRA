@@ -367,7 +367,7 @@ pytest sidecar/tests -q
 - **LITE or source:** Python 3.12 and [`requirements.txt`](requirements.txt)
 - **Optional:** [`requirements-prithvi.txt`](requirements-prithvi.txt) for the
   neural models
-- **From source:** Go 1.23+, Node.js 18+, [Wails CLI](https://wails.io)
+- **From source:** Go 1.25+, Node.js 18+, [Wails CLI](https://wails.io)
 
 Interpreter resolution: `TERRA_PYTHON` → bundled `python/` (FULL) → `.venv` → `python3`.
 
