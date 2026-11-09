@@ -120,15 +120,22 @@ the area are listed under the form, each with its exports.
 
 ## 8. Compare
 
-Runs of any area and any product, side by side on a fixed grid. **Add a run** brings
-in a saved one. Each tile is drawn to its own scale and says how much ground it spans.
+Runs of any area and any product, as nodes on a board. **Add a run** brings in a
+saved one. Each run is drawn to its own scale and says how much ground it spans.
 
-Mark two classifications **A** and **B**, then read:
+Readings are nodes too. Add one from **Add**, then pull a link from a run's
+**Classes** onto its inputs; a run can feed any number of readings, so several
+comparisons stand on the board at once. Select a reading to read it in full in the
+panel at the right. **View › Arrange** sets each reading beside the runs it reads,
+and **X** removes the reading selected.
 
-- **Differences:** what differs between the runs, agreement, class transitions and
-  share deltas. **Copy deltas** puts them on the clipboard as CSV.
-- **Domain shift** and **Cohort:** how far apart runs sit in what the model saw.
-- **Spectra**, **Separability**, **Library** and **Tables**, in both runs.
+- **Differences:** what differs between runs A and B, agreement, class transitions
+  and share deltas. **Copy deltas** puts them on the clipboard as CSV.
+- **Domain shift:** how far apart A and B sit in what the model saw. **Cohort:**
+  every target measured from one source.
+- **Spectra**, **Separability**, **Library** and **Tables**, in every run linked.
+
+Two classifications on an empty board get a Differences node linked to both.
 
 ## 9. Workflows
 
@@ -168,5 +175,5 @@ disk under the application's config directory; there is no cloud sync.
    scene per month and a moderate cloud limit.
 4. **Classify**. The result opens when it finishes.
 5. Adjust the rasters under **Layers**, and read the limit in **Result**.
-6. Run it again over another period or model, then open **Compare** and mark the two
-   runs A and B.
+6. Run it again over another period or model, then open **Compare** and link the
+   two runs into a **Differences** node, as A and B.

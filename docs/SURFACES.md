@@ -23,7 +23,7 @@ disagree, the code is right and this file is stale.
 | **Explore** | The map. Products, Visualization, Result, Points and Layers are tools on its right edge, and each opens a panel over it |
 | **Areas** | The areas of the project and their fields; draw, import, or take a state or municipality from IBGE |
 | **Analyses** | Every saved run, filed under its project |
-| **Compare** | Runs side by side on a fixed grid, and what differs between two of them |
+| **Compare** | Runs as nodes on a board, and readings linked to any of them, as many as wanted |
 | **Workflows** | The compositor, full screen |
 | **Activity** | What the application has said, kept after each notification leaves |
 
@@ -52,15 +52,20 @@ cannot be set side by side on a surface whose whole job is to keep them where th
 are. That part of the old argument stands, and it is why **Compare is a screen and
 not a panel**.
 
-The board answered it by lifting rasters off their coordinates into a 3D scene,
-with a camera and planes to drag. A fixed grid keeps what the comparison used and
-drops the rest. The price is that each tile is drawn to its own scale, so **each
-tile states how much ground it spans**: two squares of one size are not two fields
-of one size.
+The old board answered it by lifting rasters off their coordinates into a 3D scene,
+with a camera and planes to drag. Compare keeps what the comparison used and drops
+the rest: each run is a node on a flat board, drawn to its own scale, so **each run
+states how much ground it spans**: two squares of one size are not two fields of one
+size.
 
-The analyses that are about the distance between runs live there too: agreement and
-class transitions, domain shift between two runs and across a cohort, spectra and
-separability read in both.
+The analyses that are about the distance between runs are nodes on that board too:
+agreement and class transitions, domain shift between two runs and across a cohort,
+spectra, separability, a spectral library and the runs' tables. Each is added from
+**Add** and fed by links from the runs, as a node of the Workflows compositor is,
+so one board holds as many comparisons as the reader adds. A fixed grid with one
+pair marked A and B stood here first, and it made a second comparison cost the
+first. The node selected is read in full in the panel beside the board, where the
+readings have the width they were drawn for.
 
 ## What was given up
 
@@ -83,7 +88,7 @@ A saved board is stored as a `studio`, in the database and in a `.terra` file, a
 that did not change: files written before this interface still open. In the
 interface it is a **workflow**: a name, a graph and the runs it reads. Opening one
 with a graph lands on Workflows; one saved with no graph was arranging rasters, so
-it lands on Compare with its runs on the grid. What a board recorded about its
+it lands on Compare with its runs on the board. What a board recorded about its
 arrangement is carried through a save and not otherwise used.
 
 ## Related docs
