@@ -19,6 +19,39 @@ hand-written "unreleased" section beside a generated one is the same list twice,
 and only one of them is kept current.
 
 
+## [0.9.0](https://github.com/rexionmars/TERRA/compare/v0.8.0...v0.9.0) (2026-11-09)
+
+
+### Features
+
+* **brand:** the mark and the icon are a golden parakeet in a triangle ([13f471e](https://github.com/rexionmars/TERRA/commit/13f471e23540636652e2f89fedc1ec828ed31fcb))
+* **compare:** runs and readings are nodes on a board, as in Workflows ([b928ada](https://github.com/rexionmars/TERRA/commit/b928ada26209a07deefde085a1e4b81010b51cd2))
+* **map:** a curtain compares the top raster with what is under it ([ef06bde](https://github.com/rexionmars/TERRA/commit/ef06bdee57646ac33feb1aa02e16e7c6c8881331))
+* **map:** twelve spectral indices, and any band in any RGB channel ([e0f29b3](https://github.com/rexionmars/TERRA/commit/e0f29b374c80c0f6cf5829069c1e9bbc3665be19))
+* **map:** views of components, clusters, change, canopy and biomass ([629350f](https://github.com/rexionmars/TERRA/commit/629350fe6f42702d356c9fad3acadc13f90c1047))
+* **products:** a product's plate is a picture of the result it returns ([e4f872c](https://github.com/rexionmars/TERRA/commit/e4f872c2083cdbdb1b894fc7856d9dc9c6014ae1))
+* **shell:** the TERRA mark in the bar opens the Options menu ([05f55f7](https://github.com/rexionmars/TERRA/commit/05f55f78b5a054a01b32ad01febaf8e183f01f56))
+* **splash:** the Earth turns under three orbits in place of the release still ([068f9f2](https://github.com/rexionmars/TERRA/commit/068f9f28314d73e60ed897c6105fcfa77420675f))
+* **start:** the start screen shows a photograph of the ararajuba ([8d2eaad](https://github.com/rexionmars/TERRA/commit/8d2eaad0f5f0f8330d8b1a490af78e01bd5acc8d))
+
+
+### Bug fixes
+
+* **analyses:** opening a saved analysis says so and cannot start twice ([78237a5](https://github.com/rexionmars/TERRA/commit/78237a5d49837d6c16b8f88f1314f29975cc5e1e))
+* **compare:** the Differences reading fits its panel in one column ([2b44e6c](https://github.com/rexionmars/TERRA/commit/2b44e6c6b880faec4aa59dc362b26889e46124fc))
+* **keymap:** each command names the menu it is offered in ([4f23ee2](https://github.com/rexionmars/TERRA/commit/4f23ee21a6dc3bd9dece907c60511e482ad0b7f4))
+* **map:** a failed place search is reported in English ([3c45db9](https://github.com/rexionmars/TERRA/commit/3c45db935078e26304b8f323e40256f36e5cede0))
+* **map:** a raster's menu shows and hides its legend on the map ([65a079d](https://github.com/rexionmars/TERRA/commit/65a079d262318d67103d753c05e0906e5788c42e))
+* **map:** the disabled legend entry gives a reason true of every raster ([d9cf4d2](https://github.com/rexionmars/TERRA/commit/d9cf4d235bbb6386fa37ce0612f2822df65d8174))
+* **map:** the map's bin deletes the area, after asking ([8227ea4](https://github.com/rexionmars/TERRA/commit/8227ea4fe6278200d5c23ff6692563f41329554a))
+* **map:** the zoom and imagery notes are legible over bright ground ([a3c3395](https://github.com/rexionmars/TERRA/commit/a3c3395d2fa0d5fa57f0379e6c7e5205ac3624f4))
+* **shell:** the crumbs keep their place when the rail opens ([d66fb49](https://github.com/rexionmars/TERRA/commit/d66fb49785f8a2cc0bbe092f968d2cb746df2331))
+* **shell:** the rail changes width at once, so the map resizes once ([03afab4](https://github.com/rexionmars/TERRA/commit/03afab4e2c3578db7012731c3b320347cd66a6e6))
+* **shell:** the rail's toggle keeps its place in a bar across the window ([97621c7](https://github.com/rexionmars/TERRA/commit/97621c76c039d873811837bdb1459fd0a714b41c))
+* **shell:** the rail's toggle points the way its next press goes ([403d7d6](https://github.com/rexionmars/TERRA/commit/403d7d64fe4e9e049c1c8e5c31e86a169d1f305a))
+* **sidecar:** a composition can read the red-edge bands B05, B06 and B07 ([8b5d3c6](https://github.com/rexionmars/TERRA/commit/8b5d3c64060b5efb99bf31c441dc0be9301e7b26))
+* **window:** the traffic lights sit on the centre line of a 52pt bar ([f61ef36](https://github.com/rexionmars/TERRA/commit/f61ef36a1d962174a57e8477cfea20ce0fa7cd36))
+
 ## [0.8.0](https://github.com/rexionmars/TERRA/compare/v0.7.0...v0.8.0) (2026-11-04)
 
 
