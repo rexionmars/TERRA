@@ -471,9 +471,9 @@ export function GlobeSurface({
     /**
      * What its colours mean, for the callout tied to it on the ground.
      *
-     * Absent where the legend is not a ramp, and nothing is drawn there: a
-     * class legend is a list of swatches, and MapBiomas alone runs to dozens.
-     * The properties panel remains where those are read.
+     * Absent where the raster has no legend, or the map is not drawing it
+     * (lib/legendChoice.ts): a ramp's is drawn by default, a list of classes
+     * when the reader asks for it from the raster's menu.
      */
     caption?: OverlayCaption
   }[]

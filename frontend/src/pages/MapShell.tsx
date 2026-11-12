@@ -35,6 +35,12 @@ import { countJobs, takeFinished, useJobs, type JobKind } from "@/lib/jobs"
 import { notifyError } from "@/lib/notify"
 import { mergePreferenceExtras, parsePreferenceExtras } from "@/lib/preferenceExtras"
 import { openProjectFile } from "@/lib/projectFiles"
+import {
+  legendShown,
+  toggleLegend as toggleLegendChoice,
+  type LegendChoice,
+  type LegendState,
+} from "@/lib/legendChoice"
 import { useReports } from "@/lib/reports"
 import { cn } from "@/lib/utils"
 import { useOperators } from "@/lib/operators"
@@ -293,22 +299,30 @@ export function MapShell(props: MapShellProps) {
     beneath,
   })
   /*
-    The rasters whose legend the reader took off the map, from the raster's own
-    menu. A ramp's legend is drawn beside it by default (mapLayerState says
-    why); this is the way to put one away, and to bring it back.
+    Which legends the reader put on the map or took off it, from each raster's
+    own menu. A raster the reader has not chosen for follows the default
+    lib/legendChoice.ts gives: a ramp is drawn, a list of classes is not.
   */
-  const [legendsOff, setLegendsOff] = useState<ReadonlySet<string>>(() => new Set())
+  const [legendChoice, setLegendChoice] = useState<LegendChoice>({})
+  const legendStateOf = (key: string): LegendState => {
+    const o = overlays.find((x) => x.key === key)
+    return { key, hasLegend: !!o?.caption, byDefault: !!o?.captionByDefault }
+  }
   const shownOverlays = useMemo(
     () =>
-      overlays.map((o) => (legendsOff.has(o.key) ? { ...o, caption: undefined } : o)),
-    [overlays, legendsOff]
+      overlays.map((o) =>
+        legendShown(legendChoice, {
+          key: o.key,
+          hasLegend: !!o.caption,
+          byDefault: o.captionByDefault,
+        })
+          ? o
+          : { ...o, caption: undefined }
+      ),
+    [overlays, legendChoice]
   )
   const toggleLegend = (key: string) =>
-    setLegendsOff((prev) => {
-      const next = new Set(prev)
-      if (!next.delete(key)) next.add(key)
-      return next
-    })
+    setLegendChoice((held) => toggleLegendChoice(held, legendStateOf(key)))
   const pins = useMemo(
     () =>
       (["A", "B"] as const).flatMap((slot) => {
@@ -540,14 +554,14 @@ export function MapShell(props: MapShellProps) {
               onOverlayContext={(hits, at) => {
                 const entries = hits.flatMap(({ key, fit }) => {
                   const l = layers.find((x) => x.id === key)
-                  const hasLegend = !!overlays.find((o) => o.key === key)?.caption
+                  const state = legendStateOf(key)
                   return l
                     ? [
                         {
                           key,
                           title: l.title,
-                          hasLegend,
-                          legendOnMap: hasLegend && !legendsOff.has(key),
+                          hasLegend: state.hasLegend,
+                          legendOnMap: legendShown(legendChoice, state),
                           fit,
                         },
                       ]

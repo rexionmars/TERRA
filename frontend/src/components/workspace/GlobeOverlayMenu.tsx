@@ -16,8 +16,9 @@ export interface GlobeOverlayEntry {
   key: string
   title: string
   /**
-   * Whether it has a legend the map can draw beside it. Only a ramp does: a
-   * class legend runs long and is read in the Result panel.
+   * Whether it has a legend the map can draw beside it. Every legend can be;
+   * a ramp's is drawn by default and the others when asked for here
+   * (lib/legendChoice.ts). A photograph has none.
    */
   hasLegend: boolean
   /** Whether that legend is drawn on the map now. */
@@ -54,7 +55,7 @@ function Entries({
         }
         title={
           !entry.hasLegend
-            ? "Only a colour ramp is drawn beside its raster"
+            ? "This raster has no legend to draw: its colours are a photograph, or its reading is in Result"
             : entry.legendOnMap
               ? "The map keeps the raster and stops drawing its legend"
               : "Its legend, tied to the ground it measures"
