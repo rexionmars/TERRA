@@ -89,6 +89,8 @@ export function GetProject(arg1:string):Promise<store.Project>;
 
 export function GetStudio(arg1:string):Promise<store.Studio>;
 
+export function ImportModel(arg1:string):Promise<analysis.ModelInfo>;
+
 export function InspectEnvironment():Promise<main.EnvironmentState>;
 
 export function InspectPython(arg1:string):Promise<pyenv.EnvReport>;
@@ -102,6 +104,8 @@ export function ListAreas(arg1:string):Promise<Array<store.Area>>;
 export function ListDataCube(arg1:analysis.DataCubeRequest):Promise<analysis.DataCubeResult>;
 
 export function ListJobs():Promise<Array<jobs.Job>>;
+
+export function ListModels():Promise<Array<analysis.ModelInfo>>;
 
 export function ListOptionalPackages():Promise<Array<pyenv.OptionalPackage>>;
 
@@ -127,6 +131,8 @@ export function OpenExternal(arg1:string):Promise<void>;
 
 export function OpenProjectFile(arg1:string):Promise<store.ProjectFileSummary>;
 
+export function PickModelPackage():Promise<string>;
+
 export function Predict(arg1:analysis.PredictRequest):Promise<analysis.PredictResult>;
 
 export function PurgeOrphanedRunAssets():Promise<store.PurgeResult>;
@@ -134,6 +140,8 @@ export function PurgeOrphanedRunAssets():Promise<store.PurgeResult>;
 export function QueueJobs(arg1:Array<main.JobSpec>):Promise<Array<jobs.Job>>;
 
 export function Register(arg1:string,arg2:string,arg3:string):Promise<store.User>;
+
+export function RemoveModel(arg1:string,arg2:string):Promise<void>;
 
 export function RenameStudio(arg1:string,arg2:string):Promise<void>;
 

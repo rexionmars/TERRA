@@ -166,6 +166,10 @@ export function GetStudio(arg1) {
   return window['go']['main']['App']['GetStudio'](arg1);
 }
 
+export function ImportModel(arg1) {
+  return window['go']['main']['App']['ImportModel'](arg1);
+}
+
 export function InspectEnvironment() {
   return window['go']['main']['App']['InspectEnvironment']();
 }
@@ -192,6 +196,10 @@ export function ListDataCube(arg1) {
 
 export function ListJobs() {
   return window['go']['main']['App']['ListJobs']();
+}
+
+export function ListModels() {
+  return window['go']['main']['App']['ListModels']();
 }
 
 export function ListOptionalPackages() {
@@ -242,6 +250,10 @@ export function OpenProjectFile(arg1) {
   return window['go']['main']['App']['OpenProjectFile'](arg1);
 }
 
+export function PickModelPackage() {
+  return window['go']['main']['App']['PickModelPackage']();
+}
+
 export function Predict(arg1) {
   return window['go']['main']['App']['Predict'](arg1);
 }
@@ -256,6 +268,10 @@ export function QueueJobs(arg1) {
 
 export function Register(arg1, arg2, arg3) {
   return window['go']['main']['App']['Register'](arg1, arg2, arg3);
+}
+
+export function RemoveModel(arg1, arg2) {
+  return window['go']['main']['App']['RemoveModel'](arg1, arg2);
 }
 
 export function RenameStudio(arg1, arg2) {

@@ -13,6 +13,7 @@ model artifact, reads a COG, or touches the network.
 from __future__ import annotations
 
 from datetime import datetime
+from types import SimpleNamespace
 
 import numpy as np
 import pytest
@@ -56,6 +57,11 @@ class Scaler:
         return rows
 
 
+
+# An installed feature_rf package as run() reads it: by family, and its files
+# come in through `artifacts`.
+FEATURE_RF = SimpleNamespace(family='feature_rf', name='Random Forest')
+
 @pytest.fixture
 def matrix(monkeypatch):
     """build_feature_matrix answering from a value the test sets."""
@@ -73,7 +79,7 @@ def matrix(monkeypatch):
 def test_the_spectral_path_returns_its_feature_rows_for_the_fingerprint(matrix):
     out = classify.run(
         [product(1), product(6)], polygon=None, ref_profile=None,
-        kind='spectral', mode='single', model_dir=None,
+        package=FEATURE_RF, mode='single',
         artifacts=(Forest(), Scaler(), Encoder()), n_dates_model=22,
     )
 
@@ -93,7 +99,7 @@ def test_the_temporal_mode_reports_one_row_per_date_and_classifies_the_full_stac
 
     out = classify.run(
         products, polygon=None, ref_profile=None,
-        kind='spectral', mode='temporal', model_dir=None,
+        package=FEATURE_RF, mode='temporal',
         artifacts=(Forest(), Scaler(), Encoder()), n_dates_model=22,
     )
 
@@ -106,7 +112,7 @@ def test_the_temporal_mode_reports_one_row_per_date_and_classifies_the_full_stac
 def test_a_date_with_no_reference_mask_reports_no_retention(matrix):
     out = classify.run(
         [product(1)], polygon=None, ref_profile=None,
-        kind='spectral', mode='temporal', model_dir=None,
+        package=FEATURE_RF, mode='temporal',
         artifacts=(Forest(), Scaler(), Encoder()), n_dates_model=22,
         soja_mask=None,
     )
@@ -122,7 +128,7 @@ def test_the_retention_is_the_share_of_reference_pixels_still_called_soja(matrix
 
     out = classify.run(
         [product(1)], polygon=None, ref_profile=None,
-        kind='spectral', mode='temporal', model_dir=None,
+        package=FEATURE_RF, mode='temporal',
         artifacts=(Forest(predicted=39), Scaler(), Encoder()), n_dates_model=22,
         soja_mask=mask,
     )
@@ -142,7 +148,7 @@ def test_no_valid_data_raises_rather_than_exiting(matrix):
     with pytest.raises(classify.NoValidData):
         classify.run(
             [product(1)], polygon=None, ref_profile=None,
-            kind='spectral', mode='single', model_dir=None,
+            package=FEATURE_RF, mode='single',
             artifacts=(Forest(), Scaler(), Encoder()), n_dates_model=22,
         )
 
@@ -152,7 +158,7 @@ def test_progress_is_the_callers_and_the_run_writes_to_no_stream(matrix, capsys)
 
     classify.run(
         [product(1), product(6)], polygon=None, ref_profile=None,
-        kind='spectral', mode='temporal', model_dir=None,
+        package=FEATURE_RF, mode='temporal',
         artifacts=(Forest(), Scaler(), Encoder()), n_dates_model=22,
         progress=lambda pct, msg: seen.append((pct, msg)),
     )
@@ -171,7 +177,8 @@ def test_a_missing_artifact_is_raised_by_name(tmp_path):
 
     with pytest.raises(classify.ArtifactMissing, match='Temporal Transformer'):
         classify.classify_temporal_transformer(
-            [product(1)], polygon=None, ref_profile=None, model_dir=tmp_path)
+            [product(1)], polygon=None, ref_profile=None,
+            ckpt_path=tmp_path / 'tt_mapbiomas.pt')
 
 
 def test_an_absent_optional_package_is_raised_rather_than_exited():
@@ -198,7 +205,7 @@ def test_a_band_that_cannot_be_read_is_noted_and_not_written(matrix, capsys):
 
     classify.run(
         [product(1)], polygon=None, ref_profile=None,
-        kind='spectral', mode='single', model_dir=None,
+        package=FEATURE_RF, mode='single',
         artifacts=(Forest(), Scaler(), Encoder()), n_dates_model=22,
         note=said.append,
     )

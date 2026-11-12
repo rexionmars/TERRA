@@ -2395,6 +2395,207 @@ export namespace analysis {
 	
 	
 	
+	export class ModelFact {
+	    label: string;
+	    value: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new ModelFact(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.label = source["label"];
+	        this.value = source["value"];
+	    }
+	}
+	export class ModelEvaluation {
+	    method: string;
+	    figures: ModelFact[];
+	    source: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new ModelEvaluation(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.method = source["method"];
+	        this.figures = this.convertValues(source["figures"], ModelFact);
+	        this.source = source["source"];
+	    }
+	
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
+	}
+	
+	export class ModelFile {
+	    name: string;
+	    sha256: string;
+	    size: number;
+	
+	    static createFrom(source: any = {}) {
+	        return new ModelFile(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.name = source["name"];
+	        this.sha256 = source["sha256"];
+	        this.size = source["size"];
+	    }
+	}
+	export class ModelPicture {
+	    subject: string;
+	    author: string;
+	    license: string;
+	    source: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new ModelPicture(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.subject = source["subject"];
+	        this.author = source["author"];
+	        this.license = source["license"];
+	        this.source = source["source"];
+	    }
+	}
+	export class ModelManifest {
+	    format: number;
+	    id: string;
+	    version: string;
+	    name: string;
+	    family: string;
+	    task: string;
+	    summary: string;
+	    classes: number[];
+	    modes: string[];
+	    requires: string[];
+	    variants: string[];
+	    reads: ModelFact[];
+	    method: ModelFact[];
+	    evaluation?: ModelEvaluation;
+	    limits: string[];
+	    license: string;
+	    doi: string;
+	    picture?: ModelPicture;
+	    files: Record<string, ModelFile>;
+	
+	    static createFrom(source: any = {}) {
+	        return new ModelManifest(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.format = source["format"];
+	        this.id = source["id"];
+	        this.version = source["version"];
+	        this.name = source["name"];
+	        this.family = source["family"];
+	        this.task = source["task"];
+	        this.summary = source["summary"];
+	        this.classes = source["classes"];
+	        this.modes = source["modes"];
+	        this.requires = source["requires"];
+	        this.variants = source["variants"];
+	        this.reads = this.convertValues(source["reads"], ModelFact);
+	        this.method = this.convertValues(source["method"], ModelFact);
+	        this.evaluation = this.convertValues(source["evaluation"], ModelEvaluation);
+	        this.limits = source["limits"];
+	        this.license = source["license"];
+	        this.doi = source["doi"];
+	        this.picture = this.convertValues(source["picture"], ModelPicture);
+	        this.files = this.convertValues(source["files"], ModelFile, true);
+	    }
+	
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
+	}
+	export class ModelInfo {
+	    manifest: ModelManifest;
+	    digest: string;
+	    picture_uri: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new ModelInfo(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.manifest = this.convertValues(source["manifest"], ModelManifest);
+	        this.digest = source["digest"];
+	        this.picture_uri = source["picture_uri"];
+	    }
+	
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
+	}
+	
+	
+	export class ModelRef {
+	    id: string;
+	    version: string;
+	    digest: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new ModelRef(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.id = source["id"];
+	        this.version = source["version"];
+	        this.digest = source["digest"];
+	    }
+	}
 	export class OverlapPeriod {
 	    id: string;
 	    label: string;
@@ -2631,6 +2832,7 @@ export namespace analysis {
 	    tiles: string[];
 	    mode: string;
 	    model_kind: string;
+	    model_version?: string;
 	    prithvi_mode: string;
 	    project_id?: string;
 	    label?: string;
@@ -2651,6 +2853,7 @@ export namespace analysis {
 	        this.tiles = source["tiles"];
 	        this.mode = source["mode"];
 	        this.model_kind = source["model_kind"];
+	        this.model_version = source["model_version"];
 	        this.prithvi_mode = source["prithvi_mode"];
 	        this.project_id = source["project_id"];
 	        this.label = source["label"];
@@ -3108,6 +3311,7 @@ export namespace analysis {
 	    radar?: RadarAnalysis;
 	    zones?: ZonesAnalysis;
 	    domain_fingerprint?: DomainFingerprint;
+	    model?: ModelRef;
 	
 	    static createFrom(source: any = {}) {
 	        return new PredictResult(source);
@@ -3146,6 +3350,7 @@ export namespace analysis {
 	        this.radar = this.convertValues(source["radar"], RadarAnalysis);
 	        this.zones = this.convertValues(source["zones"], ZonesAnalysis);
 	        this.domain_fingerprint = this.convertValues(source["domain_fingerprint"], DomainFingerprint);
+	        this.model = this.convertValues(source["model"], ModelRef);
 	    }
 	
 		convertValues(a: any, classs: any, asMap: boolean = false): any {

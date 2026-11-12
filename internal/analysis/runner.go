@@ -299,12 +299,14 @@ func (r *Runner) RepoRoot() string {
 }
 
 // Predict runs the sidecar for the given request, emitting progress events.
-func (r *Runner) Predict(ctx context.Context, req PredictRequest) (*PredictResult, error) {
+// Predict classifies the request's polygon with the model package installed
+// at modelPath, which the caller resolved from req.ModelKind (internal/models).
+func (r *Runner) Predict(ctx context.Context, req PredictRequest, modelPath string) (*PredictResult, error) {
 	if _, err := os.Stat(r.sidecar); err != nil {
 		return nil, fmt.Errorf("sidecar not found at %s", r.sidecar)
 	}
-	if _, err := os.Stat(r.modelDir); err != nil {
-		return nil, fmt.Errorf("model directory not found at %s", r.modelDir)
+	if modelPath == "" {
+		return nil, fmt.Errorf("no model given; install one from Models")
 	}
 	if strings.TrimSpace(req.Start) == "" || strings.TrimSpace(req.End) == "" {
 		return nil, fmt.Errorf("set the acquisition period (start and end dates)")
@@ -318,13 +320,9 @@ func (r *Runner) Predict(ctx context.Context, req PredictRequest) (*PredictResul
 	if maxCloud <= 0 {
 		maxCloud = 100
 	}
-	modelKind := req.ModelKind
-	if modelKind == "" {
-		modelKind = "spectral"
-	}
-	prithviMode := req.PrithviMode
-	if prithviMode == "" {
-		prithviMode = "pixel"
+	variant := req.PrithviMode
+	if variant == "" {
+		variant = "pixel"
 	}
 
 	/*
@@ -371,8 +369,8 @@ func (r *Runner) Predict(ctx context.Context, req PredictRequest) (*PredictResul
 		PolygonGeoJSON: polygon,
 		MapBiomasPath:  mbPath,
 		Mode:           mode,
-		ModelKind:      modelKind,
-		PrithviMode:    prithviMode,
+		ModelPath:      modelPath,
+		Variant:        variant,
 		WorkDir:        workDir,
 	}
 	reqBytes, err := json.Marshal(sReq)
@@ -450,6 +448,7 @@ func (r *Runner) Predict(ctx context.Context, req PredictRequest) (*PredictResul
 		PhenologyStates:   sres.PhenologyStates,
 		LULC:              convertLULC(sres.LULC),
 		DomainFingerprint: sres.DomainFingerprint,
+		Model:             sres.Model,
 	}
 	if result.RasterTIF != "" {
 		if p, perr := promoteExportFile(result.RasterTIF, "classification.tif"); perr == nil {

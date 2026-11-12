@@ -5,6 +5,7 @@ import (
 	"errors"
 
 	"geosense-infer/internal/analysis"
+	"geosense-infer/internal/models"
 )
 
 // The analyses the frontend asks for by name. Each method reads its arguments, calls the runner, and hands back
@@ -23,7 +24,20 @@ func (a *App) predict(ctx context.Context, req analysis.PredictRequest) (*analys
 	if runner == nil {
 		return nil, errors.New("runner not initialized")
 	}
-	res, err := runner.Predict(ctx, req)
+	// The model is an installed package; app_models.go says where they live.
+	// An empty id is the default the preferences have always held.
+	if req.ModelKind == "" {
+		req.ModelKind = "spectral"
+	}
+	root := a.modelsDir()
+	if root == "" {
+		return nil, errors.New("the local store is not open")
+	}
+	pkg, err := models.Resolve(root, req.ModelKind, req.ModelVersion)
+	if err != nil {
+		return nil, err
+	}
+	res, err := runner.Predict(ctx, req, pkg.Dir)
 	if err != nil {
 		return nil, err
 	}

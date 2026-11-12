@@ -36,9 +36,14 @@ type PredictRequest struct {
 	Tiles []string `json:"tiles"`
 	// Mode is "single" (full stack) or "temporal" (cumulative retention).
 	Mode string `json:"mode"`
-	// ModelKind is "spectral", "prithvi", or "temporal_transformer".
+	// ModelKind is the id of the installed model package to run, e.g.
+	// "spectral". The name is kept from when it named one of three built-in
+	// paths, because saved runs and preferences carry it under that name.
 	ModelKind string `json:"model_kind"`
-	// PrithviMode is "pixel" or "patch" (used when ModelKind is "prithvi").
+	// ModelVersion pins the package's version; empty runs the newest installed.
+	ModelVersion string `json:"model_version,omitempty"`
+	// PrithviMode is the head of an embedding package to run, "pixel" or
+	// "patch"; the sidecar reads it as the package's variant.
 	PrithviMode string `json:"prithvi_mode"`
 	// ProjectID optionally attaches the saved run to a project.
 	ProjectID string `json:"project_id,omitempty"`
@@ -66,9 +71,10 @@ type sidecarRequest struct {
 	PolygonGeoJSON *GeoJSONGeometry `json:"polygon_geojson,omitempty"`
 	MapBiomasPath  string           `json:"mapbiomas_path,omitempty"`
 	Mode           string           `json:"mode"`
-	ModelKind      string           `json:"model_kind"`
-	PrithviMode    string           `json:"prithvi_mode"`
-	WorkDir        string           `json:"work_dir"`
+	// ModelPath is the installed package's directory; Variant its head.
+	ModelPath string `json:"model_path,omitempty"`
+	Variant   string `json:"variant,omitempty"`
+	WorkDir   string `json:"work_dir"`
 	// Composite / index render (action=render_composite).
 	SceneID       string    `json:"scene_id,omitempty"`
 	Kind          string    `json:"kind,omitempty"`
@@ -491,6 +497,7 @@ type sidecarResult struct {
 	PhenologyStates   []PhenologyStatePoint `json:"phenology_states"`
 	LULC              *lulcSidecarPayload   `json:"lulc"`
 	DomainFingerprint *DomainFingerprint    `json:"domain_fingerprint,omitempty"`
+	Model             *ModelRef             `json:"model,omitempty"`
 }
 
 // lulcSidecarPayload is the raw LULC block from Python (map as file path).
@@ -594,6 +601,10 @@ type PredictResult struct {
 	// domain-shift diagnostics against another run. Absent on older runs and
 	// on water-only results.
 	DomainFingerprint *DomainFingerprint `json:"domain_fingerprint,omitempty"`
+	// The model package the classification ran, down to its files. Kept in
+	// the stored result, so a saved run says which files made it. Absent on
+	// runs made before models were packages.
+	Model *ModelRef `json:"model,omitempty"`
 }
 
 // DomainHistogram is a fixed-edge probability histogram (NDVI by default).
