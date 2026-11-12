@@ -217,7 +217,8 @@ Tailwind's own `text-sm`, an arbitrary radius and a bracketed `z-[500]`.
 they classify as `font-size`; without that, `cn("text-body", "text-muted-foreground")`
 deletes the size, because stock tailwind-merge reads `text-body` as a colour.
 
-Fonts: Space Grotesk (display), Inter (sans), JetBrains Mono (telemetry).
+Fonts: Exo 2 (display, the face of the TERRA mark), Inter (sans), JetBrains Mono
+(telemetry). Panel headers name the path in telemetry and the place in display.
 
 ## Radius
 
