@@ -22,6 +22,7 @@
  * layers; the classification is both.
  */
 import { kindDef } from "@/lib/compositeCatalog"
+import { modelName } from "@/lib/installedModels"
 import { ExportClassification, ExportOverlayFile } from "../../wailsjs/go/main/App"
 import { notifyExportFail, notifyExportOk } from "@/lib/notify"
 import type { ClassLegendEntry } from "@/lib/classMask"
@@ -282,16 +283,7 @@ export interface RunAsset {
 
 /** Exported: the board names a run's model where two of them are compared. */
 export function modelLabel(kind?: ModelKind): string {
-  switch (kind) {
-    case "prithvi":
-      return "Prithvi-EO"
-    case "temporal_transformer":
-      return "Temporal Transformer"
-    case "spectral":
-      return "Random Forest"
-    default:
-      return kind || "model"
-  }
+  return kind ? modelName(kind) : "model"
 }
 
 function fileStem(title: string): string {

@@ -19,7 +19,7 @@ import { methodBrief, type MethodBrief } from "@/lib/methodBrief"
 import type { BoardToolId } from "@/lib/mapTools"
 import { classifiedTotal, dominant, type FieldRow } from "@/lib/fieldTable"
 import type { Season, SeasonMark } from "@/lib/season"
-import type { Bounds, ModelKind } from "@/lib/types"
+import type { Bounds } from "@/lib/types"
 import type { PdfReportSettings } from "@/lib/pdfReportSettings"
 
 const PDF_REPORT_SCHEMA = 1
@@ -222,7 +222,7 @@ function methodOf(run: PdfReportRun): MethodBrief | null {
   if (!tool) return null
   return methodBrief({
     tool,
-    modelKind: (run.modelKind || "spectral") as ModelKind,
+    modelKind: run.modelKind || "spectral",
     start: run.periodStart,
     end: run.periodEnd,
     maxCloud: null,

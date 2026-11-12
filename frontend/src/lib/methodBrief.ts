@@ -10,9 +10,8 @@
  * decide whether an output answers the question that was asked, and they were
  * only in the sidecar.
  *
- * WHAT THIS IS NOT. It is not a second copy of the choices -- the labels come
- * from MODEL_OPTIONS, for the reason lib/classifyOptions.ts gives about two
- * places a model can be added to. It is not documentation either: every line
+ * WHAT THIS IS NOT. It is not a second copy of the choices -- a model's name
+ * and facts come from its installed package (lib/installedModels.ts). It is not documentation either: every line
  * here is a claim about what sidecar/infer.py does on the next run, so a line
  * that stops being true is a bug and not a stale doc. The `source` of each
  * brief names the file to check it against.
@@ -21,9 +20,9 @@
  * so the panel reports THIS run: the dates the reader set, the cloud ceiling
  * they chose, and the cadence that follows from the toggle beside them.
  */
-import { MODEL_OPTIONS } from "@/lib/classifyOptions"
+import { installedModel, modelName } from "@/lib/installedModels"
 import type { BoardToolId } from "@/lib/mapTools"
-import type { ModelKind } from "@/lib/types"
+import type { ModelFact, ModelKind } from "@/lib/types"
 import { fieldWindows, MIN_PERIOD_DAYS } from "@/lib/fields"
 
 export interface MethodSection {
@@ -68,9 +67,6 @@ const cloudCeiling = (i: MethodInputs) =>
     ? "the scene cloud ceiling set for the run (not recorded with it)"
     : `${i.maxCloud}% scene cloud`
 
-/** MapBiomas legend the three classifiers share, named once. */
-const CLASSES = "5 MapBiomas classes: 3, 21, 25, 39, 41"
-
 /**
  * The scene search, which is the same for the three products that read a
  * window. Written once because it IS one code path -- list_stac_products --
@@ -99,98 +95,100 @@ function acquisition(i: MethodInputs): MethodSection {
   }
 }
 
-function classifyBrief(i: MethodInputs): MethodBrief {
-  const label = MODEL_OPTIONS.find((m) => m.id === i.modelKind)?.label ?? i.modelKind
-
-  if (i.modelKind === "spectral") {
-    return {
-      subtitle: `Land cover with ${label}`,
-      source: "sidecar/infer.py · build_feature_matrix",
-      sections: [
-        acquisition(i),
-        {
-          title: "Features",
-          lines: [
-            "B02, B03, B04 and B08 at 10 m, reflectance scaled by 1/10000",
-            "NDVI, EVI and SAVI per date",
-            "14 temporal statistics per index: mean, sd, max, min, amplitude, median, index of peak and of trough, first- and second-half means and their difference, mean change, largest rise, largest fall",
-            "4 statistics per raw band, and the 22 raw NDVI dates",
-            "80 features per pixel",
-          ],
-          note: "A pixel is kept only where at least half its dates are non-zero. Remaining gaps are filled by linear interpolation along time, so a cloud-masked date is inferred rather than dropped.",
-        },
-        {
-          title: "Model",
-          lines: [
-            "Random forest, 300 trees, maximum depth 20",
-            "features standardised by the scaler fitted at training",
-          ],
-        },
-        {
-          title: "Output",
-          lines: [CLASSES, "confidence: the largest class probability"],
-        },
-      ],
-    }
-  }
-
-  if (i.modelKind === "temporal_transformer") {
-    return {
-      subtitle: `Land cover with ${label}`,
-      source: "sidecar/infer.py · classify_temporal_transformer",
-      sections: [
-        acquisition(i),
-        {
-          title: "Series",
-          lines: [
-            "B02, B03, B04 at 10 m; B8A, B11, B12 at 20 m",
-            "reflectance scaled by 1/10000 and clipped to [0, 1]",
-            "padded or truncated to 22 dates; a short series repeats its last acquisition",
-            "pixels kept where mean red over the series is above zero",
-          ],
-        },
-        {
-          title: "Model",
-          lines: [
-            "Transformer encoder over acquisition-date tokens",
-            "d_model 128, 4 heads, 3 layers, learned positional encoding",
-            "mean pooling over the 22 dates, then a linear head",
-          ],
-          note: "The dates that separate crops are few — greenup and senescence — and a mean over all 22 spreads them across the rest.",
-        },
-        {
-          title: "Output",
-          lines: [CLASSES, "confidence: the softmax maximum"],
-        },
-      ],
-    }
-  }
-
-  return {
-    subtitle: `Land cover with ${label}`,
-    source: "sidecar/infer.py · classify_prithvi",
-    sections: [
-      acquisition(i),
-      {
+/*
+  WHAT A FAMILY DOES is code, in sidecar/terra/landcover/classify.py, and is
+  stated here by family. WHAT A MODEL IS -- its bands, its architecture, its
+  size -- is its package's manifest, read from the installed list. A new model
+  of a known family therefore gets its brief without a line written here.
+*/
+const FAMILY: Record<string, { source: string; input: MethodSection; output: string }> =
+  {
+    feature_rf: {
+      source: "sidecar/terra/landcover/features.py · build_feature_matrix",
+      input: {
+        title: "Features",
+        lines: [
+          "reflectance scaled by 1/10000",
+          "NDVI, EVI and SAVI per date",
+          "14 temporal statistics per index: mean, sd, max, min, amplitude, median, index of peak and of trough, first- and second-half means and their difference, mean change, largest rise, largest fall",
+          "4 statistics per raw band, and the raw NDVI dates",
+          "features standardised by the scaler the package carries",
+        ],
+        note: "A pixel is kept only where at least half its dates are non-zero. Remaining gaps are filled by linear interpolation along time, so a cloud-masked date is inferred rather than dropped.",
+      },
+      output: "confidence: the largest class probability",
+    },
+    sequence_transformer: {
+      source: "sidecar/terra/landcover/classify.py · classify_temporal_transformer",
+      input: {
+        title: "Series",
+        lines: [
+          "reflectance scaled by 1/10000 and clipped to [0, 1]",
+          "padded or truncated to 22 dates; a short series repeats its last acquisition",
+          "pixels kept where mean red over the series is above zero",
+        ],
+        note: "The dates that separate crops are few — greenup and senescence — and a mean over all 22 spreads them across the rest.",
+      },
+      output: "confidence: the softmax maximum",
+    },
+    embedding_rf: {
+      source: "sidecar/terra/landcover/classify.py · classify_prithvi",
+      input: {
         title: "Scene",
         lines: [
-          "B02, B03, B04 at 10 m; B8A, B11, B12 at 20 m",
           "reflectance scaled by 1/10000 and clipped to [0, 1]",
           "pixels kept where red is above zero",
         ],
         note: "One acquisition, not the series. The middle scene of the window is taken and the rest are discarded, so widening the period changes WHICH scene is read rather than how many.",
       },
+      output: "confidence: the largest class probability",
+    },
+  }
+
+const fact = (f: ModelFact) => `${f.label}: ${f.value}`
+
+function classifyBrief(i: MethodInputs): MethodBrief {
+  const label = modelName(i.modelKind)
+  const info = installedModel(i.modelKind)
+  if (!info) {
+    return {
+      subtitle: `Land cover with ${label}`,
+      source: "sidecar/terra/landcover/classify.py",
+      sections: [
+        acquisition(i),
+        {
+          title: "Model",
+          lines: [`${label} is not installed`],
+          note: "Install it from Models: what it reads and how it works come with its package.",
+        },
+      ],
+    }
+  }
+  const m = info.manifest
+  const family = FAMILY[m.family]
+  return {
+    subtitle: `Land cover with ${label}`,
+    source: family?.source ?? "sidecar/terra/landcover/classify.py",
+    sections: [
+      acquisition(i),
+      ...(family
+        ? [
+            {
+              ...family.input,
+              lines: [...(m.reads ?? []).map(fact), ...family.input.lines],
+            },
+          ]
+        : [{ title: "Reads", lines: (m.reads ?? []).map(fact) }]),
       {
         title: "Model",
-        lines: [
-          "Prithvi-EO 2.0, frozen — no fine-tuning, no gradient through it",
-          "per-pixel or per-patch embeddings",
-          "random forest head over the embeddings, with its own scaler",
-        ],
+        lines: [`${m.name} ${m.version}`, ...(m.method ?? []).map(fact)],
       },
       {
         title: "Output",
-        lines: [CLASSES, "confidence: the largest class probability"],
+        lines: [
+          `${m.classes.length} MapBiomas classes: ${m.classes.join(", ")}`,
+          family?.output ?? "confidence: as the model reports it",
+        ],
       },
     ],
   }

@@ -12,7 +12,7 @@ import {
 import { PlotSwipeView } from "./PlotSwipeView"
 import { cn } from "@/lib/utils"
 import type { ClassMapCompare } from "@/lib/boardProbe"
-import type { ModelKind, PredictResult } from "@/lib/types"
+import type { PredictResult } from "@/lib/types"
 import { modelLabel } from "@/lib/runAssets"
 
 function CompactMatrix({
@@ -142,8 +142,8 @@ function WhatDiffers({ a, b }: { a: PredictionCompareSide; b: PredictionCompareS
     { label: "Area", a: a.label, b: b.label },
     {
       label: "Model",
-      a: a.model ? modelLabel(a.model as ModelKind) : null,
-      b: b.model ? modelLabel(b.model as ModelKind) : null,
+      a: a.model ? modelLabel(a.model) : null,
+      b: b.model ? modelLabel(b.model) : null,
     },
     { label: "Period", a: a.period ?? null, b: b.period ?? null },
     {
@@ -295,7 +295,7 @@ function PredictionCompareBody({
                 {i === 0 ? "A" : "B"} · {s.label}
               </p>
               <p className="truncate text-meta text-foreground">
-                {s.model ? modelLabel(s.model as ModelKind) : "Classification"}
+                {s.model ? modelLabel(s.model) : "Classification"}
               </p>
               {s.period && (
                 <p className="telemetry truncate text-micro text-muted-foreground">

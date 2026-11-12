@@ -11,12 +11,15 @@
  * knowing what a product asks for.
  */
 import { MIN_PERIOD_DAYS, fieldWindows } from "@/lib/fields"
+import { installedModel, modelName, modelsLoaded } from "@/lib/installedModels"
 import { isJobKind, type JobKind } from "@/lib/jobs"
 import type { BoardToolId } from "@/lib/mapTools"
 
 /** The part of the surface's props these rules read. */
 export interface ProductRunProps {
   hasArea: boolean
+  /** The model Classification runs: an installed package's id. */
+  modelKind?: string
   activeAreaId?: string
   areas?: readonly { id: string; parent_id?: string }[]
   start: string
@@ -166,7 +169,14 @@ export function productRun(tool: BoardToolId, p: ProductRunProps): ProductRun {
         progress: p.progress,
         progressMsg: p.progressMsg,
         label: p.running ? "Classifying" : "Classify",
-        blocked: needs(p, !dates && NO_DATES),
+        blocked: needs(
+          p,
+          !dates && NO_DATES,
+          // Once the list is read: before it, an empty list says nothing.
+          modelsLoaded() &&
+            !installedModel(p.modelKind || "spectral") &&
+            `${modelName(p.modelKind || "spectral")} is not installed. Get it from Models.`
+        ),
         onRun: p.onRun,
       }
   }

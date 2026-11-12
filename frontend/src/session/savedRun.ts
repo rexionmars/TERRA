@@ -17,8 +17,9 @@ import type {
 } from "@/lib/types"
 import { LoadAnalysis } from "../../wailsjs/go/main/App"
 
+/* Any id: a model is an installed package, and the form says when it is not. */
 function isModelKind(v: string): v is ModelKind {
-  return v === "spectral" || v === "prithvi" || v === "temporal_transformer"
+  return v.length > 0
 }
 
 /*

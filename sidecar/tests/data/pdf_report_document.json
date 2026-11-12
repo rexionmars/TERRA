@@ -50,7 +50,7 @@
     {
       "product": "Land cover and season",
       "subtitle": "Land cover with Random Forest",
-      "source": "sidecar/infer.py · build_feature_matrix",
+      "source": "sidecar/terra/landcover/features.py · build_feature_matrix",
       "sections": [
         {
           "title": "Acquisition",
@@ -66,19 +66,20 @@
         {
           "title": "Features",
           "lines": [
-            "B02, B03, B04 and B08 at 10 m, reflectance scaled by 1/10000",
+            "Bands: B02, B03, B04, B08 at 10 m",
+            "reflectance scaled by 1/10000",
             "NDVI, EVI and SAVI per date",
             "14 temporal statistics per index: mean, sd, max, min, amplitude, median, index of peak and of trough, first- and second-half means and their difference, mean change, largest rise, largest fall",
-            "4 statistics per raw band, and the 22 raw NDVI dates",
-            "80 features per pixel"
+            "4 statistics per raw band, and the raw NDVI dates",
+            "features standardised by the scaler the package carries"
           ],
           "note": "A pixel is kept only where at least half its dates are non-zero. Remaining gaps are filled by linear interpolation along time, so a cloud-masked date is inferred rather than dropped."
         },
         {
           "title": "Model",
           "lines": [
-            "Random forest, 300 trees, maximum depth 20",
-            "features standardised by the scaler fitted at training"
+            "Random Forest 1.0.0",
+            "Trees: 300, depth at most 20"
           ],
           "note": ""
         },
