@@ -140,12 +140,12 @@ describe("checkContrast", () => {
     const expected: Record<string, number> = {
       "dark.text.surfaceRaised": 8.66,
       "dark.muted.surfaceRaised": 4.61,
-      "dark.accentQuiet.accentDim": 5.04,
+      "dark.accentQuiet.accentDim": 8.58,
       "dark.lineStrong.surfaceRaised": 3.47,
       "dark.destructiveForeground.destructive": 4.93,
       "light.text.surface": 16.25,
-      "light.accent.accentDim": 4.7,
-      "light.warning.surfaceRaised": 6.73,
+      "light.accent.accentDim": 5.49,
+      "light.warning.surfaceRaised": 6.99,
     }
     for (const [key, ratio] of Object.entries(expected)) {
       const r = results.find((x) => `${x.theme}.${x.fg}.${x.bg}` === key)
@@ -246,9 +246,9 @@ describe("checkMapChrome", () => {
   it("reports what the formula gives over that ground", () => {
     // Worked by hand from the WCAG definition, compositing ink over the ground.
     expect(ratio(results, "dark", "muted")).toBe(4.71)
-    expect(ratio(results, "dark", "accentQuiet")).toBe(4.73)
+    expect(ratio(results, "dark", "accentQuiet")).toBe(8.72)
     expect(ratio(results, "light", "muted")).toBe(5.33)
-    expect(ratio(results, "light", "accentQuiet")).toBe(4.71)
+    expect(ratio(results, "light", "accentQuiet")).toBe(5.44)
   })
 
   it("would fail without what index.css does about it", () => {
@@ -262,6 +262,6 @@ describe("checkMapChrome", () => {
       light: { alpha: 0.82, brightest: 255 },
     })
     expect(ratio(plain, "dark", "muted")).toBe(3.83)
-    expect(ratio(plain, "light", "accentQuiet")).toBe(3.56)
+    expect(ratio(plain, "light", "accentQuiet")).toBe(4.11)
   })
 })

@@ -183,7 +183,7 @@ const RECENT_MAX_ZOOM = zoomOfLevel(basemapByKind("s2recent").maxNativeZoom ?? 1
   land on it as a press.
 
   White rather than the accent, which is what DrawMap already draws with: the
-  colour says "in hand" against a field where saved is orange.
+  colour says "in hand" against a field where saved is the accent.
 */
 const SHAPE_SOURCE = "draw-shape"
 const SHAPE_FILL = "draw-shape-fill"
@@ -206,12 +206,13 @@ const AREA_SOURCE = "terra-areas"
 const AREA_FILL = "terra-areas-fill"
 const AREA_LINE = "terra-areas-line"
 /*
-  UNDER THE LINE, because the line is the accent and the ground is anything. Orange
-  measures 2.44 on red soil and 2.25 on grass, under the 3.0 a boundary needs, and no
-  single colour clears both a roof and a canopy. The casing is what the line is read
-  against wherever it goes, so it is a literal and does not follow the theme: its
-  ground is the imagery, not the chassis. Fields are drawn thinner and in their own
-  yellow, which holds on imagery without one.
+  UNDER THE LINE, because the line is the accent and the ground is anything. The
+  accent measures 1.07 on a bright field and 2.9 on pasture, under the 3.0 a boundary
+  needs, and no single colour clears both a roof and a canopy. The casing is what the
+  line is read against wherever it goes, so it is a literal and does not follow the
+  theme: its ground is the imagery, not the chassis. Fields are drawn thinner and in
+  their own lime, which holds on imagery without one where the old field yellow did,
+  and is 39 degrees of OKLCH hue from the accent so a field is not read as an area.
 */
 const AREA_CASING = "terra-areas-casing"
 
@@ -229,7 +230,7 @@ const AREA_CASING = "terra-areas-casing"
   of their own that nothing presses, dashed in the same yellow: the dash is
   what says "proposed", and it goes when the fields it proposed exist.
 */
-const FIELD_LINE_COLOR = "#FFD92F"
+const FIELD_LINE_COLOR = "#B8F35A"
 const FIELD_DRAFT_SOURCE = "terra-field-drafts"
 const FIELD_DRAFT_LINE = "terra-field-drafts-line"
 const IS_FIELD: ExpressionSpecification = ["boolean", ["get", "isField"], false]
@@ -1077,7 +1078,7 @@ export function GlobeSurface({
                   "#ffffff",
                   IS_FIELD,
                   FIELD_LINE_COLOR,
-                  "#EC662D",
+                  "#F4C010",
                 ],
                 "line-width": ["case", IS_SELECTED, 1.5, IS_FIELD, 1, 1.5],
               },
@@ -1123,7 +1124,7 @@ export function GlobeSurface({
 
     const paint = () => {
       if (!map.isStyleLoaded()) return
-      const accent = token("--p-accent", "#EC662D")
+      const accent = token("--p-accent", "#F4C010")
       // AREA_FILL is not repainted: its one colour is the selection's white.
       map.setPaintProperty(AREA_LINE, "line-color", [
         "case",
@@ -1444,8 +1445,8 @@ export function GlobeSurface({
   /*
     The pins. Markers rather than a layer, because a letter has to stay readable
     at every zoom and over every raster, and a DOM element does that for nothing.
-    The dark ring is the same casing the area outlines carry: orange alone measures
-    under 3 on red soil.
+    The dark ring is the same casing the area outlines carry: the accent alone
+    measures under 3 on pasture and on bright fields.
   */
   useEffect(() => {
     const map = mapRef.current
