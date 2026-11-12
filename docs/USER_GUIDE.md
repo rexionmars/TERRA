@@ -27,7 +27,7 @@ New** once.
 - **Header:** the open project and area, each a menu. The TERRA mark at the right
   end opens the **TERRA EO** menu: project files, settings, the Python environment
   and storage.
-- **Right edge of the map:** Products, Visualization, Result, Points and Layers,
+- **Right edge of the map:** Products, Compositions, Result, Points and Layers,
   then the map's own tools: search, basemap, imagery date, relief, draw, edit,
   import, delete.
 
@@ -111,7 +111,7 @@ has a majority filter here. Right-click a raster on the map to frame it or hide 
 a neighbourhood. Its graph is the mean spectrum of each point's **class**: a run keeps
 no spectrum per pixel, so it is not what the point itself reflects.
 
-## 7. Visualization
+## 7. Compositions
 
 One Sentinel-2 scene as a band composite or a spectral index. List the scenes of the
 period, choose one, pick RGB or an index, set the stretch, and **Apply**. It is a way

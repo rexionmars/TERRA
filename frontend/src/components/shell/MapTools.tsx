@@ -26,7 +26,7 @@ export function MapTools({
         <Sparkle className="size-4" />
       </MapButton>
       <MapButton
-        label="Visualization"
+        label="Compositions"
         active={panel === "visualization"}
         onClick={() => togglePanel("visualization")}
       >

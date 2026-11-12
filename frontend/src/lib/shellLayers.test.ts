@@ -53,7 +53,7 @@ describe("withAssetLayers", () => {
     expect(out.map((l) => l.id)).toEqual(["water"])
   })
 
-  it("leaves a gallery composition to the Visualization panel", () => {
+  it("leaves a gallery composition to the Compositions panel", () => {
     const out = withAssetLayers([], [asset("c1", { selectId: "c1" })])
     expect(out).toEqual([])
   })

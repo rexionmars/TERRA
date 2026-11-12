@@ -20,7 +20,7 @@ disagree, the code is right and this file is stale.
 
 | Place | What it is for |
 | --- | --- |
-| **Explore** | The map. Products, Visualization, Result, Points and Layers are tools on its right edge, and each opens a panel over it |
+| **Explore** | The map. Products, Compositions, Result, Points and Layers are tools on its right edge, and each opens a panel over it |
 | **Areas** | The areas of the project and their fields; draw, import, or take a state or municipality from IBGE |
 | **Analyses** | Every saved run, filed under its project |
 | **Compare** | Runs as nodes on a board, and readings linked to any of them, as many as wanted |
