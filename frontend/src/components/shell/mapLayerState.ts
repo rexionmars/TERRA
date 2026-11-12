@@ -267,19 +267,23 @@ export function useMapLayers({
     return layers
       .filter((l) => l.visible && !!l.uri)
       .map((l) => {
-        // A ramp is drawn beside its raster. Class legends run long, so they are
-        // read in the result panel instead -- except a composition's, which the
-        // sidecar computed with it and which is short: at most seven clusters,
-        // or a ramp with four figures.
+        /*
+          Every legend goes with its raster, and lib/legendChoice.ts decides
+          which the map draws. A ramp is drawn by default, and so is a
+          composition's legend, which the sidecar computed with it and which
+          is short: at most seven clusters, or a ramp with four figures. A
+          list of classes, figures or a note waits to be asked for.
+        */
         const legend = legendFor(l.id, sources)
-        const tied =
+        const caption: OverlayCaption | undefined = legend
+          ? { legend, area: areaName, detail: null }
+          : undefined
+        const captionByDefault =
           legend?.kind === "ramp" ||
           (l.id === "composition" && !!props.composition?.legend)
-        const caption: OverlayCaption | undefined =
-          legend && tied ? { legend, area: areaName, detail: null } : undefined
         const drawn =
           l.smooth && smoothed?.from === l.uri ? { ...l, uri: smoothed.uri } : l
-        return { key: l.id, areaId, layer: drawn, caption }
+        return { key: l.id, areaId, layer: drawn, caption, captionByDefault }
       })
   }, [
     layers,

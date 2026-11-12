@@ -456,7 +456,7 @@ export function LegendBody({ legend }: { legend: NonNullable<LayerLegend> }) {
         ))}
         {rest > 0 && (
           <p className="mt-0.5 text-micro text-muted-foreground/70">
-            {rest} more {rest === 1 ? "class" : "classes"} in the properties panel
+            {rest} more {rest === 1 ? "class" : "classes"} in Result
           </p>
         )}
       </div>
@@ -487,7 +487,7 @@ export function LegendBody({ legend }: { legend: NonNullable<LayerLegend> }) {
       ))}
       {rest > 0 && (
         <p className="mt-0.5 text-micro text-muted-foreground/70">
-          {rest} more in the properties panel
+          {rest} more in Result
         </p>
       )}
       {legend.ramp && (
