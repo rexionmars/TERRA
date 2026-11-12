@@ -26,6 +26,16 @@
 export const BRAND_TAGLINE = "earth observation"
 
 /**
+ * The name of the application's own menu, under the mark in the header.
+ *
+ * The name and not a word for what the menu holds: what is there -- project
+ * files, settings, the environment, About -- belongs to the application, and
+ * its name says so. The header shows it, and the operator search and the
+ * keymap print it as the way to these commands, so it is defined once.
+ */
+export const APP_MENU = "TERRA EO"
+
+/**
  * The name of this release.
  *
  * Fixed for the version, the way Sierra and Sonoma are: it identifies the

@@ -30,7 +30,7 @@ import { btnGhostDense } from "@/components/ui/buttons"
 import type { AppSurfaces } from "@/lib/appSurfaces"
 import type { Area } from "@/lib/areas"
 import { useAuth } from "@/lib/auth"
-import { REPO_URL } from "@/lib/brand"
+import { APP_MENU, REPO_URL } from "@/lib/brand"
 import { notifyError } from "@/lib/notify"
 import { openProjectFile, projectFileName } from "@/lib/projectFiles"
 import { cn } from "@/lib/utils"
@@ -50,9 +50,9 @@ export type RailPlace =
   Nothing in the bar moves with the rail. The toggle has a fixed place, 92px in
   on macOS, 13px clear of the lights, and centred over the rail's column
   elsewhere, so the press that opens the rail leaves the button under the
-  pointer for the press that closes it. The crumbs keep their place after it,
-  so a press changes the rail and not the line being read. Only the toggle's
-  glyph changes, to point the way the next press goes.
+  pointer for the press that closes it. The crumbs keep their place in the
+  middle of the bar, so a press changes the rail and not the line being read.
+  Only the toggle's glyph changes, to point the way the next press goes.
 
   Read off the navigator rather than asked of the runtime, as the title bar does.
   A wrong answer there is a window with no controls and is worth a round trip; here
@@ -111,8 +111,15 @@ function Crumb({
           aria-haspopup="menu"
           title={title}
           className={cn(
-            "app-no-drag h-7 max-w-[20rem] truncate rounded-sm px-1.5 text-heading transition-colors hover:bg-hover hover:text-foreground",
-            current ? "text-foreground" : "text-muted-foreground"
+            "app-no-drag h-6 truncate rounded-sm px-1.5 text-heading transition-colors hover:bg-hover hover:text-foreground",
+            /*
+              The place gives way first. The project keeps its name whole up to
+              two fifths of the field, so a long area name is cut before the
+              project's is.
+            */
+            current
+              ? "max-w-[20rem] min-w-0 text-foreground"
+              : "max-w-[40%] shrink-0 text-muted-foreground"
           )}
         >
           {label}
@@ -174,6 +181,10 @@ function NewProject({ onCreated }: { onCreated: (id: string) => void }) {
  *
  * The crumbs carry no arrow: each opens its menu when pressed, and the row reads as
  * a path to the current place rather than as two more controls.
+ *
+ * They sit in the middle of the window, in a field with its own ground and
+ * edge, as a code editor's command centre does. The place is what this bar is
+ * read for, and the field marks the two names as something to press.
  */
 export function ShellTopBar({
   projectName,
@@ -218,7 +229,14 @@ export function ShellTopBar({
     />
   )
   return (
-    <header className="app-draggable relative z-500 flex h-13 shrink-0 items-center gap-1.5 border-b border-border bg-[rgb(var(--p-ink))] pr-2">
+    /*
+      THREE COLUMNS, THE MIDDLE ONE CENTRED ON THE WINDOW. The field is 38% of
+      the window, as an editor's is, but never under 15rem, where two names
+      stop fitting. The sides share what it leaves, and neither gives up the
+      width of its own contents, so in a narrow window the field moves off
+      centre and then narrows rather than running under the lights or the mark.
+    */
+    <header className="app-draggable relative z-500 grid h-13 shrink-0 grid-cols-[minmax(max-content,1fr)_minmax(0,min(max(38vw,15rem),36rem))_minmax(max-content,1fr)] items-center gap-x-3 border-b border-border bg-[rgb(var(--p-ink))]">
       {/*
         The part of the bar before the crumbs: the lights and the toggle on
         macOS, the rail's column elsewhere. Its width does not follow the
@@ -226,7 +244,7 @@ export function ShellTopBar({
       */}
       <div
         className={cn(
-          "flex h-full shrink-0 items-center",
+          "flex h-full items-center",
           RESERVES_TRAFFIC_LIGHTS ? "w-31 pl-23" : "w-[3.25rem] pl-2.5"
         )}
       >
@@ -247,7 +265,7 @@ export function ShellTopBar({
       </div>
       <nav
         aria-label="Project and area"
-        className="flex min-w-0 flex-1 items-center gap-0.5"
+        className="flex h-8 min-w-0 items-center justify-center gap-0.5 rounded-md border border-[rgb(var(--p-line)/0.4)] bg-[rgb(var(--p-control))] px-1"
       >
         <Crumb
           label={projectName}
@@ -301,79 +319,87 @@ export function ShellTopBar({
         </Crumb>
       </nav>
 
-      {/*
-        The mark opens the Options menu. The menu holds what belongs to the
-        application rather than to the place: project files, settings, the
-        environment, the release notes, About. The application's name is the
-        label for that. "Options" stays as the tooltip and the accessible name,
-        because the operator search and the keymap print "Options ›" as the way
-        to these commands. The caret marks the logo as a menu and not a
-        picture.
-      */}
-      <MenuPopover
-        open={menu === "options"}
-        onOpenChange={open("options")}
-        surface={document.body}
-        align="end"
-        widthRem={15}
-        trigger={(p) => (
-          <button
-            ref={p.ref}
-            type="button"
-            onClick={p.onClick}
-            aria-expanded={p["aria-expanded"]}
-            aria-haspopup="menu"
-            aria-label="Options"
-            title="Options"
-            className={cn(
-              "app-no-drag flex h-8 items-center gap-0.5 rounded-sm pr-1 pl-0.5 transition-colors hover:bg-hover",
-              p["aria-expanded"] && "bg-hover"
-            )}
-          >
-            <img
-              src="/terra-logo.png"
-              alt=""
-              draggable={false}
-              className="size-7 shrink-0 object-contain"
-            />
-            <CaretDown className="size-3 text-muted-foreground" />
-          </button>
-        )}
-      >
-        <OperatorMenuItem id="PROJECT_OPEN" onDone={() => setMenu(null)} />
-        <OperatorMenuItem id="PROJECT_SAVE" onDone={() => setMenu(null)} />
-        <OperatorMenuItem id="PROJECT_SAVE_AS" onDone={() => setMenu(null)} />
-        <OperatorMenuItem id="PROJECT_REVEAL" onDone={() => setMenu(null)} />
-        {recentFiles.slice(0, 5).map((path) => (
-          <MenuItem
-            key={path}
-            indented
-            label={projectFileName(path)}
-            title={path}
-            onSelect={() => {
-              setMenu(null)
-              openProjectFile(path)
-            }}
-          />
-        ))}
-        <MenuRule />
+      <div className="flex h-full items-center justify-end gap-1.5 pr-2">
         {/*
+          The mark and the name open the application's menu, which holds what
+          belongs to the application rather than to the place: project files,
+          settings, the environment, the release notes, About. The name is the
+          label for that (APP_MENU), set as the bar over the other screens sets
+          it (TitleBar), with EO in the muted tone its tagline takes there. The
+          operator search and the keymap print the same name as the way to
+          these commands. The caret marks the logo as a menu and not a picture.
+
+          The name goes below 40rem, where the field in the middle needs the
+          width more than the bar needs to say what application this is.
+        */}
+        <MenuPopover
+          open={menu === "options"}
+          onOpenChange={open("options")}
+          surface={document.body}
+          align="end"
+          widthRem={15}
+          trigger={(p) => (
+            <button
+              ref={p.ref}
+              type="button"
+              onClick={p.onClick}
+              aria-expanded={p["aria-expanded"]}
+              aria-haspopup="menu"
+              aria-label={APP_MENU}
+              title={APP_MENU}
+              className={cn(
+                "app-no-drag flex h-8 items-center gap-1.5 rounded-sm pr-1 pl-0.5 transition-colors hover:bg-hover",
+                p["aria-expanded"] && "bg-hover"
+              )}
+            >
+              <img
+                src="/terra-logo.png"
+                alt=""
+                draggable={false}
+                className="size-7 shrink-0 object-contain"
+              />
+              <span className="font-display text-heading font-semibold tracking-[0.14em] whitespace-nowrap max-sm:hidden">
+                TERRA <span className="text-muted-foreground">EO</span>
+              </span>
+              <CaretDown className="size-3 text-muted-foreground" />
+            </button>
+          )}
+        >
+          <OperatorMenuItem id="PROJECT_OPEN" onDone={() => setMenu(null)} />
+          <OperatorMenuItem id="PROJECT_SAVE" onDone={() => setMenu(null)} />
+          <OperatorMenuItem id="PROJECT_SAVE_AS" onDone={() => setMenu(null)} />
+          <OperatorMenuItem id="PROJECT_REVEAL" onDone={() => setMenu(null)} />
+          {recentFiles.slice(0, 5).map((path) => (
+            <MenuItem
+              key={path}
+              indented
+              label={projectFileName(path)}
+              title={path}
+              onSelect={() => {
+                setMenu(null)
+                openProjectFile(path)
+              }}
+            />
+          ))}
+          <MenuRule />
+          {/*
           The commands with no other menu. Their keys, the rail and the start
           screen reach them too, but a command is also a row somewhere, and
           the operator search and the keymap name this menu as the place.
         */}
-        <OperatorMenuItem id="SEARCH" onDone={() => setMenu(null)} />
-        <OperatorMenuItem id="PREFERENCES" onDone={() => setMenu(null)} />
-        <OperatorMenuItem id="KEYMAP" onDone={() => setMenu(null)} />
-        <OperatorMenuItem id="START" onDone={() => setMenu(null)} />
-        <MenuRule />
-        {appItem(app.items.environment)}
-        {appItem(app.items.storage)}
-        {appItem(app.items.releaseNotes)}
-        {appItem(app.items.splash)}
-        {appItem(app.items.about)}
-      </MenuPopover>
-      <WindowControls />
+          <OperatorMenuItem id="SEARCH" onDone={() => setMenu(null)} />
+          <OperatorMenuItem id="PREFERENCES" onDone={() => setMenu(null)} />
+          <OperatorMenuItem id="KEYMAP" onDone={() => setMenu(null)} />
+          <OperatorMenuItem id="START" onDone={() => setMenu(null)} />
+          <MenuRule />
+          {appItem(app.items.environment)}
+          {appItem(app.items.storage)}
+          {appItem(app.items.releaseNotes)}
+          {appItem(app.items.splash)}
+          {appItem(app.items.about)}
+        </MenuPopover>
+        <WindowControls />
+      </div>
     </header>
   )
 }
@@ -442,7 +468,7 @@ function initials(name: string): string {
  * Where a reader can go, as against what they can do where they are.
  *
  * Down the left of the window, under the bar. The mark is in the bar, as the
- * Options menu.
+ * application's menu.
  */
 export function ShellRail({
   place,

@@ -41,6 +41,7 @@ import {
   type Icon,
 } from "@/components/icons"
 
+import { APP_MENU } from "@/lib/brand"
 import { notifyError, notifyInfo } from "@/lib/notify"
 import { report } from "@/lib/reports"
 
@@ -49,7 +50,7 @@ export interface OperatorDef {
   description: string
   /**
    * Where its row lives, as the operator search and the keymap print it:
-   * "Options" for the menu under the mark in the header, "Workflows" for the
+   * APP_MENU for the menu under the mark in the header, "Workflows" for the
    * Workflows screen.
    */
   menu: string
@@ -97,11 +98,11 @@ const DEFS = {
     icon: SlidersHorizontal,
   },
 
-  // ---- The header's Options menu -------------------------------------------
+  // ---- The application's menu, under the mark in the header ----------------
   PROJECT_OPEN: {
     label: "Open project file\u2026",
     description: "Bring a .terra project file into this installation and open it",
-    menu: "Options",
+    menu: APP_MENU,
     icon: FolderOpen,
     keys: ["Mod+O"],
     inFields: true,
@@ -109,7 +110,7 @@ const DEFS = {
   PROJECT_SAVE: {
     label: "Save project file",
     description: "Write the open project to its .terra file",
-    menu: "Options",
+    menu: APP_MENU,
     icon: FileArrowDown,
     keys: ["Alt+Mod+S"],
     inFields: true,
@@ -117,7 +118,7 @@ const DEFS = {
   PROJECT_SAVE_AS: {
     label: "Save project file as\u2026",
     description: "Write the open project to a new .terra file",
-    menu: "Options",
+    menu: APP_MENU,
     icon: FileArrowDown,
     keys: ["Shift+Alt+Mod+S"],
     inFields: true,
@@ -125,13 +126,13 @@ const DEFS = {
   PROJECT_REVEAL: {
     label: "Reveal project file",
     description: "Show the open project's .terra file in the file manager",
-    menu: "Options",
+    menu: APP_MENU,
     icon: FolderSimpleUser,
   },
   SEARCH: {
     label: "Search operators\u2026",
     description: "Find any command by name and run it",
-    menu: "Options",
+    menu: APP_MENU,
     icon: MagnifyingGlass,
     keys: ["F3", "Mod+K"],
     inFields: true,
@@ -139,7 +140,7 @@ const DEFS = {
   PREFERENCES: {
     label: "Settings\u2026",
     description: "Account, telemetry, keymap and the Python environment",
-    menu: "Options",
+    menu: APP_MENU,
     icon: Gear,
     keys: ["Mod+Comma"],
     inFields: true,
@@ -147,43 +148,43 @@ const DEFS = {
   KEYMAP: {
     label: "Keymap",
     description: "Every command and the keys that run it",
-    menu: "Options",
+    menu: APP_MENU,
     icon: Keyboard,
   },
   START: {
     label: "Start screen",
     description: "What to begin and what to reopen, as the application opens with",
-    menu: "Options",
+    menu: APP_MENU,
     icon: House,
   },
   SPLASH: {
     label: "Splash screen",
     description: "Show the splash again",
-    menu: "Options",
+    menu: APP_MENU,
     icon: ImageSquare,
   },
   RELEASE_NOTES: {
     label: "What\u2019s new",
     description: "The notes for the release that is running",
-    menu: "Options",
+    menu: APP_MENU,
     icon: Sparkle,
   },
   ENVIRONMENT: {
     label: "Python environment\u2026",
     description: "The interpreter the analyses run in, and what is installed in it",
-    menu: "Options",
+    menu: APP_MENU,
     icon: Terminal,
   },
   STORAGE: {
     label: "Storage\u2026",
     description: "What the application keeps on disk, and what can be cleared",
-    menu: "Options",
+    menu: APP_MENU,
     icon: HardDrive,
   },
   ABOUT: {
     label: "About TERRA",
     description: "The version, the licence and where the source is",
-    menu: "Options",
+    menu: APP_MENU,
     icon: Info,
   },
 } satisfies Record<string, OperatorDef>
