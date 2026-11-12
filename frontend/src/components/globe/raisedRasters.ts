@@ -59,19 +59,27 @@
  * stripes that moved when the camera turned and closed up when it flattened.
  *
  * AND THE TEST WAS NEVER BUYING WHAT IT CLAIMED. It was here so terrain could
- * occlude a raster behind a ridge. It cannot: the quad is lifted from mercator
- * ZERO, not from the ground, so with relief on it is not hidden behind the hill
- * but buried under it -- and relief on is also the case where MapLibre skips
- * the pre-pass, so the two states each defeated it in their own way. An overlay
- * asked for over an area is drawn over that area; occluding one by relief is a
- * thing to build from the terrain's own elevation, deliberately, and not to
- * half-inherit from a shared buffer.
+ * occlude a raster behind a ridge, and relief on is the case where MapLibre
+ * skips the pre-pass. An overlay asked for over an area is drawn over that
+ * area, so a ridge between the camera and it does not hide it; occluding one by
+ * relief is a thing to build from the terrain's own elevation, deliberately,
+ * and not to half-inherit from a shared buffer.
+ *
+ * LIFTED FROM THE GROUND, NOT FROM SEA LEVEL. With relief on, MapLibre draws
+ * the ground at its height and drapes every style layer over it, the area's
+ * outline among them. A raster lifted from zero lies under any ground above the
+ * sea and, drawn with no depth test, shows through it shifted off its outline
+ * by the parallax of that height. So the raster is a mesh: with relief, about
+ * as many cells across its extent as the terrain's own mesh has there, each
+ * vertex raised by the ground height under it plus the raster's place in the
+ * stack. With no relief it is one cell, the quad it always was.
  */
-import { MercatorCoordinate } from "maplibre-gl"
+import { LngLat, MercatorCoordinate } from "maplibre-gl"
 import type {
   CustomLayerInterface,
   CustomRenderMethodInput,
   Map as MapLibreMap,
+  MapSourceDataEvent,
 } from "maplibre-gl"
 
 import { cornersOf } from "@/lib/mapLayers"
@@ -128,46 +136,97 @@ export function rastersAt<T extends Pick<RaisedRaster, "bounds" | "elevationM">>
 const textureKey = (r: Pick<RaisedRaster, "url" | "pixelated">) =>
   `${r.pixelated ? "nearest" : "linear"}:${r.url}`
 
-/** Four corners, clockwise from the top left, as the image source takes them. */
-function quad(b: Bounds): Float32Array {
-  /*
-    Two triangles rather than a strip: a strip would need its corners in a
-    zig-zag, and the readable order here is the one the extent is written in.
-    Six vertices is nothing, and the arithmetic below stays legible.
-  */
+/** Cells along a side of each terrain tile's mesh: MapLibre's `meshSize`. */
+const TERRAIN_MESH_CELLS = 128
+
+/**
+ * The most cells along a side of a raster's mesh.
+ *
+ * 64 is 4,225 ground samples, a few milliseconds, and the mesh is sampled again
+ * whenever a DEM tile arrives, which while the relief loads is every frame. An
+ * extent wider than 64 of the terrain's cells follows the ground more coarsely
+ * than the ground is drawn, by a fraction of the parallax this mesh removes.
+ */
+const MAX_CELLS = 64
+
+const EQUATOR_M = 40_075_016.686
+
+/**
+ * How many cells along a side the raster's mesh is cut into.
+ *
+ * One with no relief: the ground is the sphere or the plane, and a quad lies on
+ * it. With relief, about as many as the terrain's own mesh has over the extent
+ * at this tile zoom, so the raster bends where the ground does and no finer.
+ */
+export function cellsFor(b: Bounds, tileZoom: number | null): number {
+  if (tileZoom === null) return 1
+  const cos = Math.cos((((b.lat_min + b.lat_max) / 2) * Math.PI) / 180)
+  const cellM = (EQUATOR_M * cos) / 2 ** tileZoom / TERRAIN_MESH_CELLS
+  const wideM = ((b.lon_max - b.lon_min) / 360) * EQUATOR_M * cos
+  const tallM = ((b.lat_max - b.lat_min) / 360) * EQUATOR_M
+  const n = Math.ceil(Math.max(wideM, tallM) / cellM)
+  return Math.min(MAX_CELLS, Math.max(1, n))
+}
+
+/** Floats per vertex: mercator x and y, texture u and v, ground in metres. */
+const FLOATS_PER_VERTEX = 5
+
+/**
+ * The mesh's vertices, row by row from the top left corner.
+ *
+ * Interpolated between the four corners rather than over the box, because a
+ * raster is pinned to its corners and they need not make a rectangle. One cell
+ * is the quad the corners make, with the texture's corners on them.
+ */
+export function gridVertices(
+  b: Bounds,
+  cells: number,
+  groundAt: (lng: number, lat: number) => number
+): Float32Array {
   const [tl, tr, br, bl] = cornersOf(b).map(([lng, lat]) =>
     MercatorCoordinate.fromLngLat({ lng, lat })
   )
-  // position.xy, uv.xy per vertex.
-  return new Float32Array([
-    tl.x,
-    tl.y,
-    0,
-    0,
-    tr.x,
-    tr.y,
-    1,
-    0,
-    br.x,
-    br.y,
-    1,
-    1,
-    tl.x,
-    tl.y,
-    0,
-    0,
-    br.x,
-    br.y,
-    1,
-    1,
-    bl.x,
-    bl.y,
-    0,
-    1,
-  ])
+  const out = new Float32Array((cells + 1) ** 2 * FLOATS_PER_VERTEX)
+  let at = 0
+  for (let row = 0; row <= cells; row++) {
+    const v = row / cells
+    // Down the left and right edges, then across between them.
+    const lx = tl.x + (bl.x - tl.x) * v
+    const ly = tl.y + (bl.y - tl.y) * v
+    const rx = tr.x + (br.x - tr.x) * v
+    const ry = tr.y + (br.y - tr.y) * v
+    for (let col = 0; col <= cells; col++) {
+      const u = col / cells
+      const x = lx + (rx - lx) * u
+      const y = ly + (ry - ly) * u
+      const { lng, lat } = new MercatorCoordinate(x, y).toLngLat()
+      out.set([x, y, u, v, groundAt(lng, lat)], at)
+      at += FLOATS_PER_VERTEX
+    }
+  }
+  return out
 }
 
-/** Metres per mercator unit at this extent's middle latitude. */
+/**
+ * Two triangles per cell, wound as the quad was: top left, top right, bottom
+ * right, then top left, bottom right, bottom left.
+ */
+export function gridIndices(cells: number): Uint16Array {
+  const side = cells + 1
+  const out = new Uint16Array(cells * cells * 6)
+  let at = 0
+  for (let row = 0; row < cells; row++) {
+    for (let col = 0; col < cells; col++) {
+      const tl = row * side + col
+      const bl = tl + side
+      out.set([tl, tl + 1, bl + 1, tl, bl + 1, bl], at)
+      at += 6
+    }
+  }
+  return out
+}
+
+/** Mercator units per metre at this extent's middle latitude. */
 function mercatorPerMetre(b: Bounds): number {
   const mid = (b.lat_min + b.lat_max) / 2
   return MercatorCoordinate.fromLngLat(
@@ -181,11 +240,15 @@ ${prelude}
 ${define}
 in vec2 a_pos;
 in vec2 a_uv;
-uniform float u_elevation_m;
-uniform float u_elevation_mercator;
+in float a_ground_m;
+uniform float u_lift_m;
+uniform float u_mercator_per_m;
 out vec2 v_uv;
 void main() {
   v_uv = a_uv;
+  // The ground under this vertex, zero with no relief, and the stack above it.
+  float metres = a_ground_m + u_lift_m;
+  float mercator = metres * u_mercator_per_m;
   /*
     The unit differs by variant; see this file's header. The define is
     MapLibre's own, so the branch cannot fall out of step with the prelude it
@@ -201,18 +264,17 @@ void main() {
   */
   v_projection_tile_x = a_pos.x;
   vec3 spherePos = projectToSphere(a_pos, a_pos);
-  vec3 raised = spherePos * (1.0 + u_elevation_m / GLOBE_RADIUS);
+  vec3 raised = spherePos * (1.0 + metres / GLOBE_RADIUS);
   vec4 onSphere = u_projection_matrix * vec4(raised, 1.0);
   if (u_projection_transition > 0.999) {
     // Wholly a sphere: the fallback is not mixed in, so it is not computed.
     gl_Position = onSphere;
   } else {
-    vec4 onPlane =
-      u_projection_fallback_matrix * vec4(a_pos, u_elevation_mercator, 1.0);
+    vec4 onPlane = u_projection_fallback_matrix * vec4(a_pos, mercator, 1.0);
     gl_Position = mix(onPlane, onSphere, u_projection_transition);
   }
 #else
-  gl_Position = projectTileFor3D(a_pos, u_elevation_mercator);
+  gl_Position = projectTileFor3D(a_pos, mercator);
 #endif
 }`
 
@@ -245,8 +307,9 @@ interface Program {
   program: WebGLProgram
   aPos: number
   aUv: number
-  uElevM: WebGLUniformLocation | null
-  uElevMerc: WebGLUniformLocation | null
+  aGround: number
+  uLiftM: WebGLUniformLocation | null
+  uMercPerM: WebGLUniformLocation | null
   uImage: WebGLUniformLocation | null
   uOpacity: WebGLUniformLocation | null
   uCutX: WebGLUniformLocation | null
@@ -292,7 +355,67 @@ export function raisedRasterLayer(id: string, map: MapLibreMap): RaisedRasterLay
   const programs = new Map<string, Program>()
   const textures = new Map<string, WebGLTexture>()
   const pending = new Set<string>()
-  let buffer: WebGLBuffer | null = null
+  /**
+   * Each raster's vertices on the GPU, by raster id, with the key they were
+   * sampled for. A mesh is cut again only when that changes: another extent,
+   * another tile zoom, or new ground under it.
+   */
+  const meshes = new Map<
+    string,
+    { key: string; vertices: WebGLBuffer; cells: number }
+  >()
+  /** The triangles depend on the cell count alone, so meshes share them. */
+  const indexBuffers = new Map<number, WebGLBuffer>()
+  /*
+    Bumped whenever the ground may have changed: relief turned on or off, or a
+    DEM tile arrived. MapLibre clears its own elevation cache on the same
+    events, before this layer next renders.
+  */
+  let groundVersion = 0
+  const groundChanged = () => {
+    groundVersion++
+    map.triggerRepaint()
+  }
+  const onSourceData = (e: MapSourceDataEvent) => {
+    if (e.sourceId === map.getTerrain()?.source) groundChanged()
+  }
+
+  const meshFor = (
+    ctx: WebGL2RenderingContext,
+    r: RaisedRaster,
+    tileZoom: number | null,
+    groundAt: (lng: number, lat: number) => number
+  ) => {
+    const cells = cellsFor(r.bounds, tileZoom)
+    const key = [
+      cells,
+      tileZoom ?? "flat",
+      tileZoom === null ? 0 : groundVersion,
+      ...cornersOf(r.bounds).flat(),
+    ].join(",")
+    const held = meshes.get(r.id)
+    if (held?.key === key) return held
+    const vertices = held?.vertices ?? ctx.createBuffer()
+    ctx.bindBuffer(ctx.ARRAY_BUFFER, vertices)
+    ctx.bufferData(
+      ctx.ARRAY_BUFFER,
+      gridVertices(r.bounds, cells, groundAt),
+      ctx.STATIC_DRAW
+    )
+    const mesh = { key, vertices, cells }
+    meshes.set(r.id, mesh)
+    return mesh
+  }
+
+  const indicesFor = (ctx: WebGL2RenderingContext, cells: number) => {
+    const held = indexBuffers.get(cells)
+    if (held) return held
+    const made = ctx.createBuffer()
+    ctx.bindBuffer(ctx.ELEMENT_ARRAY_BUFFER, made)
+    ctx.bufferData(ctx.ELEMENT_ARRAY_BUFFER, gridIndices(cells), ctx.STATIC_DRAW)
+    indexBuffers.set(cells, made)
+    return made
+  }
 
   /*
     Textures are fetched once per url and kept. A raster's image is a file on
@@ -359,8 +482,9 @@ export function raisedRasterLayer(id: string, map: MapLibreMap): RaisedRasterLay
       program,
       aPos: ctx.getAttribLocation(program, "a_pos"),
       aUv: ctx.getAttribLocation(program, "a_uv"),
-      uElevM: ctx.getUniformLocation(program, "u_elevation_m"),
-      uElevMerc: ctx.getUniformLocation(program, "u_elevation_mercator"),
+      aGround: ctx.getAttribLocation(program, "a_ground_m"),
+      uLiftM: ctx.getUniformLocation(program, "u_lift_m"),
+      uMercPerM: ctx.getUniformLocation(program, "u_mercator_per_m"),
       uImage: ctx.getUniformLocation(program, "u_image"),
       uOpacity: ctx.getUniformLocation(program, "u_opacity"),
       uCutX: ctx.getUniformLocation(program, "u_cut_x"),
@@ -383,24 +507,35 @@ export function raisedRasterLayer(id: string, map: MapLibreMap): RaisedRasterLay
 
     onAdd(_map, ctx) {
       gl = ctx
-      buffer = ctx.createBuffer()
+      map.on("sourcedata", onSourceData)
+      map.on("terrain", groundChanged)
       for (const r of rasters) ensureTexture(r)
     },
 
     onRemove() {
+      map.off("sourcedata", onSourceData)
+      map.off("terrain", groundChanged)
       if (!gl) return
       for (const t of textures.values()) gl.deleteTexture(t)
       textures.clear()
       for (const p of programs.values()) gl.deleteProgram(p.program)
       programs.clear()
-      if (buffer) gl.deleteBuffer(buffer)
-      buffer = null
+      for (const m of meshes.values()) gl.deleteBuffer(m.vertices)
+      meshes.clear()
+      for (const b of indexBuffers.values()) gl.deleteBuffer(b)
+      indexBuffers.clear()
       gl = null
     },
 
     set(next) {
       rasters = next
       for (const r of next) ensureTexture(r)
+      const drawn = new Set(next.map((r) => r.id))
+      for (const [rid, mesh] of meshes) {
+        if (drawn.has(rid)) continue
+        gl?.deleteBuffer(mesh.vertices)
+        meshes.delete(rid)
+      }
       /*
         Textures for rasters nobody draws any more. Kept while the url is still
         in the set, because taking a raster off the globe and putting it back
@@ -424,7 +559,7 @@ export function raisedRasterLayer(id: string, map: MapLibreMap): RaisedRasterLay
     },
 
     render(ctx, args) {
-      if (!rasters.length || !buffer) return
+      if (!rasters.length) return
       const prog = programFor(ctx, args.shaderData)
       ctx.useProgram(prog.program)
 
@@ -455,11 +590,24 @@ export function raisedRasterLayer(id: string, map: MapLibreMap): RaisedRasterLay
       */
       ctx.disable(ctx.DEPTH_TEST)
 
-      ctx.bindBuffer(ctx.ARRAY_BUFFER, buffer)
       ctx.enableVertexAttribArray(prog.aPos)
       ctx.enableVertexAttribArray(prog.aUv)
-      ctx.vertexAttribPointer(prog.aPos, 2, ctx.FLOAT, false, 16, 0)
-      ctx.vertexAttribPointer(prog.aUv, 2, ctx.FLOAT, false, 16, 8)
+      ctx.enableVertexAttribArray(prog.aGround)
+
+      /*
+        The ground from MapLibre's own DEM sampler, at the tile zoom it draws
+        the terrain at, which MapLibre's transform takes as the whole zoom.
+        `queryTerrainElevation` answers the same question but works out the
+        tiles covering the view on every call, and a mesh asks thousands of
+        times.
+      */
+      const terrain = map.getTerrain() ? map.terrain : null
+      const tileZoom = terrain ? Math.max(0, Math.floor(map.getZoom())) : null
+      const groundAt =
+        terrain && tileZoom !== null
+          ? (lng: number, lat: number) =>
+              terrain.getElevationForLngLatZoom(new LngLat(lng, lat), tileZoom)
+          : () => 0
 
       ctx.activeTexture(ctx.TEXTURE0)
       ctx.uniform1i(prog.uImage, 0)
@@ -476,13 +624,19 @@ export function raisedRasterLayer(id: string, map: MapLibreMap): RaisedRasterLay
       for (const r of order) {
         const tex = textures.get(textureKey(r))
         if (!tex) continue
-        ctx.bufferData(ctx.ARRAY_BUFFER, quad(r.bounds), ctx.DYNAMIC_DRAW)
+        const mesh = meshFor(ctx, r, tileZoom, groundAt)
+        const stride = FLOATS_PER_VERTEX * 4
+        ctx.bindBuffer(ctx.ARRAY_BUFFER, mesh.vertices)
+        ctx.vertexAttribPointer(prog.aPos, 2, ctx.FLOAT, false, stride, 0)
+        ctx.vertexAttribPointer(prog.aUv, 2, ctx.FLOAT, false, stride, 8)
+        ctx.vertexAttribPointer(prog.aGround, 1, ctx.FLOAT, false, stride, 16)
+        ctx.bindBuffer(ctx.ELEMENT_ARRAY_BUFFER, indicesFor(ctx, mesh.cells))
         ctx.bindTexture(ctx.TEXTURE_2D, tex)
         ctx.uniform1f(prog.uOpacity, r.opacity)
         ctx.uniform1f(prog.uCutX, r.cut ? cutX : -1)
-        ctx.uniform1f(prog.uElevM, r.elevationM)
-        ctx.uniform1f(prog.uElevMerc, r.elevationM * mercatorPerMetre(r.bounds))
-        ctx.drawArrays(ctx.TRIANGLES, 0, 6)
+        ctx.uniform1f(prog.uLiftM, r.elevationM)
+        ctx.uniform1f(prog.uMercPerM, mercatorPerMetre(r.bounds))
+        ctx.drawElements(ctx.TRIANGLES, mesh.cells ** 2 * 6, ctx.UNSIGNED_SHORT, 0)
       }
     },
   }
