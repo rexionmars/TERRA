@@ -1,0 +1,72 @@
+{
+  "format": 1,
+  "version": "1.0.0",
+  "task": "land_cover",
+  "classes": [
+    3,
+    21,
+    25,
+    39,
+    41
+  ],
+  "license": "GPL-3.0-only",
+  "doi": null,
+  "limits": [
+    "The legend is fixed and the model was fitted for western Paraná. An area elsewhere can return a confident and wrong result. Hectares are pixel counts, uncorrected for classification error.",
+    "MapBiomas is not field truth. Agreement is concordance with an annual map, often offset in time from the Sentinel-2 series.",
+    "Class 41 is a residual bucket. High overall accuracy against MapBiomas does not imply fine crop identity."
+  ],
+  "id": "temporal_transformer",
+  "name": "Temporal Transformer",
+  "family": "sequence_transformer",
+  "summary": "Reads each acquisition as a token and classifies the series with a small transformer encoder.",
+  "modes": [
+    "single"
+  ],
+  "requires": [
+    "torch"
+  ],
+  "reads": [
+    {
+      "label": "Imagery",
+      "value": "Sentinel-2 L2A scenes in the period, under the cloud limit"
+    },
+    {
+      "label": "Bands",
+      "value": "B02, B03, B04 at 10 m; B8A, B11, B12 at 20 m"
+    },
+    {
+      "label": "Dates",
+      "value": "22: a shorter series is padded with its last date, a longer one keeps its latest 22"
+    }
+  ],
+  "method": [
+    {
+      "label": "Encoder",
+      "value": "3 layers, 4 heads, width 128, feed-forward 256"
+    },
+    {
+      "label": "Pooling",
+      "value": "Mean over the 22 dates, then a linear head"
+    },
+    {
+      "label": "Parameters",
+      "value": "402,053"
+    }
+  ],
+  "evaluation": null,
+  "picture": {
+    "author": "Parzeus, from MapBiomas Collection 10",
+    "license": "CC BY 4.0",
+    "source": "https://commons.wikimedia.org/wiki/File:Brazil_-_Paran%C3%A1_land_use_change_1985-2024_-_MapBiomas.gif",
+    "subject": "eastern Paraná in the MapBiomas Collection 10 map for 2024, with Curitiba and the Atlantic Forest: farming in cream, forest in green, towns in red. Not this model's output"
+  },
+  "files": {
+    "checkpoint": {
+      "name": "tt_mapbiomas.pt"
+    },
+    "picture": {
+      "name": "picture.webp"
+    }
+  }
+}

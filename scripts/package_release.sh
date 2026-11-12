@@ -5,8 +5,9 @@
 #   scripts/package_release.sh --flavor lite|full --os darwin|linux|windows \
 #       --artifact TERRA-macOS-arm64-full.zip [--arch aarch64|x86_64]
 #
-# Expects repo root as cwd. Copies sidecar/ and model/ into the app bundle
-# or beside the binary. FULL also embeds python-build-standalone + requirements.txt.
+# Expects repo root as cwd. Copies sidecar/ into the app bundle or beside the
+# binary. No model is shipped: models are packages the reader installs from the
+# Models screen (scripts/package_models.py builds them). FULL also embeds python-build-standalone + requirements.txt.
 set -euo pipefail
 
 FLAVOR=""
@@ -47,7 +48,6 @@ copy_assets() {
   local dest="$1"
   mkdir -p "$dest"
   cp -R "$ROOT/sidecar" "$dest/"
-  cp -R "$ROOT/model" "$dest/"
   # Drop Python caches from the tree
   find "$dest/sidecar" -type d -name '__pycache__' -exec rm -rf {} + 2>/dev/null || true
 }

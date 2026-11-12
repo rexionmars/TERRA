@@ -1,0 +1,76 @@
+{
+  "format": 1,
+  "version": "1.0.0",
+  "task": "land_cover",
+  "classes": [
+    3,
+    21,
+    25,
+    39,
+    41
+  ],
+  "license": "GPL-3.0-only",
+  "doi": null,
+  "limits": [
+    "The legend is fixed and the model was fitted for western Paraná. An area elsewhere can return a confident and wrong result. Hectares are pixel counts, uncorrected for classification error.",
+    "MapBiomas is not field truth. Agreement is concordance with an annual map, often offset in time from the Sentinel-2 series.",
+    "Class 41 is a residual bucket. High overall accuracy against MapBiomas does not imply fine crop identity."
+  ],
+  "id": "prithvi",
+  "name": "Prithvi-EO 2.0",
+  "family": "embedding_rf",
+  "summary": "A Random Forest head over frozen Prithvi-EO 2.0 300M embeddings of one acquisition, per pixel or per patch.",
+  "modes": [
+    "single"
+  ],
+  "requires": [
+    "torch",
+    "terratorch"
+  ],
+  "variants": [
+    "pixel",
+    "patch"
+  ],
+  "reads": [
+    {
+      "label": "Imagery",
+      "value": "The middle Sentinel-2 L2A scene of the period; widening the period changes which scene, not how many"
+    },
+    {
+      "label": "Bands",
+      "value": "B02, B03, B04 at 10 m; B8A, B11, B12 at 20 m"
+    },
+    {
+      "label": "Backbone",
+      "value": "Prithvi-EO 2.0 300M (NASA and IBM), frozen, downloaded on first use"
+    }
+  ],
+  "method": [
+    {
+      "label": "Embeddings",
+      "value": "1,024 per pixel or per patch, from the backbone's last block"
+    },
+    {
+      "label": "Head",
+      "value": "Random Forest, 300 trees, depth at most 20"
+    }
+  ],
+  "evaluation": null,
+  "files": {
+    "label_encoder": {
+      "name": "prithvi_label_encoder.joblib"
+    },
+    "model_pixel": {
+      "name": "prithvi_rf_pixel.joblib"
+    },
+    "scaler_pixel": {
+      "name": "prithvi_scaler_pixel.joblib"
+    },
+    "model_patch": {
+      "name": "prithvi_rf_patch.joblib"
+    },
+    "scaler_patch": {
+      "name": "prithvi_scaler_patch.joblib"
+    }
+  }
+}
