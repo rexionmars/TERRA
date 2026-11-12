@@ -221,7 +221,7 @@ export function VisualizationPanel({
     : null
   return (
     <ShellPanel
-      crumbs={[{ label: "Visualization" }]}
+      crumbs={[{ label: "Compositions" }]}
       onClose={onClose}
       footer={
         <div className="flex flex-col gap-2">

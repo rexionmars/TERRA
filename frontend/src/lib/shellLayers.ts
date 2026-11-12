@@ -67,7 +67,7 @@ export function withAssetLayers(
   const shown = shownOnOpening(assets)
   const extra: RasterLayer[] = []
   for (const a of assets) {
-    // A composition of the gallery is chosen in the Visualization panel.
+    // A composition of the gallery is chosen in the Compositions panel.
     if (listed.has(a.sceneId) || a.selectId || !a.extent) continue
     extra.push({
       id: a.sceneId,

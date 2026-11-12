@@ -18,7 +18,7 @@ export type BoardToolId =
 
 /**
  * A product the Products panel lists: every tool but compositions, which are a way
- * of looking at one scene rather than a run and have the Visualization panel.
+ * of looking at one scene rather than a run and have the Compositions panel.
  */
 export type ProductId = Exclude<BoardToolId, "compose">
 

@@ -53,7 +53,7 @@ export interface ProductsPanelProps extends ProductRunProps {
 }
 
 /*
-  Compositions have a panel of their own, Visualization: a way of looking at a
+  Compositions have a panel of their own: a way of looking at a
   scene rather than a run of a product.
 */
 const LISTED = BOARD_TOOLS.filter((t): t is BoardTool & { id: ProductId } =>
