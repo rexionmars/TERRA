@@ -1036,6 +1036,19 @@ export function GlobeSurface({
                 "fill-opacity": ["case", IS_SELECTED, 0.16, 0],
               },
             },
+            /*
+              The fill of the shape being worked on, UNDER every outline and
+              under the rasters, which go in below AREA_LINE. A result over the
+              area is what the reader came to see, and a white tint over it
+              moves every class colour toward white, so a legend's swatch no
+              longer matches the ground it names.
+            */
+            {
+              id: SHAPE_FILL,
+              type: "fill",
+              source: SHAPE_SOURCE,
+              paint: { "fill-color": "#ffffff", "fill-opacity": 0.12 },
+            },
             {
               id: AREA_CASING,
               type: "line",
@@ -1063,17 +1076,11 @@ export function GlobeSurface({
               },
             },
             /*
-              ABOVE the catalog, because it is what is being worked on. And
-              stroked rather than left as a fill: DrawMap records that a closed
-              polygon with no line of its own vanishes the moment it is
-              finished, which reads as the drawing having failed.
+              The line ABOVE the catalog, because it is what is being worked
+              on. And stroked rather than left as a fill: DrawMap records that
+              a closed polygon with no line of its own vanishes the moment it
+              is finished, which reads as the drawing having failed.
             */
-            {
-              id: SHAPE_FILL,
-              type: "fill",
-              source: SHAPE_SOURCE,
-              paint: { "fill-color": "#ffffff", "fill-opacity": 0.12 },
-            },
             {
               id: SHAPE_LINE,
               type: "line",
