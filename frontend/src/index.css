@@ -852,7 +852,8 @@
      5.20 on the panel, 3.84 on a raised surface. */
   --ring: rgb(var(--p-accent));
 
-  --font-display: "Space Grotesk", ui-sans-serif, system-ui, sans-serif;
+  /* The mark's face: headings speak in the emblem's type. See index.html. */
+  --font-display: "Exo 2", ui-sans-serif, system-ui, sans-serif;
   --font-sans: "Inter", ui-sans-serif, system-ui, sans-serif;
   --font-telemetry: "JetBrains Mono", ui-monospace, "SF Mono", Menlo, monospace;
 }

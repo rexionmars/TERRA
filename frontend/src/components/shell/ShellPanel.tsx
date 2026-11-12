@@ -37,49 +37,54 @@ export function ShellPanel({
   panelRef?: (el: HTMLElement | null) => void
   children: React.ReactNode
 }) {
+  const parents = crumbs.slice(0, -1)
+  const place = crumbs[crumbs.length - 1]
   return (
     <aside
       ref={panelRef}
-      aria-label={crumbs[crumbs.length - 1]?.label}
+      aria-label={place?.label}
       className={cn(
         "map-chrome map-chrome-panel app-no-drag absolute top-3 right-[3.5rem] bottom-10 z-450 flex max-w-[calc(100%-5rem)] flex-col overflow-hidden rounded-md border border-[rgb(var(--p-line)/0.28)] shadow-[0_2px_8px_rgb(0_0_0/0.28)]",
         wide ? "w-[44rem]" : "w-[26rem]"
       )}
     >
       <header className="flex h-12 shrink-0 items-center gap-1.5 border-b border-border pr-2 pl-4">
+        {/*
+          TWO LINES: THE PATH IN TELEMETRY, THE PLACE IN DISPLAY. The path is
+          where the panel sits, a small label to step back along; the place is
+          what the reader came to, so it alone is set large, in the face of
+          the mark.
+        */}
         <nav
           aria-label="Panel path"
-          className="flex min-w-0 flex-1 items-center gap-1.5"
+          className="flex min-w-0 flex-1 flex-col justify-center gap-1"
         >
-          {crumbs.map((c, i) => {
-            const last = i === crumbs.length - 1
-            return (
-              <span key={c.label} className="flex min-w-0 items-center gap-1.5">
-                {i > 0 && (
-                  <CaretRight className="size-3 shrink-0 text-muted-foreground" />
-                )}
-                {c.onClick ? (
-                  <button
-                    type="button"
-                    onClick={c.onClick}
-                    className="truncate text-title text-muted-foreground transition-colors hover:text-foreground"
-                  >
-                    {c.label}
-                  </button>
-                ) : (
-                  <span
-                    aria-current={last ? "page" : undefined}
-                    className={cn(
-                      "truncate text-title",
-                      last ? "font-medium text-foreground" : "text-muted-foreground"
-                    )}
-                  >
-                    {c.label}
-                  </span>
-                )}
-              </span>
-            )
-          })}
+          {parents.length > 0 && (
+            <span className="eyebrow flex min-w-0 items-center gap-1 leading-none">
+              {parents.map((c, i) => (
+                <span key={c.label} className="flex min-w-0 items-center gap-1">
+                  {i > 0 && <span aria-hidden>/</span>}
+                  {c.onClick ? (
+                    <button
+                      type="button"
+                      onClick={c.onClick}
+                      className="truncate uppercase transition-colors hover:text-foreground"
+                    >
+                      {c.label}
+                    </button>
+                  ) : (
+                    <span className="truncate">{c.label}</span>
+                  )}
+                </span>
+              ))}
+            </span>
+          )}
+          <span
+            aria-current="page"
+            className="truncate font-display text-title leading-tight font-semibold text-foreground"
+          >
+            {place?.label}
+          </span>
         </nav>
         <button
           type="button"
