@@ -168,7 +168,6 @@ export function MapShell(props: MapShellProps) {
   const [seenReports, setSeenReports] = useState(0)
   const [product, setProduct] = useState<ProductId | null>(null)
   const [frame, setFrame] = useState<{ key: number; bounds: Bounds } | null>(null)
-  const [coords, setCoords] = useState(props.initialView ?? null)
   const [spreadM, setSpreadM] = useState(0)
   /*
     The curtain over the map, and the composition under the one on it that the
@@ -583,10 +582,7 @@ export function MapShell(props: MapShellProps) {
               curtainKey={beneath ? "composition" : null}
               onCurtainChange={setCurtain}
               initialView={props.initialView}
-              onViewChange={(v) => {
-                setCoords(v)
-                props.onViewChange(v)
-              }}
+              onViewChange={props.onViewChange}
               frame={frame}
               rightInsetPx={rightInsetPx}
               pins={pins}
@@ -754,12 +750,6 @@ export function MapShell(props: MapShellProps) {
             onToggleLegend={toggleLegend}
             onTakeOff={(key) => changeLayer(key, { visible: false })}
           />
-
-          {coords && (
-            <span className="telemetry pointer-events-none absolute right-[3.5rem] bottom-3 z-410 rounded-sm bg-[rgb(var(--p-ink)/0.82)] px-2 py-1 text-label text-foreground tabular-nums">
-              {coords.lat.toFixed(5)}, {coords.lon.toFixed(5)}
-            </span>
-          )}
 
           {/* Hidden under Products, which shows the same runs in its own form. */}
           {((busy && panel !== "products") || opening) && (

@@ -752,6 +752,13 @@ export function GlobeSurface({
   const stopRef = useRef(stop)
   stopRef.current = stop
   const [zoom, setZoom] = useState(initialView?.zoom ?? START_ZOOM)
+  /*
+    The centre of the view, taken on the same moveend the session is told of:
+    one reading per gesture, rather than one per frame of a drag.
+  */
+  const [centre, setCentre] = useState<{ lat: number; lon: number } | null>(
+    initialView ? { lat: initialView.lat, lon: initialView.lon } : null
+  )
   const [busy, setBusy] = useState(false)
   /*
     WHEN THE GROUND UNDER THE CENTRE WAS PHOTOGRAPHED, above the handover.
@@ -1283,6 +1290,7 @@ export function GlobeSurface({
     subs.push(
       map.on("moveend", () => {
         const c = map.getCenter()
+        setCentre({ lat: c.lat, lon: c.lng })
         viewChangeRef.current?.({
           lat: c.lat,
           lon: c.lng,
@@ -1766,19 +1774,30 @@ export function GlobeSurface({
         Bottom left, in the studio status bar's idiom and at its weight: this
         answers a question a reader holds while looking at the imagery, and
         anything heavier would compete with the imagery for the answer.
+
+        ONE STRIP: the camera's readings, the zoom and the centre, then past a
+        rule who the ground belongs to. One plate and one size, so it reads as
+        a line of facts about the picture rather than as labels left about the
+        corners.
       */}
       {ready && !failure && (
-        <div className="telemetry pointer-events-none absolute right-3 bottom-3 left-3 flex flex-wrap items-center gap-x-2 gap-y-0.5 text-meta text-muted-foreground">
+        <div className="telemetry pointer-events-none absolute right-3 bottom-3 left-3 flex items-end text-meta text-muted-foreground">
           {/*
-            ON THE MAP CHROME, both the readout and the credits. Muted type laid
+            ON THE MAP CHROME, the readout and the credits both. Muted type laid
             straight on the imagery vanished wherever the ground was bright: a
             roof or a road under "imagery" took the word out. check:contrast
             measures muted type on .map-chrome over the brightest ground (4.71
             dark, 5.33 light), and nothing measures it on bare imagery.
           */}
-          <span className="map-chrome flex items-center gap-x-2 rounded-sm px-1.5 py-0.5">
-            <span className="text-foreground tabular-nums">z{zoom.toFixed(1)}</span>
-            {/*
+          <div className="map-chrome flex max-w-full flex-wrap items-center gap-x-2 gap-y-0.5 rounded-sm px-1.5 py-0.5">
+            <span className="flex items-center gap-x-2.5">
+              <span className="text-foreground tabular-nums">z{zoom.toFixed(1)}</span>
+              {centre && (
+                <span className="text-foreground tabular-nums">
+                  {centre.lat.toFixed(5)}, {centre.lon.toFixed(5)}
+                </span>
+              )}
+              {/*
             AHEAD OF `busy`, ALONE AMONG THESE. The others are answers to "why
             is the picture not changing", and while tiles are in flight the
             true answer is that they are in flight. This one answers a
@@ -1786,24 +1805,28 @@ export function GlobeSurface({
             and it is asked at the moment of pressing, which is exactly when
             something is always loading.
           */}
-            {!wide && recent && !recentDrawn ? (
-              <span>
-                recent imagery ends at z{RECENT_MAX_ZOOM}; below 10 m this is Esri
-              </span>
-            ) : busy ? (
-              <span>loading imagery</span>
-            ) : ceiling !== null ? (
-              /* Not an error. The imagery ends and the picture is magnified from
+              {!wide && recent && !recentDrawn ? (
+                <span>
+                  recent imagery ends at z{RECENT_MAX_ZOOM}; below 10 m this is Esri
+                </span>
+              ) : busy ? (
+                <span>loading imagery</span>
+              ) : ceiling !== null ? (
+                /* Not an error. The imagery ends and the picture is magnified from
                its last real level, which is what a map does; saying so is the
                difference between a limit and a fault. */
-              <span>magnified past z{ceiling}, the finest this imagery has here</span>
-            ) : !wide && zoom > nativeMax(shownBasemap) ? (
-              <span>
-                magnified past z{nativeMax(shownBasemap)}, the finest this imagery has
-              </span>
-            ) : null}
-          </span>
-          {/*
+                <span>magnified past z{ceiling}, the finest this imagery has here</span>
+              ) : !wide && zoom > nativeMax(shownBasemap) ? (
+                <span>
+                  magnified past z{nativeMax(shownBasemap)}, the finest this imagery has
+                </span>
+              ) : null}
+            </span>
+            <span
+              aria-hidden
+              className="h-3 w-px shrink-0 bg-[rgb(var(--p-line)/0.6)]"
+            />
+            {/*
             WHO THE GROUND BELONGS TO, in the title bar's own order and with its
             own separators, so the two surfaces credit one set of providers one
             way. It was missing here entirely: the surface switches MapLibre's
@@ -1825,30 +1848,31 @@ export function GlobeSurface({
             `pointer-events-auto` on the credits alone, because the line around
             them is a readout that must not take the pointer off the planet.
           */}
-          <span className="map-chrome pointer-events-auto rounded-sm px-1.5 py-0.5 font-sans normal-case">
-            <Credit part={MAPLIBRE_CREDIT} />
-            {/* The title bar's own order and wording, so the date reads the
+            <span className="pointer-events-auto font-sans normal-case">
+              <Credit part={MAPLIBRE_CREDIT} />
+              {/* The title bar's own order and wording, so the date reads the
                 same on both surfaces. */}
-            {shownDate ? ` \u00b7 imagery ${shownDate}` : ""}
-            {creditParts.map((c, i) => (
-              <span key={c.label}>
-                {i === 0 ? " | " : " \u2014 "}
-                <Credit part={c} />
-              </span>
-            ))}
-            {/*
+              {shownDate ? ` \u00b7 imagery ${shownDate}` : ""}
+              {creditParts.map((c, i) => (
+                <span key={c.label}>
+                  {i === 0 ? " | " : " \u2014 "}
+                  <Credit part={c} />
+                </span>
+              ))}
+              {/*
               Only while relief is drawn, because only then is a second provider
               on screen. terrain.ts states that rule and the reason behind it:
               naming the mosaic is also what keeps its shading from being read
               as part of an analysis.
             */}
-            {relief && (
-              <span>
-                {" \u2014 "}
-                <Credit part={ELEVATION_CREDIT} />
-              </span>
-            )}
-          </span>
+              {relief && (
+                <span>
+                  {" \u2014 "}
+                  <Credit part={ELEVATION_CREDIT} />
+                </span>
+              )}
+            </span>
+          </div>
         </div>
       )}
 
