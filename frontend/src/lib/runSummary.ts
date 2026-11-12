@@ -6,6 +6,7 @@
  * LoadAnalysis round trip per row. Every reader is defensive: summary is opaque
  * TEXT and rows written by older versions omit keys.
  */
+import { installedModel } from "@/lib/installedModels"
 
 export interface RunClassStat {
   class_id: number
@@ -98,9 +99,12 @@ export function mineralObservedLine(summary?: string | null): string {
 }
 
 export function modelDisplayName(kind: string): string {
+  if (kind === "") return "Random Forest"
+  const installed = installedModel(kind)
+  if (installed) return installed.manifest.name
   if (kind === "temporal_transformer") return "Temporal Transformer"
   if (kind === "prithvi") return "Prithvi-EO 2.0"
-  if (kind === "spectral" || kind === "") return "Random Forest"
+  if (kind === "spectral") return "Random Forest"
   // Anything else names itself. The old fallback returned Random Forest for
   // every unknown value, so a descriptive run, recorded under the index or the
   // source that produced it, was listed as a classification by a model that

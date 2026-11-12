@@ -41,6 +41,7 @@ import {
   type LegendChoice,
   type LegendState,
 } from "@/lib/legendChoice"
+import { refreshModels } from "@/lib/installedModels"
 import { useReports } from "@/lib/reports"
 import { cn } from "@/lib/utils"
 import { useOperators } from "@/lib/operators"
@@ -142,6 +143,11 @@ export function MapShell(props: MapShellProps) {
   const pageRef = useRef<HTMLDivElement>(null)
 
   const nav = useShellNavigation()
+  // The installed models, read once the shell is up; the Models screen reads
+  // them again after an install or a removal.
+  useEffect(() => {
+    void refreshModels()
+  }, [])
   const {
     startOpen,
     setStartOpen,

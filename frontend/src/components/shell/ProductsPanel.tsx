@@ -3,7 +3,8 @@ import { CaretRight, CircleNotch, Play } from "@/components/icons"
 import { MethodPanel } from "@/components/workspace/MethodPanel"
 import { RunQueue } from "@/components/workspace/RunQueue"
 import { btnGhost, btnPrimaryCommit } from "@/components/ui/buttons"
-import { MODE_OPTIONS, MODEL_OPTIONS, modeBlockedBy } from "@/lib/classifyOptions"
+import { MODE_OPTIONS, modeBlockedBy } from "@/lib/classifyOptions"
+import { installedModel, modelName, useInstalledModels } from "@/lib/installedModels"
 import { isJobKind } from "@/lib/jobs"
 import {
   BOARD_TOOLS,
@@ -49,6 +50,8 @@ export interface ProductsPanelProps extends ProductRunProps {
   onModelKindChange: (m: ModelKind) => void
   onPrithviModeChange: (m: "pixel" | "patch") => void
   onWaterIndexChange: (i: WaterIndex) => void
+  /** Opens the Models screen, where a model is installed. */
+  onOpenModels?: () => void
   onMineralOptionsChange?: (o: MineralRunOptions) => void
 }
 
@@ -77,6 +80,64 @@ function Plate({ product }: { product: ProductId }) {
       draggable={false}
       className="size-11 shrink-0 rounded-sm object-cover outline-1 -outline-offset-1 outline-[rgb(var(--p-line)/0.28)]"
     />
+  )
+}
+
+/**
+ * The model to classify with: the packages installed on this machine.
+ *
+ * One entry per model, its newest version, which is what a run that pins no
+ * version uses. With none installed there is nothing to pick, so the field says
+ * where to get one. A model chosen earlier and since removed stays listed as
+ * not installed, so the form does not silently switch to another model.
+ */
+function ModelField({
+  value,
+  onChange,
+  onOpenModels,
+}: {
+  value: ModelKind
+  onChange: (m: ModelKind) => void
+  onOpenModels?: () => void
+}) {
+  const { models, loaded } = useInstalledModels()
+  const newest = models.filter(
+    (m, i) => models.findIndex((x) => x.manifest.id === m.manifest.id) === i
+  )
+  if (loaded && newest.length === 0) {
+    return (
+      <Field label="Model">
+        <p className="text-label text-muted-foreground">
+          No model is installed.{" "}
+          {onOpenModels && (
+            <button
+              type="button"
+              onClick={onOpenModels}
+              className="text-accent-quiet underline-offset-2 hover:underline"
+            >
+              Get one from Models
+            </button>
+          )}
+        </p>
+      </Field>
+    )
+  }
+  const listed = newest.some((m) => m.manifest.id === value)
+  return (
+    <Field label="Model">
+      <select
+        className="field-input"
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+      >
+        {!listed && <option value={value}>{modelName(value)} · not installed</option>}
+        {newest.map((m) => (
+          <option key={m.manifest.id} value={m.manifest.id}>
+            {m.manifest.name} · {m.manifest.version}
+          </option>
+        ))}
+      </select>
+    </Field>
   )
 }
 
@@ -276,23 +337,14 @@ export function ProductsPanel({
 
         {product === "classify" && (
           <>
-            <Field label="Model">
-              <select
-                className="field-input"
-                value={p.modelKind}
-                onChange={(e) => {
-                  const m = e.target.value as ModelKind
-                  p.onModelKindChange(m)
-                  if (modeBlockedBy(p.mode, m)) p.onModeChange("single")
-                }}
-              >
-                {MODEL_OPTIONS.map((m) => (
-                  <option key={m.id} value={m.id}>
-                    {m.label} · {m.detail}
-                  </option>
-                ))}
-              </select>
-            </Field>
+            <ModelField
+              value={p.modelKind}
+              onChange={(m) => {
+                p.onModelKindChange(m)
+                if (modeBlockedBy(p.mode, m)) p.onModeChange("single")
+              }}
+              onOpenModels={p.onOpenModels}
+            />
             <Field label="Mode">
               <select
                 className="field-input"
@@ -312,8 +364,9 @@ export function ProductsPanel({
                 ))}
               </select>
             </Field>
-            {p.modelKind === "prithvi" && (
-              <Field label="Prithvi prediction">
+            {/* The heads an embedding package carries, from its manifest. */}
+            {(installedModel(p.modelKind)?.manifest.variants?.length ?? 0) > 1 && (
+              <Field label="Prediction">
                 <select
                   className="field-input"
                   value={p.prithviMode}
@@ -321,8 +374,11 @@ export function ProductsPanel({
                     p.onPrithviModeChange(e.target.value as "pixel" | "patch")
                   }
                 >
-                  <option value="pixel">Per pixel</option>
-                  <option value="patch">Per patch</option>
+                  {installedModel(p.modelKind)?.manifest.variants?.map((v) => (
+                    <option key={v} value={v}>
+                      Per {v}
+                    </option>
+                  ))}
                 </select>
               </Field>
             )}

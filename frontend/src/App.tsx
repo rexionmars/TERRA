@@ -59,13 +59,8 @@ function App() {
    */
   const applyPrefs = useCallback(
     (p: Preferences) => {
-      if (
-        p.default_model === "spectral" ||
-        p.default_model === "prithvi" ||
-        p.default_model === "temporal_transformer"
-      ) {
-        onModelKindChange(p.default_model)
-      }
+      // Any package id: whether it is installed is the form's to say.
+      if (p.default_model) onModelKindChange(p.default_model)
       if (typeof p.overlay_opacity === "number" && p.overlay_opacity > 0) {
         onOpacityChange(p.overlay_opacity)
       }

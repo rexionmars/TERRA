@@ -7,7 +7,7 @@
  * by hand does not stand on the grid twice.
  */
 import { modelLabel } from "@/lib/runAssets"
-import type { InferenceRun, ModelKind, PredictResult } from "@/lib/types"
+import type { InferenceRun, PredictResult } from "@/lib/types"
 
 export interface SessionRun {
   id: string
@@ -29,7 +29,7 @@ function periodOf(r: PredictResult, record?: InferenceRun | null): string | null
   return record?.period_start ? `${record.period_start} to ${record.period_end}` : null
 }
 
-const modelOf = (kind?: string | null) => (kind ? modelLabel(kind as ModelKind) : null)
+const modelOf = (kind?: string | null) => (kind ? modelLabel(kind) : null)
 
 export function sessionRuns(i: {
   live: {

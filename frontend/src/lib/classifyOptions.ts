@@ -12,28 +12,15 @@
  * shows a subtitle under each model, a 15rem column does not, and neither of
  * those is a fact about the models.
  */
+import { modelName, modelTakesMode } from "@/lib/installedModels"
 import type { ModelKind } from "@/lib/types"
 
-export interface ModelOption {
-  id: ModelKind
-  label: string
-  /** What it is for. Read while choosing, not while reading the choice back. */
-  detail: string
-}
-
-export const MODEL_OPTIONS: readonly ModelOption[] = [
-  {
-    id: "spectral",
-    label: "Random Forest",
-    detail: "spectro-temporal features",
-  },
-  {
-    id: "temporal_transformer",
-    label: "Temporal Transformer",
-    detail: "lightweight series model",
-  },
-  { id: "prithvi", label: "Prithvi-EO 2.0", detail: "embeddings (NASA/IBM)" },
-]
+/*
+  THE MODELS ARE NOT LISTED HERE. They are the packages installed on this
+  machine, which lib/installedModels.ts reads from the shell; a list written
+  here would be a model the reader may not have, and a model they installed
+  that no surface offers.
+*/
 
 export type ClassifyMode = "single" | "temporal"
 
@@ -52,12 +39,13 @@ export const MODE_OPTIONS: readonly ModeOption[] = [
  * Why a mode cannot be chosen, or null where it can.
  *
  * A rule rather than a boolean, so a surface that refuses one can say why.
- * Cumulative retention is a Random Forest procedure: the other two models
- * produce the map and nothing to accumulate.
+ * Cumulative retention reruns the model over a growing stack, which only a
+ * package that lists the mode can do; the others produce the map and nothing
+ * to accumulate.
  */
 export function modeBlockedBy(mode: ClassifyMode, model: ModelKind): string | null {
-  if (mode === "temporal" && model !== "spectral") {
-    return "Temporal retention runs on Random Forest."
+  if (!modelTakesMode(model, mode)) {
+    return `${modelName(model)} does not run ${mode === "temporal" ? "temporal retention" : `the ${mode} mode`}.`
   }
   return null
 }

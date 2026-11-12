@@ -15,6 +15,7 @@ import {
   seasonSeries,
   type PdfReportInput,
 } from "@/lib/pdfReport"
+import { setInstalledModels } from "@/lib/installedModels"
 import type { Season } from "@/lib/season"
 
 /*
@@ -147,6 +148,39 @@ const INPUT: PdfReportInput = {
   appVersion: "0.6.0",
   now: new Date("2026-09-27T01:30:00Z"),
 }
+
+/*
+  The classification's method comes from its model's installed package, so the
+  report is built with one installed: a Random Forest as the published package
+  describes it.
+*/
+setInstalledModels([
+  {
+    manifest: {
+      format: 1,
+      id: "spectral",
+      version: "1.0.0",
+      name: "Random Forest",
+      family: "feature_rf",
+      task: "land_cover",
+      summary: "Votes 300 decision trees over 80 spectro-temporal features per pixel.",
+      classes: [3, 21, 25, 39, 41],
+      modes: ["single", "temporal"],
+      requires: [],
+      variants: null,
+      reads: [{ label: "Bands", value: "B02, B03, B04, B08 at 10 m" }],
+      method: [{ label: "Trees", value: "300, depth at most 20" }],
+      evaluation: null,
+      limits: null,
+      license: "GPL-3.0-only",
+      doi: "",
+      picture: null,
+      files: {},
+    },
+    digest: "0".repeat(64),
+    picture_uri: "",
+  },
+])
 
 describe("buildPdfReport", () => {
   const doc = buildPdfReport(INPUT)
