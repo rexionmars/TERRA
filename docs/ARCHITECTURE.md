@@ -25,7 +25,7 @@ hosted API server.
 └─────────────────────────────────────────────────────────┘
          │                              │
          ▼                              ▼
-  Planetary Computer STAC         model/*.joblib | *.pt
+  Planetary Computer STAC         installed model packages
   MapBiomas (local or COG)        (Prithvi HF cache ~1.2 GB)
 ```
 
@@ -53,8 +53,9 @@ Prithvi pixel mode can be slow.
 | `internal/research/` | The research pack export |
 | `internal/geocode/` | Place-name lookup through Nominatim |
 | `internal/store/` | SQLite persistence |
+| `internal/models/` | Install, list and remove model packages |
 | `sidecar/` | Inference, LULC, phenology, Prithvi, Temporal Transformer |
-| `model/` | Trained artifacts |
+| `model/` | Sources of the model packages: the weights, and `packages/<id>/model.json`. The application does not read it; `scripts/package_models.py` builds the packages from it |
 | `frontend/` | React 19 + Vite + Tailwind + MapLibre GL |
 
 ## Inference pipeline (predict)
@@ -65,10 +66,38 @@ Prithvi pixel mode can be slow.
 2. Query Planetary Computer STAC for Sentinel-2 L2A scenes (cloud filter,
    optional monthly-best, optional tiles).
 3. Clip bands to the polygon on a reference grid (typically B04).
-4. Build features or embeddings depending on `model_kind`.
+4. Check the installed model package (every file against the SHA-256 in its
+   manifest), then build features or embeddings by the package's family.
 5. Classify; write overlay / confidence / optional reference PNGs and a
    GeoTIFF; attach VI series, phenology, and LULC when available.
-6. Go embeds PNGs as data URIs, emits `predict:progress`, and persists the run.
+6. Go embeds PNGs as data URIs, emits `predict:progress`, and persists the run,
+   with the id, version and digest of the model package that made it.
+
+## Model packages
+
+The application ships no model. A model is a package the reader installs from
+the Models screen: a zip holding its files and a `model.json` that names each by
+role, with its SHA-256 and size, and states what the model is.
+
+| Field | Meaning |
+|-------|---------|
+| `format` | The manifest's version, `1` |
+| `id`, `version` | `id` is what a run records as `model_kind`; lower case, digits, `.`, `_`, `-` |
+| `family` | How the sidecar runs it: `feature_rf`, `sequence_transformer` or `embedding_rf` |
+| `files` | Role to `{name, sha256, size}`; the roles each family needs are `ROLES` in `sidecar/terra/models.py` |
+| `classes`, `modes`, `requires`, `variants` | MapBiomas codes it emits, the classify modes it supports, optional Python packages, embedding heads |
+| `summary`, `reads`, `method`, `evaluation`, `limits`, `license`, `doi`, `picture` | What the Models screen and the method brief say about it |
+
+Installed packages live under the data directory at `models/<id>/<version>/`
+(`internal/models`). A package of an unknown family, with a file named outside
+its folder, or whose files do not hash to the manifest is refused at import, and
+the sidecar checks the digests again before every run, because loading a pickle
+runs code. A package brings weights only: a new architecture is a new family in
+`terra/models.py` and `terra/landcover/classify.py`, and a new model of a known
+family is a manifest and its files.
+
+`python3 scripts/package_models.py` builds the packages of the models in
+`model/` into `dist/models/`.
 
 ## Related docs
 
