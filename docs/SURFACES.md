@@ -14,6 +14,7 @@ disagree, the code is right and this file is stale.
 | The panels | [`frontend/src/components/shell/`](../frontend/src/components/shell/) |
 | Compare | [`frontend/src/components/shell/CompareScreen.tsx`](../frontend/src/components/shell/CompareScreen.tsx) |
 | Workflows | [`frontend/src/components/shell/WorkflowsScreen.tsx`](../frontend/src/components/shell/WorkflowsScreen.tsx) |
+| Models | [`frontend/src/components/shell/ModelsScreen.tsx`](../frontend/src/components/shell/ModelsScreen.tsx), its facts in [`frontend/src/lib/modelCatalog.ts`](../frontend/src/lib/modelCatalog.ts) |
 | Readings the destinations share | [`frontend/src/components/workspace/`](../frontend/src/components/workspace/) |
 
 ## The shape
@@ -25,6 +26,7 @@ disagree, the code is right and this file is stale.
 | **Analyses** | Every saved run, filed under its project |
 | **Compare** | Runs as nodes on a board, and readings linked to any of them, as many as wanted |
 | **Workflows** | The compositor, full screen |
+| **Models** | The trained land-cover models, as cards, with a page for each: what it reads, how it works, how it was evaluated, and a button that runs it through Classification |
 | **Activity** | What the application has said, kept after each notification leaves |
 
 **One panel at a time.** The shell holds a single value saying which is open, so

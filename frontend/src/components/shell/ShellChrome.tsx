@@ -16,6 +16,7 @@ import {
   Polygon,
   SidebarCollapse,
   SidebarSimple,
+  SquaresFour,
   User,
   type Icon,
 } from "@/components/icons"
@@ -37,7 +38,7 @@ import { cn } from "@/lib/utils"
 
 /** What the rail can show as current. */
 export type RailPlace =
-  "explore" | "areas" | "analyses" | "compare" | "workflows" | "activity"
+  "explore" | "areas" | "analyses" | "compare" | "workflows" | "models" | "activity"
 
 /*
   THE TRAFFIC LIGHTS ARE WIDER THAN THE RAIL. In the inset title bar main.go
@@ -479,6 +480,7 @@ export function ShellRail({
   onAnalyses,
   onCompare,
   onWorkflows,
+  onModels,
   onActivity,
 }: {
   place: RailPlace
@@ -489,6 +491,7 @@ export function ShellRail({
   onAnalyses: () => void
   onCompare: () => void
   onWorkflows: () => void
+  onModels: () => void
   onActivity: () => void
 }) {
   const { user, loading, goProfile, goAuth } = useAuth()
@@ -554,6 +557,18 @@ export function ShellRail({
             open={open}
             active={place === "workflows"}
             onClick={onWorkflows}
+          />
+          {/*
+            The glyph Analyses gives a classification run: every model on the
+            Models screen is a classifier.
+          */}
+          <RailButton
+            icon={SquaresFour}
+            label="Models"
+            title="Models: the trained classifiers"
+            open={open}
+            active={place === "models"}
+            onClick={onModels}
           />
           <hr className={cn("my-1.5 border-border", open ? "mx-1.5" : "w-7")} />
           <div className="flex-1" />
