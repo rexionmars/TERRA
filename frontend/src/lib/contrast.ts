@@ -126,12 +126,12 @@ export const TOKENS = {
     lineStrong: [133, 133, 133],
     text: [217, 211, 209],
     muted: [155, 155, 155],
-    accent: [236, 102, 45],
-    accentQuiet: [250, 115, 60],
-    accentDim: [74, 32, 15],
+    accent: [244, 192, 16],
+    accentQuiet: [250, 206, 72],
+    accentDim: [62, 48, 6],
     destructive: [159, 43, 58],
     success: [106, 216, 149],
-    warning: [240, 207, 76],
+    warning: [250, 115, 60],
     destructiveForeground: [217, 211, 209],
     destructiveQuiet: [248, 152, 158],
     aside: [112, 150, 190],
@@ -186,12 +186,12 @@ export const TOKENS = {
     lineStrong: [118, 116, 115],
     text: [20, 20, 20],
     muted: [82, 80, 79],
-    accent: [171, 65, 16],
-    accentQuiet: [154, 57, 11],
-    accentDim: [253, 221, 208],
+    accent: [122, 88, 0],
+    accentQuiet: [104, 74, 0],
+    accentDim: [250, 235, 190],
     destructive: [178, 54, 69],
     success: [0, 100, 54],
-    warning: [109, 89, 0],
+    warning: [154, 57, 11],
     destructiveForeground: [243, 240, 239],
     destructiveQuiet: [163, 43, 59],
     aside: [70, 106, 152],
@@ -298,7 +298,7 @@ export interface ContrastRule {
  * Every pair the interface paints, and the floor each has to clear.
  *
  * `accent` is checked at 3.0, not 4.5, and only as a fill, a focus ring and an
- * active state. The present accent measures 3.97 on the raised surface, which
+ * active state. The present accent measures 7.57 on the raised surface, which
  * is a property of this accent being a light one and not a rule the token
  * holds. The floor stays at 3.0 because a later accent may be a mid tone, and
  * text that has to READ as the accent uses `accentQuiet` either way.
@@ -524,12 +524,12 @@ export const RULES: readonly ContrastRule[] = [
   /*
    * Warning joins the list because it stopped deriving from a checked token.
    * It used to be --p-accent-quiet and inherited that token's 4.5 floor for
-   * free; it is now an amber of its own, and an unchecked literal is exactly
+   * free; it is now a colour of its own, and an unchecked literal is exactly
    * what the destructive pair was when it shipped failing.
    *
-   * It stays independent now that the accent is orange again, which is when
-   * the separation is hardest to see and most worth keeping: a warning that
-   * follows the accent says nothing the accent does not already say.
+   * It stays independent now that the accent is the emblem's yellow: the
+   * warning took the orange the accent left, because a warning that follows
+   * the accent says nothing the accent does not already say.
    */
   {
     fg: "warning",

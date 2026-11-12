@@ -22,10 +22,12 @@
 :root,
 :root[data-theme="dark"] {
   /*
-    Neutral greys, and an orange that does the asking.
+    Neutral greys, and the emblem's yellow that does the asking.
 
-    The accent #EC662D and the paper #D9D3D1 are the Tangerine Alloy palette's, and
-    #323232 is the raised surface of the other references. The dark ramp holds no
+    The accent #F4C010 is the ararajuba yellow of the TERRA mark, so the control
+    that asks to be pressed is drawn in the mark's own colour. The paper #D9D3D1 is
+    the Tangerine Alloy palette's, and #323232 is the raised surface of the other
+    references. The dark ramp holds no
     hue at all, on purpose. Tangerine's own #0B120E carries green, and interpolated
     across every surface that tint read as a green interface, which nobody asked for.
 
@@ -62,18 +64,18 @@
   /*
     The accent is a fill, a focus ring and an active state.
 
-    A MID-TONE FILL TAKES THE NEAR-BLACK LABEL: ink measures 5.71 on it, and
-    white 3.23, under the floor. Text that has to read as the accent uses
-    --p-accent-quiet, at 4.63 on the raised surface.
+    A LIGHT FILL TAKES THE NEAR-BLACK LABEL: ink measures 10.87 on it, and white
+    1.62, far under the floor. Text that has to read as the accent uses
+    --p-accent-quiet, at 8.54 on the raised surface.
 
-    NOT OVER IMAGERY ON ITS OWN. It measures 2.44 on the red soil of western
-    Paraná and 2.25 on grass, and orange runs through the inferno and rdylgn
-    ramps. So a line drawn in it over the map carries a dark casing, which is
-    what the contrast is then measured against; see AREA_CASING in GlobeSurface.
+    NOT OVER IMAGERY ON ITS OWN. It measures 1.07 on a bright field and 2.9 on
+    pasture, and yellow ends the inferno, viridis and rdylgn ramps. So a line
+    drawn in it over the map carries a dark casing, which is what the contrast is
+    then measured against; see AREA_CASING in GlobeSurface.
   */
-  --p-accent: 236 102 45;
-  --p-accent-quiet: 250 115 60;
-  --p-accent-dim: 74 32 15;
+  --p-accent: 244 192 16;
+  --p-accent-quiet: 250 206 72;
+  --p-accent-dim: 62 48 6;
   --p-place: 120 138 148;
   --p-haze: 144 144 144;
   /*
@@ -490,10 +492,9 @@
   above, so every ratio is measured here too. Neutral for the same reason, at
   the luminances the sand family was measured at.
 
-  The accent is darkened rather than reused: the dark theme's #EC662D on a light
-  surface reads as a highlight and not as a control, and it carries no label at
-  all there. This one measures 4.42 on the raised surface and takes the light
-  ink at 5.02.
+  The accent is darkened rather than reused: the dark theme's #F4C010 on a light
+  surface cannot be read at all, at 1.6 on the paper. This one, an ochre of the
+  same hue, measures 6.42 on the raised surface and takes the light ink at 4.94.
 */
 :root[data-theme="light"] {
   /*
@@ -540,12 +541,12 @@
     Same rule as dark: a fill, not a text colour.
 
     DARKER THAN THE DARK THEME'S, and by what its label asks. The fill takes
-    --p-ink, which is near-white here, so the orange comes down to L 0.516 for that
-    pair to clear 4.5: 4.55. At the lightness first tried, #B7440B, it read 4.14.
+    --p-ink, which is near-white here, so the yellow comes down to the ochre
+    #7A5800 for that pair to clear 4.5: 4.94.
   */
-  --p-accent: 171 65 16;
-  --p-accent-quiet: 154 57 11;
-  --p-accent-dim: 253 221 208;
+  --p-accent: 122 88 0;
+  --p-accent-quiet: 104 74 0;
+  --p-accent-dim: 250 235 190;
   --p-place: 90 110 122;
   --p-haze: 176 176 176;
   /* The same, at the lightness a light ground needs: 4.33 on the raised
@@ -798,12 +799,13 @@
   /*
     A yellow of its own, one value per theme, rather than the accent.
 
-    At OKLCH h 95, 54 degrees from the accent's 41. The amber before it sat at 72,
-    which is the same family as this orange, and a warning must not read as "this
-    is the thing to act on". contrast.ts holds it to the mark floor of 3.0 on every
-    surface.
+    At OKLCH h 41, 47 degrees from the accent's 89: the orange the accent was
+    before it took the emblem's yellow. A warning in the accent's family would
+    read as "this is the thing to act on", and the busy ring on a Workflows node
+    would be the selected one. contrast.ts holds it to the mark floor of 3.0 on
+    every surface.
   */
-  --warning: #f0cf4c;
+  --warning: #fa733c;
   /*
     A green of its own at OKLCH h 155, far from the accent's 41. It paints the
     widest band on the run board as well as a toast mark, so it is light enough
@@ -848,8 +850,8 @@
   /* Full accent, not a wash of it. At 0.55 the composited ring measured under
      the 3.0 WCAG 1.4.11 asks of a focus indicator, and under the figure the
      contrast check verifies, because the check reads the token and the token
-     was not what got painted. At full strength the two agree: 6.25 on ink,
-     5.20 on the panel, 3.84 on a raised surface. */
+     was not what got painted. At full strength the two agree: 10.87 on ink,
+     9.50 on the panel, 7.57 on a raised surface. */
   --ring: rgb(var(--p-accent));
 
   /* The mark's face: headings speak in the emblem's type. See index.html. */
@@ -862,7 +864,7 @@
   --destructive: #b23645;
   --destructive-foreground: rgb(var(--p-surface));
   --destructive-quiet: #a32b3b;
-  --warning: #6d5900;
+  --warning: #9a390b;
   /* The same two, at the lightness a light ground needs. The bands invert with
      the theme rather than holding their value: --p-ink is the light surface
      here, so the reading on a band is LIGHT type and the band has to be dark
