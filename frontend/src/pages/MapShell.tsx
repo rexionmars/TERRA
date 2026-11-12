@@ -3,6 +3,7 @@ import { toGlobeArea, type GlobeArea } from "@/components/globe/globeArea"
 import { ActivityPanel } from "@/components/shell/ActivityPanel"
 import { useMapLayers, useRunAssets } from "@/components/shell/mapLayerState"
 import { MapTools } from "@/components/shell/MapTools"
+import { ModelsScreen } from "@/components/shell/ModelsScreen"
 import { RunStatus } from "@/components/shell/RunStatus"
 import { AreaDeleteDialog } from "@/components/shell/AreaDeleteDialog"
 import { useRunsInHand, withRun } from "@/components/shell/runsInHand"
@@ -159,6 +160,7 @@ export function MapShell(props: MapShellProps) {
     goAnalyses,
     goCompare,
     goWorkflows,
+    goModels,
     railOpen,
     setRailOpen,
     panel,
@@ -502,7 +504,9 @@ export function MapShell(props: MapShellProps) {
           place={
             destination === "analyses"
               ? "analyses"
-              : destination === "compare" || destination === "workflows"
+              : destination === "compare" ||
+                  destination === "workflows" ||
+                  destination === "models"
                 ? destination
                 : panel === "areas"
                   ? "areas"
@@ -523,6 +527,7 @@ export function MapShell(props: MapShellProps) {
           onAnalyses={goAnalyses}
           onCompare={goCompare}
           onWorkflows={goWorkflows}
+          onModels={goModels}
           onActivity={() => {
             setDestination("explore")
             togglePanel("activity")
@@ -639,6 +644,7 @@ export function MapShell(props: MapShellProps) {
                 runLog={runLog}
                 product={product}
                 onProductChange={setProduct}
+                onOpenModels={goModels}
                 onClose={() => setPanel(null)}
               />
             </RunOnMapContext.Provider>
@@ -889,6 +895,19 @@ export function MapShell(props: MapShellProps) {
               }}
               recentFiles={extras.recent_project_files ?? []}
               onOpenFile={openProjectFile}
+            />
+          )}
+
+          {destination === "models" && (
+            <ModelsScreen
+              current={props.modelKind}
+              onRun={(kind) => {
+                // Classification is where a model runs: its form, on this model.
+                props.onModelKindChange(kind)
+                setProduct("classify")
+                setPanel("products")
+                setDestination("explore")
+              }}
             />
           )}
 

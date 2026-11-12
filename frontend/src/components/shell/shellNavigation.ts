@@ -11,7 +11,7 @@ export function useShellNavigation() {
   // Over the map at launch, and gone as soon as the reader begins something.
   const [startOpen, setStartOpen] = useState(false)
   const [destination, setDestination] = useState<
-    "explore" | "analyses" | "compare" | "workflows"
+    "explore" | "analyses" | "compare" | "workflows" | "models"
   >("explore")
   /*
     Each stays mounted once opened, hidden behind the map. The grid's choices survive
@@ -35,6 +35,11 @@ export function useShellNavigation() {
     setWorkflowsOpened(true)
     setDestination("workflows")
   }
+  /* Not kept mounted: a catalogue holds nothing a reader would come back to. */
+  const goModels = () => {
+    setStartOpen(false)
+    setDestination("models")
+  }
   const [railOpen, setRailOpen] = useState(readRailOpen)
 
   const [panel, setPanel] = useState<ShellPanelId | null>(null)
@@ -55,6 +60,7 @@ export function useShellNavigation() {
     goAnalyses,
     goCompare,
     goWorkflows,
+    goModels,
     railOpen,
     setRailOpen,
     panel,
