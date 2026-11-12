@@ -20,6 +20,15 @@ Source of truth: [`app.go`](../app.go), [`internal/analysis/types.go`](../intern
 | `ExportClassification` | raster path | saved path | Native save dialog for the GeoTIFF |
 | `GeocodeSearch` | query string | `[]GeocodeResult` | OSM Nominatim search |
 
+### Models
+
+| Method | Input | Output | Description |
+|--------|--------|--------|-------------|
+| `ListModels` | — | `[]ModelInfo` | Installed model packages, newest version first within an id |
+| `PickModelPackage` | — | path | Native open dialog for a package zip; empty when cancelled |
+| `ImportModel` | path (zip or folder) | `ModelInfo` | Check and install a package; see ARCHITECTURE.md, Model packages |
+| `RemoveModel` | id, version | — | Uninstall one version |
+
 ### Saved analyses
 
 | Method | Description |
@@ -92,9 +101,12 @@ cascade is written where the delete is, in `internal/store/`.
   and that field is gone. `area_id` on a request now means something else: the
   catalogued ground the run is OF, so a studio can keep an area and its runs
   as one subject.
-- `mode`: `"single"` or `"temporal"` (temporal soybean retention requires spectral RF).
-- `model_kind`: `"spectral"` | `"temporal_transformer"` | `"prithvi"`.
-- `prithvi_mode`: `"pixel"` or `"patch"` when using Prithvi.
+- `mode`: `"single"` or `"temporal"`; temporal retention runs only on a package
+  whose manifest lists the mode.
+- `model_kind`: the id of an installed model package, e.g. `"spectral"`. Not
+  installed is an error that names the id.
+- `model_version`: optional; pins the package's version, else the newest installed runs.
+- `prithvi_mode`: the head of an embedding package, `"pixel"` or `"patch"`.
 
 ### `PredictResult` (frontend-facing)
 
@@ -109,6 +121,7 @@ Important fields:
 | `vi_series` / `phenology` / `phenology_states` | Temporal vegetation summary |
 | `lulc` | Optional MapBiomas composition block |
 | `temporal` | Cumulative steps when `mode` is temporal |
+| `model` | `{id, version, digest}` of the package that made it; kept with the saved run |
 
 Progress events (`predict:progress`): `{ "progress": 0–100, "msg": "…" }`.
 
@@ -130,7 +143,7 @@ from **stdout**. Progress and errors are JSON lines on **stderr**.
 
 ```json
 {
-  "model_dir": "/path/to/model",
+  "model_path": "/path/to/data/models/spectral/1.0.0",
   "source": "stac",
   "start": "2023-01-01",
   "end": "2023-12-31",
@@ -140,8 +153,7 @@ from **stdout**. Progress and errors are JSON lines on **stderr**.
   "polygon_geojson": { "type": "Polygon", "coordinates": [ /* … */ ] },
   "mapbiomas_path": "",
   "mode": "single",
-  "model_kind": "spectral",
-  "prithvi_mode": "pixel",
+  "variant": "pixel",
   "work_dir": "/tmp/geosense-run-…"
 }
 ```

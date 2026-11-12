@@ -8,7 +8,8 @@ Releases ship two flavors:
 | **FULL** | `TERRA-*-full.zip` | Unzip and run — embeds Python 3.12 + spectral RF dependencies |
 | **LITE** | `TERRA-*-lite.zip` | Smaller UI + models; you provide Python 3.12 |
 
-Both include `sidecar/`, `areas/`, and `model/` next to the app binary.
+Both include `sidecar/` and `areas/` next to the app binary. Neither includes a
+model: install the ones you want from the **Models** screen.
 
 **FULL** covers spectral Random Forest, MapBiomas LULC, and phenology without a
 system Python. Temporal Transformer and Prithvi still need torch — use LITE (or
@@ -143,8 +144,8 @@ scripts/package_release.sh --flavor full --os darwin --arch aarch64 --artifact T
 | Variable | Purpose |
 |----------|---------|
 | `TERRA_PYTHON` | Python interpreter for the sidecar. Overrides Settings → System |
-| `TERRA_APP_DIR` | Directory containing `sidecar/`, `areas/`, `model/` |
-| `TERRA_MODEL_DIR` | Override trained model directory (default `model/`) |
+| `TERRA_APP_DIR` | Directory containing `sidecar/` and `areas/` |
+| `TERRA_MODEL_DIR` | No longer read by classification, which runs installed model packages |
 | `TERRA_ROOT` | Parent repo root used for legacy MapBiomas paths |
 
 These suit a launch from a terminal, where a shell exports them. For an app
@@ -175,7 +176,7 @@ stops working. The same check runs directly:
 
 ## scikit-learn compatibility
 
-Serialized Random Forest artifacts in `model/` were produced with
+The Random Forest files in the published model packages were produced with
 **scikit-learn 1.8.x**. Install a matching version (`requirements.txt` pins
 `>=1.8,<1.9`) or deserialization may warn or fail. FULL builds install that pin
 into the bundled interpreter.

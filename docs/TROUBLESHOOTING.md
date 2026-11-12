@@ -11,7 +11,7 @@
 
 ### `InconsistentVersionWarning` or joblib load errors
 
-Artifacts in `model/` expect **scikit-learn 1.8.x**. Reinstall with the pin in
+The Random Forest files in the model packages expect **scikit-learn 1.8.x**. Reinstall with the pin in
 [`requirements.txt`](../requirements.txt):
 
 ```bash
@@ -23,7 +23,7 @@ pip install 'scikit-learn>=1.8,<1.9'
 - Spectral RF does **not** need torch.
 - Prithvi: `pip install -r requirements-prithvi.txt` and wait for the Hugging
   Face backbone download (~1.2 GB) on first use.
-- Temporal Transformer needs `torch` and `model/tt_mapbiomas.pt` present.
+- Temporal Transformer needs `torch` and its package installed from **Models**.
 
 ## Imagery / STAC
 
@@ -63,8 +63,9 @@ you trust the release build.
 
 ### Wrong model directory or missing `sidecar/infer.py`
 
-Set `TERRA_APP_DIR` to the directory that contains `sidecar/`, `areas/`, and
-`model/` (the repo root when developing from source).
+Set `TERRA_APP_DIR` to the directory that contains `sidecar/` and `areas/` (the
+repo root when developing from source). Models are not read from there: they are
+packages installed from the **Models** screen, under the data directory.
 
 ### Saved analyses missing after reinstall
 

@@ -78,11 +78,17 @@ Three model paths over the same AOI protocol, all emitting the MapBiomas
 classes `{3, 21, 25, 39, 41}`: forest formation, agriculture-pasture mosaic,
 non-vegetated area, soybean, other temporary crops.
 
-| Model | What it reads | Artifact |
-|-------|---------------|----------|
-| Spectro-temporal Random Forest (default) | 80 features per pixel: band statistics, NDVI/EVI/SAVI temporal descriptors, 22 raw NDVI dates | `rf_classifier.joblib`, 300 trees at depth 20 |
-| Temporal Transformer | six bands padded to 22 dates, mean-pooled over time | `tt_mapbiomas.pt` |
-| Prithvi-EO 2.0 300M | one acquisition, frozen embeddings with a Random Forest head | needs `requirements-prithvi.txt` |
+| Model | What it reads | Package |
+|-------|---------------|---------|
+| Spectro-temporal Random Forest (default) | 80 features per pixel: band statistics, NDVI/EVI/SAVI temporal descriptors, 22 raw NDVI dates | `spectral`: 300 trees at depth 20 |
+| Temporal Transformer | six bands padded to 22 dates, mean-pooled over time | `temporal_transformer`: needs `requirements-prithvi.txt` |
+| Prithvi-EO 2.0 300M | one acquisition, frozen embeddings with a Random Forest head | `prithvi`: needs `requirements-prithvi.txt` |
+
+The application ships no model. Each is a package installed from the **Models**
+screen, checked against the SHA-256 of its files before every run, and a saved
+run records the package's id, version and digest. A package of your own installs
+the same way; [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md#model-packages) gives
+the format.
 
 Prithvi takes the middle scene of the window and discards the rest, so widening
 the period changes which acquisition is read rather than how many.
@@ -325,7 +331,7 @@ TERRA/
 ├── internal/            Sidecar runner and types, python env, export, geocode, store
 ├── sidecar/             Inference: STAC, features, models, LULC, phenology,
 │                        water
-├── model/               Trained artifacts (.joblib / .pt)
+├── model/               Sources of the model packages (weights and model.json)
 ├── areas/               Embedded example polygons (GeoJSON)
 ├── frontend/            React 19 + Vite 7 + Tailwind 4 + Leaflet + three.js
 └── docs/
@@ -374,8 +380,8 @@ Interpreter resolution: `TERRA_PYTHON` → bundled `python/` (FULL) → `.venv` 
 | Variable | Purpose |
 |----------|---------|
 | `TERRA_PYTHON` | Python for the sidecar |
-| `TERRA_APP_DIR` | Directory holding `sidecar/`, `areas/`, `model/` |
-| `TERRA_MODEL_DIR` | Model directory, default `model/` |
+| `TERRA_APP_DIR` | Directory holding `sidecar/` and `areas/` |
+| `TERRA_MODEL_DIR` | No longer read by classification, which runs installed model packages |
 
 ## Data sources
 
