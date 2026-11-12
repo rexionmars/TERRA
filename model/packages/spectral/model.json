@@ -1,0 +1,93 @@
+{
+  "format": 1,
+  "version": "1.0.0",
+  "task": "land_cover",
+  "classes": [
+    3,
+    21,
+    25,
+    39,
+    41
+  ],
+  "license": "GPL-3.0-only",
+  "doi": null,
+  "limits": [
+    "The legend is fixed and the model was fitted for western Paraná. An area elsewhere can return a confident and wrong result. Hectares are pixel counts, uncorrected for classification error.",
+    "MapBiomas is not field truth. Agreement is concordance with an annual map, often offset in time from the Sentinel-2 series.",
+    "Class 41 is a residual bucket. High overall accuracy against MapBiomas does not imply fine crop identity."
+  ],
+  "id": "spectral",
+  "name": "Random Forest",
+  "family": "feature_rf",
+  "summary": "Votes 300 decision trees over 80 spectro-temporal features per pixel, read from a Sentinel-2 series.",
+  "modes": [
+    "single",
+    "temporal"
+  ],
+  "requires": [],
+  "reads": [
+    {
+      "label": "Imagery",
+      "value": "Sentinel-2 L2A scenes in the period, under the cloud limit"
+    },
+    {
+      "label": "Bands",
+      "value": "B02, B03, B04, B08 at 10 m"
+    },
+    {
+      "label": "Features",
+      "value": "80 per pixel: 14 descriptors each of NDVI, EVI and SAVI; mean, deviation, maximum and minimum of each band; NDVI on 22 dates"
+    }
+  ],
+  "method": [
+    {
+      "label": "Estimator",
+      "value": "Random Forest, Gini impurity"
+    },
+    {
+      "label": "Trees",
+      "value": "300, depth at most 20"
+    },
+    {
+      "label": "Split",
+      "value": "8 of the 80 features (√80) tried at each node"
+    }
+  ],
+  "evaluation": {
+    "method": "Agreement with MapBiomas under spatial block cross-validation, and temporal coherence checked against the landowners' crop calendars on three western Paraná properties.",
+    "figures": [
+      {
+        "label": "Overall accuracy",
+        "value": "0.7625"
+      },
+      {
+        "label": "Cohen's κ",
+        "value": "0.6195"
+      }
+    ],
+    "source": "Melo, Magalhães, Kolodziej and Kuhn, Automatic Land Cover Classification with Sentinel-2 and MapBiomas Time Series, SBrT 2026"
+  },
+  "picture": {
+    "author": "Parzeus, from MapBiomas Collection 10",
+    "license": "CC BY 4.0",
+    "source": "https://commons.wikimedia.org/wiki/File:Brazil_-_Paran%C3%A1_land_use_change_1985-2024_-_MapBiomas.gif",
+    "subject": "western Paraná in the MapBiomas Collection 10 map for 2024, with Iguaçu National Park: farming in cream, forest in green, towns in red. Not this model's output"
+  },
+  "files": {
+    "model": {
+      "name": "rf_classifier.joblib"
+    },
+    "scaler": {
+      "name": "scaler.joblib"
+    },
+    "label_encoder": {
+      "name": "label_encoder.joblib"
+    },
+    "feature_names": {
+      "name": "feature_names.joblib"
+    },
+    "picture": {
+      "name": "picture.webp"
+    }
+  }
+}
