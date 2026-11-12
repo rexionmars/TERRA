@@ -83,7 +83,7 @@ layers = [
     "terra.water | terra.landcover | terra.scenes | terra.mineral | terra.fields | terra.health | terra.overlap | terra.radar | terra.zones | terra.report | terra.biomass",
     "terra.imagery",
     "terra.stac | terra.mapbiomas",
-    "terra.aoi | terra.phenology",
+    "terra.aoi | terra.phenology | terra.models",
     "terra.protocol",
 ]
 

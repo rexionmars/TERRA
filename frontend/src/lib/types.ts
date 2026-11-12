@@ -24,7 +24,12 @@ export interface GeoJSONGeometry {
   coordinates: number[][][]
 }
 
-export type ModelKind = "spectral" | "prithvi" | "temporal_transformer"
+/**
+ * The id of an installed model package, e.g. "spectral". Named for when it
+ * picked one of three built-in paths; saved runs and preferences carry it
+ * under that name. lib/installedModels.ts reads what each id is.
+ */
+export type ModelKind = string
 
 export interface PredictRequest {
   polygon_geojson: GeoJSONGeometry | null
@@ -35,6 +40,9 @@ export interface PredictRequest {
   tiles: string[]
   mode: "single" | "temporal"
   model_kind: ModelKind
+  /** Pins the package's version; omitted runs the newest installed. */
+  model_version?: string
+  /** The head of an embedding package, read by the sidecar as its variant. */
   prithvi_mode: "pixel" | "patch"
   /** Attach the saved run to this project when set. */
   project_id?: string
@@ -416,6 +424,8 @@ export interface PredictResult {
    * domain-shift diagnostics. Absent on older runs and non-classify products.
    */
   domain_fingerprint?: DomainFingerprint | null
+  /** The model package the classification ran, down to its files. */
+  model?: ModelRef | null
 }
 
 /** Fixed-edge histogram (NDVI by default). */
@@ -1581,4 +1591,81 @@ export interface FieldsAnalysis {
   window_b_uri?: string
   /** The class map as a GeoTIFF on disk: 0 background, 1 interior, 2 boundary, 255 masked. */
   classes_tif: string
+}
+
+/*
+  The model packages a run can use. Mirrors internal/analysis/types_models.go,
+  and check:types compares the two.
+*/
+
+/** One file of a package, pinned by its digest. */
+export interface ModelFile {
+  name: string
+  sha256: string
+  size: number
+}
+
+/** One labelled line of what a model reads or how it works. */
+export interface ModelFact {
+  label: string
+  value: string
+}
+
+/** What was measured about a model, and where it was reported. */
+export interface ModelEvaluation {
+  method: string
+  figures: ModelFact[]
+  source: string
+}
+
+/** The credit owed for the picture a package carries. */
+export interface ModelPicture {
+  subject: string
+  author: string
+  license: string
+  source: string
+}
+
+/** A package's model.json. */
+export interface ModelManifest {
+  format: number
+  id: string
+  version: string
+  name: string
+  /** The architecture the sidecar runs it as. */
+  family: string
+  task: string
+  summary: string
+  /** The MapBiomas codes it emits. */
+  classes: number[]
+  /** "single", and "temporal" for a model that reruns over a growing stack. */
+  modes: string[] | null
+  /** Optional Python packages it needs, e.g. "torch". */
+  requires: string[] | null
+  /** The heads of an embedding package, e.g. "pixel" and "patch". */
+  variants: string[] | null
+  reads: ModelFact[] | null
+  method: ModelFact[] | null
+  evaluation: ModelEvaluation | null
+  limits: string[] | null
+  license: string
+  doi: string
+  picture: ModelPicture | null
+  files: Record<string, ModelFile>
+}
+
+/** An installed package as the shell lists it. */
+export interface ModelInfo {
+  manifest: ModelManifest
+  /** SHA-256 over each role and its file's digest: what a run records. */
+  digest: string
+  /** The package's picture as a data URI, empty without one. */
+  picture_uri: string
+}
+
+/** The model a run used, down to its files. */
+export interface ModelRef {
+  id: string
+  version: string
+  digest: string
 }

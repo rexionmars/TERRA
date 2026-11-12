@@ -1,8 +1,10 @@
 """
-The three model paths, and what a class map says once one of them has run.
+The three model families, and what a class map says once one of them has run.
 
-All three emit the same MapBiomas classes, so a run from one is comparable with
-a run from another and with the reference. Prithvi and the Temporal Transformer
+A run names an installed model package (terra.models), and the package names
+its family and its files; nothing here knows a model by name. The packages
+published for this application emit the same MapBiomas classes, so a run from
+one is comparable with a run from another and with the reference. Prithvi and the Temporal Transformer
 need PyTorch, which is deliberately outside requirements.txt; both ask for it
 through protocol.require_torch so a missing optional package reaches the user
 as a sentence rather than as an exit status.
@@ -45,15 +47,14 @@ def classify_from_features(feature_matrix, valid_mask, model, scaler, label_enco
     return classification_map, confidence_map
 
 
-def classify_temporal_transformer(products, polygon, ref_profile, model_dir,
+def classify_temporal_transformer(products, polygon, ref_profile, ckpt_path: Path,
                                   note=None):
-    """Classify with the mestrado Temporal Transformer (T×6 reflectance)."""
+    """Classify with a sequence transformer over T x 6 reflectance."""
     protocol.require_torch("The Temporal Transformer")
     import torch
 
     from terra.landcover import temporal_transformer as tt
 
-    ckpt_path = Path(model_dir) / "tt_mapbiomas.pt"
     if not ckpt_path.exists():
         raise ArtifactMissing(
             f"Temporal Transformer checkpoint missing: {ckpt_path.name}")
@@ -130,25 +131,22 @@ def class_statistics(classification_map):
     return stats
 
 
-def classify_prithvi(products, polygon, ref_profile, model_dir, mode):
+def classify_prithvi(products, polygon, ref_profile, head: tuple[Path, Path, Path], mode):
     """
     Classify a representative acquisition using frozen Prithvi-EO 2.0 embeddings
-    and the matching Random Forest head. mode is 'pixel' or 'patch'.
-    Returns a (H, W) map of MapBiomas class ids (-1 = invalid).
+    and a Random Forest head: `head` is its model, scaler and label encoder.
+    mode is 'pixel' or 'patch'. Returns a (H, W) map of MapBiomas class ids
+    (-1 = invalid).
     """
     # prithvi imports torch on the way in, so the same absence surfaces here as
     # an unexplained traceback rather than as a missing package.
     protocol.require_torch("Prithvi-EO 2.0")
     from terra.landcover import prithvi as pv
 
-    rf_path = model_dir / f'prithvi_rf_{mode}.joblib'
-    sc_path = model_dir / f'prithvi_scaler_{mode}.joblib'
-    le_path = model_dir / 'prithvi_label_encoder.joblib'
+    rf_path, sc_path, le_path = head
     for p in (rf_path, sc_path, le_path):
         if not p.exists():
-            raise ArtifactMissing(
-                f'Prithvi model artifact missing: {p.name}. '
-                'Train it with train_prithvi.py')
+            raise ArtifactMissing(f'Prithvi model artifact missing: {p.name}')
     rf = joblib.load(rf_path)
     sc = joblib.load(sc_path)
     le = joblib.load(le_path)
@@ -252,11 +250,11 @@ def _retention_row(target, cumulative, polygon, ref_profile, class_map, soja_mas
     }
 
 
-def run(products, polygon, ref_profile, *, kind, mode, model_dir, prithvi_mode=None,
+def run(products, polygon, ref_profile, *, package, mode, variant=None,
         artifacts=None, n_dates_model=None, soja_mask=None, progress=None,
         note=None) -> Prediction:
     """
-    Run whichever of the three paths `kind` names, over one set of products.
+    Run the installed model `package`, by its family, over one set of products.
 
     All three emit the same classes, so what comes back is comparable whichever
     ran. `progress(percent, message)` is the caller's, and NoValidData is
@@ -272,15 +270,20 @@ def run(products, polygon, ref_profile, *, kind, mode, model_dir, prithvi_mode=N
         if progress:
             progress(percent, message)
 
-    if kind == 'prithvi':
+    if package.family == 'embedding_rf':
+        # A variant the package does not carry falls back to its first, so a
+        # request made for another embedding head still runs on this one.
+        chosen = variant if variant in package.variants else package.variants[0]
+        head = (package.path(f'model_{chosen}'), package.path(f'scaler_{chosen}'),
+                package.path('label_encoder'))
         class_map, confidence = classify_prithvi(
-            products, polygon, ref_profile, model_dir, prithvi_mode)
+            products, polygon, ref_profile, head, chosen)
         return Prediction(class_map, confidence, [], None)
 
-    if kind == 'temporal_transformer':
-        say(40, f'building Temporal Transformer stack ({len(products)} dates)')
+    if package.family == 'sequence_transformer':
+        say(40, f'building {package.name} stack ({len(products)} dates)')
         class_map, confidence = classify_temporal_transformer(
-            products, polygon, ref_profile, model_dir, note=note)
+            products, polygon, ref_profile, package.path('checkpoint'), note=note)
         return Prediction(class_map, confidence, [], None)
 
     model, scaler, label_encoder = artifacts

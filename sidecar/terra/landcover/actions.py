@@ -79,7 +79,7 @@ def domain_shift_cohort(req, work_dir):
 # Land-cover classification over a Sentinel-2 time series: the action the
 # sidecar was written for, and the one an omitted `action` field asks for.
 def predict(req, work_dir):
-    from terra import aoi, mapbiomas as mb_source
+    from terra import aoi, mapbiomas as mb_source, models
     from terra.imagery import grid as ref_grid
     from terra.landcover import (
         classify,
@@ -88,7 +88,8 @@ def predict(req, work_dir):
         series as lc_series,
         spectra as lc_spectra,
     )
-    model_dir = Path(req.get('model_dir', ''))
+    # The installed package the run asked for; the shell resolves it.
+    model_path = req.get('model_path')
     source = req.get('source', 'stac')  # 'stac' (cloud COG) or 'local' (.SAFE)
     sentinel_dir = Path(req.get('sentinel_dir', '')) if req.get('sentinel_dir') else None
     tiles = req.get('tiles') or None
@@ -99,9 +100,8 @@ def predict(req, work_dir):
     end = req.get('end')
     max_cloud = float(req.get('max_cloud', 100.0))
     monthly_best = bool(req.get('monthly_best', True))
-    # Model selection: 'spectral', 'prithvi', or 'temporal_transformer'.
-    model_kind = req.get('model_kind', 'spectral')
-    prithvi_mode = req.get('prithvi_mode', 'pixel')  # 'pixel' or 'patch'
+    # Which head of an embedding package to run, e.g. 'pixel' or 'patch'.
+    variant = req.get('variant') or None
 
     if source == 'stac':
         cog.configure()
@@ -117,18 +117,26 @@ def predict(req, work_dir):
     else:
         protocol.fail('no polygon provided (polygon_geojson or kml_path required)')
 
-    if not model_dir.exists():
-        protocol.fail(f'model directory not found: {model_dir}')
+    if not model_path:
+        protocol.fail('no model was given; install one from Models and choose it')
+    # Before anything is unpickled: a file changed since it was installed is
+    # refused here rather than run. See terra.models.
+    protocol.emit_progress(3, 'checking the model files')
+    try:
+        package = models.load(Path(model_path))
+        models.verify(package)
+    except models.PackageError as e:
+        protocol.fail(str(e))
 
     rf_model = scaler = label_encoder = feature_names = None
     n_dates_model = 22
-    if model_kind == 'spectral':
+    if package.family == 'feature_rf':
         protocol.emit_progress(5, 'loading model artifacts')
         try:
-            rf_model = joblib.load(model_dir / 'rf_classifier.joblib')
-            scaler = joblib.load(model_dir / 'scaler.joblib')
-            label_encoder = joblib.load(model_dir / 'label_encoder.joblib')
-            feature_names = joblib.load(model_dir / 'feature_names.joblib')
+            rf_model = joblib.load(package.path('model'))
+            scaler = joblib.load(package.path('scaler'))
+            label_encoder = joblib.load(package.path('label_encoder'))
+            feature_names = joblib.load(package.path('feature_names'))
         except Exception as e:
             protocol.fail(f'failed to load model artifacts: {e}')
         # N_DATES_MODEL: total features minus the 58 non-temporal features
@@ -191,9 +199,10 @@ def predict(req, work_dir):
     try:
         prediction = classify.run(
             products, polygon, ref_profile,
-            kind=model_kind, mode=mode, model_dir=model_dir,
-            prithvi_mode=prithvi_mode,
-            artifacts=(rf_model, scaler, label_encoder) if model_kind == 'spectral' else None,
+            package=package, mode=mode, variant=variant,
+            artifacts=(
+                (rf_model, scaler, label_encoder)
+                if package.family == 'feature_rf' else None),
             n_dates_model=n_dates_model, soja_mask=soja_mask,
             progress=protocol.emit_progress,
             note=lambda msg: protocol.emit_progress(-1, msg),
@@ -394,6 +403,13 @@ def predict(req, work_dir):
         'phenology_states': phenology_states,
         'lulc': lulc_payload,
         'domain_fingerprint': domain_fingerprint,
+        # Which model made this map, down to its files: the digest changes when
+        # any of them does, so two runs with one id can be told apart.
+        'model': {
+            'id': package.id,
+            'version': package.version,
+            'digest': package.digest,
+        },
     }
 
     protocol.emit_progress(100, 'done')
