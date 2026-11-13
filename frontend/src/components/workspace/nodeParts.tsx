@@ -36,8 +36,13 @@ export function Swatch({ color }: { color: string }) {
 }
 
 /**
- * A node's one action, drawn as the run card's button is: filled in the accent
- * while it can go, quiet while it cannot.
+ * A node's one action: a raised button whose mark is in the accent while it
+ * can go, flat and muted while it cannot.
+ *
+ * It was filled in the accent, and a board with a report, a field table and a
+ * zones card on it carried three orange bars, the loudest marks on the board,
+ * none of them what the board is read for. The accent stays on the mark, where
+ * it still says this is the card's one thing to press.
  */
 export function ActionButton({
   label,
@@ -60,14 +65,16 @@ export function ActionButton({
       onClick={onClick}
       disabled={off}
       className={cn(
-        "flex w-full items-center justify-center gap-1.5 rounded-sm px-2 py-1 text-meta transition-colors",
-        "focus-visible:inset-ring-1 focus-visible:inset-ring-ring focus-visible:outline-none",
+        "flex h-7 w-full items-center justify-center gap-1.5 rounded-sm border px-2 text-meta font-medium transition-colors",
+        "focus-visible:ring-1 focus-visible:ring-ring focus-visible:outline-none",
         off
-          ? "cursor-not-allowed bg-control text-muted-foreground"
-          : "bg-accent text-accent-foreground hover:opacity-90"
+          ? "cursor-not-allowed border-transparent bg-control text-muted-foreground"
+          : "border-[rgb(var(--p-line-strong)/0.55)] bg-[rgb(var(--p-surface-raised))] text-foreground hover:bg-hover"
       )}
     >
-      {busy ? <CircleNotch className="size-3.5 animate-spin" /> : icon}
+      <span className={cn("flex shrink-0", !off && "text-primary")}>
+        {busy ? <CircleNotch className="size-3.5 animate-spin" /> : icon}
+      </span>
       {label}
     </button>
   )

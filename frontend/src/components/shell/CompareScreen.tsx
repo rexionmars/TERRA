@@ -77,11 +77,11 @@ const assetsOf = (run: SessionRun): RunAsset[] =>
   part's head colour, the compositor's classes socket.
 */
 const RUN_PAINT = {
-  head: "var(--b-source-node)",
+  head: "var(--b-source-head)",
   lit: { band: "var(--b-source-head)", ink: "var(--b-source-ink)" },
 }
 const READING_PAINT = {
-  head: "var(--b-value-node)",
+  head: "var(--b-value-head)",
   lit: { band: "var(--b-value-head)", ink: "var(--b-value-ink)" },
 }
 const CLASSES = "var(--b-source-head)"
