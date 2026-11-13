@@ -24,25 +24,26 @@ import {
 import type { InferenceRun, Preferences, Project, User } from "@/lib/types"
 
 /*
-  Three, and only one of them is work.
+  Two: the work, and signing in.
 
   It carried six. Four were screens the studio has since absorbed -- the map it
   grew out of and three product screens, whose products have since been
   removed -- and the fifth was the project hub, whose management moved into the
-  studio itself. What is left beside the studio is the account: signing in,
-  and settings.
+  studio itself. Settings was the last to go: it is a destination in the map's
+  shell now, opened from the account at the foot of the rail, so it keeps the
+  rail, the frame and the path, and leaving it is pressing another place.
 */
-export type AppScreen = "map" | "auth" | "profile"
+export type AppScreen = "map" | "auth"
 
 /**
- * A page of the settings screen, when something wants to open a particular one.
+ * A page of Settings, when something wants to open a particular one.
  *
  * The Python environment briefly had a screen of its own here, which gave one
  * subject three separate doors -- a full-screen route, a link inside settings,
  * and the first-run gate. It is a settings page like the others; opening it is
  * opening settings at that page.
  */
-export type SettingsPage = "account" | "system" | "keymap"
+export type SettingsPage = "profile" | "appearance" | "data" | "system" | "keymap"
 
 interface AuthContextValue {
   user: User | null
@@ -53,15 +54,15 @@ interface AuthContextValue {
   screen: AppScreen
   goMap: () => void
   goAuth: () => void
+  /** Opens Settings in the map's shell, at a page; signing in first if no one is. */
   goProfile: (page?: SettingsPage) => void
-  /** Which settings page to open on arrival, consumed once by ProfilePage. */
-  settingsPage: SettingsPage | null
+  /**
+   * Settings asked for and not yet opened, at the page named if one was;
+   * consumed once by the map's shell.
+   */
+  settingsRequest: { page?: SettingsPage } | null
   /** Clears the above, so it steers one arrival rather than every one. */
   consumeSettingsPage: () => void
-  /** The screen settings was opened from, for naming the way out. */
-  settingsReturnTo: AppScreen
-  /** Return to that screen. */
-  leaveSettings: () => void
   navigate: (screen: AppScreen) => void
   login: (email: string, password: string) => Promise<void>
   register: (email: string, password: string, displayName: string) => Promise<void>
@@ -229,46 +230,27 @@ export function AuthProvider({
   }, [])
 
   /**
-   * Which settings page the next arrival should land on.
+   * Settings asked for, and at which page if one was named.
    *
-   * Cleared by consumeSettingsPage once ProfilePage has acted on it, so
-   * returning to settings by hand shows the page last chosen there rather than
-   * replaying the destination of whatever sent the user in the first time.
+   * A request rather than a state of the screen: Settings is a destination in
+   * the map's shell, which holds where the reader is, so the shell opens it
+   * and clears this with consumeSettingsPage. Cleared, it steers one arrival,
+   * and Settings opened by hand afterwards is not replaying the page of
+   * whatever sent the reader there the first time.
    */
-  const [settingsPage, setSettingsPage] = useState<SettingsPage | null>(null)
+  const [settingsRequest, setSettingsRequest] = useState<{
+    page?: SettingsPage
+  } | null>(null)
 
-  const consumeSettingsPage = useCallback(() => setSettingsPage(null), [])
-
-  /**
-   * Where settings was opened from, so leaving it returns there.
-   *
-   * Only the screen is kept: the sub-tab -- which map tool -- is held in App
-   * precisely so it survives a screen change, so returning to the screen
-   * restores the tab that was open on it.
-   *
-   * Settings is the one screen with no work of its own to go back to. Every
-   * other destination is a place the user chose; this one is a detour, and
-   * the only way out was to pick a destination from the column, which meant
-   * remembering what you had been doing and landing somewhere adjacent to it
-   * rather than back in it.
-   */
-  const [settingsReturnTo, setSettingsReturnTo] = useState<AppScreen>("map")
+  const consumeSettingsPage = useCallback(() => setSettingsRequest(null), [])
 
   const goProfile = useCallback(
     (page?: SettingsPage) => {
-      setSettingsPage(page ?? null)
-      // Not from settings to settings: a second visit must not overwrite the
-      // work screen the first one recorded.
-      if (screen !== "profile" && screen !== "auth") setSettingsReturnTo(screen)
-      setScreen(user ? "profile" : "auth")
+      setSettingsRequest({ page })
+      setScreen(user ? "map" : "auth")
     },
-    [user, screen]
+    [user]
   )
-
-  /** Leave settings for the screen it was opened from. */
-  const leaveSettings = useCallback(() => {
-    setScreen(settingsReturnTo)
-  }, [settingsReturnTo])
 
   /*
     THE PLAIN DESTINATIONS, EACH WITH ONE IDENTITY FOR THE LIFE OF THE PROVIDER.
@@ -289,8 +271,8 @@ export function AuthProvider({
 
     `setScreen` is a state setter and React guarantees its identity, so the
     dependency lists are empty and these are built once. `goProfile` above
-    cannot join them: it reads `user` and `screen` to decide where to land and
-    what to record, so its identity properly follows those.
+    cannot join them: it reads `user` to decide where to land, so its identity
+    properly follows that.
   */
   const goMap = useCallback(() => setScreen("map"), [])
   const goAuth = useCallback(() => setScreen("auth"), [])
@@ -306,10 +288,8 @@ export function AuthProvider({
       goMap,
       goAuth,
       goProfile,
-      settingsPage,
+      settingsRequest,
       consumeSettingsPage,
-      settingsReturnTo,
-      leaveSettings,
       navigate: setScreen,
       login,
       register,
@@ -328,10 +308,8 @@ export function AuthProvider({
       projects,
       loading,
       screen,
-      settingsPage,
+      settingsRequest,
       consumeSettingsPage,
-      settingsReturnTo,
-      leaveSettings,
       goMap,
       goAuth,
       goProfile,

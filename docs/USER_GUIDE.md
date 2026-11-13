@@ -176,8 +176,17 @@ with their keys.
 
 ## 12. Settings and accounts
 
-Your account at the foot of the rail opens **Settings**: account, appearance, system
-and keymap. Preferences auto-save.
+Your account at the foot of the rail opens **Settings**, beside the map like the other
+places in the rail:
+
+- **Profile:** your photo, name and email, under a cover you can change, with the year's
+  activity, the latest analyses and **Sign out**.
+- **Appearance:** the theme, and when **What's New** is shown.
+- **Data:** the space your data takes, a backup to one ZIP file, and restoring one.
+- **System:** the Python environment and the Earthdata token.
+- **Keymap:** every command with its keys.
+
+Preferences save as they change.
 
 Local accounts store preferences and tie saved runs to a profile. Everything stays on
 disk under the application's config directory; there is no cloud sync.

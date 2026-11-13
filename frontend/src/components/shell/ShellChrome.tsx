@@ -35,13 +35,14 @@ import { openProjectFile, projectFileName } from "@/lib/projectFiles"
 import { cn } from "@/lib/utils"
 
 /**
- * What the rail can show as current: the places, and the activity log.
+ * What the rail can show as current: the places, the activity log, and the
+ * account's settings, which the account at its foot opens.
  *
  * Areas is not one of them. It is a panel over the map, not a place, and it
  * opens from the area's step in the path (ShellPath), where an area is chosen.
  */
 export type RailPlace =
-  "explore" | "analyses" | "compare" | "workflows" | "models" | "activity"
+  "explore" | "analyses" | "compare" | "workflows" | "models" | "activity" | "settings"
 
 /*
   THE TRAFFIC LIGHTS ARE WIDER THAN THE RAIL. In the hidden title bar main.go
@@ -585,9 +586,13 @@ export function ShellRail({
               onClick={() => (user ? goProfile() : goAuth())}
               title={user ? "Settings" : "Sign in"}
               aria-label={user ? "Settings" : "Sign in"}
+              aria-current={place === "settings" ? "page" : undefined}
               className={cn(
-                "flex h-9 items-center rounded-md text-foreground transition-colors hover:bg-hover",
-                open ? "w-full gap-3 px-1" : "w-9 justify-center"
+                "flex h-9 items-center rounded-md text-foreground transition-colors",
+                open ? "w-full gap-3 px-1" : "w-9 justify-center",
+                place === "settings"
+                  ? "bg-[rgb(var(--p-surface-raised))]"
+                  : "hover:bg-hover"
               )}
             >
               <span className="flex size-7 shrink-0 items-center justify-center overflow-hidden rounded-md bg-[rgb(var(--p-surface-raised))] text-label font-medium">

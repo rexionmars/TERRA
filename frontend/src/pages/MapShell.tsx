@@ -80,6 +80,11 @@ const ResultPanel = lazy(() =>
 const CompareScreen = lazy(() =>
   import("@/components/shell/CompareScreen").then((m) => ({ default: m.CompareScreen }))
 )
+const SettingsScreen = lazy(() =>
+  import("@/components/shell/SettingsScreen").then((m) => ({
+    default: m.SettingsScreen,
+  }))
+)
 const WorkflowsScreen = lazy(() =>
   import("@/components/shell/WorkflowsScreen").then((m) => ({
     default: m.WorkflowsScreen,
@@ -132,7 +137,14 @@ const WIDE_PANEL_CLEARANCE_PX = 768
  * here because nothing above draws them.
  */
 export function MapShell(props: MapShellProps) {
-  const { projects, prefs, savePrefs, runs: savedRuns } = useAuth()
+  const {
+    projects,
+    prefs,
+    savePrefs,
+    runs: savedRuns,
+    settingsRequest,
+    consumeSettingsPage,
+  } = useAuth()
   const app = useAppSurfaces()
   /*
     The surfaces the Options menu opens, by name as well: F3 lists them, and with no
@@ -168,12 +180,26 @@ export function MapShell(props: MapShellProps) {
     goCompare,
     goWorkflows,
     goModels,
+    settingsSection,
+    setSettingsSection,
+    goSettings,
     railOpen,
     setRailOpen,
     panel,
     setPanel,
     togglePanel,
   } = nav
+  /*
+    Settings asked for from outside the shell -- the account at the foot of
+    the rail, the keymap's Settings and Keymap commands, the first-run check of
+    the Python environment -- opened here, where the destination is held, and
+    the request cleared so it steers this one arrival.
+  */
+  useEffect(() => {
+    if (!settingsRequest) return
+    goSettings(settingsRequest.page)
+    consumeSettingsPage()
+  }, [settingsRequest, consumeSettingsPage, goSettings])
   /** The map's card, which the frame's corner pieces are drawn against. */
   const card = useRef<HTMLElement>(null)
   /*
@@ -517,7 +543,8 @@ export function MapShell(props: MapShellProps) {
               ? "analyses"
               : destination === "compare" ||
                   destination === "workflows" ||
-                  destination === "models"
+                  destination === "models" ||
+                  destination === "settings"
                 ? destination
                 : panel === "activity"
                   ? "activity"
@@ -929,6 +956,17 @@ export function MapShell(props: MapShellProps) {
                 setDestination("explore")
               }}
             />
+          )}
+
+          {destination === "settings" && (
+            <Suspense fallback={null}>
+              <SettingsScreen
+                section={settingsSection}
+                onSection={setSettingsSection}
+                onOpenRun={(run) => void openRun(run)}
+                opening={opening !== null}
+              />
+            </Suspense>
           )}
 
           {/* Mounted once visited, so returning finds the folder the reader left open. */}

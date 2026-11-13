@@ -52,6 +52,8 @@ export interface PreferenceExtras {
    * place worked on rather than at the continental default.
    */
   map_view?: { lat: number; lon: number; zoom: number }
+  /** The scene a profile's banner is set on: a path from lib/orbitScenes.ts. */
+  profile_cover?: string
 }
 
 export function parsePreferenceExtras(
