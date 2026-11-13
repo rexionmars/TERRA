@@ -265,12 +265,18 @@ export function removeReading(board: CompareBoard, id: string): CompareBoard {
 
 /** Where the board's first reading goes, and the run grid beside it. */
 export const RUN_W = 288
-export const RUN_H = 300
+// A run card's height with its picture, its class line, the raster choice and its period.
+export const RUN_H = 340
 export const READING_W = 248
 const GAP = 40
-const RUN_COLUMNS = 2
+/*
+  ONE COLUMN OF RUNS, with the readings to its right. In two columns a link
+  from a run in the first ran behind the run beside it on its way to a
+  reading, so a wire crossed a card it had nothing to do with.
+*/
+const RUN_COLUMNS = 1
 
-/** Where a run stands before it is moved: the next cell of a two-column grid. */
+/** Where a run stands before it is moved: the next place down the column. */
 export function runSlot(index: number): Place {
   return {
     x: (index % RUN_COLUMNS) * (RUN_W + GAP),

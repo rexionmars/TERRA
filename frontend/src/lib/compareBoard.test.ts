@@ -149,10 +149,12 @@ describe("seed", () => {
 })
 
 describe("places", () => {
-  it("fill a two-column grid of runs, with readings to its right", () => {
+  it("stand the runs in one column, with readings to its right", () => {
     expect(runSlot(0)).toEqual({ x: 0, y: 0 })
-    expect(runSlot(1).y).toBe(0)
-    expect(runSlot(2).x).toBe(0)
+    // One column: every run stands at x 0, each below the last.
+    expect(runSlot(1).x).toBe(0)
+    expect(runSlot(1).y).toBeGreaterThan(runSlot(0).y)
+    expect(runSlot(2).y).toBeGreaterThan(runSlot(1).y)
     expect(READING_X).toBeGreaterThan(runSlot(1).x)
   })
 
