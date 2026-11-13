@@ -126,12 +126,12 @@ export const TOKENS = {
     lineStrong: [133, 133, 133],
     text: [217, 211, 209],
     muted: [155, 155, 155],
-    accent: [244, 192, 16],
-    accentQuiet: [250, 206, 72],
-    accentDim: [62, 48, 6],
+    accent: [252, 111, 32],
+    accentQuiet: [255, 116, 40],
+    accentDim: [74, 33, 13],
     destructive: [159, 43, 58],
     success: [106, 216, 149],
-    warning: [250, 115, 60],
+    warning: [240, 207, 76],
     destructiveForeground: [217, 211, 209],
     destructiveQuiet: [248, 152, 158],
     aside: [112, 150, 190],
@@ -186,12 +186,12 @@ export const TOKENS = {
     lineStrong: [118, 116, 115],
     text: [20, 20, 20],
     muted: [82, 80, 79],
-    accent: [122, 88, 0],
-    accentQuiet: [104, 74, 0],
-    accentDim: [250, 235, 190],
+    accent: [172, 52, 0],
+    accentQuiet: [163, 52, 0],
+    accentDim: [254, 232, 208],
     destructive: [178, 54, 69],
     success: [0, 100, 54],
-    warning: [154, 57, 11],
+    warning: [109, 89, 0],
     destructiveForeground: [243, 240, 239],
     destructiveQuiet: [163, 43, 59],
     aside: [70, 106, 152],
@@ -298,13 +298,13 @@ export interface ContrastRule {
  * Every pair the interface paints, and the floor each has to clear.
  *
  * `accent` is checked at 3.0, not 4.5, and only as a fill, a focus ring and an
- * active state. The present accent measures 7.57 on the raised surface, which
- * is a property of this accent being a light one and not a rule the token
- * holds. The floor stays at 3.0 because a later accent may be a mid tone, and
- * text that has to READ as the accent uses `accentQuiet` either way.
+ * active state. The present accent, a mid-tone orange, measures 4.54 on the
+ * raised surface, over the text floor by a margin no rule should lean on. The
+ * floor stays at 3.0 because that is what a fill, a ring and an active state
+ * need, and text that has to READ as the accent uses `accentQuiet` either way.
  *
  * The label ON the accent fill is not listed either. --accent-foreground
- * resolves to --p-ink, which measures 5.71 on it, and the rule would restate
+ * resolves to --p-ink, which measures 6.52 on it, and the rule would restate
  * `text on ink`.
  */
 export const RULES: readonly ContrastRule[] = [
@@ -527,9 +527,10 @@ export const RULES: readonly ContrastRule[] = [
    * free; it is now a colour of its own, and an unchecked literal is exactly
    * what the destructive pair was when it shipped failing.
    *
-   * It stays independent now that the accent is the emblem's yellow: the
-   * warning took the orange the accent left, because a warning that follows
-   * the accent says nothing the accent does not already say.
+   * It stays independent now that the accent is orange again: the warning
+   * went back to the yellow it was the last time, 50 degrees of hue away,
+   * because a warning that follows the accent says nothing the accent does not
+   * already say.
    */
   {
     fg: "warning",
