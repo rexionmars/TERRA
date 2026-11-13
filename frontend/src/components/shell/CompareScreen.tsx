@@ -62,6 +62,7 @@ import { loadedRunAssets, type RunAsset } from "@/lib/runAssets"
 import type { InferenceRun } from "@/lib/types"
 import { cn } from "@/lib/utils"
 import { PanelChoices, PanelHeading } from "@/components/shell/ShellPanel"
+import { titled } from "@/components/workspace/readingParts"
 
 /** Every raster the run can show, of whichever product it is. */
 const assetsOf = (run: SessionRun): RunAsset[] =>
@@ -661,8 +662,8 @@ export function CompareScreen({
                     {linkedRuns(board, reading, present)
                       .map((i) =>
                         readingDef(reading.kind).shape === "many"
-                          ? (sideOf(i.run)?.label ?? "")
-                          : `${i.label} ${sideOf(i.run)?.label ?? ""}`
+                          ? titled(sideOf(i.run)?.label ?? "")
+                          : `${i.label} ${titled(sideOf(i.run)?.label ?? "")}`
                       )
                       .join(" · ")}
                   </span>

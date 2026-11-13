@@ -14,9 +14,9 @@
  */
 import { useState } from "react"
 import { DataTableView } from "@/components/DataTableView"
+import { RunPills, titled } from "@/components/workspace/readingParts"
 import { allAnalysisTables } from "@/lib/analysisTables"
 import type { PredictResult } from "@/lib/types"
-import { cn } from "@/lib/utils"
 
 export function RunTables({
   runs,
@@ -43,34 +43,19 @@ export function RunTables({
 
   return (
     <div className="flex h-full min-h-0 flex-col">
-      <div
-        className="flex shrink-0 flex-wrap items-center gap-1 border-b px-2 py-1.5"
-        style={{ borderColor: "rgb(var(--p-line) / 0.22)" }}
-      >
-        {/* Which run, only where more than one is selected. */}
-        {runs.length > 1 &&
-          runs.map((r, i) => (
-            <button
-              key={r.id}
-              type="button"
-              onClick={() => {
-                setRunIdx(i)
-                // The other run may not carry the table being read, and an
-                // index past the end would show the last one silently.
-                setTableIdx(0)
-              }}
-              className={cn(
-                "max-w-[12rem] truncate rounded-sm px-1.5 py-0.5 text-meta transition-colors",
-                i === runIdx
-                  ? "bg-accent-dim text-foreground inset-ring-1 inset-ring-accent"
-                  : "text-muted-foreground hover:bg-hover hover:text-foreground"
-              )}
-            >
-              {r.label}
-            </button>
-          ))}
+      <div className="flex shrink-0 flex-wrap items-center gap-2 border-b border-border px-4 py-3">
+        {/* Which run, only where more than one is linked. */}
         {runs.length > 1 && (
-          <span className="hairline mx-1 h-4 w-px self-center border-l" aria-hidden />
+          <RunPills
+            runs={runs}
+            value={Math.min(runIdx, runs.length - 1)}
+            onChange={(i) => {
+              setRunIdx(i)
+              // The other run may not carry the table being read, and an
+              // index past the end would show the last one silently.
+              setTableIdx(0)
+            }}
+          />
         )}
         <select
           value={table?.id ?? ""}
@@ -82,23 +67,23 @@ export function RunTables({
               )
             )
           }
-          className="field-input h-6 w-auto max-w-full px-1 text-meta"
+          aria-label="Table"
+          className="field-input h-8 w-auto max-w-full px-2 text-label"
         >
           {tables.map((t) => (
             <option key={t.id} value={t.id}>
-              {t.csvName} · {t.rows.length}
+              {t.csvName} · {t.rows.length} {t.rows.length === 1 ? "row" : "rows"}
             </option>
           ))}
         </select>
       </div>
 
-      <div className="panel-scroll min-h-0 flex-1 overflow-auto p-2">
+      <div className="panel-scroll min-h-0 flex-1 overflow-auto p-4">
         {table ? (
           <DataTableView
             table={table}
-            // Named after the file the exporter writes, so what is read here
-            // and what lands on disk map one to one.
-            caption={`${run.label} · ${table.csvName}`}
+            // The file is named once by the view; the run it came from beside it.
+            caption={titled(run.label)}
           />
         ) : (
           <p className="text-meta text-muted-foreground">This run carries no tables.</p>

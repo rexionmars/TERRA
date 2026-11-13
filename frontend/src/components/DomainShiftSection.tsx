@@ -9,7 +9,6 @@
 import { useEffect, useState } from "react"
 import {
   CartesianGrid,
-  Legend,
   Line,
   LineChart,
   ResponsiveContainer,
@@ -19,7 +18,6 @@ import {
   XAxis,
   YAxis,
 } from "recharts"
-import { WaterFigure } from "@/components/analysisPrimitives"
 import {
   canStandardise,
   compareDomainShift,
@@ -28,6 +26,14 @@ import {
 import { mapbiomasCoverName } from "@/lib/mapbiomasCovers"
 import type { DomainShiftReport, PredictResult } from "@/lib/types"
 import { cn } from "@/lib/utils"
+import { SideTag } from "@/components/workspace/AgreementCharts"
+import {
+  Callout,
+  FigureCard,
+  ReadingSection,
+  titled,
+} from "@/components/workspace/readingParts"
+import { btnGhostDense } from "@/components/ui/buttons"
 
 function fmt(v: number | null | undefined, digits = 3): string {
   if (v == null || !Number.isFinite(v)) return "—"
@@ -54,27 +60,38 @@ function histSeries(
   return out
 }
 
+/** The fingerprint's feature space, named for a reader. */
+function spaceName(space?: string | null): string {
+  if (space === "spectral_rf") return "spectral features"
+  if (space === "ndvi_only") return "NDVI only"
+  return space ?? "unknown"
+}
+
+/** One run against the reference: four figures and the classes behind them. */
 function AgreementBlock({
-  title,
+  letter,
+  label,
   block,
 }: {
-  title: string
+  letter: string
+  label: string
   block: NonNullable<DomainShiftReport["agreement_a"]>
 }) {
+  const classes = (block.per_class_f1 ?? []).filter((c) => c.f1 != null)
   return (
-    <div className="flex flex-col gap-2">
-      <p className="eyebrow !text-micro">{title}</p>
+    <div className="flex min-w-0 flex-col gap-2">
+      <SideTag letter={letter} label={label} />
       <div className="grid grid-cols-2 gap-2">
-        <WaterFigure
-          label="Overall"
+        <FigureCard
+          label="Agreement"
           value={block.overall_pct != null ? `${block.overall_pct.toFixed(1)}%` : "—"}
         />
-        <WaterFigure
+        <FigureCard
           label="Macro F1"
           value={block.macro_f1 != null ? fmt(block.macro_f1, 3) : "—"}
         />
-        <WaterFigure
-          label="Outside legend"
+        <FigureCard
+          label="Outside the legend"
           value={
             block.outside_legend_pct != null
               ? `${block.outside_legend_pct.toFixed(1)}%`
@@ -82,67 +99,54 @@ function AgreementBlock({
           }
           sub={`${block.n_outside_legend.toLocaleString()} cells`}
         />
-        <WaterFigure
-          label="Quantity / alloc."
+        <FigureCard
+          label="Disagreement"
           value={`${fmt(block.quantity_disagreement_pct, 1)} / ${fmt(block.allocation_disagreement_pct, 1)}`}
-          sub="Pontius disagreement %"
+          sub="quantity / allocation, %"
         />
       </div>
 
       {/*
-        The classes behind the macro average.
-
-        A macro F1 says the run got worse and stops there. These say which
-        class carries it, and precision against recall says which way it
-        fails -- a class the model finds everywhere it is not reads low
-        precision, one it misses reads low recall, and the average of the two
-        is the same number for both.
-
-        Rows with no F1 at all are dropped: a class with neither predictions
-        nor reference cells is not a measurement, and the macro average skips
-        it for the same reason.
+        The classes behind the macro average. A macro F1 says the run got worse
+        and stops there; these say which class carries it, and precision
+        against recall says which way it fails. Rows with no F1 are dropped: a
+        class with neither predictions nor reference cells is not a measurement.
       */}
-      {block.per_class_f1 && block.per_class_f1.some((c) => c.f1 != null) && (
-        <ul className="flex flex-col gap-0.5">
-          {block.per_class_f1
-            .filter((c) => c.f1 != null)
-            .map((c) => (
-              <li
-                key={c.class_id ?? c.index}
-                className="flex items-baseline gap-1.5 text-meta"
-              >
-                <span className="min-w-0 flex-1 truncate text-muted-foreground">
+      {classes.length > 0 && (
+        <table className="w-full table-fixed text-label">
+          <thead>
+            <tr className="text-meta text-muted-foreground">
+              <th className="pb-1 text-left font-normal">Class</th>
+              <th className="w-12 pb-1 text-right font-normal" title="Precision">
+                Prec.
+              </th>
+              <th className="w-12 pb-1 text-right font-normal" title="Recall">
+                Recall
+              </th>
+              <th className="w-10 pb-1 text-right font-normal">F1</th>
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-[rgb(var(--p-line)/0.25)]">
+            {classes.map((c) => (
+              <tr key={c.class_id ?? c.index}>
+                <td className="truncate py-1 text-foreground">
                   {c.class_id != null
                     ? mapbiomasCoverName(c.class_id)
                     : `Class at ${c.index}`}
-                </span>
-                <span
-                  className="telemetry w-[2.5rem] shrink-0 text-right text-micro text-muted-foreground tabular-nums"
-                  title={`Precision ${fmt(c.precision, 3)}`}
-                >
+                </td>
+                <td className="telemetry py-1 text-right text-muted-foreground tabular-nums">
                   {fmt(c.precision, 2)}
-                </span>
-                <span
-                  className="telemetry w-[2.5rem] shrink-0 text-right text-micro text-muted-foreground tabular-nums"
-                  title={`Recall ${fmt(c.recall, 3)}`}
-                >
+                </td>
+                <td className="telemetry py-1 text-right text-muted-foreground tabular-nums">
                   {fmt(c.recall, 2)}
-                </span>
-                <span
-                  className="telemetry w-[2.5rem] shrink-0 text-right text-micro text-foreground tabular-nums"
-                  title={`F1 ${fmt(c.f1, 3)}`}
-                >
+                </td>
+                <td className="telemetry py-1 text-right text-foreground tabular-nums">
                   {fmt(c.f1, 2)}
-                </span>
-              </li>
+                </td>
+              </tr>
             ))}
-          {/* The key, said once, in the order the columns stand. */}
-          <li className="telemetry flex items-baseline justify-end gap-1.5 text-micro text-muted-foreground">
-            <span className="w-[2.5rem] text-right">prec.</span>
-            <span className="w-[2.5rem] text-right">recall</span>
-            <span className="w-[2.5rem] text-right">F1</span>
-          </li>
-        </ul>
+          </tbody>
+        </table>
       )}
     </div>
   )
@@ -153,24 +157,12 @@ export function DomainShiftSection({
   resultB,
   labelA = "A",
   labelB = "B",
-  placement = "card",
 }: {
   resultA: PredictResult
   resultB: PredictResult
   labelA?: string
   labelB?: string
-  /**
-   * Where this is mounted, in `PredictionComparison`'s vocabulary.
-   *
-   * "card" is the analysis page and the modal, where the section is one plate
-   * among several. "area" is a studio area, which already draws the border, the
-   * background and a header naming the editor.
-   */
-  placement?: "card" | "area"
 }) {
-  // Every branch below asked the same question of the old flag; the flag is
-  // gone and the question is now about where this is drawn.
-  const inArea = placement === "area"
   /*
     The legend's names, shortened to the segment that tells them apart.
 
@@ -277,465 +269,358 @@ export function DomainShiftSection({
     }
   }
 
-  /*
-    The plate belongs to the PAGE, not to the section.
-
-    `placement` decides it, which is the distinction `PredictionComparison`
-    already draws with the same word. On the analysis page this is one card among
-    several and the border is what separates it from its neighbours. In a studio
-    area there is no neighbour to separate from: `StudioArea` already draws the
-    border, the ink background and a 26px header carrying the editor's name, so
-    a second border and a second tint inside it are one box drawn inside
-    another.
-
-    This used to hang off `compact`, which the foot band passed. The editor left
-    the band and nothing passes it any more, so every mount took the card branch
-    -- including the one placement the comment above it said should be flush.
-  */
-  const shell = cn(
-    "flex flex-col",
-    placement === "area"
-      ? "gap-3"
-      : "gap-3 rounded-sm border border-border bg-secondary/50 p-4"
-  )
-
   if (!ready) {
     return (
-      <section className={shell}>
-        <p className="eyebrow mb-1">Domain shift</p>
-        <p className="text-meta leading-snug text-muted-foreground">
-          Both runs need a domain fingerprint from classify. Re-run prediction on each
-          AOI to enable KL / CVA / MMD diagnosis.
-        </p>
-      </section>
+      <ReadingSection flush title="Domain shift">
+        <Callout tone="info" title="Both runs need a domain fingerprint">
+          A run records one when it classifies. Classify each area again to measure how
+          far the two sit apart.
+        </Callout>
+      </ReadingSection>
     )
   }
 
   const hist = report ? histSeries(report) : []
   const pointsA = report?.projection?.points.filter((p) => p.domain === "A") ?? []
   const pointsB = report?.projection?.points.filter((p) => p.domain === "B") ?? []
+  /*
+    A PROJECTION OF ONE FEATURE IS A LINE. An NDVI-only fingerprint has a single
+    column, so its second component is zero everywhere, and drawn on two axes
+    it was a row of dots along the floor of an empty plot. It is drawn as the
+    strip it is.
+  */
+  const flat =
+    pointsA.length + pointsB.length > 0 &&
+    [...pointsA, ...pointsB].every((p) => Math.abs(p.y) < 1e-9)
+  const nameA = titled(shortA)
+  const nameB = titled(shortB)
 
   return (
-    <section className={shell}>
-      <div className="flex flex-wrap items-end justify-between gap-2">
-        <div className="min-w-0">
-          {/*
-            The title only where nothing else carries it. In an area the header
-            above already reads "Domain shift", and the paragraph explaining what
-            the section is for is written for a page a reader arrives at, not for
-            a pane they chose by name from a type menu.
+    <div className="flex flex-col">
+      <ReadingSection
+        flush
+        title="How far apart"
+        caption={`From ${titled(labelA)} to ${titled(labelB)}, in what each run fed the model.`}
+        aside={
+          <button
+            type="button"
+            onClick={() => void runTsne()}
+            disabled={tsneBusy || loading}
+            title="Project the two feature samples with t-SNE instead of PCA"
+            className={btnGhostDense}
+          >
+            {tsneBusy ? "Projecting…" : "t-SNE projection"}
+          </button>
+        }
+      >
+        {loading && <p className="text-label text-muted-foreground">Comparing…</p>}
+        {error && <Callout title="The two could not be compared">{error}</Callout>}
 
-            What the area DOES need is which two runs are being read, since its
-            header names the editor and not the subjects.
-          */}
-          {inArea ? (
-            <p className="telemetry truncate text-micro text-muted-foreground">
-              {labelA} → {labelB}
-            </p>
-          ) : (
-            <>
-              <p className="eyebrow !text-foreground">Domain shift</p>
-              <p className="mt-1 max-w-xl text-meta leading-snug text-muted-foreground">
-                Distance between source ({labelA}) and target ({labelB}) feature domains
-                — KL on NDVI, CVA magnitude, RBF MMD. High values with high confidence
-                usually mean the fixed crop legend is out of domain, not that the map is
-                right.
-              </p>
-            </>
-          )}
-        </div>
-        <button
-          type="button"
-          onClick={() => void runTsne()}
-          disabled={tsneBusy || loading}
-          className="shrink-0 rounded-sm border border-border px-2 py-1 text-meta text-muted-foreground hover:text-foreground disabled:opacity-50"
-        >
-          {tsneBusy ? "Projecting…" : "t-SNE project"}
-        </button>
-      </div>
-
-      {loading && <p className="text-meta text-muted-foreground">Comparing domains…</p>}
-      {error && <p className="text-meta leading-snug text-amber-500/90">{error}</p>}
-
-      {report && (
-        <>
-          <div className={cn("grid gap-2", "grid-cols-2 sm:grid-cols-4")}>
-            {/*
-              The symmetrised figure leads, and the two directions travel under
-              it. KL is not symmetric, and which direction is larger is a
-              different finding from how large the average is: KL(A||B) above
-              KL(B||A) means B's histogram covers ground A's does not -- the
-              target spreading into NDVI the source never saw -- while the
-              reverse means the target is the narrower of the two. The average
-              alone cannot separate a target that moved from one that spread,
-              and both directions reached this component unread.
-            */}
-            <WaterFigure
-              label="KL (NDVI)"
-              value={fmt(report.kl_ndvi)}
-              sub={
-                report.kl_ndvi_a_to_b != null && report.kl_ndvi_b_to_a != null
-                  ? `${fmt(report.kl_ndvi_a_to_b, 2)} → · ← ${fmt(report.kl_ndvi_b_to_a, 2)}`
-                  : "sym. histogram divergence"
-              }
-            />
-            {/*
-              The standardised magnitude leads where it exists. The raw one is
-              measured in reflectance units mixed with acquisition indices, and
-              on the shipped model six index features carried 99.7% of the raw
-              squared distance while the sixteen reflectance features carried
-              none -- so the raw figure mostly reports when the scenes were
-              taken, not how the ground differs.
-            */}
-            <WaterFigure
-              label={report.cva_magnitude_sd != null ? "CVA |M| (SD)" : "CVA |M|"}
-              value={fmt(report.cva_magnitude_sd ?? report.cva_magnitude)}
-              sub={
-                report.cva_angle_red_nir_deg != null
-                  ? `\u03d5 ${fmt(report.cva_angle_red_nir_deg, 0)}\u00b0 red\u2013NIR`
-                  : report.cva_magnitude_sd != null
-                    ? "training standard deviations"
-                    : "mean feature L2, unstandardised"
-              }
-            />
-            {/*
-              MMD is not comparable across bandwidths, so the gamma the median
-              heuristic chose is reported with it rather than dropped.
-            */}
-            {/*
-              The escape is spelled out rather than written `\u00b2`: JSX does
-              not process escapes in an attribute value, so that form reached
-              the screen as its own source text. The occurrences a few lines up
-              sit inside template literals, which is why the same spelling
-              worked there and not here.
-            */}
-            <WaterFigure
-              label="MMD²"
-              value={fmt(report.mmd_rbf?.mmd2)}
-              sub={
-                report.mmd_rbf?.gamma != null
-                  ? `RBF, \u03b3 ${fmt(report.mmd_rbf.gamma, 3)}, n ${report.mmd_rbf.n_a}/${report.mmd_rbf.n_b}`
-                  : "not computed"
-              }
-            />
-            <WaterFigure
-              label="Spaces"
-              value={`${report.space_a ?? "\u2014"} / ${report.space_b ?? "\u2014"}`}
-              sub="fingerprint kind"
-            />
-          </div>
-
-          {/*
-            The qualifier, stated rather than implied by a dash.
-
-            Both refusals produce a report with distances in it, and those
-            distances mean different things -- or nothing. Comparing an
-            80-feature spectral fingerprint against a one-column NDVI one is a
-            number from two different quantities; comparing without the
-            training scaler is a number in mixed units. Saying so is the
-            difference between a missing figure and a misleading one.
-          */}
-          {report.same_space === false ? (
-            <p className="mt-2 text-meta leading-snug text-amber-500/90">
-              These fingerprints describe different feature spaces (
-              {report.space_a ?? "?"} against {report.space_b ?? "?"}). The distances
-              above are computed from quantities that are not the same, and are not
-              comparable.
-            </p>
-          ) : report.standardised === false ? (
-            /*
-              WHICH run, and WHY, because the remedy differs.
-
-              This read "one of the runs carries no training scaler" and was
-              shown on every comparison ever made, because the request builder
-              stripped the moments in transit rather than either run lacking
-              them. With that fixed the banner is rare -- and the two remaining
-              causes want opposite advice, so naming the side is not enough.
-            */
-            <p className="mt-2 text-meta leading-snug text-amber-500/90">
-              Not standardised: {unstandardisable.map((s) => s.label).join(" and ")}{" "}
-              carr
-              {unstandardisable.length === 1 ? "ies" : "y"} no training scaler, so the
-              distances are in raw feature units — and on this model the
-              acquisition-index features dominate a raw distance, so the figures above
-              describe acquisition more than ground.{" "}
-              {staleRuns.length > 0 ? (
-                <>
-                  {staleRuns.map((s) => s.label).join(" and ")} still holds a spectral
-                  fingerprint, so it was classified before the fingerprint carried the
-                  scaler: re-classify it and these figures populate.
-                </>
-              ) : (
-                <>
-                  Classified without the spectral feature matrix — Prithvi or the
-                  temporal transformer — so there is no scaler to carry and re-running
-                  the same model will not produce one.
-                </>
-              )}
-            </p>
-          ) : null}
-
-          {(report.agreement_a || report.agreement_b) && (
-            <div className="mt-3 grid grid-cols-1 gap-2 sm:grid-cols-2">
-              {report.agreement_a && (
-                <AgreementBlock
-                  title={`${labelA} · vs MapBiomas`}
-                  block={report.agreement_a}
-                />
-              )}
-              {report.agreement_b && (
-                <AgreementBlock
-                  title={`${labelB} · vs MapBiomas`}
-                  block={report.agreement_b}
-                />
-              )}
-            </div>
-          )}
-
-          {/*
-            Where the shift is, not only how large it is.
-
-            A scalar distance says two domains differ and gives the analyst
-            nothing to act on. This says which features moved, by how many
-            training standard deviations, and whether the forest weighs them --
-            a large displacement in a feature of negligible importance is not
-            the same finding as a small one in a feature the model leans on,
-            and the two are indistinguishable in any single number.
-
-            Sorted by displacement, as the sidecar returns it. `weighted` is
-            the product of the two, which is the column to read when deciding
-            whether the shift reaches the prediction.
-          */}
-          {report.feature_shift && report.feature_shift.length > 0 && (
-            <div className="mt-4">
-              {/* Same reason as the MMD label: JSX text is not a JS literal. */}
-              <p className="eyebrow mb-2">
-                Feature shift · top {report.feature_shift.length} by displacement
-              </p>
-              <div className="overflow-x-auto">
-                <table className="w-full min-w-[26rem] border-separate border-spacing-0 text-meta">
-                  <thead>
-                    <tr className="text-left text-muted-foreground">
-                      <th className="py-1 pr-2 font-normal">Feature</th>
-                      <th className="py-1 pr-2 text-right font-normal">z(A)</th>
-                      <th className="py-1 pr-2 text-right font-normal">z(B)</th>
-                      <th className="py-1 pr-2 text-right font-normal">gap (SD)</th>
-                      <th className="py-1 pr-2 text-right font-normal">importance</th>
-                      <th className="py-1 text-right font-normal">weighted</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {report.feature_shift.map((r) => (
-                      <tr
-                        key={r.feature}
-                        className="border-t"
-                        style={{ borderColor: "rgb(var(--p-line) / 0.22)" }}
-                      >
-                        <td className="telemetry py-1 pr-2 text-foreground">
-                          {r.feature}
-                        </td>
-                        <td className="telemetry py-1 pr-2 text-right text-muted-foreground tabular-nums">
-                          {fmt(r.z_a, 2)}
-                        </td>
-                        <td className="telemetry py-1 pr-2 text-right text-muted-foreground tabular-nums">
-                          {fmt(r.z_b, 2)}
-                        </td>
-                        <td className="telemetry py-1 pr-2 text-right text-foreground tabular-nums">
-                          {r.gap_sd > 0 ? "+" : ""}
-                          {fmt(r.gap_sd, 2)}
-                        </td>
-                        <td className="telemetry py-1 pr-2 text-right text-muted-foreground tabular-nums">
-                          {r.importance == null ? "\u2014" : fmt(r.importance, 4)}
-                        </td>
-                        <td className="telemetry py-1 text-right text-foreground tabular-nums">
-                          {fmt(r.weighted, 4)}
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            </div>
-          )}
-
-          {hist.length > 0 && (
-            <div className="mt-4">
-              <p className="eyebrow mb-2">NDVI histogram · A vs B</p>
-              <div className="h-40 w-full">
-                <ResponsiveContainer width="100%" height="100%">
-                  <LineChart
-                    data={hist}
-                    margin={{ top: 4, right: 8, left: 0, bottom: 0 }}
-                  >
-                    {/*
-                      Horizontal rules only, and no dashes. The reading is the
-                      height of two curves against a share axis; vertical
-                      dashes cross the curves without helping that, and are the
-                      largest source of non-data ink in the figure.
-                    */}
-                    <CartesianGrid
-                      horizontal
-                      vertical={false}
-                      stroke="rgb(var(--p-line) / 0.35)"
-                    />
-                    {/*
-                      A NUMERIC axis, not a categorical one. Without
-                      `type="number"` recharts treats every bin as its own
-                      category and prints a tick per bin -- forty of them, run
-                      through toFixed(1), which collapses neighbouring bins onto
-                      repeated labels: the "-0.1 -0.1 -0.1" the axis was
-                      showing. Declaring the domain and the ticks makes the
-                      spacing mean the value.
-                    */}
-                    <XAxis
-                      dataKey="bin"
-                      type="number"
-                      domain={[-0.2, 1]}
-                      ticks={[-0.2, 0, 0.2, 0.4, 0.6, 0.8, 1]}
-                      tick={{ fontSize: 9 }}
-                      stroke="rgb(var(--p-line-strong))"
-                      tickFormatter={(v: number) => v.toFixed(1)}
-                    />
-                    <YAxis
-                      tick={{ fontSize: 9 }}
-                      stroke="rgb(var(--p-line-strong))"
-                      width={34}
-                      label={{
-                        value: "share of pixels (%)",
-                        angle: -90,
-                        position: "insideLeft",
-                        style: {
-                          fontSize: 9,
-                          fill: "rgb(var(--p-muted))",
-                          textAnchor: "middle",
-                        },
-                      }}
-                    />
-                    <Tooltip
-                      contentStyle={{
-                        background: "var(--s-float)",
-                        border: "1px solid rgb(var(--p-line-strong) / 0.6)",
-                        fontSize: 11,
-                      }}
-                    />
-                    <Legend
-                      wrapperStyle={{ fontSize: 9 }}
-                      iconSize={8}
-                      formatter={(v: string) => (
-                        <span style={{ color: "rgb(var(--p-muted))" }}>{v}</span>
-                      )}
-                    />
-                    <Line
-                      type="monotone"
-                      dataKey="a"
-                      name={shortA}
-                      stroke="rgb(var(--p-accent))"
-                      dot={false}
-                      strokeWidth={1.5}
-                    />
-                    <Line
-                      type="monotone"
-                      dataKey="b"
-                      name={shortB}
-                      stroke="rgb(var(--p-line-strong))"
-                      dot={false}
-                      strokeWidth={1.5}
-                    />
-                  </LineChart>
-                </ResponsiveContainer>
-              </div>
-            </div>
-          )}
-
-          {report.projection && (
-            <div className="mt-4">
+        {report && (
+          <>
+            <div className="grid grid-cols-3 gap-2">
               {/*
-                The space is named because the two are different pictures. On
-                raw features the geometry is set by the acquisition indices,
-                which span 0..21 against reflectances near 0.1, so the clouds
-                separate largely by when the scenes were taken -- which reads
-                exactly like a domain difference and is not one.
+                The symmetrised KL leads, and the two directions travel under it:
+                KL(A||B) above KL(B||A) means B covers NDVI A never saw, the
+                reverse that B is the narrower of the two.
               */}
-              <p className="eyebrow mb-2">
-                Feature space · {report.projection.method.toUpperCase()}
-                {report.projection.space ? ` · ${report.projection.space}` : ""}
-              </p>
-              <div className="h-52 w-full">
-                <ResponsiveContainer width="100%" height="100%">
-                  <ScatterChart margin={{ top: 8, right: 8, left: 0, bottom: 0 }}>
-                    {/*
-                      No grid. A projection's axes carry no units -- component 1
-                      and component 2 are directions, not quantities -- so a
-                      ruled background invites reading a position as a value.
-                      What the figure says is whether the two clouds overlap.
-                    */}
-                    <XAxis
-                      type="number"
-                      dataKey="x"
-                      name="Component 1"
-                      tick={{ fontSize: 9 }}
-                      stroke="rgb(var(--p-line-strong))"
-                      tickCount={5}
-                    />
-                    <YAxis
-                      type="number"
-                      dataKey="y"
-                      name="Component 2"
-                      tick={{ fontSize: 9 }}
-                      stroke="rgb(var(--p-line-strong))"
-                      width={34}
-                      tickCount={5}
-                      label={{
-                        value: "component 2",
-                        angle: -90,
-                        position: "insideLeft",
-                        style: {
-                          fontSize: 9,
-                          fill: "rgb(var(--p-muted))",
-                          textAnchor: "middle",
-                        },
-                      }}
-                    />
-                    <Tooltip
-                      cursor={{ strokeDasharray: "3 3" }}
-                      contentStyle={{
-                        background: "var(--s-float)",
-                        border: "1px solid rgb(var(--p-line-strong) / 0.6)",
-                        fontSize: 11,
-                      }}
-                    />
-                    <Legend
-                      wrapperStyle={{ fontSize: 9 }}
-                      iconSize={8}
-                      formatter={(v: string) => (
-                        <span style={{ color: "rgb(var(--p-muted))" }}>{v}</span>
-                      )}
-                    />
-                    <Scatter
-                      name={shortA}
-                      data={pointsA}
-                      fill="rgb(var(--p-accent))"
-                      fillOpacity={0.4}
-                      shape={(props: { cx?: number; cy?: number; fill?: string }) => (
-                        <circle cx={props.cx} cy={props.cy} r={2.4} fill={props.fill} />
-                      )}
-                    />
-                    <Scatter
-                      name={shortB}
-                      data={pointsB}
-                      fill="rgb(var(--p-line-strong))"
-                      fillOpacity={0.4}
-                      shape={(props: { cx?: number; cy?: number; fill?: string }) => (
-                        <circle cx={props.cx} cy={props.cy} r={2.4} fill={props.fill} />
-                      )}
-                    />
-                  </ScatterChart>
-                </ResponsiveContainer>
-              </div>
+              <FigureCard
+                label="KL, NDVI"
+                value={fmt(report.kl_ndvi)}
+                sub={
+                  report.kl_ndvi_a_to_b != null && report.kl_ndvi_b_to_a != null
+                    ? `${fmt(report.kl_ndvi_a_to_b, 2)} A to B, ${fmt(report.kl_ndvi_b_to_a, 2)} B to A`
+                    : "symmetrised histogram divergence"
+                }
+              />
+              {/*
+                The standardised magnitude leads where it exists: the raw one
+                mixes reflectance with acquisition indices, which carried 99.7%
+                of the raw squared distance on the shipped model.
+              */}
+              <FigureCard
+                label={report.cva_magnitude_sd != null ? "CVA |M|, SD" : "CVA |M|"}
+                value={fmt(report.cva_magnitude_sd ?? report.cva_magnitude)}
+                sub={
+                  report.cva_angle_red_nir_deg != null
+                    ? `ϕ ${fmt(report.cva_angle_red_nir_deg, 0)}° red to NIR`
+                    : report.cva_magnitude_sd != null
+                      ? "training standard deviations"
+                      : "mean feature distance, raw units"
+                }
+              />
+              {/* MMD is not comparable across bandwidths, so its gamma travels with it. */}
+              <FigureCard
+                label="MMD²"
+                value={fmt(report.mmd_rbf?.mmd2)}
+                sub={
+                  report.mmd_rbf?.gamma != null
+                    ? `RBF, γ ${fmt(report.mmd_rbf.gamma, 3)}, n ${report.mmd_rbf.n_a} and ${report.mmd_rbf.n_b}`
+                    : "not computed"
+                }
+              />
             </div>
-          )}
-        </>
+            <p className="mt-2 text-label text-muted-foreground">
+              Feature space:{" "}
+              {report.space_a === report.space_b
+                ? `${spaceName(report.space_a)} in both.`
+                : `${spaceName(report.space_a)} in A, ${spaceName(report.space_b)} in B.`}
+            </p>
+
+            {/*
+              The qualifier, stated rather than implied by a dash. Both refusals
+              produce distances, and those mean different things or nothing.
+            */}
+            {report.same_space === false ? (
+              <div className="mt-3">
+                <Callout title="Not comparable">
+                  The two fingerprints describe different feature spaces, so the
+                  distances above come from quantities that are not the same.
+                </Callout>
+              </div>
+            ) : report.standardised === false ? (
+              /*
+                WHICH run, and WHY, because the remedy differs: a run with no
+                spectral matrix cannot have a scaler, a run classified before the
+                fingerprint carried one gains it by classifying again.
+              */
+              <div className="mt-3">
+                <Callout title="Distances in raw units">
+                  {unstandardisable.map((s) => titled(s.label)).join(" and ")}{" "}
+                  {unstandardisable.length === 1 ? "carries" : "carry"} no training
+                  scaler, so the acquisition-index features dominate and the figures
+                  describe when the scenes were taken more than how the ground differs.{" "}
+                  {staleRuns.length > 0
+                    ? `${staleRuns.map((s) => titled(s.label)).join(" and ")} was classified before the fingerprint carried the scaler: classify it again and these figures standardise.`
+                    : "They were classified without the spectral feature matrix, by Prithvi or the Temporal Transformer, so classifying again with the same model will not add one."}
+                </Callout>
+              </div>
+            ) : null}
+          </>
+        )}
+      </ReadingSection>
+
+      {report && (report.agreement_a || report.agreement_b) && (
+        <ReadingSection
+          title="Each against MapBiomas"
+          caption="Agreement with the reference, and the classes behind the average."
+        >
+          <div className="grid grid-cols-2 gap-4">
+            {report.agreement_a && (
+              <AgreementBlock letter="A" label={nameA} block={report.agreement_a} />
+            )}
+            {report.agreement_b && (
+              <AgreementBlock letter="B" label={nameB} block={report.agreement_b} />
+            )}
+          </div>
+        </ReadingSection>
       )}
-    </section>
+
+      {/*
+        Where the shift is, not only how large: which features moved, by how
+        many training standard deviations, and whether the model weighs them.
+        Sorted by displacement, as the sidecar returns it; `weighted` is the
+        column to read when deciding whether the shift reaches the prediction.
+      */}
+      {report?.feature_shift && report.feature_shift.length > 0 && (
+        <ReadingSection
+          title="Where the shift is"
+          caption={`The ${report.feature_shift.length} features that moved most, in training standard deviations, and how much the model weighs each.`}
+        >
+          <div className="overflow-x-auto">
+            <table className="w-full min-w-[26rem] text-label">
+              <thead>
+                <tr className="text-meta text-muted-foreground">
+                  <th className="pb-1.5 text-left font-normal">Feature</th>
+                  <th className="pb-1.5 text-right font-normal">z in A</th>
+                  <th className="pb-1.5 text-right font-normal">z in B</th>
+                  <th className="pb-1.5 text-right font-normal">Gap (SD)</th>
+                  <th className="pb-1.5 text-right font-normal">Importance</th>
+                  <th className="pb-1.5 text-right font-normal">Weighted</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-[rgb(var(--p-line)/0.25)]">
+                {report.feature_shift.map((r) => (
+                  <tr key={r.feature}>
+                    <td className="telemetry py-1.5 text-foreground">{r.feature}</td>
+                    <td className="telemetry py-1.5 text-right text-muted-foreground tabular-nums">
+                      {fmt(r.z_a, 2)}
+                    </td>
+                    <td className="telemetry py-1.5 text-right text-muted-foreground tabular-nums">
+                      {fmt(r.z_b, 2)}
+                    </td>
+                    <td className="telemetry py-1.5 text-right text-foreground tabular-nums">
+                      {r.gap_sd > 0 ? "+" : ""}
+                      {fmt(r.gap_sd, 2)}
+                    </td>
+                    <td className="telemetry py-1.5 text-right text-muted-foreground tabular-nums">
+                      {r.importance == null ? "—" : fmt(r.importance, 4)}
+                    </td>
+                    <td className="telemetry py-1.5 text-right text-foreground tabular-nums">
+                      {fmt(r.weighted, 4)}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </ReadingSection>
+      )}
+
+      {hist.length > 0 && (
+        <ReadingSection
+          title="NDVI distribution"
+          caption="The share of each run's pixels at each NDVI."
+        >
+          <div className="h-44 w-full">
+            <ResponsiveContainer width="100%" height="100%">
+              <LineChart data={hist} margin={{ top: 4, right: 8, left: 0, bottom: 0 }}>
+                {/* Horizontal rules only: the reading is two curves' heights. */}
+                <CartesianGrid
+                  horizontal
+                  vertical={false}
+                  stroke="rgb(var(--p-line) / 0.35)"
+                />
+                {/*
+                  A NUMERIC axis with declared ticks; as a category axis every
+                  bin printed its own tick, collapsing onto repeated labels.
+                */}
+                <XAxis
+                  dataKey="bin"
+                  type="number"
+                  domain={[-0.2, 1]}
+                  ticks={[-0.2, 0, 0.2, 0.4, 0.6, 0.8, 1]}
+                  tick={{ fontSize: 10 }}
+                  stroke="rgb(var(--p-line-strong))"
+                  tickFormatter={(v: number) => v.toFixed(1)}
+                />
+                <YAxis
+                  tick={{ fontSize: 10 }}
+                  stroke="rgb(var(--p-line-strong))"
+                  width={34}
+                  unit="%"
+                />
+                <Tooltip
+                  contentStyle={{
+                    background: "var(--s-float)",
+                    border: "1px solid rgb(var(--p-line-strong) / 0.6)",
+                    borderRadius: 5,
+                    fontSize: 11,
+                  }}
+                  labelFormatter={(v: number) => `NDVI ${Number(v).toFixed(2)}`}
+                  formatter={(v: number) => `${v.toFixed(1)}%`}
+                />
+                <Line
+                  type="monotone"
+                  dataKey="a"
+                  name={nameA}
+                  stroke="rgb(var(--p-accent))"
+                  dot={false}
+                  strokeWidth={1.5}
+                />
+                <Line
+                  type="monotone"
+                  dataKey="b"
+                  name={nameB}
+                  stroke="rgb(var(--p-line-strong))"
+                  dot={false}
+                  strokeWidth={1.5}
+                />
+              </LineChart>
+            </ResponsiveContainer>
+          </div>
+          <SeriesKey a={nameA} b={nameB} />
+        </ReadingSection>
+      )}
+
+      {report?.projection && (
+        /*
+          The space is named because the two are different pictures: on raw
+          features the clouds separate largely by when the scenes were taken,
+          which reads exactly like a domain difference and is not one.
+        */
+        <ReadingSection
+          title="Feature space"
+          caption={
+            flat
+              ? `${report.projection.method.toUpperCase()} of one feature, so each pixel sits on a line. Two runs from one domain overlap along it.`
+              : `${report.projection.method.toUpperCase()} of ${report.projection.space ? spaceName(report.projection.space) : "the features"}. Two runs from one domain overlap.`
+          }
+        >
+          <div className={cn("w-full", flat ? "h-20" : "h-52")}>
+            <ResponsiveContainer width="100%" height="100%">
+              <ScatterChart margin={{ top: 8, right: 8, left: 0, bottom: 0 }}>
+                {/*
+                  No grid. A projection's axes carry no units, so a ruled
+                  background invites reading a position as a value.
+                */}
+                <XAxis
+                  type="number"
+                  dataKey="x"
+                  name="Component 1"
+                  tick={{ fontSize: 10 }}
+                  stroke="rgb(var(--p-line-strong))"
+                  tickCount={5}
+                />
+                <YAxis
+                  type="number"
+                  dataKey="y"
+                  name="Component 2"
+                  hide={flat}
+                  domain={flat ? [-1, 1] : ["auto", "auto"]}
+                  tick={{ fontSize: 10 }}
+                  stroke="rgb(var(--p-line-strong))"
+                  width={34}
+                  tickCount={5}
+                />
+                <Tooltip
+                  cursor={{ strokeDasharray: "3 3" }}
+                  contentStyle={{
+                    background: "var(--s-float)",
+                    border: "1px solid rgb(var(--p-line-strong) / 0.6)",
+                    borderRadius: 5,
+                    fontSize: 11,
+                  }}
+                />
+                <Scatter
+                  name={nameA}
+                  data={pointsA}
+                  fill="rgb(var(--p-accent))"
+                  fillOpacity={0.45}
+                  shape={(props: { cx?: number; cy?: number; fill?: string }) => (
+                    <circle cx={props.cx} cy={props.cy} r={2.6} fill={props.fill} />
+                  )}
+                />
+                <Scatter
+                  name={nameB}
+                  data={pointsB}
+                  fill="rgb(var(--p-line-strong))"
+                  fillOpacity={0.45}
+                  shape={(props: { cx?: number; cy?: number; fill?: string }) => (
+                    <circle cx={props.cx} cy={props.cy} r={2.6} fill={props.fill} />
+                  )}
+                />
+              </ScatterChart>
+            </ResponsiveContainer>
+          </div>
+          <SeriesKey a={nameA} b={nameB} />
+        </ReadingSection>
+      )}
+    </div>
+  )
+}
+
+/** Which colour is which run, under a figure, in the text's own size. */
+function SeriesKey({ a, b }: { a: string; b: string }) {
+  return (
+    <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-label text-muted-foreground">
+      <span className="flex items-center gap-1.5">
+        <span className="h-0.5 w-3 rounded-full bg-[rgb(var(--p-accent))]" />A · {a}
+      </span>
+      <span className="flex items-center gap-1.5">
+        <span className="h-0.5 w-3 rounded-full bg-[rgb(var(--p-line-strong))]" />B ·{" "}
+        {b}
+      </span>
+    </div>
   )
 }

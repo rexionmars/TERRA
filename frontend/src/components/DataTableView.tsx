@@ -3,6 +3,7 @@ import { ArrowDown, ArrowUp, Check, Copy, Table } from "@/components/icons"
 import { cn } from "@/lib/utils"
 import { notifyError } from "@/lib/notify"
 import { btnGhostDense } from "@/components/ui/buttons"
+import { columnLabel } from "@/components/workspace/readingParts"
 import {
   formatNumber,
   tableToCSV,
@@ -74,7 +75,7 @@ export function DataTableView({
           {table.rows.length} {table.rows.length === 1 ? "row" : "rows"}
           {" · "}
           {table.csvName}
-          {caption ? ` · ${caption}` : ""}
+          {caption && caption !== table.csvName ? ` · ${caption}` : ""}
         </p>
         <div className="flex items-center gap-1.5">
           <button
@@ -138,9 +139,11 @@ export function DataTableView({
                         c.numeric ? "justify-end" : "justify-start",
                         active ? "text-foreground" : "text-muted-foreground"
                       )}
-                      title={`Sort by ${c.key}`}
+                      // The key is the CSV header the exporter writes; the label
+                      // spells it out (readingParts, columnLabel).
+                      title={`${c.key}: press to sort`}
                     >
-                      {c.key}
+                      {columnLabel(c.key)}
                       {active &&
                         (sort.direction === "asc" ? (
                           <ArrowUp className="h-2.5 w-2.5" />
@@ -170,7 +173,7 @@ export function DataTableView({
                         "px-2.5 py-1.5 whitespace-nowrap",
                         col.numeric
                           ? "telemetry text-right text-foreground"
-                          : "text-muted-foreground"
+                          : "text-foreground"
                       )}
                     >
                       {col.swatch && text ? (
