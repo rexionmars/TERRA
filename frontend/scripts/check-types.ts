@@ -57,6 +57,7 @@ const GO_FILES = [
   "types_mineral.go",
   "types_health.go",
   "types_overlap.go",
+  "types_models.go",
   "types_radar.go",
   "types_zones.go",
 ]
