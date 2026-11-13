@@ -1599,94 +1599,126 @@ a.maplibregl-ctrl-logo,
   color: rgb(var(--p-text));
 }
 
-/* Sonner toasts — match panel chrome (not richColors peach/red banners) */
+/*
+  Sonner toasts, unstyled and drawn here.
+
+  A NOTIFICATION IS A DARK PLATE LIT FROM ITS LEFT BY ITS STATUS. The plate is
+  the menus' (MenuPopover): control at its top to ink at its foot, a little
+  translucent over the map. The status colour comes in from the left edge and is
+  gone by the middle, tints the edge, and fills a soft halo behind the status
+  mark, so the kind of message is read before a word of it is. One custom
+  property per kind, --toast-status, feeds all three, so they cannot disagree.
+
+  MEASURED where the text starts, 16% of the way in, where the tint is at 11%:
+  the description is 4.79 at its lowest (warning, dark, on control) and 5.13 in
+  the light theme, the title 8.99 and 11.78, and each mark on its halo 3.63 at
+  its lowest, over the 3.0 a meaningful graphic needs.
+*/
 [data-sonner-toaster] {
-  --width: 22rem;
+  --width: 23rem;
   font-family: var(--font-sans);
 }
 .terra-toast {
+  --toast-status: rgb(var(--p-muted));
   display: flex;
   align-items: flex-start;
-  gap: 0.7rem;
+  gap: 0.8rem;
   width: var(--width);
   /* Extra room on the right for the absolutely positioned close button, which
      reserves none of its own and otherwise sits on top of the text. */
-  padding: 0.7rem 2rem 0.7rem 0.85rem;
-  /* A floating container, so the container radius. It carried the control
-     radius, which made it the one thing over the map with a different corner
-     from every panel beside it. */
+  padding: 0.85rem 2.1rem 0.85rem 0.85rem;
+  /* A floating container, so the container radius. */
   border-radius: var(--radius-md);
-  background: var(--panel);
-  border: 1px solid rgb(var(--p-line) / 0.32);
+  background:
+    linear-gradient(
+      90deg,
+      color-mix(in srgb, var(--toast-status) 16%, transparent) 0%,
+      transparent 55%
+    ),
+    linear-gradient(180deg, rgb(var(--p-control) / 0.96), rgb(var(--p-ink) / 0.96));
+  border: 1px solid
+    color-mix(in srgb, var(--toast-status) 30%, rgb(var(--p-line) / 0.4));
   backdrop-filter: blur(18px) saturate(1.05);
   -webkit-backdrop-filter: blur(18px) saturate(1.05);
   color: var(--foreground);
-  box-shadow: 0 10px 32px rgb(0 0 0 / 0.32);
-}
-.terra-toast [data-icon] {
-  margin-top: 0.1rem;
-  flex-shrink: 0;
+  box-shadow:
+    0 16px 40px rgb(0 0 0 / 0.45),
+    inset 0 1px 0 rgb(255 255 255 / 0.04);
 }
 /*
-  Status through the status tokens, so a toast and a component reporting the
-  same state cannot disagree. Success used the accent, which is now the colour
-  of every primary action; error was a literal red reachable from nowhere.
+  The status mark, in a halo of its own colour: the round glyph Sonner draws,
+  centred in a disc twice its size, as the mark sits in its ring in the
+  reference.
 
-  These are icons, so they take the READ variants, not the fill ones. The error
-  mark carried --destructive, which is the fill -- the value darkened so a light
-  label reads on top of it -- and as a mark on the toast plate that measures
-  2.47, under the 3.0 WCAG 1.4.11 asks of a meaningful graphic. Splitting
-  destructive into a fill and a quiet variant is what made it fail: before the
-  split one value did both jobs badly, and afterwards this call site was still
-  asking for the wrong half.
+  These are icons, so they take the READ variants of the status colours, not
+  the fills. The error mark carried --destructive once, which is the fill --
+  the value darkened so a light label reads on top of it -- and as a mark on the
+  plate it measured 2.47, under the 3.0 WCAG 1.4.11 asks of a meaningful
+  graphic.
 */
-.terra-toast-success [data-icon] {
-  color: var(--success);
+.terra-toast [data-icon] {
+  display: flex;
+  flex-shrink: 0;
+  align-items: center;
+  justify-content: center;
+  width: 2rem;
+  height: 2rem;
+  margin: 0;
+  border-radius: 9999px;
+  background: color-mix(in srgb, var(--toast-status) 16%, transparent);
+  color: var(--toast-status);
 }
-.terra-toast-error [data-icon] {
-  color: var(--destructive-quiet);
+.terra-toast [data-icon] svg {
+  width: 1.125rem;
+  height: 1.125rem;
 }
-.terra-toast-warning [data-icon] {
-  color: var(--warning);
+.terra-toast-success {
+  --toast-status: var(--success);
 }
-.terra-toast-info [data-icon] {
-  color: rgb(var(--p-muted));
+.terra-toast-error {
+  --toast-status: var(--destructive-quiet);
 }
+.terra-toast-warning {
+  --toast-status: var(--warning);
+}
+.terra-toast-info {
+  --toast-status: rgb(var(--p-muted));
+}
+/* The title on the halo's centre line, the description under it. */
 .terra-toast [data-content] {
   display: flex;
   flex: 1;
   flex-direction: column;
-  gap: 0.15rem;
+  justify-content: center;
+  gap: 0.2rem;
   min-width: 0;
+  min-height: 2rem;
 }
 .terra-toast-title {
-  font-size: var(--text-emphasis);
+  font-size: var(--text-read);
   font-weight: 600;
-  letter-spacing: 0.01em;
+  line-height: 1.35;
   color: var(--foreground);
 }
 .terra-toast-desc {
-  font-size: var(--text-body);
-  line-height: 1.4;
+  font-size: var(--text-label);
+  line-height: 1.45;
   color: var(--muted-foreground);
   word-break: break-word;
 }
 /*
-  The dismiss control.
+  The dismiss control: present on every toast, shown when the toast is pointed
+  at or the control has the keyboard's focus, so a message reads as a message
+  and not as a dialog with a button.
 
-  It is absolutely positioned inside the toast but had no display mode, so the
-  glyph sat wherever the button's default layout put it rather than in the
-  middle of the box drawn around it -- an outline with an X near one edge.
-  Centring it is what the border implies.
-
-  The toast's right padding accounts for it below, since an absolute element
-  reserves no space: at 0.85rem the button overlapped the last few characters
-  of any description long enough to reach the edge.
+  It is absolutely positioned inside the toast, so it is given a display mode
+  that centres its glyph in its box, and the toast's right padding keeps the
+  text clear of it, since an absolute element reserves no space.
 */
 .terra-toast-close {
   position: absolute !important;
-  top: 0.45rem !important;
-  right: 0.45rem !important;
+  top: 0.5rem !important;
+  right: 0.5rem !important;
   left: auto !important;
   transform: none !important;
   display: flex !important;
@@ -1696,10 +1728,15 @@ a.maplibregl-ctrl-logo,
   height: 1.25rem !important;
   padding: 0 !important;
   border-radius: var(--radius-sm) !important;
-  border: 1px solid rgb(var(--p-line) / 0.35) !important;
+  border: 0 !important;
   background: transparent !important;
   color: var(--muted-foreground) !important;
-  opacity: 0.85;
+  opacity: 0;
+  transition: opacity 120ms ease;
+}
+.terra-toast:hover .terra-toast-close,
+.terra-toast-close:focus-visible {
+  opacity: 1;
 }
 /* The glyph, at a size that fits the 1.25rem box it sits in. */
 .terra-toast-close svg {
@@ -1707,13 +1744,6 @@ a.maplibregl-ctrl-logo,
   height: 0.7rem !important;
 }
 .terra-toast-close:hover {
-  opacity: 1;
-  background: rgb(var(--p-line) / 0.12) !important;
+  background: rgb(var(--p-line) / 0.18) !important;
   color: var(--foreground) !important;
-}
-.terra-toast-error {
-  border-color: color-mix(in srgb, var(--destructive-quiet) 35%, transparent);
-}
-.terra-toast-success {
-  border-color: color-mix(in srgb, var(--success) 35%, transparent);
 }

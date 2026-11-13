@@ -40,9 +40,14 @@ export function notifyError(title: string, error?: unknown, opts?: ExternalToast
   })
 }
 
+/**
+ * A message that is neither a success nor a failure. Sent as Sonner's info
+ * type rather than a plain message, so it carries a mark and its kind's class
+ * like the others and is not the one notification without a status.
+ */
 export function notifyInfo(title: string, description?: string, opts?: ExternalToast) {
   report("info", title, description)
-  toast.message(title, {
+  toast.info(title, {
     description,
     duration: 4000,
     ...opts,
