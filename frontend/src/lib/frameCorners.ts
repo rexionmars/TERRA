@@ -83,3 +83,34 @@ export function rightCorner(contentLeft: number, cardRight: number): string {
     `H${n(cardRight - r)} A${r} ${r} 0 0 1 ${n(cardRight)} ${FRAME_REACH + r} Z`,
   ].join(" ")
 }
+
+/**
+ * A notch hanging from the card's top edge, in the corner pieces' construction
+ * at the rise `depth`: the frame reaching down into the card's top to hold
+ * something there for as long as it is open, as the location search is.
+ *
+ * In the notch's own box, which starts at the card's top edge: its foot is
+ * `width` wide at y = `depth`, its sides rise at 60 degrees to the edge, and
+ * the box is `total` wide to take the sides and their fillets. Drawn inside the
+ * card, so the fillets meet the edge the frame ends at.
+ */
+export function hangingNotch(
+  width: number,
+  depth: number
+): { d: string; total: number } {
+  const fillet = 0.32 * depth
+  const corner = 0.28 * depth
+  const run = depth / Math.tan(Math.PI / 3)
+  const a = fillet + run
+  const b = a + width
+  const total = b + run + fillet
+  const d = [
+    `M0 0 Q${n(a - run)} 0 ${n(a - run + fillet * COS)} ${n(fillet * SIN)}`,
+    `L${n(a - corner * COS)} ${n(depth - corner * SIN)}`,
+    `Q${n(a)} ${n(depth)} ${n(a + corner)} ${n(depth)} H${n(b - corner)}`,
+    `Q${n(b)} ${n(depth)} ${n(b + corner * COS)} ${n(depth - corner * SIN)}`,
+    `L${n(b + run - fillet * COS)} ${n(fillet * SIN)}`,
+    `Q${n(b + run)} 0 ${n(total)} 0 Z`,
+  ].join(" ")
+  return { d, total: Number(n(total)) }
+}

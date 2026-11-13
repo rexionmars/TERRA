@@ -5,6 +5,7 @@ import {
   FRAME_EDGE,
   FRAME_REACH,
   LIGHTS_END,
+  hangingNotch,
   leftCorner,
   rightCorner,
 } from "./frameCorners"
@@ -53,5 +54,26 @@ describe("rightCorner", () => {
   it("keeps its foot clear of what it holds", () => {
     const foot = Number(rightCorner(1200, 1432).match(/Q([\d.]+) 32 /)?.[1])
     expect(foot).toBeLessThan(1200)
+  })
+})
+
+describe("hangingNotch", () => {
+  it("hangs from the edge it meets, with its foot as wide as what it holds", () => {
+    const { d, total } = hangingNotch(360, 44)
+    expect(d.startsWith("M0 0 ")).toBe(true)
+    expect(d.endsWith(`${total} 0 Z`)).toBe(true)
+    // The foot: from the end of one corner to the start of the other, 360 wide
+    // less the two corners.
+    const foot = d.match(/Q([\d.]+) 44 ([\d.]+) 44 H([\d.]+)/)
+    expect(foot).not.toBeNull()
+    expect(Number(foot![1]) + 360).toBeCloseTo(Number(foot![3]) + 0.28 * 44, 1)
+  })
+
+  it("falls at 60 degrees on either side", () => {
+    const { d } = hangingNotch(360, 44)
+    const side = d.match(/Q[\d.]+ 0 ([\d.]+) ([\d.]+) L([\d.]+) ([\d.]+)/)
+    expect(side).not.toBeNull()
+    const [x1, y1, x2, y2] = side!.slice(1).map(Number)
+    expect((Math.atan2(y2 - y1, x2 - x1) * 180) / Math.PI).toBeCloseTo(60, 0)
   })
 })
