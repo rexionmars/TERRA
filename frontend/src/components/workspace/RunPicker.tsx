@@ -5,37 +5,34 @@
  * hundreds of kilometres apart cannot be placed side by side, because the map
  * puts them where they are. This is where the second one is chosen.
  *
- * Grouped by project rather than listed flat, because a run's name says what
- * was analysed and the project says where -- and with runs from several fields
- * in one list, the names alone do not separate them. The period is what tells
- * two runs of one project apart, so it is on every row.
+ * A RUN IS LISTED AS THE ANALYSES SCREEN SHOWS IT: its picture, the area it
+ * was made over, and under the name what it found -- the class covering most
+ * of a classification, the reading of any other product. It was listed by its
+ * label, run-field-22-20260927-101030, which is near-identical across a
+ * project's runs and was cut before the part that told two apart. The label is
+ * still matched by the search.
  *
- * PLACED BY `MenuPopover`, WHICH MEASURES. This opened with `left-full`, on
- * the reading that the list belongs beside the column it is added from -- true
- * while the outliner WAS a column, fixed at 15rem down the left edge.
+ * Grouped by project, newest first, because the project says where and the
+ * name says what; runs with no project are a group of their own at the end.
  *
- * The area system ended that. An outliner is an editor now and goes wherever
- * the partition puts it, and in the default Layout it is the RIGHT column:
- * `left-full` then opens a 17rem panel past the right edge of the window,
- * where the list is clipped and the rows run out of the screen. Nothing about
- * the CSS was wrong; the thing it measured against stopped being where it was.
- *
- * The first version of this file DID measure, into a portal on document.body,
- * and was replaced because a viewport-relative position had three ways to end
- * up somewhere unintended. `MenuPopover` is the answer the studio arrived at
- * for the same problem: it portals into the STUDIO SURFACE, clamps on both
- * axes, and flips above the anchor where there is no room below. Every menu in
- * every area header already opens that way, so this is not a fourth mechanism.
- *
- * The control still lives below the scrolling tree rather than inside it, so
- * it does not scroll away from the list it adds to.
+ * PLACED BY `MenuPopover`, which portals into the surface, clamps on both axes
+ * and flips above the anchor where there is no room below, as every menu on
+ * the boards does. The control stays outside the scrolling board, so it does
+ * not scroll away from the list it adds to.
  */
 import { useMemo, useState } from "react"
-import { Plus, MagnifyingGlass } from "@/components/icons"
-import { displayRunLabel } from "@/lib/aoiLabel"
-import { datesByMonth, runRowLine } from "@/lib/runSummary"
-import type { InferenceRun, Project } from "@/lib/types"
+
+import { MagnifyingGlass, Plus } from "@/components/icons"
+import {
+  RunPicture,
+  kindOf,
+  runFinding,
+  runTitle,
+  tint,
+} from "@/components/shell/analysisParts"
 import { MenuPopover } from "@/components/workspace/MenuPopover"
+import { runRowLine } from "@/lib/runSummary"
+import type { InferenceRun, Project } from "@/lib/types"
 import { cn } from "@/lib/utils"
 
 export function RunPicker({
@@ -58,29 +55,24 @@ export function RunPicker({
   const [open, setOpen] = useState(false)
   const [query, setQuery] = useState("")
 
-  /**
-   * The runs on offer, by project, with the ones already on the board removed.
-   *
-   * Runs with no project are their own group at the end rather than dropped:
-   * a run made before projects existed, or made with none active, is still a
-   * run someone may want beside another.
-   */
   const groups = useMemo(() => {
     const q = query.trim().toLowerCase()
+    const projectName = new Map(projects.map((p) => [p.id, p.name]))
     const matches = (r: InferenceRun) =>
       !q ||
-      displayRunLabel(r.label).toLowerCase().includes(q) ||
-      (projects.find((p) => p.id === r.project_id)?.name ?? "")
-        .toLowerCase()
-        .includes(q)
+      [
+        runTitle(r),
+        r.label ?? "",
+        kindOf(r).label,
+        runRowLine(r),
+        projectName.get(r.project_id ?? "") ?? "",
+      ].some((t) => t.toLowerCase().includes(q))
 
-    const available = runs.filter((r) => !excludeRunIds.has(r.id) && matches(r))
     const byProject = new Map<string, InferenceRun[]>()
-    for (const r of available) {
+    for (const r of runs) {
+      if (excludeRunIds.has(r.id) || !matches(r)) continue
       const key = r.project_id || ""
-      const list = byProject.get(key)
-      if (list) list.push(r)
-      else byProject.set(key, [r])
+      byProject.set(key, [...(byProject.get(key) ?? []), r])
     }
     for (const list of byProject.values()) {
       list.sort((a, b) => b.created_at.localeCompare(a.created_at))
@@ -99,7 +91,8 @@ export function RunPicker({
       open={open}
       onOpenChange={setOpen}
       surface={surface}
-      widthRem={17}
+      widthRem={24}
+      align="end"
       trigger={(p) => (
         <button
           type="button"
@@ -110,7 +103,7 @@ export function RunPicker({
           aria-haspopup={p["aria-haspopup"]}
           title="Bring in a saved run"
           className={cn(
-            "flex h-8 shrink-0 items-center gap-1.5 rounded-sm border border-border px-2 text-label transition-colors",
+            "flex h-8 shrink-0 items-center gap-1.5 rounded-sm border border-border px-2.5 text-label transition-colors",
             "focus-visible:ring-1 focus-visible:ring-ring focus-visible:outline-none",
             "disabled:cursor-not-allowed disabled:opacity-50",
             open
@@ -118,98 +111,120 @@ export function RunPicker({
               : "text-muted-foreground hover:bg-hover hover:text-foreground"
           )}
         >
-          <Plus className="size-3 shrink-0" />
+          <Plus className="size-3.5 shrink-0" />
           {busy ? "Loading…" : "Add a run"}
         </button>
       )}
     >
-      {
-        /*
-          Layout only. The plate -- background, border, shadow, width and the
-          placement -- belongs to `MenuPopover`, which every other menu in the
-          studio already wears; drawing a second one here is how two surfaces
-          come to disagree about what a panel looks like.
+      {/*
+        Layout only: the plate, its edge, shadow and placement belong to
+        MenuPopover, as every other menu's do. The height is bounded here,
+        since this is the one popover whose content is a list of any length.
+      */}
+      <div className="flex max-h-[26rem] flex-col overflow-hidden">
+        <label className="mx-1 mt-1 mb-1.5 flex shrink-0 items-center gap-2 rounded-full border border-[rgb(var(--p-line)/0.45)] px-3 py-1.5">
+          <MagnifyingGlass className="size-3.5 shrink-0 text-muted-foreground" />
+          <input
+            autoFocus
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            onKeyDown={(e) => {
+              // The board closes on Escape from a listener on the window;
+              // here it should close the list and no more.
+              e.stopPropagation()
+              if (e.key === "Escape") setOpen(false)
+            }}
+            placeholder="Find by area, product or project"
+            aria-label="Find a run"
+            className="min-w-0 flex-1 border-0 bg-transparent text-body text-foreground outline-none placeholder:text-muted-foreground"
+          />
+        </label>
 
-          The height is still bounded here, because this is the one popover
-          whose content is a list of unknown length.
-        */
-        <div className="flex max-h-[20rem] flex-col overflow-hidden">
-          <label
-            className="flex shrink-0 items-center gap-1.5 border-b px-2 py-1.5"
-            style={{ borderColor: "rgb(var(--p-line) / 0.28)" }}
-          >
-            <MagnifyingGlass className="size-3 shrink-0 text-muted-foreground" />
-            <input
-              autoFocus
-              value={query}
-              onChange={(e) => setQuery(e.target.value)}
-              onKeyDown={(e) => {
-                // The board closes on Escape from a listener on the window;
-                // here it should close the list and no more.
-                e.stopPropagation()
-                if (e.key === "Escape") setOpen(false)
-              }}
-              placeholder="Find a run"
-              className="min-w-0 flex-1 border-0 bg-transparent text-meta text-foreground outline-none placeholder:text-muted-foreground"
-            />
-          </label>
-
-          <div className="min-h-0 flex-1 overflow-y-auto py-1">
-            {total === 0 ? (
-              <p className="px-2.5 py-2 text-meta leading-relaxed text-muted-foreground">
-                {query.trim()
-                  ? "No run matches that."
-                  : runs.length === 0
-                    ? "No saved runs yet."
-                    : "Every saved run is already here."}
-              </p>
-            ) : (
-              groups.map((g) => (
-                <div key={g.id || "none"}>
-                  {/*
-                    Sticky, because the list scrolls past several projects and
-                    a row seen without its heading says what was analysed
-                    without saying where.
-                  */}
-                  <p
-                    className="eyebrow sticky top-0 z-10 px-2 py-1 !text-micro"
-                    // The popover's own plate, so a heading scrolled under does
-                    // not show the rows through a differently coloured band.
-                    style={{ background: "var(--s-selected)" }}
-                  >
-                    {g.name}
-                  </p>
-                  {g.runs.map((r) => (
-                    <button
-                      key={r.id}
-                      type="button"
-                      onClick={() => {
-                        setOpen(false)
-                        onPick(r)
-                      }}
-                      title={runRowLine(r)}
-                      className="flex w-full flex-col items-start gap-px px-2 py-1 text-left leading-tight transition-colors hover:bg-hover"
-                    >
-                      <span className="w-full truncate text-meta text-foreground">
-                        {displayRunLabel(r.label) || r.model_kind}
-                      </span>
-                      {/*
-                        What actually separates two runs of one project. The
-                        label above is near-identical across a project's runs
-                        -- it is `run-<area>-<timestamp>` -- so this is the
-                        line being read.
-                      */}
-                      <span className="telemetry w-full truncate text-micro text-muted-foreground">
-                        {datesByMonth(runRowLine(r))}
-                      </span>
-                    </button>
-                  ))}
-                </div>
-              ))
-            )}
-          </div>
+        <div className="min-h-0 flex-1 overflow-y-auto">
+          {total === 0 ? (
+            <p className="px-3 py-3 text-label text-muted-foreground">
+              {query.trim()
+                ? "No run matches that."
+                : runs.length === 0
+                  ? "No saved runs yet."
+                  : "Every saved run is already here."}
+            </p>
+          ) : (
+            groups.map((g) => (
+              <div key={g.id || "none"} role="group" aria-label={g.name}>
+                {/*
+                  Sticky, because the list scrolls past several projects and a
+                  row seen without its heading says what was analysed without
+                  saying where. Opaque, in the tone the popover's plate starts
+                  at, so rows scrolled under it do not show through.
+                */}
+                <p
+                  className="sticky top-0 z-10 flex items-baseline justify-between border-b border-[rgb(var(--p-line)/0.3)] px-3 pt-2.5 pb-1.5 text-label font-medium text-foreground"
+                  style={{ background: "rgb(var(--p-control))" }}
+                >
+                  {g.name}
+                  <span className="telemetry text-meta font-normal text-muted-foreground">
+                    {g.runs.length}
+                  </span>
+                </p>
+                {g.runs.map((r) => (
+                  <PickerRow
+                    key={r.id}
+                    run={r}
+                    onPick={() => {
+                      setOpen(false)
+                      onPick(r)
+                    }}
+                  />
+                ))}
+              </div>
+            ))
+          )}
         </div>
-      }
+      </div>
     </MenuPopover>
+  )
+}
+
+function PickerRow({ run, onPick }: { run: InferenceRun; onPick: () => void }) {
+  const kind = kindOf(run)
+  const finding = runFinding(run)
+  const made = new Date(run.created_at)
+  return (
+    <button
+      type="button"
+      role="menuitem"
+      onClick={onPick}
+      title={`${runTitle(run)}: ${runRowLine(run)}\n${run.label ?? ""}`}
+      className="flex w-full items-center gap-3 rounded-sm px-2 py-1.5 text-left transition-colors hover:bg-hover focus-visible:bg-hover focus-visible:outline-none"
+    >
+      <RunPicture
+        run={run}
+        className="size-10 shrink-0 rounded-sm [&_img]:p-1"
+        glyph="size-4"
+      />
+      <span className="flex min-w-0 flex-1 flex-col">
+        <span className="truncate text-read text-foreground">{runTitle(run)}</span>
+        <span className="flex min-w-0 items-center gap-1.5 text-label text-muted-foreground">
+          {finding.swatch ? (
+            <span
+              className="size-2 shrink-0 rounded-xs"
+              style={{ background: finding.swatch }}
+            />
+          ) : (
+            <kind.icon
+              className="size-3 shrink-0"
+              style={{ color: tint(kind.token) }}
+            />
+          )}
+          <span className="truncate">{finding.text}</span>
+        </span>
+      </span>
+      <span className="telemetry shrink-0 self-start pt-0.5 text-meta text-muted-foreground">
+        {Number.isNaN(made.getTime())
+          ? ""
+          : made.toLocaleDateString("en-GB", { day: "numeric", month: "short" })}
+      </span>
+    </button>
   )
 }
