@@ -3,6 +3,7 @@ import { MagnifyingGlass, CircleNotch, MapPin } from "@/components/icons"
 import { notifyError, notifyInfo } from "@/lib/notify"
 import { GeocodeSearch } from "../../wailsjs/go/main/App"
 import type { GeocodeResult } from "@/lib/types"
+import { cn } from "@/lib/utils"
 
 interface SearchBarProps {
   onSelectLocation: (lat: number, lon: number) => void
@@ -19,12 +20,19 @@ interface SearchBarProps {
   className?: string
   /** Focused on arrival, for a bar that is revealed rather than always up. */
   autoFocus?: boolean
+  /**
+   * No ground of its own, for a bar set on one: the map's search sits in a
+   * notch of the window's frame, which is its ground and its edge. The list of
+   * results keeps its panel, since it hangs over the map.
+   */
+  bare?: boolean
 }
 
 export function SearchBar({
   onSelectLocation,
   className = "app-no-drag absolute left-1/2 top-3 z-1050 w-[26rem] max-w-[60%] -translate-x-1/2",
   autoFocus,
+  bare = false,
 }: SearchBarProps) {
   const [query, setQuery] = useState("")
   const [results, setResults] = useState<GeocodeResult[]>([])
@@ -57,7 +65,12 @@ export function SearchBar({
 
   return (
     <div className={className}>
-      <div className="panel flex items-center gap-2 rounded-md px-2.5 py-1.5">
+      <div
+        className={cn(
+          "flex items-center gap-2 px-2.5 py-1.5",
+          !bare && "panel rounded-md"
+        )}
+      >
         <MagnifyingGlass className="size-3.5 shrink-0 text-muted-foreground" />
         <input
           autoFocus={autoFocus}

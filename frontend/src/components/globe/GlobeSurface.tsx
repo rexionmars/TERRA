@@ -86,6 +86,7 @@ import {
 import { zoomOfLevel } from "@/lib/mapScale"
 import { onPaletteChange } from "@/lib/paletteWatch"
 import { ensureMosaic, fetchLatestSceneDate } from "@/lib/recentImagery"
+import { hangingNotch } from "@/lib/frameCorners"
 import { cn } from "@/lib/utils"
 
 /**
@@ -201,6 +202,17 @@ const SHAPE_LINE = "draw-shape-line"
 */
 const START_ZOOM = 1.6
 const START_CENTER: [number, number] = [-51.4, -23.4]
+
+/*
+  THE SEARCH HANGS FROM THE WINDOW'S FRAME, in a notch at the middle of the
+  card's top edge, drawn in the frame's construction (hangingNotch in
+  lib/frameCorners.ts). The frame is where the application's own controls live,
+  and a place to type is one of them while it is open. 360px holds a place name
+  and the button beside it, and 44px is the field's 32 with 6 above and below.
+*/
+const SEARCH_WIDTH = 360
+const SEARCH_DEPTH = 44
+const SEARCH_NOTCH = hangingNotch(SEARCH_WIDTH, SEARCH_DEPTH)
 
 const AREA_SOURCE = "terra-areas"
 const AREA_FILL = "terra-areas-fill"
@@ -2079,21 +2091,54 @@ export function GlobeSurface({
       />
 
       {searching && ready && !failure && (
-        <SearchBar
-          className="app-no-drag absolute top-[calc(var(--frame-reach,0px)+0.75rem)] right-[3.5rem] left-3 z-401 max-w-[22rem]"
-          autoFocus
-          onSelectLocation={(lat, lon) => {
-            /*
+        <div
+          className="app-no-drag absolute top-0 z-401"
+          style={{
+            left: `calc(50% - ${SEARCH_NOTCH.total / 2}px)`,
+            width: SEARCH_NOTCH.total,
+          }}
+        >
+          <svg
+            width={SEARCH_NOTCH.total}
+            height={SEARCH_DEPTH}
+            className="block"
+            aria-hidden
+          >
+            <path d={SEARCH_NOTCH.d} className="fill-app" />
+          </svg>
+          {/*
+              The field over the notch's foot, 6px under the card's edge: the
+              notch is its ground, and the list of results hangs below it.
+            */}
+          <div
+            className="absolute top-1.5"
+            style={{
+              left: (SEARCH_NOTCH.total - SEARCH_WIDTH) / 2,
+              width: SEARCH_WIDTH,
+            }}
+          >
+            <SearchBar
+              bare
+              className="w-full"
+              autoFocus
+              onSelectLocation={(lat, lon) => {
+                /*
               14, the zoom FlyToController arrives at everywhere else. Its
               export comment says the controller is shared precisely so there
               is one answer to how far the application zooms on arrival, and a
               second answer introduced here would be a globe that lands closer
               or further than the map for the same search.
             */
-            mapRef.current?.flyTo({ center: [lon, lat], zoom: 14, duration: 1200 })
-            setSearching(false)
-          }}
-        />
+                mapRef.current?.flyTo({
+                  center: [lon, lat],
+                  zoom: 14,
+                  duration: 1200,
+                })
+                setSearching(false)
+              }}
+            />
+          </div>
+        </div>
       )}
       {(!ready || failure) && (
         <div className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center gap-2 px-6 text-center">
