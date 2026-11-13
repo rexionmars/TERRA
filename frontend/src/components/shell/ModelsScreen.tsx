@@ -358,6 +358,18 @@ function CatalogueNote({
   )
 }
 
+/*
+  A CARD IS A PICTURE THAT DARKENS INTO ITS TEXT, after a reference the user
+  chose: the model's picture across the top, fading into the card's ground,
+  with the name set over the darkest of it, the task under the name where a
+  place's region would be, the summary, one line of facts, and at the foot the
+  model's standing beside the way in.
+
+  The whole card is the one control, as it was: it opens the model's page,
+  which is where a model is downloaded and run. The pill at its foot says so
+  and is not a second button, since a button inside a button is not one a
+  reader can reach on its own.
+*/
 function ModelCard({
   row,
   standing,
@@ -371,38 +383,58 @@ function ModelCard({
 }) {
   const shown = shownOf(row)
   const m = shown.manifest
+  const figure = m.evaluation?.figures[0]
+  const facts = [
+    packagers(m) && `Packaged by ${packagers(m)}`,
+    figure ? `${figure.label} ${figure.value}` : "No evaluation recorded",
+    ...(m.requires ?? []).map((r) => `needs ${r}`),
+  ].filter(Boolean)
   return (
     <button
       type="button"
       onClick={onOpen}
-      className="flex h-full w-full overflow-hidden rounded-md border border-border bg-[rgb(var(--p-surface))] text-left transition-colors hover:border-[rgb(var(--p-line-strong)/0.6)] hover:bg-[rgb(var(--p-head))] focus-visible:ring-1 focus-visible:ring-ring focus-visible:outline-none"
+      className="group flex h-full w-full flex-col overflow-hidden rounded-md border border-[rgb(var(--p-line)/0.45)] bg-[rgb(var(--p-ink))] text-left shadow-[0_12px_32px_rgb(0_0_0/0.35)] transition-colors hover:border-[rgb(var(--p-line-strong)/0.6)] focus-visible:ring-1 focus-visible:ring-ring focus-visible:outline-none"
     >
-      <Picture uri={shown.picture_uri} manifest={m} className="w-44 self-stretch" />
-      <span className="flex min-w-0 flex-1 flex-col gap-1.5 p-4">
-        <span className="flex items-center gap-2">
-          <span className="text-heading font-medium text-foreground">{m.name}</span>
-          <span className="telemetry text-meta text-muted-foreground">{m.version}</span>
-          {m.id === current && row.installed && <InUse />}
-        </span>
-        {packagers(m) && (
-          <span className="-mt-1 text-meta text-muted-foreground">
-            Packaged by {packagers(m)}
+      <span className="relative block h-44 shrink-0">
+        <Picture
+          uri={shown.picture_uri}
+          manifest={m}
+          className="absolute inset-0 size-full"
+        />
+        {/* The picture darkens into the card's ground, where the name sits. */}
+        <span
+          aria-hidden
+          className="absolute inset-0 bg-[linear-gradient(180deg,rgb(var(--p-ink)/0)_30%,rgb(var(--p-ink)/0.75)_70%,rgb(var(--p-ink))_100%)]"
+        />
+        {row.installed && (
+          <span className="absolute top-3 right-3 flex items-center gap-1 rounded-full bg-[rgb(4_6_11/0.62)] px-2 py-0.5 text-meta text-[rgb(236_232_223)] backdrop-blur-sm">
+            <Check className="size-3" />
+            {m.id === current ? "In use" : "Installed"}
           </span>
         )}
-        <span className="text-label text-muted-foreground">{m.summary}</span>
-        <span className="mt-auto flex flex-wrap gap-1.5 pt-2">
-          <Tag>{taskName(m.task)}</Tag>
-          {(m.requires ?? []).map((r) => (
-            <Tag key={r}>needs {r}</Tag>
-          ))}
-          <Tag>
-            {m.evaluation?.figures[0]
-              ? `${m.evaluation.figures[0].label} ${m.evaluation.figures[0].value}`
-              : "No evaluation recorded"}
-          </Tag>
+      </span>
+      <span className="relative -mt-12 flex min-w-0 flex-1 flex-col gap-1 px-5 pb-4">
+        <span className="flex items-baseline gap-2">
+          <span className="font-display text-title font-semibold text-foreground">
+            {m.name}
+          </span>
+          <span className="telemetry text-meta text-muted-foreground">{m.version}</span>
         </span>
-        <span className="mt-2 border-t border-border pt-2.5">
-          <StandingLine standing={standing} entry={row.entry} />
+        <span className="text-label text-foreground/80">{taskName(m.task)}</span>
+        <span className="mt-2 text-label leading-relaxed text-muted-foreground">
+          {m.summary}
+        </span>
+        <span className="telemetry mt-1.5 text-meta text-muted-foreground">
+          {facts.join(" · ")}
+        </span>
+        <span className="mt-auto flex items-center gap-3 pt-4">
+          <span className="min-w-0 flex-1">
+            <StandingLine standing={standing} entry={row.entry} />
+          </span>
+          <span className="flex shrink-0 items-center gap-1 rounded-full bg-[rgb(var(--p-text))] px-3.5 py-1.5 text-label font-medium text-[rgb(var(--p-ink))] transition-opacity group-hover:opacity-90">
+            View model
+            <CaretRight className="size-3" />
+          </span>
         </span>
       </span>
     </button>
@@ -827,14 +859,6 @@ function Facts({ rows }: { rows: readonly ModelFact[] }) {
         </div>
       ))}
     </dl>
-  )
-}
-
-function Tag({ children }: { children: React.ReactNode }) {
-  return (
-    <span className="rounded-sm border border-border px-1.5 py-0.5 text-meta text-muted-foreground">
-      {children}
-    </span>
   )
 }
 
