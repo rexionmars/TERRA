@@ -44,9 +44,13 @@ import {
   measureText,
   niceTicks,
   plotHeightFor,
+  staggerRows,
 } from "@/lib/figure"
 import { useFigureBox, useFigureWidth } from "@/lib/useFigureSize"
 import { cn } from "@/lib/utils"
+import { RunPills } from "@/components/workspace/readingParts"
+import { SpectralBackdrop } from "@/components/workspace/SpectralBackdrop"
+import { measuredRuns } from "@/lib/s2Spectral"
 
 /*
   Both panels lay themselves out from the panel they are given and from the
@@ -92,7 +96,8 @@ function AngleRanking({
     height,
     plot: {
       x0: gutter,
-      x1: Math.max(gutter + 1, width - 42),
+      // Room at the right for the widest value label, radians and degrees.
+      x1: Math.max(gutter + 1, width - measureText("0.000 · 00.0°", TYPE.meta) - 12),
       y0: ROW_PX.gap,
       y1: classes.length * RANK_ROW + ROW_PX.gap,
     },
@@ -139,7 +144,8 @@ function AngleRanking({
           fill="var(--muted-foreground)"
           textAnchor="middle"
         >
-          Spectral angle to the reference (radians) — smaller is more consistent
+          Spectral angle to the reference, radians · degrees; brightness does not enter
+          it
         </text>
         {classes.map((c, i) => {
           const y = layout.plot.y0 + i * row + row / 2
@@ -184,7 +190,7 @@ function AngleRanking({
                 dominantBaseline="middle"
                 className="telemetry"
               >
-                {c.angle_rad.toFixed(3)}
+                {c.angle_rad.toFixed(3)} · {((c.angle_rad * 180) / Math.PI).toFixed(1)}°
               </text>
             </g>
           )
@@ -221,15 +227,47 @@ function BandPanel({
   const other = mode === "shape" ? bands.map((b) => b.unit_leaf ?? 0) : null
   const lo = Math.min(0, ...values, ...(other ?? []))
   const hi = Math.max(...values, ...(other ?? []))
-  const ticks = niceTicks(lo, hi * 1.06, 4)
-  const layout = layoutFigure({
+  // Headroom above the curve, where the regions are named.
+  const top = hi * 1.15
+  const ticks = niceTicks(lo, top, 4)
+  /*
+    THE BAND LABELS STAGGER where two sit too close, as Spectra's do. B02 and
+    B03 are 70 nm apart and B08 and B8A 23, so on a panel this wide their
+    labels were drawn over each other as "B02B03" and "B0B8A". A label that
+    would overlap the one before it drops to a second row, with a tick to its
+    band; the foot is sized for the rows before the plot's height is set.
+  */
+  const labelWidth = Math.max(...bands.map((b) => measureText(b.band, TYPE.meta))) + 6
+  const probe = layoutFigure({
     width: box.width,
     plotHeight: plotHeightFor(box.height),
     yLabels: ticks.map((t) => t.toFixed(2)),
     lastXLabel: bands[bands.length - 1]?.band ?? "",
   })
+  const provisional = linearScale([400, 2300], [probe.plot.x0, probe.plot.x1])
+  const labelRows =
+    Math.max(
+      0,
+      ...staggerRows(
+        bands.map((b) => provisional(b.wavelength_nm)),
+        labelWidth
+      )
+    ) + 1
+  const layout = layoutFigure({
+    width: box.width,
+    plotHeight: plotHeightFor(box.height, { xLabelRows: labelRows }),
+    yLabels: ticks.map((t) => t.toFixed(2)),
+    xLabelRows: labelRows,
+    lastXLabel: bands[bands.length - 1]?.band ?? "",
+  })
   const x = linearScale([400, 2300], [layout.plot.x0, layout.plot.x1])
-  const y = linearScale([lo, hi * 1.06], [layout.plot.y1, layout.plot.y0])
+  const rows = staggerRows(
+    bands.map((b) => x(b.wavelength_nm)),
+    labelWidth
+  )
+  const y = linearScale([lo, top], [layout.plot.y1, layout.plot.y0])
+  /* Joined only within a measured stretch, as on Spectra (lib/s2Spectral.ts). */
+  const runs = measuredRuns(bands.map((b, i) => ({ ...b, i })))
 
   return (
     <div
@@ -254,6 +292,7 @@ function BandPanel({
             : "Unit-normalised spectra, which is what the angle compares"
         }
       >
+        <SpectralBackdrop x={x} plot={layout.plot} bands={bands.map((b) => b.band)} />
         {ticks.map((t) => (
           <g key={t}>
             <line
@@ -298,31 +337,58 @@ function BandPanel({
           stroke="var(--border)"
           strokeWidth={STROKE.axis}
         />
-        {other && (
-          <polyline
-            points={bands
-              .map((b, i) => `${x(b.wavelength_nm)},${y(other[i])}`)
-              .join(" ")}
-            fill="none"
-            stroke="var(--muted-foreground)"
-            strokeWidth={STROKE.series}
-            strokeDasharray="5 3"
-          />
-        )}
-        <polyline
-          points={bands
-            .map((b, i) => `${x(b.wavelength_nm)},${y(values[i])}`)
-            .join(" ")}
-          fill="none"
-          stroke={stroke}
-          strokeWidth={STROKE.series}
-        />
+        {runs.map((run, k) => (
+          <g key={`run-${k}`}>
+            {other && (
+              <polyline
+                points={run
+                  .map((b) => `${x(b.wavelength_nm)},${y(other[b.i])}`)
+                  .join(" ")}
+                fill="none"
+                stroke="var(--muted-foreground)"
+                strokeWidth={STROKE.series}
+                strokeDasharray="5 3"
+              />
+            )}
+            <polyline
+              points={run
+                .map((b) => `${x(b.wavelength_nm)},${y(values[b.i])}`)
+                .join(" ")}
+              fill="none"
+              stroke={stroke}
+              strokeWidth={STROKE.series}
+            />
+            {k > 0 && (
+              <line
+                x1={x(runs[k - 1].at(-1)!.wavelength_nm)}
+                y1={y(values[runs[k - 1].at(-1)!.i])}
+                x2={x(run[0].wavelength_nm)}
+                y2={y(values[run[0].i])}
+                stroke={stroke}
+                strokeWidth={1}
+                strokeDasharray="1 4"
+                strokeLinecap="round"
+                opacity={0.55}
+              />
+            )}
+          </g>
+        ))}
         {bands.map((b, i) => (
           <g key={b.band}>
             <circle cx={x(b.wavelength_nm)} cy={y(values[i])} r={2.2} fill={stroke} />
+            {rows[i] > 0 && (
+              <line
+                x1={x(b.wavelength_nm)}
+                x2={x(b.wavelength_nm)}
+                y1={layout.plot.y1}
+                y2={layout.plot.y1 + 4 + rows[i] * 12}
+                stroke="var(--border)"
+                strokeWidth={STROKE.axis}
+              />
+            )}
             <text
               x={x(b.wavelength_nm)}
-              y={layout.plot.y1 + ROW_PX.tick + TYPE.meta}
+              y={layout.plot.y1 + ROW_PX.tick + TYPE.meta + rows[i] * 12}
               fontSize={TYPE.meta}
               fill="var(--muted-foreground)"
               textAnchor="middle"
@@ -409,26 +475,14 @@ export function LibraryLimitEditor({
 
   return (
     <div className="flex h-full min-h-0 flex-col">
-      <div
-        className="flex shrink-0 flex-wrap items-center gap-1 border-b px-2 py-1.5"
-        style={{ borderColor: "rgb(var(--p-line) / 0.22)" }}
-      >
-        {runs.length > 1 &&
-          runs.map((r, i) => (
-            <button
-              key={r.id}
-              type="button"
-              onClick={() => setRunIdx(i)}
-              className={cn(
-                "max-w-[12rem] truncate rounded-sm px-1.5 py-0.5 text-meta transition-colors",
-                i === runIdx
-                  ? "bg-accent-dim text-foreground inset-ring-1 inset-ring-accent"
-                  : "text-muted-foreground hover:bg-hover hover:text-foreground"
-              )}
-            >
-              {r.label}
-            </button>
-          ))}
+      <div className="flex shrink-0 flex-wrap items-center gap-2 border-b border-border px-4 py-2.5">
+        {runs.length > 1 && (
+          <RunPills
+            runs={runs}
+            value={Math.min(runIdx, runs.length - 1)}
+            onChange={setRunIdx}
+          />
+        )}
         {limit && (
           <>
             <span className="telemetry ml-auto truncate text-meta text-muted-foreground">
@@ -473,21 +527,23 @@ export function LibraryLimitEditor({
               )}
             >
               <div className="flex flex-col gap-2 p-2 text-meta leading-snug">
-                <p className="eyebrow !text-micro">What a small angle means</p>
+                <p className="font-medium text-foreground">What a small angle means</p>
                 <p className="text-muted-foreground">
                   It means the class is CONSISTENT with the reference, not that the
                   material is identified. The reference is {limit.reference.level} level
                   and a pixel is canopy, so the two are not measurements of the same
                   thing.
                 </p>
-                <p className="eyebrow !text-micro">Why the difference survives</p>
+                <p className="font-medium text-foreground">
+                  Why the difference survives
+                </p>
                 <p className="text-muted-foreground">
                   Soil raises the red while gaps and shadow lower the NIR, in opposite
                   directions. A constant ratio would be brightness alone and the angle
                   would return zero; the shape is distorted instead, and normalisation
                   cannot remove it.
                 </p>
-                <p className="eyebrow !text-micro">The reference</p>
+                <p className="font-medium text-foreground">The reference</p>
                 <p className="text-muted-foreground">
                   {limit.reference.note} Package {limit.reference.package_id}, convolved
                   onto the ESA Sentinel-2A response functions. Measured on the{" "}
@@ -499,7 +555,7 @@ export function LibraryLimitEditor({
         )}
       </div>
 
-      <div className="panel-scroll min-h-0 flex-1 overflow-auto p-2">
+      <div className="panel-scroll min-h-0 flex-1 overflow-auto p-4">
         {!limit || !limit.classes.length || !shown ? (
           <p className="text-meta text-muted-foreground">
             This run carries no library comparison. It needs the spectral response,

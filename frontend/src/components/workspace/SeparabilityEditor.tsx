@@ -50,6 +50,10 @@ import {
   type BandSeparation,
 } from "@/lib/separability"
 import { cn } from "@/lib/utils"
+import { Segmented } from "@/components/shell/settingsParts"
+import { Callout, RunPills, titled } from "@/components/workspace/readingParts"
+import { S2_BANDS, jmErrorBound, spectralChecks } from "@/lib/s2Spectral"
+import { Warning } from "@/components/icons"
 
 type Reading = "surround" | "drift"
 
@@ -72,6 +76,14 @@ const BANDS: { from: number; to: number; label: string }[] = [
 ]
 
 const fmtJM = (jm: number) => jm.toFixed(3)
+
+/** An error bound as a share: never "0%", which no bound is. */
+const fmtBound = (e: number) =>
+  e < 0.005
+    ? "<0.5%"
+    : e < 0.1
+      ? `≤${(e * 100).toFixed(1)}%`
+      : `≤${(e * 100).toFixed(0)}%`
 
 /** Signed, and in percentage points of reflectance, which is how it is read. */
 const fmtShift = (d: number) =>
@@ -116,6 +128,7 @@ export function SeparabilityEditor({
     if (reading === "surround") {
       return classPairSeparability(spectra).map((p) => ({
         key: `${p.aId}-${p.bId}`,
+        classIds: [p.aId, p.bId],
         swatches: [p.aColor, p.bColor],
         title: `${p.aName} vs ${p.bName}`,
         best: p.best,
@@ -126,6 +139,7 @@ export function SeparabilityEditor({
     }
     return classDriftBetweenRuns(spectra, otherSpectra).map((d) => ({
       key: String(d.classId),
+      classIds: [d.classId],
       swatches: [d.color],
       title: d.name,
       best: d.best,
@@ -154,6 +168,41 @@ export function SeparabilityEditor({
 
   const selected = ordered.find((r) => r.key === pick) ?? ordered[0] ?? null
 
+  /*
+    A DISTANCE MADE OF A BAD MEASUREMENT IS NOT A SEPARATION. Where a class's
+    mean spectrum fails a physical check (lib/s2Spectral.ts, spectralChecks) --
+    a negative reflectance, or B08 and B8A that cannot both be right -- a pair
+    whose best band is one of the failing ones is reported as resting on it,
+    since the distance then measures the fault and not the ground.
+  */
+  const suspect = useMemo(() => {
+    const out = new Map<string, Set<string>>()
+    const add = (s: ClassSpectra | null, side: string) => {
+      if (!s) return
+      const means = new Map<number, Record<string, number>>()
+      for (const p of s.points) {
+        const m = means.get(p.class_id) ?? {}
+        m[p.band] = p.mean
+        means.set(p.class_id, m)
+      }
+      for (const [id, m] of means) {
+        const bad = new Set(spectralChecks(m).flatMap((c) => c.bands))
+        if (bad.size) out.set(`${side}:${id}`, bad)
+      }
+    }
+    add(spectra, "a")
+    if (reading === "drift") add(otherSpectra, "b")
+    return out
+  }, [spectra, otherSpectra, reading])
+  const restsOnFault = (r: (typeof ordered)[number]) =>
+    !!r.best &&
+    r.classIds.some(
+      (id) =>
+        suspect.get(`a:${id}`)?.has(r.best!.band) ||
+        suspect.get(`b:${id}`)?.has(r.best!.band)
+    )
+  const faulted = ordered.filter(restsOnFault)
+
   /** The selected row's bands, in wavelength order, for the chart. */
   const chartBands = useMemo(
     () =>
@@ -172,9 +221,9 @@ export function SeparabilityEditor({
     )
     const layout = layoutFigure({
       width: box.width,
-      plotHeight: plotHeightFor(box.height, { xLabelRows: 1, legendRows: 0 }),
+      plotHeight: plotHeightFor(box.height, { xLabelRows: 2, legendRows: 0 }),
       yLabels,
-      xLabelRows: 1,
+      xLabelRows: 2,
       lastXLabel: chartBands[chartBands.length - 1]?.band ?? "",
     })
     const y = linearScale(JM_DOMAIN, [layout.plot.y1, layout.plot.y0])
@@ -202,37 +251,21 @@ export function SeparabilityEditor({
 
   return (
     <div className="flex h-full min-h-0 flex-col">
-      <div
-        className="flex shrink-0 flex-wrap items-center gap-1 border-b px-2 py-1.5"
-        style={{ borderColor: "rgb(var(--p-line) / 0.22)" }}
-      >
-        {(
-          [
-            ["surround", "Against the surround"],
-            ["drift", "Between two runs"],
-          ] as const
-        ).map(([id, label]) => (
-          <button
-            key={id}
-            type="button"
-            onClick={() => {
-              setReading(id)
-              // The rows are different things in the two readings, so a key
-              // held across the switch would select a pair that is not there.
-              setPick(null)
-            }}
-            className={cn(
-              "rounded-sm px-1.5 py-0.5 text-meta transition-colors",
-              reading === id
-                ? "bg-accent-dim text-foreground inset-ring-1 inset-ring-accent"
-                : "text-muted-foreground hover:bg-hover hover:text-foreground"
-            )}
-          >
-            {label}
-          </button>
-        ))}
-
-        <span className="mx-1 h-3 w-px bg-border" aria-hidden />
+      <div className="flex shrink-0 flex-col items-start gap-2 border-b border-border px-4 py-3">
+        <Segmented
+          label="Reading"
+          value={reading}
+          options={[
+            { value: "surround", label: "Against the surround" },
+            { value: "drift", label: "Between two runs" },
+          ]}
+          onChange={(id) => {
+            setReading(id)
+            // The rows are different things in the two readings, so a key
+            // held across the switch would select a pair that is not there.
+            setPick(null)
+          }}
+        />
 
         <RunTabs
           runs={runs}
@@ -256,7 +289,7 @@ export function SeparabilityEditor({
         )}
       </div>
 
-      <div className="panel-scroll min-h-0 flex-1 overflow-auto p-2">
+      <div className="panel-scroll min-h-0 flex-1 overflow-auto p-4">
         {needsSecond ? (
           <p className="text-meta text-muted-foreground">
             Drift compares one class between two runs. Select a second plane and it is
@@ -275,7 +308,7 @@ export function SeparabilityEditor({
               : "These two runs share no predicted class, so there is nothing to compare between them."}
           </p>
         ) : (
-          <div className="flex flex-col gap-2">
+          <div className="flex flex-col gap-3">
             <Provenance
               spectra={spectra}
               other={reading === "drift" ? otherSpectra : null}
@@ -284,6 +317,17 @@ export function SeparabilityEditor({
             />
 
             <div className="flex flex-col">
+              <div className="flex items-center gap-1.5 px-1.5 pb-1 text-meta text-muted-foreground">
+                <span className="min-w-0 flex-1">Pair, closest first</span>
+                <span className="w-9 shrink-0 text-right">Band</span>
+                <span className="w-[3.2rem] shrink-0 text-right">JM</span>
+                <span
+                  className="w-[3.6rem] shrink-0 text-right"
+                  title="Bhattacharyya bound on the error, at equal priors"
+                >
+                  Error
+                </span>
+              </div>
               {ordered.map((r) => {
                 const active = selected?.key === r.key
                 return (
@@ -328,7 +372,13 @@ export function SeparabilityEditor({
                             {r.measured}/{r.bands.length}
                           </span>
                         )}
-                        <span className="telemetry shrink-0 text-meta text-muted-foreground">
+                        <span className="telemetry flex w-9 shrink-0 items-center justify-end gap-1 text-right text-meta text-muted-foreground">
+                          {restsOnFault(r) && (
+                            <Warning
+                              className="size-3 shrink-0 text-warning"
+                              aria-label={`${r.best.band} fails a physical check for a class in this pair`}
+                            />
+                          )}
                           {r.best.band}
                         </span>
                         <span
@@ -339,6 +389,12 @@ export function SeparabilityEditor({
                         >
                           {fmtJM(r.best.jm!)}
                         </span>
+                        <span
+                          className="telemetry w-[3.6rem] shrink-0 text-right text-meta text-muted-foreground"
+                          title="Bhattacharyya bound on the error of telling the two apart with this band alone, at equal priors"
+                        >
+                          {restsOnFault(r) ? "—" : fmtBound(jmErrorBound(r.best.jm!))}
+                        </span>
                       </>
                     )}
                   </button>
@@ -346,11 +402,21 @@ export function SeparabilityEditor({
               })}
             </div>
 
-            <div
-              className="rounded-sm border p-1.5"
-              style={{ borderColor: "rgb(var(--p-line) / 0.22)" }}
-            >
-              <p className="eyebrow !text-micro">{selected?.title ?? ""} · per band</p>
+            {faulted.length > 0 && (
+              <Callout title="Some distances rest on a failing band">
+                {faulted.map((r) => r.title).join("; ")}{" "}
+                {faulted.length === 1 ? "is" : "are"} best separated by{" "}
+                {[...new Set(faulted.map((r) => r.best!.band))].join(" and ")}, which
+                fails a physical check for a class involved (see Spectra). The distance
+                there measures the fault rather than the ground, so no error bound is
+                given.
+              </Callout>
+            )}
+
+            <div className="rounded-md border border-[rgb(var(--p-line)/0.45)] bg-[rgb(var(--p-ink))] p-3">
+              <p className="text-label font-medium text-foreground">
+                {selected?.title ?? ""}, band by band
+              </p>
               <div
                 ref={host}
                 className="relative min-h-0 w-full flex-1"
@@ -388,17 +454,6 @@ export function SeparabilityEditor({
                                 : 0
                           }
                         />
-                        <text
-                          x={figure.layout.plot.x1 - 3}
-                          y={(figure.y(b.from) + figure.y(b.to)) / 2}
-                          fontSize={TYPE.micro}
-                          fill="var(--muted-foreground)"
-                          textAnchor="end"
-                          dominantBaseline="middle"
-                          opacity={0.7}
-                        >
-                          {b.label}
-                        </text>
                       </g>
                     ))}
 
@@ -488,6 +543,27 @@ export function SeparabilityEditor({
                           >
                             {b.band}
                           </text>
+                          {/*
+                            The native resolution under each band: a 20 m band
+                            averages four 10 m pixels, so its spread -- which
+                            the distance is made of -- is not the same kind of
+                            quantity as a 10 m band's.
+                          */}
+                          {S2_BANDS[b.band] && (
+                            <text
+                              x={cx}
+                              y={
+                                figure.layout.plot.y1 + ROW_PX.tick + ROW_PX.label * 1.5
+                              }
+                              fontSize={TYPE.micro}
+                              fill="var(--muted-foreground)"
+                              textAnchor="middle"
+                              dominantBaseline="middle"
+                              opacity={0.8}
+                            >
+                              {S2_BANDS[b.band].res} m
+                            </text>
+                          )}
                         </g>
                       )
                     })}
@@ -495,6 +571,15 @@ export function SeparabilityEditor({
                 )}
               </div>
 
+              {/*
+                THE ZONES ARE NAMED UNDER THE FIGURE, not in it. Their names sat
+                at the right edge of each zone, where the tallest bars stand, and
+                were drawn over them.
+              */}
+              <p className="mt-1 text-meta text-muted-foreground">
+                Separable at 1.9 and above, the lighter band at the top; partial from
+                1.0 to 1.9; overlapping below 1.0.
+              </p>
               {selected?.shifts && (
                 <ShiftRow
                   bands={chartBands}
@@ -524,26 +609,7 @@ function RunTabs({
   onChange: (i: number) => void
   prefix?: string
 }) {
-  return (
-    <span className="flex min-w-0 items-center gap-1">
-      {prefix && <span className="eyebrow shrink-0 !text-micro">{prefix}</span>}
-      {runs.map((r, i) => (
-        <button
-          key={r.id}
-          type="button"
-          onClick={() => onChange(i)}
-          className={cn(
-            "max-w-[9rem] truncate rounded-sm px-1.5 py-0.5 text-meta transition-colors",
-            i === value
-              ? "bg-accent-dim text-foreground inset-ring-1 inset-ring-accent"
-              : "text-muted-foreground hover:bg-hover hover:text-foreground"
-          )}
-        >
-          {r.label}
-        </button>
-      ))}
-    </span>
-  )
+  return <RunPills runs={runs} value={value} onChange={onChange} prefix={prefix} />
 }
 
 /**
@@ -569,7 +635,8 @@ function Provenance({
     <p className="telemetry text-meta leading-snug text-muted-foreground">
       {other ? (
         <>
-          {runLabel} {spectra.scene_date} · {otherLabel} {other.scene_date}
+          {titled(runLabel ?? "")} {spectra.scene_date} · {titled(otherLabel ?? "")}{" "}
+          {other.scene_date}
           {spectra.scene_date !== other.scene_date && (
             <> · different acquisitions, so season is in this comparison too</>
           )}
@@ -599,8 +666,8 @@ function ShiftRow({
   const byBand = new Map(shifts.map((s) => [s.band, s.delta]))
   return (
     <div className="mt-1.5 flex flex-col gap-0.5">
-      <p className="eyebrow !text-micro">
-        Mean reflectance, {aLabel} to {bLabel}
+      <p className="text-label font-medium text-foreground">
+        Mean reflectance, {titled(aLabel)} to {titled(bLabel)}
       </p>
       <div className="flex flex-wrap gap-x-2 gap-y-0.5">
         {bands.map((b) => {
@@ -639,12 +706,14 @@ function ShiftRow({
  */
 function Note({ reading }: { reading: Reading }) {
   return (
-    <p className="text-meta leading-snug text-muted-foreground">
+    <p className="text-label text-muted-foreground">
       {reading === "surround"
         ? "Jeffries-Matusita distance between each pair of predicted classes, one band at a time, from the mean and spread of a single acquisition under a normal assumption."
         : "Jeffries-Matusita distance for the same class measured in two runs, one band at a time, from the mean and spread of a single acquisition each under a normal assumption."}{" "}
       Per band because the payload carries a marginal for each band and no covariance
-      between them.{" "}
+      between them. The error column is the Bhattacharyya bound, ½e
+      <sup>−B</sup> = ½(1 − JM/2): with that band alone and two equally likely classes,
+      the best classifier errs on at most that share of pixels.{" "}
       <span className="text-foreground">These are a floor and not a ceiling.</span> A
       classifier reads the bands together and can separate classes that no single band
       separates, so a column of short bars is not a finding that these classes are
