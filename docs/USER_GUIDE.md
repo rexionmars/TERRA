@@ -23,10 +23,10 @@ the map, with the start screen over it. After a version bump you may see **What'
 New** once.
 
 - **Left rail:** Explore, Areas, Analyses, Compare, Workflows, Models, Activity, and
-  your account at the foot. The button at the top of the header shows the labels.
-- **Header:** the open project and area, each a menu. The TERRA mark at the right
-  end opens the **TERRA EO** menu: project files, settings, the Python environment
-  and storage.
+  your account at the foot. The button above the account shows the labels.
+- **Top right corner:** where you are, as one path: **TERRA EO**, the open project
+  and the area, each a menu. **TERRA EO** opens the application's menu: project
+  files, settings, the Python environment and storage.
 - **Right edge of the map:** Products, Compositions, Result, Points and Layers,
   then the map's own tools: search, basemap, imagery date, relief, draw, edit,
   import, delete.
@@ -46,7 +46,7 @@ over one area.
 - Rename an area without renaming the runs made over it.
 
 **A project is required before drawing.** An area belongs to one, so with no project
-open the map refuses the shape. Create one from the project menu in the header.
+open the map refuses the shape. Create one from the project menu at the top right.
 
 ## 3. Make an area
 
@@ -164,7 +164,7 @@ with unsaved changes asks first.
 
 ## 10. Project files
 
-Under **TERRA EO**, the mark in the header: open, save, save as and reveal a
+Under **TERRA EO**, the mark at the top right: open, save, save as and reveal a
 `.terra` file. **Save** in Workflows, or Cmd/Ctrl+S, also writes the project's file
 when it has one.
 
@@ -183,7 +183,7 @@ disk under the application's config directory; there is no cloud sync.
 
 ## Suggested first run
 
-1. Create a **project** from the project menu in the header.
+1. Create a **project** from the project menu at the top right.
 2. Draw an **area** with the pencil. It is saved under the project.
 3. Open **Products › Classification**. Use a period of a few months with the clearest
    scene per month and a moderate cloud limit.

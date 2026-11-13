@@ -117,20 +117,22 @@ func main() {
 		},
 		Mac: &mac.Options{
 			/*
-				Hidden-inset, not hidden. The two differ by one field,
+				Hidden, not hidden-inset. The two differ by one field,
 				UseToolbar, and the toolbar is what places the traffic lights.
-				Measured on captures of the window on macOS 26: with it they are
-				centred 26pt down and end 79pt in, which is the centre of a 52pt
-				bar, the height of the Finder's. Without it they are centred 16pt
-				down, the centre of a bar too short for the header's 32pt
-				buttons. So the bars are 52pt tall and start their contents clear
-				of the 79pt: ShellChrome.tsx, TitleBar.tsx and the splash's bar
-				in splash.css.
+				Measured on captures of the window on macOS 26: without it they
+				are centred 16pt down and end 69pt in; with it, 26pt down and 79pt
+				in, the centre of a 52pt bar. The window has no such bar: the map
+				is a card in a frame 8pt wide, and the frame reaches into the
+				card's top corners to a depth of 32pt to hold the lights and the
+				path, which puts the lights on its centre line
+				(frontend/src/lib/frameCorners.ts). The other screens' bar is
+				32pt for the same reason (TitleBar.tsx), and so is the splash's
+				status band (splash.css).
 
 				Both keep NSWindowStyleMaskTitled, which is the part that
 				matters for compositing -- see Frameless above.
 			*/
-			TitleBar:   mac.TitleBarHiddenInset(),
+			TitleBar:   mac.TitleBarHidden(),
 			Appearance: mac.NSAppearanceNameDarkAqua,
 			// A .terra file opened from the Finder; see app_projectfile.go.
 			OnFileOpen: app.fileOpened,
