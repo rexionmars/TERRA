@@ -59,6 +59,8 @@ import { comparePairTables, formatGroundWidth, groundWidthM } from "@/lib/compar
 import { predictionSource } from "@/lib/mapLayers"
 import { notifyError, notifyInfo, notifySuccess } from "@/lib/notify"
 import { loadedRunAssets, type RunAsset } from "@/lib/runAssets"
+import { datesByMonth } from "@/lib/runSummary"
+import { PHOTO_CHIP } from "@/components/ui/TabbedBanner"
 import type { InferenceRun } from "@/lib/types"
 import { cn } from "@/lib/utils"
 import { PanelChoices, PanelHeading } from "@/components/shell/ShellPanel"
@@ -86,32 +88,87 @@ const CLASSES = "var(--b-source-head)"
 const FREE = "var(--b-card-ink)"
 const READING_GUESS_H = 150
 
-/** A run's card: the raster it shows, which one, and how much ground it spans. */
+/*
+  A RUN'S CARD, as a run is shown on Analyses and in the Differences reading:
+  its raster whole on a plate, with how much ground the picture spans set on it
+  as a scale, the bar of its classes under it, the class covering most of it
+  and the model, and the period by month. The raster to show is chosen under
+  the picture where the run keeps more than one.
+*/
 function RunCard({ run, onRemove }: { run: SessionRun; onRemove?: () => void }) {
   const assets = useMemo(() => assetsOf(run), [run])
   const [assetId, setAssetId] = useState<string | null>(null)
   const asset = assets.find((a) => a.id === assetId) ?? assets[0]
+  const stats = [...(run.result.class_stats ?? [])].sort((a, b) => b.pct - a.pct)
+  const top = stats[0]
+  const across = asset?.extent ? formatGroundWidth(groundWidthM(asset.extent)) : null
   return (
-    <div className="flex flex-col gap-1.5 px-2 pb-2">
-      <div className="relative h-44 overflow-hidden rounded-sm bg-[rgb(var(--p-sunk))]">
-        {asset ? (
-          <img
-            src={asset.previewUri}
-            alt={`${asset.title} of ${run.label}`}
-            draggable={false}
-            className="absolute inset-0 h-full w-full object-contain"
-            style={{ imageRendering: asset.pixelated ? "pixelated" : undefined }}
-          />
-        ) : (
-          <p className="absolute inset-0 flex items-center justify-center px-3 text-center text-label text-muted-foreground">
-            This run keeps no raster to show.
-          </p>
+    <div className="flex flex-col gap-2">
+      <div className="overflow-hidden rounded-md border border-[rgb(var(--p-line)/0.45)]">
+        <div className="relative h-40 bg-[radial-gradient(120%_90%_at_50%_40%,rgb(var(--p-surface)),rgb(var(--p-sunk)))]">
+          {asset ? (
+            <img
+              src={asset.previewUri}
+              alt={`${asset.title} of ${titled(run.label)}`}
+              draggable={false}
+              className="absolute inset-0 size-full object-contain p-3"
+              style={{ imageRendering: asset.pixelated ? "pixelated" : undefined }}
+            />
+          ) : (
+            <p className="absolute inset-0 flex items-center justify-center px-3 text-center text-label text-muted-foreground">
+              This run keeps no raster to show.
+            </p>
+          )}
+          {across && (
+            <span
+              className={cn(
+                PHOTO_CHIP,
+                "telemetry absolute bottom-2 left-2 px-2 py-0.5 text-meta"
+              )}
+              title="The ground the picture spans. Each card is drawn to its own scale."
+            >
+              {across} across
+            </span>
+          )}
+        </div>
+        {stats.length > 0 && (
+          <div aria-hidden className="flex h-1">
+            {stats.map((c) => (
+              <span
+                key={c.class_id}
+                style={{ width: `${c.pct}%`, background: c.color }}
+              />
+            ))}
+          </div>
         )}
       </div>
+
+      {(top || run.model) && (
+        <p className="flex min-w-0 items-center gap-1.5 text-label">
+          {top && (
+            <>
+              <span
+                className="size-2 shrink-0 rounded-xs"
+                style={{ background: top.color }}
+              />
+              <span className="truncate text-foreground">
+                {top.name} {Math.round(top.pct)}%
+              </span>
+            </>
+          )}
+          {run.model && (
+            <span className="truncate text-muted-foreground">
+              {top ? "· " : ""}
+              {run.model}
+            </span>
+          )}
+        </p>
+      )}
+
       {assets.length > 1 && (
         <select
-          aria-label={`Raster of ${run.label}`}
-          className="field-input"
+          aria-label={`Raster of ${titled(run.label)}`}
+          className="field-input h-7 text-label"
           value={asset?.id ?? ""}
           onChange={(e) => setAssetId(e.target.value)}
         >
@@ -122,19 +179,18 @@ function RunCard({ run, onRemove }: { run: SessionRun; onRemove?: () => void }) 
           ))}
         </select>
       )}
+
       <div className="flex items-center gap-2">
         <p
-          className="min-w-0 flex-1 truncate text-label text-muted-foreground tabular-nums"
-          title={[run.period, run.model].filter(Boolean).join(" · ")}
+          className="telemetry min-w-0 flex-1 truncate text-meta text-muted-foreground"
+          title={run.period ?? undefined}
         >
-          {asset?.extent && `${formatGroundWidth(groundWidthM(asset.extent))} across`}
-          {run.period && ` · ${run.period}`}
-          {run.model && ` · ${run.model}`}
+          {run.period ? datesByMonth(run.period) : "No period recorded"}
         </p>
         {onRemove && (
           <button
             type="button"
-            aria-label={`Take ${run.label} off the board`}
+            aria-label={`Take ${titled(run.label)} off the board`}
             title="Take off the board. A saved run stays saved."
             onClick={onRemove}
             className="flex size-6 shrink-0 items-center justify-center rounded-sm text-muted-foreground hover:bg-hover hover:text-foreground"
@@ -349,7 +405,7 @@ export function CompareScreen({
     place: placeOf(run.id, i),
     w: RUN_W,
     h: heights[run.id] ?? RUN_H,
-    header: <Head label={run.label} />,
+    header: <Head label={titled(run.label)} />,
     ...RUN_PAINT,
     selected: selected === run.id,
     outputs: present.has(run.id)
@@ -375,17 +431,27 @@ export function CompareScreen({
     outputs: [],
     inputs: readingInputs(board, r, present).map((i) => ({
       id: i.id,
-      label: i.run ? `${i.label} · ${sideOf(i.run)?.label ?? i.run}` : i.label,
+      /*
+        A linked input names the run, with its role where it has one; a free
+        one says what it wants. "Run · field 23" said the role twice.
+      */
+      label: i.run
+        ? i.label === "Run"
+          ? titled(sideOf(i.run)?.label ?? i.run)
+          : `${i.label} · ${titled(sideOf(i.run)?.label ?? i.run)}`
+        : i.label === "Run"
+          ? "Link a run here"
+          : `${i.label}: link a run`,
       colour: i.run ? CLASSES : FREE,
       linked: !!i.run,
     })),
     children: (
-      <div className="flex flex-col gap-1.5 px-2 pb-2">
+      <div className="flex flex-col gap-2">
         <p className="text-label text-muted-foreground">{readingSummary(r)}</p>
         <button
           type="button"
           onClick={() => remove(r.id)}
-          className="flex items-center gap-1 self-start text-label text-muted-foreground hover:text-foreground"
+          className="-ml-1.5 inline-flex h-7 items-center gap-1.5 self-start rounded-sm px-1.5 text-label text-muted-foreground transition-colors hover:bg-hover hover:text-foreground"
         >
           <Trash className="size-3.5" />
           Remove
