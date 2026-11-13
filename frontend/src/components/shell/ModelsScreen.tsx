@@ -165,7 +165,7 @@ export function ModelsScreen({
   }
 
   return (
-    <div className="app-no-drag absolute inset-0 z-480 flex flex-col bg-app">
+    <div className="app-no-drag absolute inset-0 z-480 flex flex-col bg-app pt-[var(--frame-reach,0px)]">
       <header className="flex h-12 shrink-0 items-center gap-1.5 border-b border-border px-4">
         {row ? (
           <>

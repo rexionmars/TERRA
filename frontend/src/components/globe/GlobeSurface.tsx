@@ -1906,7 +1906,7 @@ export function GlobeSurface({
         and "what am I drawing" apart.
       */}
       {ready && !failure && (
-        <MapBar className="app-no-drag absolute top-3 right-3 z-400 flex flex-col">
+        <MapBar className="app-no-drag absolute top-[calc(var(--frame-reach,0px)+0.75rem)] right-3 z-400 flex flex-col">
           {leadingTools}
           {leadingTools && (
             <div aria-hidden className="h-1 bg-[rgb(var(--p-line)/0.45)]" />
@@ -2082,7 +2082,7 @@ export function GlobeSurface({
 
       {searching && ready && !failure && (
         <SearchBar
-          className="app-no-drag absolute top-3 right-[3.5rem] left-3 z-401 max-w-[22rem]"
+          className="app-no-drag absolute top-[calc(var(--frame-reach,0px)+0.75rem)] right-[3.5rem] left-3 z-401 max-w-[22rem]"
           autoFocus
           onSelectLocation={(lat, lon) => {
             /*

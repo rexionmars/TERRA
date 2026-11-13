@@ -44,7 +44,7 @@ export function ShellPanel({
       ref={panelRef}
       aria-label={place?.label}
       className={cn(
-        "map-chrome map-chrome-panel app-no-drag absolute top-3 right-[3.5rem] bottom-10 z-450 flex max-w-[calc(100%-5rem)] flex-col overflow-hidden rounded-md border border-[rgb(var(--p-line)/0.28)] shadow-[0_2px_8px_rgb(0_0_0/0.28)]",
+        "map-chrome map-chrome-panel app-no-drag absolute top-[calc(var(--frame-reach,0px)+0.75rem)] right-[3.5rem] bottom-10 z-450 flex max-w-[calc(100%-5rem)] flex-col overflow-hidden rounded-md border border-[rgb(var(--p-line)/0.28)] shadow-[0_2px_8px_rgb(0_0_0/0.28)]",
         wide ? "w-[44rem]" : "w-[26rem]"
       )}
     >

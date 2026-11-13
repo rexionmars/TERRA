@@ -15,7 +15,13 @@ import { LayersPanel } from "@/components/shell/LayersPanel"
 import { PointsPanel, type PointSlot } from "@/components/shell/PointsPanel"
 import { ProductsPanel } from "@/components/shell/ProductsPanel"
 import type { ClassificationView, ResultProduct } from "@/components/shell/ResultPanel"
-import { ShellRail, ShellTopBar, keepRailOpen } from "@/components/shell/ShellChrome"
+import {
+  RESERVES_TRAFFIC_LIGHTS,
+  ShellPath,
+  ShellRail,
+  keepRailOpen,
+} from "@/components/shell/ShellChrome"
+import { ShellCorners } from "@/components/shell/ShellCorners"
 import { VisualizationPanel } from "@/components/shell/VisualizationPanel"
 import { writeBoardMemory } from "@/components/workspace/boardMemory"
 import { claimLaunchStart, StartScreen } from "@/components/workspace/StartScreen"
@@ -42,6 +48,7 @@ import {
   type LegendChoice,
   type LegendState,
 } from "@/lib/legendChoice"
+import { FRAME_EDGE, FRAME_REACH } from "@/lib/frameCorners"
 import { refreshModels } from "@/lib/installedModels"
 import { useReports } from "@/lib/reports"
 import { cn } from "@/lib/utils"
@@ -167,6 +174,8 @@ export function MapShell(props: MapShellProps) {
     setPanel,
     togglePanel,
   } = nav
+  /** The map's card, which the frame's corner pieces are drawn against. */
+  const card = useRef<HTMLElement>(null)
   /*
     How many reports had been read when the activity panel was last open, so the
     rail can say there is something new. A count and not a flag: the log only
@@ -478,27 +487,25 @@ export function MapShell(props: MapShellProps) {
     <div className="absolute inset-0 flex flex-col bg-app">
       {app.surfaces}
       {/*
-        The bar runs the width of the window, over the rail and the map, so
-        the window's own buttons, the rail's toggle and the crumbs share one
-        band whatever the rail's width.
+        The window is a frame of its own ground around the map, the same width
+        at the top, the right and the foot, with the rail as its left side.
+        The frame reaches into the map's top corners to hold the traffic
+        lights and the path that says where the reader is; see ShellCorners.
       */}
-      <ShellTopBar
-        projectName={props.activeProjectName ?? "No project"}
-        projects={projects}
-        activeProjectId={props.activeProjectId}
-        onActivateProject={props.onActivateProject}
-        areas={areas}
-        areaName={areaName}
-        activeAreaId={props.activeAreaId}
-        onPickArea={pickArea}
-        railOpen={railOpen}
-        onToggleRail={() => {
-          keepRailOpen(!railOpen)
-          setRailOpen(!railOpen)
-        }}
-        app={app}
-        recentFiles={extras.recent_project_files ?? []}
-      />
+      <ShellCorners card={card} lights={RESERVES_TRAFFIC_LIGHTS}>
+        <ShellPath
+          projectName={props.activeProjectName ?? "No project"}
+          projects={projects}
+          activeProjectId={props.activeProjectId}
+          onActivateProject={props.onActivateProject}
+          areas={areas}
+          areaName={areaName}
+          activeAreaId={props.activeAreaId}
+          onPickArea={pickArea}
+          app={app}
+          recentFiles={extras.recent_project_files ?? []}
+        />
+      </ShellCorners>
       <div className="flex min-h-0 min-w-0 flex-1">
         <ShellRail
           place={
@@ -515,6 +522,10 @@ export function MapShell(props: MapShellProps) {
                     : "explore"
           }
           open={railOpen}
+          onToggle={() => {
+            keepRailOpen(!railOpen)
+            setRailOpen(!railOpen)
+          }}
           unseen={reports.length > seenReports}
           onExplore={() => {
             setDestination("explore")
@@ -533,7 +544,18 @@ export function MapShell(props: MapShellProps) {
             togglePanel("activity")
           }}
         />
-        <main className="relative min-h-0 min-w-0 flex-1">
+        {/*
+          The card: inset by the frame's edge at the top, the right and the
+          foot, and given the depth the corner pieces reach into it as
+          --frame-reach. What is anchored to its top starts below that: the
+          map's tools and panels, and the header rows of the full-screen
+          destinations, whose ends the pieces would otherwise cover.
+        */}
+        <main
+          ref={card}
+          className="app-no-drag relative m-2 ml-0 min-h-0 min-w-0 flex-1 overflow-hidden rounded-md"
+          style={{ ["--frame-reach" as string]: `${FRAME_REACH - FRAME_EDGE}px` }}
+        >
           <Suspense fallback={null}>
             <GlobeSurface
               className="h-full w-full"
@@ -916,7 +938,7 @@ export function MapShell(props: MapShellProps) {
             <div
               ref={pageRef}
               className={cn(
-                "app-no-drag absolute inset-0 z-480 flex-col bg-app",
+                "app-no-drag absolute inset-0 z-480 flex-col bg-app pt-[var(--frame-reach,0px)]",
                 destination === "analyses" ? "flex" : "hidden"
               )}
             >

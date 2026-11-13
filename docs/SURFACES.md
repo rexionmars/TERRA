@@ -10,7 +10,8 @@ disagree, the code is right and this file is stale.
 | What | Where |
 | --- | --- |
 | The surface and everything it holds | [`frontend/src/pages/MapShell.tsx`](../frontend/src/pages/MapShell.tsx) |
-| Navigation rail and header | [`frontend/src/components/shell/ShellChrome.tsx`](../frontend/src/components/shell/ShellChrome.tsx) |
+| Navigation rail and the path at the top right | [`frontend/src/components/shell/ShellChrome.tsx`](../frontend/src/components/shell/ShellChrome.tsx) |
+| The frame around the map, and its corner pieces | [`frontend/src/components/shell/ShellCorners.tsx`](../frontend/src/components/shell/ShellCorners.tsx), the geometry in [`frontend/src/lib/frameCorners.ts`](../frontend/src/lib/frameCorners.ts) |
 | The panels | [`frontend/src/components/shell/`](../frontend/src/components/shell/) |
 | Compare | [`frontend/src/components/shell/CompareScreen.tsx`](../frontend/src/components/shell/CompareScreen.tsx) |
 | Workflows | [`frontend/src/components/shell/WorkflowsScreen.tsx`](../frontend/src/components/shell/WorkflowsScreen.tsx) |
