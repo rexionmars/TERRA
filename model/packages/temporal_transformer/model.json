@@ -9,8 +9,13 @@
     39,
     41
   ],
-  "license": "GPL-3.0-only",
+  "license": "MIT",
   "doi": null,
+  "packaged_by": [
+    {
+      "name": "João Leonardi"
+    }
+  ],
   "limits": [
     "The legend is fixed and the model was fitted for western Paraná. An area elsewhere can return a confident and wrong result. Hectares are pixel counts, uncorrected for classification error.",
     "MapBiomas is not field truth. Agreement is concordance with an annual map, often offset in time from the Sentinel-2 series.",
