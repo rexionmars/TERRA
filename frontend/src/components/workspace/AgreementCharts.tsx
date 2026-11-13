@@ -315,6 +315,18 @@ const READING_RAMP = PALETTE_STOPS.inferno
 /** Where a cell's own label stops being light and starts being dark. */
 const LABEL_FLIP = 0.55
 
+/*
+  THE RAMP IS THE SAME IN BOTH THEMES, SO ITS LABELS ARE TOO. A cell's number
+  was set in the theme's text or ground colour, which in the light theme put
+  dark type on inferno's dark end and light type on its light end, unreadable
+  at both. The two are fixed at the dark theme's text and ink, the pair the
+  flip above was measured with. A cell with nothing on the ramp sits on the
+  panel and takes the theme's muted text.
+*/
+function rampLabel(t: number): string {
+  return t > LABEL_FLIP ? "rgb(20 20 20)" : "rgb(217 211 209)"
+}
+
 export function DisagreementBar({ a }: { a: LULCAgreement }) {
   const quantity = Math.max(0, a.quantity_disagreement_pct)
   const allocation = Math.max(0, a.allocation_disagreement_pct)
@@ -580,9 +592,8 @@ export function ConfusionMatrix({ a, title }: { a: LULCAgreement; title?: string
                         title={`${rowClass.name} → ${colClass.name}: ${cell.toLocaleString()} cells`}
                       >
                         <span
-                          className={
-                            t > LABEL_FLIP ? "text-background" : "text-foreground"
-                          }
+                          className={cell > 0 ? undefined : "text-muted-foreground"}
+                          style={cell > 0 ? { color: rampLabel(t) } : undefined}
                         >
                           {cell > 0 ? cell.toLocaleString() : "·"}
                         </span>
@@ -638,9 +649,8 @@ export function BlockAgreementPair({
   if (grids.length < 2) return null
 
   return (
-    <div className="flex min-w-0 flex-col gap-1.5">
-      <p className="eyebrow !text-micro">Agreement by block</p>
-      <p className="text-meta leading-snug text-muted-foreground">
+    <div className="flex min-w-0 flex-col gap-3">
+      <p className="text-label text-muted-foreground">
         {/*
           Broken at the boundaries between the three claims rather than left to
           wrap: on a wide board this ran as one line the full width of the
@@ -659,9 +669,7 @@ export function BlockAgreementPair({
           const at = new Map(g.blocks.cells.map((c) => [`${c.row}:${c.col}`, c]))
           return (
             <div key={g.letter} className="flex flex-col gap-1">
-              <p className="telemetry truncate text-micro text-muted-foreground">
-                {g.letter} · {g.label}
-              </p>
+              <SideTag letter={g.letter} label={g.label} />
               <div
                 className="grid gap-px"
                 style={{
@@ -711,38 +719,27 @@ export function BlockAgreementPair({
  *
  * WHY THIS AND NOT THE TRANSITION MATRIX. The A-to-B matrix answers "where did
  * A's labels land in B", and it needs the two rasters to cover the same pixels.
- * Two AOIs never do -- which is every comparison this studio exists for, and
- * the case where the compare editor had a sentence of apology in the space a
- * matrix would have taken.
- *
- * Each run separately carries a full confusion against the MapBiomas reference.
- * Two of those share the reference legend, so they can be read against each
- * other with no shared pixel anywhere. The question is the same one the
- * transition matrix was asked -- which classes are taken for which -- and here
- * it is answered against ground rather than against the other run.
+ * Two areas never do, which is every comparison the Compare board exists for.
+ * Each run separately carries a full confusion against the MapBiomas
+ * reference, and two of those share the reference legend, so they can be read
+ * against each other with no shared pixel anywhere.
  *
  * NORMALISED DOWN THE REFERENCE AXIS, WHICH IS NOT A PRESENTATION CHOICE. The
- * matrices carry counts of reference cells, and a larger AOI has larger counts
- * in every cell. Set side by side as counts, the bigger area looks like the
- * more confused one and the reading is an artefact of extent.
+ * matrices carry counts of reference cells, and a larger area has larger counts
+ * in every cell; set side by side as counts, the bigger area looks the more
+ * confused. `agreement_against_reference` fills `matrix[predicted][reference]`,
+ * so the reference is the COLUMN axis -- the axis `producers_pct` is derived
+ * from -- and dividing each column by its total puts the producer's accuracy on
+ * the diagonal. Drawn transposed, so rows are the reference and the grid reads
+ * as an accuracy assessment is written.
  *
- * Which axis to divide by is decided by the data and not by taste.
- * `agreement_against_reference` fills `matrix[predicted][reference]`, so the
- * reference is the COLUMN axis -- the same axis `producers_pct` is derived
- * from, via `matrix.sum(axis=0)`. Dividing each column by its own total is
- * therefore what puts the producer's accuracy on the diagonal and makes a cell
- * read as "this share of the reference class was called that".
- *
- * Drawn transposed, so rows are the reference and the grid reads the way an
- * accuracy assessment is written. The transpose is in the rendering only; the
- * arithmetic is done on the axis the sidecar actually filled.
- *
- * ONE AXIS AND ONE SCALE, which is the precondition the design record raises
- * against side-by-side surfaces: two grids rescaled to their own ranges present
- * two different values in the same colour. Row shares are bounded at 100 by
- * construction, so both grids are shaded against 0..100 rather than against
- * whatever each happens to reach, and the axis is the union of the two class
- * sets so a class sits in the same place in both.
+ * ONE TABLE, ONE AXIS, ONE SCALE. The two grids were two tables whose rows and
+ * columns were named by class number -- 3, 21, 39 -- with the names nowhere in
+ * the reading. They are now one table: each reference class named once at the
+ * left, A's cells and then B's beside it, so a row is read across both runs.
+ * Shares are bounded at 100 by construction, so both are shaded against 0..100
+ * rather than against whatever each happens to reach. A reference class
+ * neither side has cells of is no measurement, and its row is left out.
  */
 export function ReferenceConfusionPair({
   a,
@@ -760,13 +757,7 @@ export function ReferenceConfusionPair({
   const namesA = named(a)
   const namesB = named(b)
 
-  /*
-    The union, in A's order then B's. `matrix_classes` is the matrix's own axis
-    order and the two need not carry the same set: a class present in one
-    region's reference and absent from the other's would otherwise shift every
-    column after it in one grid and not the other, and two grids whose columns
-    do not line up cannot be compared by eye at all.
-  */
+  /* The union, in A's order then B's, so a class sits in the same column in both. */
   const ids: number[] = []
   for (const id of [...a.matrix_classes, ...b.matrix_classes]) {
     if (!ids.includes(id)) ids.push(id)
@@ -778,19 +769,11 @@ export function ReferenceConfusionPair({
   }))
   if (!axis.length || !a.matrix.length || !b.matrix.length) return null
 
-  /**
-   * `[referenceClass][predictedClass]` shares, on the union axis.
-   *
-   * The source is `matrix[predicted][reference]`, so the column is the
-   * reference: the total is taken down a column and the result is transposed
-   * on the way out, which is what puts the reference on the rows here.
-   */
+  /** `[referenceClass][predictedClass]` shares on the union axis; null is not measured. */
   const sharesOf = (agreement: LULCAgreement) => {
     const at = new Map(agreement.matrix_classes.map((id, i) => [id, i]))
     return axis.map((refClass) => {
       const j = at.get(refClass.id)
-      // A class this side's reference has no cells of is not zero confusion;
-      // it is no measurement, and a row of zeroes would read as the former.
       if (j == null) return axis.map(() => null)
       let total = 0
       for (const row of agreement.matrix) total += row[j] ?? 0
@@ -801,134 +784,152 @@ export function ReferenceConfusionPair({
       })
     })
   }
-
   const grids = [
-    { label: labelA, letter: "A", shares: sharesOf(a) },
-    { label: labelB, letter: "B", shares: sharesOf(b) },
+    { letter: "A", label: labelA, shares: sharesOf(a) },
+    { letter: "B", label: labelB, shares: sharesOf(b) },
   ]
+  const rows = axis
+    .map((c, i) => ({ c, i }))
+    .filter(({ i }) => grids.some((g) => g.shares[i]?.some((v) => v != null)))
 
   return (
-    <div className="flex min-w-0 flex-col gap-1.5">
-      <p className="eyebrow !text-micro">Confusion against reference</p>
-      <p className="text-meta leading-snug text-muted-foreground">
-        Rows = MapBiomas reference, columns = the run.
-      </p>
-      <div className="flex flex-row flex-wrap items-start gap-3">
-        {grids.map((g) => (
-          <div key={g.letter} className="flex min-w-0 flex-col gap-1">
-            <p className="telemetry truncate text-micro text-muted-foreground">
-              {g.letter} · {g.label}
-            </p>
-            <table className="border-separate border-spacing-0.5 text-micro">
-              <thead>
-                <tr>
-                  <th className="p-0.5" />
-                  {axis.map((c) => (
-                    <th key={c.id} className="p-0.5 font-normal" title={c.name}>
-                      <span
-                        className="mx-auto flex size-3.5 items-center justify-center rounded-xs text-micro text-white"
-                        style={{ backgroundColor: c.color }}
+    <div className="overflow-x-auto">
+      <table className="border-separate border-spacing-0.5 text-meta">
+        <thead>
+          <tr>
+            <th />
+            {grids.map((g, k) => (
+              <th
+                key={g.letter}
+                colSpan={axis.length}
+                className={cn("pb-1 text-left font-normal", k > 0 && "pl-3")}
+              >
+                <SideTag letter={g.letter} label={g.label} />
+              </th>
+            ))}
+          </tr>
+          <tr>
+            <th />
+            {grids.map((g, k) =>
+              axis.map((c, j) => (
+                <th
+                  key={`${g.letter}-${c.id}`}
+                  className={cn("p-0 font-normal", k > 0 && j === 0 && "pl-3")}
+                  title={`Called ${c.name}`}
+                >
+                  <span
+                    className="mx-auto block size-3 rounded-xs"
+                    style={{ backgroundColor: c.color }}
+                  />
+                </th>
+              ))
+            )}
+          </tr>
+        </thead>
+        <tbody>
+          {rows.map(({ c: rowClass, i }) => (
+            <tr key={rowClass.id}>
+              <th
+                className="max-w-[9rem] pr-2 text-left font-normal"
+                title={rowClass.name}
+              >
+                <span className="flex items-center gap-1.5">
+                  <span
+                    className="size-2.5 shrink-0 rounded-xs"
+                    style={{ backgroundColor: rowClass.color }}
+                    aria-hidden
+                  />
+                  <span className="truncate text-label text-foreground">
+                    {rowClass.name}
+                  </span>
+                </span>
+              </th>
+              {grids.map((g, k) =>
+                axis.map((colClass, j) => {
+                  const v = g.shares[i]?.[j] ?? null
+                  const t = v == null ? 0 : v / 100
+                  const diag = rowClass.id === colClass.id && v != null
+                  return (
+                    <td
+                      key={`${g.letter}-${colClass.id}`}
+                      className={cn("p-0", k > 0 && j === 0 && "pl-3")}
+                    >
+                      <div
+                        className={cn(
+                          "telemetry flex size-7 items-center justify-center rounded-xs",
+                          diag && "ring-1 ring-[rgb(var(--p-text)/0.7)]"
+                        )}
+                        style={{
+                          background:
+                            v == null
+                              ? "transparent"
+                              : v > 0
+                                ? rampStop(READING_RAMP, t)
+                                : "rgb(var(--p-line) / 0.1)",
+                        }}
+                        title={
+                          v == null
+                            ? `${rowClass.name}: not measured in ${g.label}`
+                            : `${rowClass.name} called ${colClass.name}: ${v.toFixed(1)}%, in ${g.label}`
+                        }
                       >
-                        {c.id}
-                      </span>
-                    </th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody>
-                {axis.map((rowClass, i) => (
-                  <tr key={rowClass.id}>
-                    <th className="p-0.5 text-left font-normal" title={rowClass.name}>
-                      <span className="flex items-center gap-1">
                         <span
-                          className="size-2.5 shrink-0 rounded-xs"
-                          style={{ backgroundColor: rowClass.color }}
-                          aria-hidden
-                        />
-                        <span className="telemetry text-muted-foreground">
-                          {rowClass.id}
+                          className={
+                            v != null && v > 0 ? undefined : "text-muted-foreground"
+                          }
+                          style={
+                            v != null && v > 0 ? { color: rampLabel(t) } : undefined
+                          }
+                        >
+                          {v == null ? "" : v >= 0.5 ? v.toFixed(0) : "·"}
                         </span>
-                      </span>
-                    </th>
-                    {axis.map((colClass, j) => {
-                      const v = g.shares[i]?.[j] ?? null
-                      // Against 100, not against this grid's own maximum.
-                      const t = v == null ? 0 : v / 100
-                      const diag = rowClass.id === colClass.id
-                      return (
-                        <td key={colClass.id} className="p-0">
-                          <div
-                            className={cn(
-                              "telemetry flex min-h-[1.35rem] min-w-[1.35rem] items-center justify-center rounded-xs px-0.5",
-                              // The same mark the other matrix uses. One said
-                              // the accent and one said the boundary token, so
-                              // two readings of the same thing disagreed about
-                              // what a diagonal looks like.
-                              diag && "ring-1 ring-[rgb(var(--p-line-strong)/0.9)]"
-                            )}
-                            style={{
-                              background:
-                                v == null
-                                  ? "transparent"
-                                  : v > 0
-                                    ? rampStop(READING_RAMP, t)
-                                    : "rgb(var(--p-line) / 0.08)",
-                            }}
-                            title={
-                              v == null
-                                ? `${rowClass.name} → ${colClass.name}: not measured in ${g.label}`
-                                : `${rowClass.name} → ${colClass.name}: ${v.toFixed(1)}% of the reference class, in ${g.label}`
-                            }
-                          >
-                            <span
-                              className={cn(
-                                "telemetry",
-                                t > LABEL_FLIP ? "text-background" : "text-foreground"
-                              )}
-                            >
-                              {v == null ? "" : v >= 0.5 ? v.toFixed(0) : "·"}
-                            </span>
-                          </div>
-                        </td>
-                      )
-                    })}
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        ))}
-      </div>
+                      </div>
+                    </td>
+                  )
+                })
+              )}
+            </tr>
+          ))}
+        </tbody>
+      </table>
     </div>
+  )
+}
+
+/** A or B, and the run it stands for: the mark the whole reading uses. */
+export function SideTag({ letter, label }: { letter: string; label?: string }) {
+  return (
+    <span className="inline-flex min-w-0 items-center gap-1.5">
+      <span className="grid size-4 shrink-0 place-items-center rounded-full bg-[rgb(var(--p-surface-raised))] text-micro font-semibold text-foreground">
+        {letter}
+      </span>
+      {label && <span className="truncate text-label text-foreground">{label}</span>}
+    </span>
   )
 }
 
 /**
  * How two runs classify the same legend, against each other.
  *
- * THE COMPARISON THAT WAS MISSING. The compare editor drew two identity
- * blocks, a share delta and, where the grids allowed it, a transition matrix.
- * None of those answers the question a reader compares two runs to ask: which
- * of them gets a class right, and which class does the other lose.
- *
- * Both sides already carry it. A run measured against MapBiomas has a
- * producer's and a user's accuracy per class, with Wilson intervals, and the
- * quantity/allocation split over the whole map. Reading the two side by side
- * is possible today only by opening one run, remembering, and opening the
+ * Which of them gets a class right, and which class does the other lose: a run
+ * measured against MapBiomas carries a producer's and a user's accuracy per
+ * class and the quantity/allocation split over the whole map, so the two can
+ * be read against each other without opening one, remembering, and opening the
  * other.
  *
- * A DELTA, NOT TWO READINGS. Two dot-and-whisker figures stacked leave the
- * subtraction to the reader, and the subtraction is the whole question. In
- * percentage points, B minus A, which is the vocabulary the share delta beside
- * it already uses -- so the two figures in this editor are read the same way.
+ * EACH FIGURE GIVES BOTH VALUES AND WHAT THE CHANGE MEANS. The three whole-map
+ * figures were a signed number each, red or green, with nothing to say that a
+ * red +86.3 under Quantity was disagreement rising rather than accuracy: the
+ * colour carried the meaning alone. Each now shows A's value, B's, the change
+ * in percentage points, and the word -- better or worse -- in that colour.
  *
- * Classes only one side measured are listed and left blank rather than dropped:
- * a class B found and A did not is a finding, and a row that vanishes hides it.
+ * Classes only one side measured are listed and left blank rather than
+ * dropped: a class B found and A did not is a finding, and a row that vanishes
+ * hides it.
  */
 export function AgreementDelta({
   a,
   b,
-  labelA,
   labelB,
 }: {
   a: LULCAgreement
@@ -936,103 +937,96 @@ export function AgreementDelta({
   labelA: string
   labelB: string
 }) {
-  /*
-    Paired by class id, not by position. `per_class` is ordered by the legend
-    each run carried, and two runs of different areas do not carry the same
-    classes in the same order -- pairing by index would compare soy against
-    pasture and report it as a fall.
-  */
+  /* Paired by class id, not by position: two areas do not list one legend in one order. */
   const byId = new Map(b.per_class.map((c) => [c.class_id, c]))
   const rows = a.per_class
     .map((ca) => ({ ca, cb: byId.get(ca.class_id) ?? null }))
-    // Present in one and not the other is kept; present in neither cannot be.
     .filter((r) => r.ca.producers_pct != null || r.ca.users_pct != null || r.cb)
   const onlyB = b.per_class.filter(
     (cb) => !a.per_class.some((ca) => ca.class_id === cb.class_id)
   )
-
-  const delta = (x?: number | null, y?: number | null) =>
-    typeof x === "number" && typeof y === "number" ? y - x : null
-
   return (
-    <div className="flex w-full min-w-0 flex-col gap-2">
-      <div className="flex flex-col gap-0.5">
-        <p className="eyebrow !text-micro">Accuracy delta (A &rarr; B)</p>
-        <p className="telemetry truncate text-micro text-muted-foreground">
-          {labelA} &rarr; {labelB}
-        </p>
-      </div>
-
+    <div className="flex w-full min-w-0 flex-col gap-4">
       {/*
-        The whole-map figures first. Overall says whether B agrees with the
-        reference more often; quantity and allocation say whether a change in
-        it came from finding a different AMOUNT of a class or the same amount
-        in different PLACES -- which is the distinction Pontius & Millones
-        propose the split for, and it is what tells a model change from a
-        registration one.
+        Overall says whether B agrees with the reference more often; quantity
+        and allocation say whether a change came from a different AMOUNT of a
+        class or the same amount in different PLACES, the split Pontius and
+        Millones propose, which tells a model change from a registration one.
       */}
       <div className="grid grid-cols-3 gap-2">
-        <DeltaFigure label="Overall" value={delta(a.overall_pct, b.overall_pct)} />
+        <DeltaFigure label="Agreement" a={a.overall_pct} b={b.overall_pct} />
         <DeltaFigure
-          label="Quantity"
-          value={delta(a.quantity_disagreement_pct, b.quantity_disagreement_pct)}
-          // Less disagreement is better, so the sign that reads as good is the
-          // opposite of the one above it.
+          label="Quantity disagreement"
+          a={a.quantity_disagreement_pct}
+          b={b.quantity_disagreement_pct}
           betterWhenLower
         />
         <DeltaFigure
-          label="Allocation"
-          value={delta(a.allocation_disagreement_pct, b.allocation_disagreement_pct)}
+          label="Allocation disagreement"
+          a={a.allocation_disagreement_pct}
+          b={b.allocation_disagreement_pct}
           betterWhenLower
         />
       </div>
 
-      <ul className="flex flex-col gap-0.5">
-        {rows.map(({ ca, cb }) => (
-          <li key={ca.class_id} className="flex items-baseline gap-1.5">
-            <span
-              className="size-1.5 shrink-0 translate-y-px"
-              style={{ backgroundColor: ca.color }}
-              aria-hidden
-            />
-            <span className="min-w-0 flex-1 truncate text-meta text-muted-foreground">
-              {ca.name}
-            </span>
-            <DeltaCell
-              value={delta(ca.producers_pct, cb?.producers_pct)}
-              title={`Producer's: ${fmtPct(ca.producers_pct)} → ${fmtPct(cb?.producers_pct)}`}
-            />
-            <DeltaCell
-              value={delta(ca.users_pct, cb?.users_pct)}
-              title={`User's: ${fmtPct(ca.users_pct)} → ${fmtPct(cb?.users_pct)}`}
-            />
-          </li>
-        ))}
-        {onlyB.map((cb) => (
-          <li key={`b-${cb.class_id}`} className="flex items-baseline gap-1.5">
-            <span
-              className="size-1.5 shrink-0 translate-y-px"
-              style={{ backgroundColor: cb.color }}
-              aria-hidden
-            />
-            <span className="min-w-0 flex-1 truncate text-meta text-muted-foreground">
-              {cb.name}
-            </span>
-            <span
-              className="telemetry w-[3.25rem] shrink-0 text-right text-micro text-muted-foreground"
-              title={`Only ${labelB} measured this class`}
+      <table className="w-full text-label">
+        <thead>
+          <tr className="text-meta text-muted-foreground">
+            <th className="pb-1.5 text-left font-normal">Class</th>
+            <th
+              className="w-24 pb-1.5 text-right font-normal"
+              title="Of the reference class, the share the run found"
             >
-              only B
-            </span>
-          </li>
-        ))}
-      </ul>
-
-      {/* The key, said once: which column is which accuracy. */}
-      <p className="telemetry flex items-baseline justify-end gap-1.5 text-micro text-muted-foreground">
-        <span className="w-[3.25rem] text-right">prod.</span>
-        <span className="w-[3.25rem] text-right">user&apos;s</span>
-      </p>
+              Producer&apos;s
+            </th>
+            <th
+              className="w-24 pb-1.5 text-right font-normal"
+              title="Of what the run called the class, the share that was"
+            >
+              User&apos;s
+            </th>
+          </tr>
+        </thead>
+        <tbody className="divide-y divide-[rgb(var(--p-line)/0.25)]">
+          {rows.map(({ ca, cb }) => (
+            <tr key={ca.class_id}>
+              <td className="py-1.5">
+                <span className="flex min-w-0 items-center gap-2">
+                  <span
+                    className="size-2.5 shrink-0 rounded-xs"
+                    style={{ backgroundColor: ca.color }}
+                    aria-hidden
+                  />
+                  <span className="truncate text-foreground">{ca.name}</span>
+                </span>
+              </td>
+              <DeltaCell a={ca.producers_pct} b={cb?.producers_pct} />
+              <DeltaCell a={ca.users_pct} b={cb?.users_pct} />
+            </tr>
+          ))}
+          {onlyB.map((cb) => (
+            <tr key={`b-${cb.class_id}`}>
+              <td className="py-1.5">
+                <span className="flex min-w-0 items-center gap-2">
+                  <span
+                    className="size-2.5 shrink-0 rounded-xs"
+                    style={{ backgroundColor: cb.color }}
+                    aria-hidden
+                  />
+                  <span className="truncate text-foreground">{cb.name}</span>
+                </span>
+              </td>
+              <td
+                colSpan={2}
+                className="py-1.5 text-right text-meta text-muted-foreground"
+                title={`Only ${labelB} measured this class`}
+              >
+                only in B
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
     </div>
   )
 }
@@ -1041,56 +1035,68 @@ function fmtPct(v?: number | null): string {
   return typeof v === "number" ? `${v.toFixed(1)}%` : "not measured"
 }
 
-/** A headline delta, signed and coloured by which direction is an improvement. */
+/** A whole-map figure: A's value and B's, the change, and whether it is better. */
 function DeltaFigure({
   label,
-  value,
+  a,
+  b,
   betterWhenLower,
 }: {
   label: string
-  value: number | null
+  a?: number | null
+  b?: number | null
   betterWhenLower?: boolean
 }) {
-  const good = value == null ? null : betterWhenLower ? value < 0 : value > 0
+  const value = typeof a === "number" && typeof b === "number" ? b - a : null
+  const same = value == null || Math.abs(value) < 0.05
+  const good = value != null && (betterWhenLower ? value < 0 : value > 0)
   return (
-    <div className="min-w-0">
-      <div className="eyebrow !text-micro">{label}</div>
-      <div
-        className={cn(
-          "telemetry mt-0.5 truncate text-heading tabular-nums",
-          value == null
-            ? "text-muted-foreground"
-            : Math.abs(value) < 0.05
-              ? "text-foreground"
-              : good
-                ? "text-emerald-400"
-                : "text-rose-400"
-        )}
-      >
+    <div className="min-w-0 rounded-md border border-[rgb(var(--p-line)/0.45)] bg-[rgb(var(--p-ink))] px-3 py-2.5">
+      <p className="truncate text-meta text-muted-foreground" title={label}>
+        {label}
+      </p>
+      <p className="telemetry mt-1 truncate text-heading text-foreground tabular-nums">
         {value == null ? "—" : `${value > 0 ? "+" : ""}${value.toFixed(1)}`}
         {value != null && <span className="text-meta text-muted-foreground"> pp</span>}
-      </div>
+      </p>
+      <p className="telemetry mt-0.5 truncate text-meta text-muted-foreground">
+        {fmtPct(a)} → {fmtPct(b)}
+      </p>
+      {!same && (
+        <p
+          className={cn(
+            "mt-1 text-meta font-medium",
+            good ? "text-success" : "text-destructive-quiet"
+          )}
+        >
+          {good ? "Better in B" : "Worse in B"}
+        </p>
+      )}
     </div>
   )
 }
 
-/** One per-class delta, in the same units and colours as the share delta. */
-function DeltaCell({ value, title }: { value: number | null; title: string }) {
+/**
+ * One per-class change, B minus A, coloured by direction and carrying both
+ * values in its title. A higher accuracy is better in either column.
+ */
+function DeltaCell({ a, b }: { a?: number | null; b?: number | null }) {
+  const value = typeof a === "number" && typeof b === "number" ? b - a : null
   return (
-    <span
-      title={title}
+    <td
+      title={`${fmtPct(a)} → ${fmtPct(b)}`}
       className={cn(
-        "telemetry w-[3.25rem] shrink-0 text-right text-micro tabular-nums",
+        "telemetry py-1.5 text-right tabular-nums",
         value == null
-          ? "text-muted-foreground/50"
+          ? "text-muted-foreground"
           : Math.abs(value) < 0.05
             ? "text-muted-foreground"
             : value > 0
-              ? "text-emerald-400"
-              : "text-rose-400"
+              ? "text-success"
+              : "text-destructive-quiet"
       )}
     >
       {value == null ? "—" : `${value > 0 ? "+" : ""}${value.toFixed(1)}`}
-    </span>
+    </td>
   )
 }
