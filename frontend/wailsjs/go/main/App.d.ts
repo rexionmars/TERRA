@@ -37,6 +37,8 @@ export function CancelEnvironmentBuild():Promise<void>;
 
 export function CancelJob(arg1:string):Promise<void>;
 
+export function CancelModelDownload(arg1:string):Promise<void>;
+
 export function ChooseBackupArchive():Promise<store.RestorePreview>;
 
 export function ClearAvatar():Promise<store.User>;
@@ -97,6 +99,8 @@ export function InspectPython(arg1:string):Promise<pyenv.EnvReport>;
 
 export function InspectStorage():Promise<store.StorageReport>;
 
+export function InstallCatalogModel(arg1:string,arg2:string):Promise<analysis.ModelInfo>;
+
 export function ListAreaRuns(arg1:string,arg2:number):Promise<Array<store.InferenceRun>>;
 
 export function ListAreas(arg1:string):Promise<Array<store.Area>>;
@@ -126,6 +130,8 @@ export function Login(arg1:string,arg2:string):Promise<store.User>;
 export function Logout():Promise<void>;
 
 export function ManageOptionalPackage(arg1:string,arg2:boolean):Promise<void>;
+
+export function ModelCatalog():Promise<analysis.ModelCatalog>;
 
 export function OpenExternal(arg1:string):Promise<void>;
 

@@ -1,8 +1,15 @@
 package main
 
 import (
+	"context"
+	_ "embed"
 	"errors"
+	"fmt"
+	"net/http"
+	"os"
 	"path/filepath"
+	"sync"
+	"time"
 
 	wruntime "github.com/wailsapp/wails/v2/pkg/runtime"
 
@@ -11,7 +18,55 @@ import (
 )
 
 // The model packages a run can use: installed by the reader, under the data
-// directory. internal/models says why nothing is shipped with the application.
+// directory, from the published catalogue or from a package of their own.
+// internal/models says why nothing is shipped with the application, and
+// internal/models/catalog.go how a download is checked.
+
+/*
+catalogURL is the published catalogue: catalog.json in the models repository,
+which also holds each package as a release asset. A model is published there
+without a commit to this repository or a new TERRA. TERRA_MODEL_CATALOG names
+another address, for a mirror or a test.
+*/
+const catalogURL = "https://raw.githubusercontent.com/rexionmars/TERRA-models/master/catalog.json"
+
+// catalogWait bounds the wait for the published catalogue. Past it the
+// screen shows the copy this build carries rather than nothing.
+const catalogWait = 15 * time.Second
+
+// builtinCatalog is the catalogue as it stood when this build was made, shown
+// when the published one cannot be read.
+//
+//go:embed model/catalog.json
+var builtinCatalog []byte
+
+/*
+modelState is what the Models screen has read and started: the catalogue last
+read, so that an install names an entry of it rather than handing over an
+address, and the downloads under way, by model id, so that one can be
+cancelled. Bound methods run on their own goroutines, hence the lock.
+*/
+type modelState struct {
+	mu        sync.Mutex
+	catalog   []analysis.CatalogEntry
+	downloads map[string]context.CancelFunc
+}
+
+func (a *App) remote() models.Remote {
+	return models.Remote{
+		// No overall timeout: a package is tens of megabytes on a slow line.
+		// A download ends when it is cancelled or its connection fails.
+		Client:    &http.Client{},
+		UserAgent: "TERRA/" + a.GetAppVersion() + " (+https://github.com/rexionmars/TERRA)",
+	}
+}
+
+func (a *App) parentContext() context.Context {
+	if a.ctx != nil {
+		return a.ctx
+	}
+	return context.Background()
+}
 
 // modelsDir is where installed packages live, beside the store, so they
 // survive updates of the application. Empty before the store is open.
@@ -79,4 +134,111 @@ func (a *App) RemoveModel(id, version string) error {
 		return errors.New("the local store is not open")
 	}
 	return models.Remove(root, id, version)
+}
+
+/*
+ModelCatalog reads the published catalogue: the models a reader can download.
+
+When it cannot be read -- no connection, or a catalogue too new for this
+version -- the copy this build carries is returned instead, with the reason, so
+the screen still says what exists. Nothing can be downloaded without a
+connection either way.
+*/
+func (a *App) ModelCatalog() (analysis.ModelCatalog, error) {
+	address := catalogURL
+	if s := os.Getenv("TERRA_MODEL_CATALOG"); s != "" {
+		address = s
+	}
+	ctx, cancel := context.WithTimeout(a.parentContext(), catalogWait)
+	defer cancel()
+
+	out := analysis.ModelCatalog{Origin: "online"}
+	raw, err := a.remote().Catalog(ctx, address)
+	if err == nil {
+		out.Models, out.Unsupported, err = models.ParseCatalog(raw)
+	}
+	if err != nil {
+		out = analysis.ModelCatalog{Origin: "built-in", Problem: err.Error()}
+		var berr error
+		out.Models, out.Unsupported, berr = models.ParseCatalog(builtinCatalog)
+		if berr != nil {
+			return analysis.ModelCatalog{}, fmt.Errorf("the catalogue this build carries cannot be read: %w", berr)
+		}
+	}
+	a.models.mu.Lock()
+	a.models.catalog = out.Models
+	a.models.mu.Unlock()
+	return out, nil
+}
+
+/*
+InstallCatalogModel downloads one version of a model from the catalogue last
+read and installs it, reporting progress through the "models:download" event.
+
+The zip is checked against the SHA-256 the catalogue pins before anything is
+unpacked, and the package in it against the entry's digest before it appears
+installed. It returns when the package is installed, or with the reason it was
+not; CancelModelDownload ends it early.
+*/
+func (a *App) InstallCatalogModel(id, version string) (*analysis.ModelInfo, error) {
+	root := a.modelsDir()
+	if root == "" {
+		return nil, errors.New("the local store is not open")
+	}
+	s := &a.models
+	s.mu.Lock()
+	var entry *analysis.CatalogEntry
+	for i := range s.catalog {
+		if s.catalog[i].Manifest.ID == id && s.catalog[i].Manifest.Version == version {
+			e := s.catalog[i]
+			entry = &e
+		}
+	}
+	if entry == nil {
+		s.mu.Unlock()
+		return nil, fmt.Errorf("%s %s is not in the catalogue that was read", id, version)
+	}
+	if _, busy := s.downloads[id]; busy {
+		s.mu.Unlock()
+		return nil, fmt.Errorf("%s is already being downloaded", id)
+	}
+	if s.downloads == nil {
+		s.downloads = map[string]context.CancelFunc{}
+	}
+	ctx, cancel := context.WithCancel(a.parentContext())
+	s.downloads[id] = cancel
+	s.mu.Unlock()
+	defer func() {
+		s.mu.Lock()
+		delete(s.downloads, id)
+		s.mu.Unlock()
+		cancel()
+	}()
+
+	report := func(source string, received, total int64) {
+		if a.ctx != nil {
+			wruntime.EventsEmit(a.ctx, "models:download", analysis.ModelDownload{
+				ID: id, Version: version, Source: source, Received: received, Total: total,
+			})
+		}
+	}
+	p, err := a.remote().Download(ctx, root, *entry, report)
+	if errors.Is(err, context.Canceled) {
+		return nil, errors.New("the download was cancelled")
+	}
+	if err != nil {
+		return nil, err
+	}
+	info := p.Info()
+	return &info, nil
+}
+
+// CancelModelDownload stops the download of id, if one is under way. Nothing
+// of it is left installed.
+func (a *App) CancelModelDownload(id string) {
+	a.models.mu.Lock()
+	defer a.models.mu.Unlock()
+	if cancel, ok := a.models.downloads[id]; ok {
+		cancel()
+	}
 }
