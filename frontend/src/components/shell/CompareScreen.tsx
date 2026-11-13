@@ -28,7 +28,11 @@ import { btnGhost } from "@/components/ui/buttons"
 import { tableToCSV } from "@/lib/analysisTables"
 import { useAuth } from "@/lib/auth"
 import type { SessionRun } from "@/lib/sessionRuns"
-import { compareClassMaps, type ClassMapCompare } from "@/lib/boardProbe"
+import {
+  GridMismatchError,
+  compareClassMaps,
+  type ClassMapCompare,
+} from "@/lib/boardProbe"
 import {
   EMPTY_BOARD,
   READINGS,
@@ -235,7 +239,10 @@ export function CompareScreen({
     answers at once.
   */
   const [compares, setCompares] = useState<
-    Record<string, { compare: ClassMapCompare | null; error: string | null }>
+    Record<
+      string,
+      { compare: ClassMapCompare | null; error: string | null; apart: boolean }
+    >
   >({})
   const pairKey = (p: [PredictionCompareSide, PredictionCompareSide]) =>
     `${p[0].areaId}|${p[1].areaId}`
@@ -258,18 +265,28 @@ export function CompareScreen({
       compareClassMaps(p[0].uri, legend(p[0]), p[1].uri, legend(p[1]))
         .then(
           (compare) =>
-            live && setCompares((c) => ({ ...c, [key]: { compare, error: null } }))
+            live &&
+            setCompares((c) => ({
+              ...c,
+              [key]: { compare, error: null, apart: false },
+            }))
         )
         .catch(
           (e: unknown) =>
             live &&
             setCompares((c) => ({
               ...c,
-              [key]: {
-                compare: null,
-                error:
-                  e instanceof Error ? e.message : "Could not compare these rasters.",
-              },
+              [key]:
+                e instanceof GridMismatchError
+                  ? { compare: null, error: null, apart: true }
+                  : {
+                      compare: null,
+                      error:
+                        e instanceof Error
+                          ? e.message
+                          : "Could not compare these rasters.",
+                      apart: false,
+                    },
             }))
         )
     }
@@ -308,9 +325,10 @@ export function CompareScreen({
       if (r.kind === "differences") {
         const got = compares[pairKey(p)]
         if (!got) return "Comparing the two maps."
-        if (got.error || !got.compare) {
-          return "These two maps are not on one grid; read their shares at right."
+        if (got.apart) {
+          return "Two different areas, each read against the reference at right."
         }
+        if (got.error || !got.compare) return "These two maps could not be compared."
         return `${got.compare.pct.toFixed(1)} % of shared pixels agree.`
       }
       return "Read at the right when selected."
@@ -446,6 +464,7 @@ export function CompareScreen({
             sides={pair}
             compare={got?.compare ?? null}
             compareError={got?.error ?? null}
+            apart={got?.apart ?? false}
           />
         )
       }

@@ -166,6 +166,21 @@ export interface ClassMapCompare {
 }
 
 /**
+ * Two class maps whose rasters are not one grid, which is every comparison of
+ * two areas: their pixels cover different ground and cannot be paired. Typed,
+ * so a reading can say what that means rather than print the message.
+ */
+export class GridMismatchError extends Error {
+  constructor(
+    readonly a: { width: number; height: number },
+    readonly b: { width: number; height: number }
+  ) {
+    super(`Different grids: ${a.width}×${a.height} vs ${b.width}×${b.height}.`)
+    this.name = "GridMismatchError"
+  }
+}
+
+/**
  * Pixel agreement and class-transition matrix between two prediction rasters.
  *
  * Same grid required. Class ordinals are compared within each legend; when the
@@ -188,8 +203,9 @@ export async function compareClassMaps(
     )
   }
   if (a.width !== b.width || a.height !== b.height) {
-    throw new Error(
-      `Different grids: ${a.width}×${a.height} vs ${b.width}×${b.height}.`
+    throw new GridMismatchError(
+      { width: a.width, height: a.height },
+      { width: b.width, height: b.height }
     )
   }
   const na = legendA.length
