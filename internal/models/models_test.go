@@ -243,3 +243,23 @@ func TestRemoveDropsOneVersionAndTheIdWhenEmpty(t *testing.T) {
 		t.Fatal("a version that walks out of root was accepted")
 	}
 }
+
+func TestWhoMadeAPackageIsNamedOrLeftOut(t *testing.T) {
+	dir := t.TempDir()
+	m := writePackage(t, dir, "1.0.0")
+	m.PackagedBy = []analysis.ModelPerson{{Name: "Ana Souza"}}
+	writeManifest(t, dir, m)
+	p, err := Load(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := p.Manifest.PackagedBy; len(got) != 1 || got[0].Name != "Ana Souza" {
+		t.Fatalf("packaged_by read as %+v", got)
+	}
+
+	m.PackagedBy = []analysis.ModelPerson{{Name: " "}}
+	writeManifest(t, dir, m)
+	if _, err := Load(dir); err == nil || !strings.Contains(err.Error(), "without a name") {
+		t.Fatalf("got %v, want a nameless packager refused", err)
+	}
+}

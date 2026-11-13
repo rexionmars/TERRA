@@ -30,6 +30,11 @@ type ModelEvaluation struct {
 	Source  string      `json:"source"`
 }
 
+// ModelPerson is someone a package names.
+type ModelPerson struct {
+	Name string `json:"name"`
+}
+
 // ModelPicture is the credit owed for the picture a package carries.
 type ModelPicture struct {
 	Subject string `json:"subject"`
@@ -58,13 +63,16 @@ type ModelManifest struct {
 	// Requires names the optional Python packages it needs, e.g. "torch".
 	Requires []string `json:"requires"`
 	// Variants are the heads of an embedding package, e.g. "pixel", "patch".
-	Variants   []string             `json:"variants"`
-	Reads      []ModelFact          `json:"reads"`
-	Method     []ModelFact          `json:"method"`
-	Evaluation *ModelEvaluation     `json:"evaluation"`
-	Limits     []string             `json:"limits"`
-	License    string               `json:"license"`
-	DOI        string               `json:"doi"`
+	Variants   []string         `json:"variants"`
+	Reads      []ModelFact      `json:"reads"`
+	Method     []ModelFact      `json:"method"`
+	Evaluation *ModelEvaluation `json:"evaluation"`
+	Limits     []string         `json:"limits"`
+	License    string           `json:"license"`
+	DOI        string           `json:"doi"`
+	// PackagedBy names who made the package. They may not be who developed
+	// the model: the evaluation's source names that work.
+	PackagedBy []ModelPerson        `json:"packaged_by"`
 	Picture    *ModelPicture        `json:"picture"`
 	Files      map[string]ModelFile `json:"files"`
 }

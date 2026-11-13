@@ -174,6 +174,7 @@ setInstalledModels([
       limits: null,
       license: "GPL-3.0-only",
       doi: "",
+      packaged_by: null,
       picture: null,
       files: {},
     },

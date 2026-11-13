@@ -1618,6 +1618,11 @@ export interface ModelEvaluation {
   source: string
 }
 
+/** Someone a package names. */
+export interface ModelPerson {
+  name: string
+}
+
 /** The credit owed for the picture a package carries. */
 export interface ModelPicture {
   subject: string
@@ -1650,6 +1655,8 @@ export interface ModelManifest {
   limits: string[] | null
   license: string
   doi: string
+  /** Who made the package, who may not be who developed the model. */
+  packaged_by: ModelPerson[] | null
   picture: ModelPicture | null
   files: Record<string, ModelFile>
 }

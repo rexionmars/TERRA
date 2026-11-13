@@ -103,6 +103,11 @@ func check(m analysis.ModelManifest) error {
 	if len(m.Classes) == 0 {
 		return fmt.Errorf("model %s lists no classes", m.ID)
 	}
+	for _, p := range m.PackagedBy {
+		if strings.TrimSpace(p.Name) == "" {
+			return fmt.Errorf("model %s names someone in packaged_by without a name", m.ID)
+		}
+	}
 	// A copy: the variants' roles are appended, and the table is shared.
 	need := append([]string(nil), base...)
 	if m.Family == "embedding_rf" {
