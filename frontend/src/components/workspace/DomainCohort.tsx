@@ -63,9 +63,10 @@ import {
   ZAxis,
 } from "recharts"
 import { DataTableView } from "@/components/DataTableView"
+import { Segmented } from "@/components/shell/settingsParts"
+import { Callout, ReadingSection, titled } from "@/components/workspace/readingParts"
 import { cohortTable } from "@/lib/cohortTables"
 import type { DomainShiftCohort, DomainShiftCohortRow } from "@/lib/types"
-import { cn } from "@/lib/utils"
 
 function fmt(v: number | null | undefined, digits = 3): string {
   if (v == null || !Number.isFinite(v)) return "—"
@@ -110,11 +111,11 @@ function agreementOf(row: DomainShiftCohortRow): number | null {
 /** Why a row cannot sit on the shared axis, in the reader's terms. */
 function exclusionReason(row: DomainShiftCohortRow, axis: Axis): string {
   if (!row.same_space) {
-    return `different feature space (${row.space_b ?? "?"} against ${row.space_a ?? "?"})`
+    return `A different feature space: ${row.space_b ?? "unknown"} against ${row.space_a ?? "unknown"}.`
   }
-  if (!row.standardised) return "no training scaler, so the distance is in raw units"
-  if (divergenceOf(row, axis) == null) return "no divergence was computed"
-  return "no agreement against the reference"
+  if (!row.standardised) return "No training scaler, so its distance is in raw units."
+  if (divergenceOf(row, axis) == null) return "No divergence was computed."
+  return "No agreement against the reference."
 }
 
 export function DomainCohort({
@@ -160,162 +161,154 @@ export function DomainCohort({
   const table = useMemo(() => cohortTable(cohort), [cohort])
 
   return (
-    <div className="flex min-w-0 flex-col gap-3">
-      <div className="flex items-start justify-between gap-2">
-        <div className="flex min-w-0 flex-col gap-0.5">
-          <p className="eyebrow !text-micro">Divergence against agreement</p>
-          <p className="telemetry truncate text-micro text-muted-foreground">
-            source · {cohort.source.label}
-            {sourceAgreement != null ? ` · ${sourceAgreement.toFixed(1)}%` : ""}
-          </p>
-        </div>
-        {/*
-          Which distance is on the x-axis. Two options and not a menu, because
-          neither is a default the other corrects: MMD answers the bound's
-          question and stops resolving past about three standard deviations,
-          CVA keeps resolving and is a distance between means rather than
-          between distributions.
-        */}
-        <span
-          className="flex shrink-0 items-center gap-px overflow-hidden rounded-sm"
-          style={{ background: "rgb(var(--p-line) / 0.22)" }}
-        >
-          {(Object.keys(AXES) as Axis[]).map((id) => (
-            <button
-              key={id}
-              type="button"
-              onClick={() => setAxis(id)}
-              aria-pressed={id === axis}
-              title={AXES[id].title}
-              className={cn(
-                "telemetry px-1.5 py-0.5 text-micro transition-colors",
-                id === axis
-                  ? "bg-accent text-accent-foreground"
-                  : "text-muted-foreground hover:bg-hover hover:text-foreground"
-              )}
-            >
-              {AXES[id].label}
-            </button>
-          ))}
-        </span>
-      </div>
-
-      {plotted.length === 0 ? (
-        <p className="text-meta leading-snug text-muted-foreground">
-          No target is comparable with this source, so there is no axis to place one on.
-          The list below says why for each.
-        </p>
-      ) : (
-        <>
-          <p className="text-meta leading-snug text-muted-foreground">
-            One point per target. A descending trend means divergence accounts for the
-            loss; a point far right and high transfers despite distance; one near the
-            axis and low fails for another reason.
-          </p>
-          {atCeiling && (
-            <p className="text-meta leading-snug text-amber-500/90">
-              Every target is at the top of MMD&apos;s range, where a bounded kernel
-              stops separating: past roughly three training standard deviations the
-              statistic moves in the third decimal while the domains keep moving apart.
-              Read this set on CVA instead, which does not have a ceiling.
-            </p>
-          )}
-          <div className="h-56 w-full">
-            <ResponsiveContainer width="100%" height="100%">
-              <ScatterChart margin={{ top: 8, right: 12, left: 0, bottom: 4 }}>
-                <CartesianGrid
-                  stroke="rgb(var(--p-line) / 0.25)"
-                  strokeDasharray="2 3"
-                />
-                {/*
-                  Both axes carry quantities here, unlike the pair's projection,
-                  so a grid helps rather than misleads.
-                */}
-                <XAxis
-                  type="number"
-                  dataKey="x"
-                  name={AXES[axis].label}
-                  tick={{ fontSize: 9 }}
-                  stroke="rgb(var(--p-line-strong))"
-                  tickCount={5}
-                  label={{
-                    value: AXES[axis].title,
-                    position: "insideBottom",
-                    offset: -2,
-                    style: { fontSize: 9, fill: "rgb(var(--p-muted))" },
-                  }}
-                />
-                <YAxis
-                  type="number"
-                  dataKey="y"
-                  name="Agreement"
-                  unit="%"
-                  tick={{ fontSize: 9 }}
-                  stroke="rgb(var(--p-line-strong))"
-                  tickCount={5}
-                  domain={["dataMin - 5", "dataMax + 5"]}
-                />
-                <ZAxis range={[70, 70]} />
-                <Tooltip
-                  cursor={{ stroke: "rgb(var(--p-line-strong))" }}
-                  contentStyle={{
-                    background: "var(--s-float)",
-                    border: "1px solid rgb(var(--p-line) / 0.4)",
-                    borderRadius: 2,
-                    fontSize: 10,
-                  }}
-                  formatter={(value: number, name: string) => [
-                    name === "Agreement" ? `${value.toFixed(1)}%` : fmt(value, 4),
-                    name,
-                  ]}
-                  labelFormatter={() => ""}
-                  itemSorter={(i) => (i.name === "Agreement" ? -1 : 1)}
-                />
-                <Scatter
-                  data={plotted}
-                  fill="rgb(var(--p-accent))"
-                  onClick={(p: { id?: string }) => p.id && onPick?.(p.id)}
+    <div className="flex min-w-0 flex-col">
+      <ReadingSection
+        flush
+        title="Divergence against agreement"
+        caption={
+          <>
+            From {titled(cohort.source.label)}
+            {sourceAgreement != null
+              ? `, which agrees with the reference on ${sourceAgreement.toFixed(1)}%,`
+              : ""}{" "}
+            to each target.{" "}
+            {plotted.length > 0 &&
+              "One point per target. A descending trend means divergence accounts for the loss; a point far right and high transfers despite distance; one near the axis and low fails for another reason."}
+          </>
+        }
+        aside={
+          /*
+            Which distance is on the x-axis. Two options and not a menu, because
+            neither is a default the other corrects: MMD answers the bound's
+            question and stops resolving past about three standard deviations,
+            CVA keeps resolving and is a distance between means rather than
+            between distributions.
+          */
+          <Segmented
+            label="Distance on the axis"
+            value={axis}
+            options={(Object.keys(AXES) as Axis[]).map((id) => ({
+              value: id,
+              label: AXES[id].label,
+            }))}
+            onChange={setAxis}
+          />
+        }
+      >
+        {plotted.length === 0 ? (
+          <Callout tone="info">
+            No target can be placed on this axis, so there is no figure. Each is listed
+            under Not on the axis with the reason.
+          </Callout>
+        ) : (
+          <>
+            {atCeiling && (
+              <div className="mb-3">
+                <Callout title="MMD² has stopped separating these targets">
+                  Every target is at the top of its range, where a bounded kernel stops
+                  separating: past roughly three training standard deviations the
+                  statistic moves in the third decimal while the domains keep moving
+                  apart. Read this set on CVA, which has no ceiling.
+                </Callout>
+              </div>
+            )}
+            <div className="h-56 w-full">
+              <ResponsiveContainer width="100%" height="100%">
+                <ScatterChart margin={{ top: 8, right: 12, left: 0, bottom: 4 }}>
+                  <CartesianGrid
+                    stroke="rgb(var(--p-line) / 0.25)"
+                    strokeDasharray="2 3"
+                  />
+                  {/*
+                    Both axes carry quantities here, unlike the pair's projection,
+                    so a grid helps rather than misleads.
+                  */}
+                  <XAxis
+                    type="number"
+                    dataKey="x"
+                    name={AXES[axis].label}
+                    tick={{ fontSize: 10 }}
+                    stroke="rgb(var(--p-line-strong))"
+                    tickCount={5}
+                    label={{
+                      value: AXES[axis].title,
+                      position: "insideBottom",
+                      offset: -2,
+                      style: { fontSize: 10, fill: "rgb(var(--p-muted))" },
+                    }}
+                  />
+                  <YAxis
+                    type="number"
+                    dataKey="y"
+                    name="Agreement"
+                    unit="%"
+                    tick={{ fontSize: 10 }}
+                    stroke="rgb(var(--p-line-strong))"
+                    tickCount={5}
+                    domain={["dataMin - 5", "dataMax + 5"]}
+                  />
+                  <ZAxis range={[70, 70]} />
+                  <Tooltip
+                    cursor={{ stroke: "rgb(var(--p-line-strong))" }}
+                    contentStyle={{
+                      background: "var(--s-float)",
+                      border: "1px solid rgb(var(--p-line) / 0.4)",
+                      borderRadius: 5,
+                      fontSize: 11,
+                    }}
+                    formatter={(value: number, name: string) => [
+                      name === "Agreement" ? `${value.toFixed(1)}%` : fmt(value, 4),
+                      name,
+                    ]}
+                    labelFormatter={() => ""}
+                    itemSorter={(i) => (i.name === "Agreement" ? -1 : 1)}
+                  />
+                  <Scatter
+                    data={plotted}
+                    fill="rgb(var(--p-accent))"
+                    onClick={(p: { id?: string }) => p.id && onPick?.(p.id)}
+                  >
+                    {plotted.map((p) => (
+                      <Cell key={p.id} cursor={onPick ? "pointer" : undefined} />
+                    ))}
+                  </Scatter>
+                </ScatterChart>
+              </ResponsiveContainer>
+            </div>
+            {/*
+              The labels, under the figure rather than on it. Recharts labels
+              collide at this size and a scatter of N points with N overlapping
+              names is less readable than the plot alone.
+            */}
+            <ul className="mt-2 flex flex-wrap gap-x-4 gap-y-1">
+              {plotted.map((p) => (
+                <li
+                  key={p.id}
+                  className="text-label text-muted-foreground"
+                  title={`${AXES[axis].label} ${fmt(p.x, 4)} · agreement ${p.y.toFixed(1)}%`}
                 >
-                  {plotted.map((p) => (
-                    <Cell key={p.id} cursor={onPick ? "pointer" : undefined} />
-                  ))}
-                </Scatter>
-              </ScatterChart>
-            </ResponsiveContainer>
-          </div>
-          {/*
-            The labels, under the figure rather than on it. Recharts labels
-            collide at this size and a scatter of N points with N overlapping
-            names is less readable than the plot alone.
-          */}
-          <ul className="flex flex-wrap gap-x-3 gap-y-0.5">
-            {plotted.map((p) => (
-              <li
-                key={p.id}
-                className="telemetry text-micro text-muted-foreground"
-                title={`MMD² ${fmt(p.x, 4)} · agreement ${p.y.toFixed(1)}%`}
-              >
-                {p.label}
-              </li>
-            ))}
-          </ul>
-        </>
-      )}
+                  {titled(p.label)}
+                </li>
+              ))}
+            </ul>
+          </>
+        )}
+      </ReadingSection>
 
       {(excluded.length > 0 || (skipped?.length ?? 0) > 0) && (
-        <div className="flex flex-col gap-1">
-          {/*
-            Named rather than dropped. A target missing from a figure with no
-            account of why reads as a target that was not run.
-          */}
-          <p className="eyebrow !text-micro">Not on the axis</p>
-          <ul className="flex flex-col gap-0.5">
+        /*
+          Named rather than dropped. A target missing from a figure with no
+          account of why reads as a target that was not run.
+        */
+        <ReadingSection
+          title="Not on the axis"
+          caption="Placing these would put a distance built from other quantities beside the rest."
+        >
+          <ul className="divide-y divide-[rgb(var(--p-line)/0.25)]">
             {excluded.map((row) => (
-              <li key={row.id} className="flex items-baseline gap-1.5 text-meta">
-                <span className="min-w-0 flex-1 truncate text-muted-foreground">
-                  {row.label}
-                </span>
-                <span className="telemetry shrink-0 text-micro text-amber-500/90">
+              <li key={row.id} className="flex flex-col gap-0.5 py-2 first:pt-0">
+                <span className="text-label text-foreground">{titled(row.label)}</span>
+                <span className="text-label text-muted-foreground">
                   {exclusionReason(row, axis)}
                 </span>
               </li>
@@ -323,24 +316,25 @@ export function DomainCohort({
             {skipped?.map((label) => (
               <li
                 key={`skipped-${label}`}
-                className="flex items-baseline gap-1.5 text-meta"
+                className="flex flex-col gap-0.5 py-2 first:pt-0"
               >
-                <span className="min-w-0 flex-1 truncate text-muted-foreground">
-                  {label}
-                </span>
-                <span className="telemetry shrink-0 text-micro text-amber-500/90">
-                  no domain fingerprint; re-classify to include it
+                <span className="text-label text-foreground">{titled(label)}</span>
+                <span className="text-label text-muted-foreground">
+                  No domain fingerprint; classify it again to include it.
                 </span>
               </li>
             ))}
           </ul>
-        </div>
+        </ReadingSection>
       )}
 
       {table && (
-        <div className={cn("min-w-0")}>
-          <DataTableView table={table} caption={table.csvName} />
-        </div>
+        <ReadingSection
+          title="Figures"
+          caption="Every area of the cohort, the source first."
+        >
+          <DataTableView table={table} />
+        </ReadingSection>
       )}
     </div>
   )

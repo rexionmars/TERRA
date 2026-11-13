@@ -20,6 +20,7 @@
 import { useEffect, useState } from "react"
 import { DomainShiftSection } from "@/components/DomainShiftSection"
 import { DomainCohort } from "@/components/workspace/DomainCohort"
+import { Callout } from "@/components/workspace/readingParts"
 import type { PredictionCompareSide } from "@/components/workspace/PredictionComparison"
 import { cohortDomainShift } from "@/lib/domainShift"
 import type { DomainShiftCohort } from "@/lib/types"
@@ -97,7 +98,7 @@ export function DomainShiftEditor({
 
   if (mode === "cohort") {
     return (
-      <div className="panel-scroll h-full w-full overflow-auto p-3">
+      <div className="panel-scroll h-full w-full overflow-auto pb-6">
         {!source ? (
           <p className="flex h-full items-center justify-center px-4 text-center text-meta text-muted-foreground">
             {available.length < 2
@@ -110,12 +111,14 @@ export function DomainShiftEditor({
             measure against it.
           </p>
         ) : loading && !cohort ? (
-          <p className="text-meta text-muted-foreground">
+          <p className="p-4 text-label text-muted-foreground">
             Measuring {targets.length} target
             {targets.length === 1 ? "" : "s"} against {source.label}…
           </p>
         ) : error ? (
-          <p className="text-meta text-amber-500/90">{error}</p>
+          <div className="p-4">
+            <Callout title="The cohort could not be measured">{error}</Callout>
+          </div>
         ) : cohort ? (
           <DomainCohort cohort={cohort} skipped={skipped} onPick={onPickTarget} />
         ) : null}
@@ -124,12 +127,9 @@ export function DomainShiftEditor({
   }
 
   return sides ? (
-    // px-2 py-1.5, as `PredictionComparison`'s own area placement uses: every
-    // other editor owns its scroll container and its inset, and this one was the
-    // exception with a p-3 wrapper around a component that also drew a p-4 card.
-    <div className="panel-scroll h-full w-full overflow-auto px-2 py-1.5">
+    // No inset: the reading's sections carry their own, as Differences' do.
+    <div className="panel-scroll h-full w-full overflow-auto pb-6">
       <DomainShiftSection
-        placement="area"
         resultA={sides[0].result}
         resultB={sides[1].result}
         labelA={sides[0].label}
