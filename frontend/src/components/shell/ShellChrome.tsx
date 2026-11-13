@@ -12,7 +12,6 @@ import {
   Folders,
   Graph,
   Lifebuoy,
-  Polygon,
   SidebarCollapse,
   SidebarSimple,
   SquaresFour,
@@ -35,9 +34,14 @@ import { notifyError } from "@/lib/notify"
 import { openProjectFile, projectFileName } from "@/lib/projectFiles"
 import { cn } from "@/lib/utils"
 
-/** What the rail can show as current. */
+/**
+ * What the rail can show as current: the places, and the activity log.
+ *
+ * Areas is not one of them. It is a panel over the map, not a place, and it
+ * opens from the area's step in the path (ShellPath), where an area is chosen.
+ */
 export type RailPlace =
-  "explore" | "areas" | "analyses" | "compare" | "workflows" | "models" | "activity"
+  "explore" | "analyses" | "compare" | "workflows" | "models" | "activity"
 
 /*
   THE TRAFFIC LIGHTS ARE WIDER THAN THE RAIL. In the hidden title bar main.go
@@ -188,6 +192,7 @@ export function ShellPath({
   areaName,
   activeAreaId,
   onPickArea,
+  onManageAreas,
   app,
   recentFiles,
 }: {
@@ -199,6 +204,8 @@ export function ShellPath({
   areaName: string
   activeAreaId?: string
   onPickArea: (area: Area) => void
+  /** Opens the areas panel: every area and its fields, drawing, import, IBGE. */
+  onManageAreas: () => void
   app: AppSurfaces
   /** Project files opened lately, newest first. */
   recentFiles: readonly string[]
@@ -349,6 +356,15 @@ export function ShellPath({
             No areas yet. Draw one with the pencil on the map.
           </p>
         )}
+        <MenuRule />
+        <MenuItem
+          label="Manage areas…"
+          title="Every area of the project and its fields: rename, delete, import, or take a boundary from IBGE"
+          onSelect={() => {
+            setMenu(null)
+            onManageAreas()
+          }}
+        />
       </Crumb>
       <WindowControls />
     </nav>
@@ -431,7 +447,6 @@ export function ShellRail({
   onToggle,
   unseen,
   onExplore,
-  onAreas,
   onAnalyses,
   onCompare,
   onWorkflows,
@@ -444,7 +459,6 @@ export function ShellRail({
   onToggle: () => void
   unseen: boolean
   onExplore: () => void
-  onAreas: () => void
   onAnalyses: () => void
   onCompare: () => void
   onWorkflows: () => void
@@ -487,13 +501,6 @@ export function ShellRail({
             open={open}
             active={place === "explore"}
             onClick={onExplore}
-          />
-          <RailButton
-            icon={Polygon}
-            label="Areas"
-            open={open}
-            active={place === "areas"}
-            onClick={onAreas}
           />
           <RailButton
             icon={Folders}

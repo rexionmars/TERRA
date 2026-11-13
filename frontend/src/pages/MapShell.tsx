@@ -502,6 +502,10 @@ export function MapShell(props: MapShellProps) {
           areaName={areaName}
           activeAreaId={props.activeAreaId}
           onPickArea={pickArea}
+          onManageAreas={() => {
+            setDestination("explore")
+            setPanel("areas")
+          }}
           app={app}
           recentFiles={extras.recent_project_files ?? []}
         />
@@ -515,11 +519,9 @@ export function MapShell(props: MapShellProps) {
                   destination === "workflows" ||
                   destination === "models"
                 ? destination
-                : panel === "areas"
-                  ? "areas"
-                  : panel === "activity"
-                    ? "activity"
-                    : "explore"
+                : panel === "activity"
+                  ? "activity"
+                  : "explore"
           }
           open={railOpen}
           onToggle={() => {
@@ -530,10 +532,6 @@ export function MapShell(props: MapShellProps) {
           onExplore={() => {
             setDestination("explore")
             setPanel((p) => (p === "areas" || p === "activity" ? null : p))
-          }}
-          onAreas={() => {
-            setDestination("explore")
-            togglePanel("areas")
           }}
           onAnalyses={goAnalyses}
           onCompare={goCompare}
