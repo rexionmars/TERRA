@@ -167,7 +167,7 @@ export function ProfileSection({
                 onClick={() => fileRef.current?.click()}
                 title="Change the photo"
                 aria-label="Change the photo"
-                className="group relative size-18 shrink-0 overflow-hidden rounded-full focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
+                className="group relative size-18 shrink-0 overflow-hidden rounded-md focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
               >
                 <Portrait uri={user.avatar_uri} name={user.display_name} />
                 <span className="absolute inset-0 grid place-items-center bg-[rgb(4_6_11/0.55)] text-[rgb(236_232_223)] opacity-0 transition-opacity group-hover:opacity-100 group-focus-visible:opacity-100">
