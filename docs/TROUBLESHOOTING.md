@@ -25,6 +25,15 @@ pip install 'scikit-learn>=1.8,<1.9'
   Face backbone download (~1.2 GB) on first use.
 - Temporal Transformer needs `torch` and its package installed from **Models**.
 
+### The Models screen says the catalogue could not be read
+
+It shows the list this version of TERRA was built with, and says why the
+published one was not read. Downloading needs the same connection: check that
+`raw.githubusercontent.com` and `github.com` are reachable, then **Try again**.
+A download that fails names each source it tried and its answer. "Not the one
+the catalogue lists" means the file there differs from what was published, and
+nothing was installed from it.
+
 ## Imagery / STAC
 
 ### Zero scenes in the data cube or Classify fails with no products

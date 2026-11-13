@@ -91,6 +91,7 @@ an empty list or a default value later surfaces as a different bug.
 | `frontend/src/lib/palettes.ts` | `python sidecar/tools/gen_palettes.py`, from the sidecar's `CONTINUOUS_STOPS` | `sidecar/tests/test_palette_sync.py` |
 | `CHANGELOG.md`, the version in `version.go`, `CITATION.cff` and `wails.json` | release-please, from the commit messages | `check:version` |
 | `requirements*.lock.txt` | `uv pip compile`, with the command in each file's header | pip `--require-hashes` |
+| `model/catalog.json` | `python3 scripts/package_models.py`, from `model/packages/` and the weights | `TestTheBuiltInCatalogueOffersOnlyWhatThisVersionInstalls`, and the SHA-256 of each published zip |
 | `frontend/dist/` | `npm run build`, never committed | |
 
 **Dead code is removed, and it is found with the tests excluded.** A test counts as a

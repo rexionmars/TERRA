@@ -84,11 +84,11 @@ non-vegetated area, soybean, other temporary crops.
 | Temporal Transformer | six bands padded to 22 dates, mean-pooled over time | `temporal_transformer`: needs `requirements-prithvi.txt` |
 | Prithvi-EO 2.0 300M | one acquisition, frozen embeddings with a Random Forest head | `prithvi`: needs `requirements-prithvi.txt` |
 
-The application ships no model. Each is a package installed from the **Models**
-screen, checked against the SHA-256 of its files before every run, and a saved
-run records the package's id, version and digest. A package of your own installs
-the same way; [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md#model-packages) gives
-the format.
+The application ships no model. The **Models** screen lists the published
+catalogue, and each model is a package downloaded from there, checked against
+the SHA-256 of its files before every run; a saved run records the package's id,
+version and digest. A package of your own is imported from its zip;
+[docs/ARCHITECTURE.md](docs/ARCHITECTURE.md#model-packages) gives the format.
 
 Prithvi takes the middle scene of the window and discards the rest, so widening
 the period changes which acquisition is read rather than how many.
@@ -382,6 +382,7 @@ Interpreter resolution: `TERRA_PYTHON` → bundled `python/` (FULL) → `.venv` 
 | `TERRA_PYTHON` | Python for the sidecar |
 | `TERRA_APP_DIR` | Directory holding `sidecar/` and `areas/` |
 | `TERRA_MODEL_DIR` | No longer read by classification, which runs installed model packages |
+| `TERRA_MODEL_CATALOG` | Address of the model catalogue, in place of the one on GitHub (a mirror, or a test) |
 
 ## Data sources
 

@@ -17,7 +17,7 @@ picture.
 | `internal/` | Go packages, one subject each: `analysis`, `pyenv`, `store`, `jobs`, `geocode`, `research` |
 | `frontend/` | React 19, TypeScript, Vite, Tailwind v4; `docs/DESIGN.md` holds its tokens |
 | `sidecar/` | Python 3.12; `infer.py` is the entry point and `terra/` the package |
-| `model/` | trained classifier files that the sidecar loads |
+| `model/` | sources of the model packages, and `catalog.json`, the catalogue of published models; the sidecar runs installed packages, not these files |
 
 ## Before writing code
 
@@ -95,8 +95,8 @@ A change to what is drawn is looked at, not only tested.
 ## Never
 
 - Edit a generated file: `frontend/wailsjs/`, `frontend/src/components/icons.tsx`,
-  `frontend/src/cursors.css`, `frontend/src/lib/palettes.ts`, `CHANGELOG.md`, the lock
-  files. Change what generates it; docs/CODE_STYLE.md lists each generator.
+  `frontend/src/cursors.css`, `frontend/src/lib/palettes.ts`, `model/catalog.json`,
+  `CHANGELOG.md`, the lock files. Change what generates it; docs/CODE_STYLE.md lists each generator.
 - Write to stdout from `sidecar/terra/`. Stdout carries the result.
 - Silence a check to make it pass. A suppression is a last resort, and gives its reason
   on the line above it.

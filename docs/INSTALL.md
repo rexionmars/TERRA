@@ -9,7 +9,7 @@ Releases ship two flavors:
 | **LITE** | `TERRA-*-lite.zip` | Smaller UI + models; you provide Python 3.12 |
 
 Both include `sidecar/` and `areas/` next to the app binary. Neither includes a
-model: install the ones you want from the **Models** screen.
+model: download the ones you want from the catalogue on the **Models** screen.
 
 **FULL** covers spectral Random Forest, MapBiomas LULC, and phenology without a
 system Python. Temporal Transformer and Prithvi still need torch — use LITE (or
@@ -146,6 +146,7 @@ scripts/package_release.sh --flavor full --os darwin --arch aarch64 --artifact T
 | `TERRA_PYTHON` | Python interpreter for the sidecar. Overrides Settings → System |
 | `TERRA_APP_DIR` | Directory containing `sidecar/` and `areas/` |
 | `TERRA_MODEL_DIR` | No longer read by classification, which runs installed model packages |
+| `TERRA_MODEL_CATALOG` | Address of the model catalogue, in place of the one on GitHub (a mirror, or a test) |
 | `TERRA_ROOT` | Parent repo root used for legacy MapBiomas paths |
 
 These suit a launch from a terminal, where a shell exports them. For an app

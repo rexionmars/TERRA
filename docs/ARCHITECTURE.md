@@ -55,7 +55,7 @@ Prithvi pixel mode can be slow.
 | `internal/store/` | SQLite persistence |
 | `internal/models/` | Install, list and remove model packages |
 | `sidecar/` | Inference, LULC, phenology, Prithvi, Temporal Transformer |
-| `model/` | Sources of the model packages: the weights, and `packages/<id>/model.json`. The application does not read it; `scripts/package_models.py` builds the packages from it |
+| `model/` | Sources of the model packages: the weights, and `packages/<id>/model.json`; and `catalog.json`, the catalogue the Models screen lists. `scripts/package_models.py` builds the packages and the catalogue from it, and the application reads only the catalogue |
 | `frontend/` | React 19 + Vite + Tailwind + MapLibre GL |
 
 ## Inference pipeline (predict)
@@ -87,6 +87,7 @@ role, with its SHA-256 and size, and states what the model is.
 | `files` | Role to `{name, sha256, size}`; the roles each family needs are `ROLES` in `sidecar/terra/models.py` |
 | `classes`, `modes`, `requires`, `variants` | MapBiomas codes it emits, the classify modes it supports, optional Python packages, embedding heads |
 | `summary`, `reads`, `method`, `evaluation`, `limits`, `license`, `doi`, `picture` | What the Models screen and the method brief say about it |
+| `packaged_by` | Who made the package, as `[{"name": ...}]`; who developed the model is named by the evaluation's `source` |
 
 Installed packages live under the data directory at `models/<id>/<version>/`
 (`internal/models`). A package of an unknown family, with a file named outside
@@ -96,8 +97,24 @@ runs code. A package brings weights only: a new architecture is a new family in
 `terra/models.py` and `terra/landcover/classify.py`, and a new model of a known
 family is a manifest and its files.
 
+The Models screen lists the **catalogue**, `catalog.json` in the models
+repository, [rexionmars/TERRA-models](https://github.com/rexionmars/TERRA-models),
+read when the screen opens; without a connection it shows the copy the build
+embeds, `model/catalog.json` (`internal/models/catalog.go`). Each entry is a
+package's manifest, its picture, the SHA-256 and size of its zip, and the
+places the zip is published: a release of the models repository tagged
+`<id>-<version>`, and Zenodo once the manifest's `doi` is the Zenodo DOI
+reserved for it. A
+download is checked against the zip's SHA-256 before anything is unpacked, and
+the package in it against the entry's digest before it appears installed.
+`TERRA_MODEL_CATALOG` points the application at another catalogue, for a mirror
+or a test.
+
 `python3 scripts/package_models.py` builds the packages of the models in
-`model/` into `dist/models/`.
+`model/` into `dist/models/` and writes the catalogue. The zips are
+reproducible, so a package built again has the SHA-256 the catalogue gives for
+it. Publishing is by hand: a release of the models repository with the zip, a
+Zenodo record, and then the catalogue at that repository's root.
 
 ## Related docs
 

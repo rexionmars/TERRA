@@ -81,14 +81,19 @@ run, what it has said so far.
 **Land cover**, beside Classification's Method, reads MapBiomas over the area without
 running a model.
 
-TERRA ships without models. **Models**, in the rail, is where you install them:
-**Import a package** takes a model's zip, checks every file against the SHA-256 in
-its manifest, and installs it. A package loads with Python's pickle, which can run
-code, so import only what you trained or got from someone you trust. Each model's
-page says what it reads, how it works, how it was evaluated and its limits;
-**Run on the map** opens Classification on it, and **Remove** uninstalls it. Runs
-made with a model keep their results after it is removed, and name the version and
-files that made them.
+TERRA ships without models. **Models**, in the rail, lists the catalogue of
+published models, each with a page that says what it reads, how it works, how it
+was evaluated and its limits, before anything is downloaded. **Download and
+install** fetches the model's package from GitHub, or from Zenodo when GitHub
+fails, and installs it only if it matches the SHA-256 the catalogue lists.
+**Run on the map** opens Classification on an installed model, and **Remove**
+uninstalls it. Runs made with a model keep their results after it is removed, and
+name the version and files that made them.
+
+A model of your own comes in through **Import a package**, which takes its zip and
+checks every file against the SHA-256 in its manifest. A package loads with
+Python's pickle, which can run code, so import only what you trained or got from
+someone you trust.
 
 A queued product runs over a saved area, one job after another, and the queue is
 listed in its form. A running product keeps a progress strip over the map when its

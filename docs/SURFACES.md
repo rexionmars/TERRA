@@ -14,7 +14,7 @@ disagree, the code is right and this file is stale.
 | The panels | [`frontend/src/components/shell/`](../frontend/src/components/shell/) |
 | Compare | [`frontend/src/components/shell/CompareScreen.tsx`](../frontend/src/components/shell/CompareScreen.tsx) |
 | Workflows | [`frontend/src/components/shell/WorkflowsScreen.tsx`](../frontend/src/components/shell/WorkflowsScreen.tsx) |
-| Models | [`frontend/src/components/shell/ModelsScreen.tsx`](../frontend/src/components/shell/ModelsScreen.tsx), its facts in [`frontend/src/lib/modelCatalog.ts`](../frontend/src/lib/modelCatalog.ts) |
+| Models | [`frontend/src/components/shell/ModelsScreen.tsx`](../frontend/src/components/shell/ModelsScreen.tsx); the catalogue and its downloads in [`frontend/src/lib/modelCatalog.ts`](../frontend/src/lib/modelCatalog.ts), the installed packages in [`frontend/src/lib/installedModels.ts`](../frontend/src/lib/installedModels.ts) |
 | Readings the destinations share | [`frontend/src/components/workspace/`](../frontend/src/components/workspace/) |
 
 ## The shape
