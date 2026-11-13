@@ -37,6 +37,14 @@ import {
 } from "@/lib/figure"
 import { useFigureBox } from "@/lib/useFigureSize"
 import { cn } from "@/lib/utils"
+import { Callout, RunPills } from "@/components/workspace/readingParts"
+import { SpectralBackdrop } from "@/components/workspace/SpectralBackdrop"
+import {
+  S2_BANDS,
+  measuredRuns,
+  spectralChecks,
+  spectralFeatures,
+} from "@/lib/s2Spectral"
 
 interface Series {
   classId: number
@@ -174,7 +182,8 @@ export function SpectraEditor({
       near zero is the reason the offset was introduced, and an axis pinned at
       zero would hide the one part of the correction that shows.
     */
-    const yMax = Math.max(...points.map((p) => p.p95))
+    // Headroom above the highest spread, where the regions are named.
+    const yMax = Math.max(...points.map((p) => p.p95)) * 1.15
     const yMin = Math.min(0, ...points.map((p) => p.p05))
     const yTicks = niceTicks(yMin, yMax, 5)
     const yLabels = yTicks.map((t) => t.toFixed(2))
@@ -278,27 +287,15 @@ export function SpectraEditor({
 
   return (
     <div className="flex h-full min-h-0 flex-col">
-      <div
-        className="flex shrink-0 flex-wrap items-center gap-1 border-b px-2 py-1.5"
-        style={{ borderColor: "rgb(var(--p-line) / 0.22)" }}
-      >
-        {/* Which run, only where more than one is selected. */}
-        {runs.length > 1 &&
-          runs.map((r, i) => (
-            <button
-              key={r.id}
-              type="button"
-              onClick={() => setRunIdx(i)}
-              className={cn(
-                "max-w-[12rem] truncate rounded-sm px-1.5 py-0.5 text-meta transition-colors",
-                i === runIdx
-                  ? "bg-accent-dim text-foreground inset-ring-1 inset-ring-accent"
-                  : "text-muted-foreground hover:bg-hover hover:text-foreground"
-              )}
-            >
-              {r.label}
-            </button>
-          ))}
+      <div className="flex shrink-0 flex-wrap items-center gap-2 border-b border-border px-4 py-2.5">
+        {/* Which run, only where more than one is linked. */}
+        {runs.length > 1 && (
+          <RunPills
+            runs={runs}
+            value={Math.min(runIdx, runs.length - 1)}
+            onChange={setRunIdx}
+          />
+        )}
         {/*
           The two statements a reader needs before the curve means anything: it
           is ONE acquisition, and it is the corrected reflectance convention.
@@ -313,7 +310,7 @@ export function SpectraEditor({
         )}
       </div>
 
-      <div className="panel-scroll min-h-0 flex-1 overflow-auto p-2">
+      <div className="panel-scroll min-h-0 flex-1 overflow-auto p-4">
         {!spectra || !figure ? (
           <p className="text-meta text-muted-foreground">
             This run carries no spectral response. Runs saved before the measurement
@@ -325,14 +322,14 @@ export function SpectraEditor({
             A column: the figure takes what is left after the readout and the
             caption, and its own box is a flex child holding an absolutely
             positioned svg -- out of flow, so the figure cannot push the box it
-            is measured from. Below 240 px the column overflows and the panel
+            is measured from. Below 360 px the column overflows and the panel
             scrolls, rather than drawing five curves in forty pixels.
           */
           <div className="flex h-full min-h-0 flex-col gap-2">
             <div
               ref={host}
               className="relative min-h-0 w-full flex-1"
-              style={{ minHeight: 240 }}
+              style={{ minHeight: 360 }}
             >
               <svg
                 width={figure.layout.width}
@@ -347,6 +344,13 @@ export function SpectraEditor({
                 role="img"
                 aria-label={`Mean surface reflectance per band for ${figure.series.length} predicted classes on ${spectra.scene_date}`}
               >
+                <SpectralBackdrop
+                  x={figure.x}
+                  plot={figure.plot}
+                  bands={figure.bands.map((b) => b.band)}
+                  activeBand={hovered?.band ?? null}
+                />
+
                 {/*
                 The dispersion of ONE class at a time, on hover. Five ribbons
                 drawn at once cover each other and the means they belong to,
@@ -354,30 +358,35 @@ export function SpectraEditor({
               */}
                 {figure.series
                   .filter((s) => s.classId === focusClass)
-                  .map((s) => (
-                    <path
-                      key={`ribbon-${s.classId}`}
-                      d={
-                        s.points
-                          .map(
-                            (p, i) =>
-                              `${i ? "L" : "M"}${figure.x(p.wavelength_nm)},${figure.y(p.p95)}`
-                          )
-                          .join("") +
-                        s.points
-                          .slice()
-                          .reverse()
-                          .map(
-                            (p) => `L${figure.x(p.wavelength_nm)},${figure.y(p.p05)}`
-                          )
-                          .join("") +
-                        "Z"
-                      }
-                      fill={s.stroke}
-                      fillOpacity={0.14}
-                      stroke="none"
-                    />
-                  ))}
+                  .flatMap((s) =>
+                    measuredRuns(s.points).map((run, k) => (
+                      <path
+                        key={`ribbon-${s.classId}-${k}`}
+                        d={
+                          run.length === 1
+                            ? `M${figure.x(run[0].wavelength_nm) - 3},${figure.y(run[0].p95)}h6V${figure.y(run[0].p05)}h-6Z`
+                            : run
+                                .map(
+                                  (p, i) =>
+                                    `${i ? "L" : "M"}${figure.x(p.wavelength_nm)},${figure.y(p.p95)}`
+                                )
+                                .join("") +
+                              run
+                                .slice()
+                                .reverse()
+                                .map(
+                                  (p) =>
+                                    `L${figure.x(p.wavelength_nm)},${figure.y(p.p05)}`
+                                )
+                                .join("") +
+                              "Z"
+                        }
+                        fill={s.stroke}
+                        fillOpacity={0.16}
+                        stroke="none"
+                      />
+                    ))
+                  )}
 
                 {/*
                 A rule per band. Unlike a background grid, these are not
@@ -450,7 +459,7 @@ export function SpectraEditor({
                   fill="var(--muted-foreground)"
                   textAnchor="middle"
                 >
-                  Reflectance (dimensionless)
+                  Surface reflectance
                 </text>
 
                 {/* Band labels, staggered where two bands sit too close to fit. */}
@@ -491,26 +500,51 @@ export function SpectraEditor({
                   fill="var(--muted-foreground)"
                   textAnchor="middle"
                 >
-                  Wavelength (nm), band centres
+                  Wavelength (nm), to scale; each band shaded over its width
                 </text>
 
                 {figure.series.map((s) => {
                   const dim = focusClass !== null && focusClass !== s.classId
                   return (
                     <g key={`s-${s.classId}`} opacity={dim ? 0.25 : 1}>
-                      <polyline
-                        points={s.points
-                          .map(
-                            (p) => `${figure.x(p.wavelength_nm)},${figure.y(p.mean)}`
-                          )
-                          .join(" ")}
-                        fill="none"
-                        stroke={s.stroke}
-                        strokeWidth={STROKE.series}
-                        // A second channel, so colour is never the only one.
-                        strokeDasharray={s.dash}
-                        strokeLinejoin="round"
-                      />
+                      {/*
+                        Joined only where the bands are close enough to sample
+                        one stretch of the spectrum. Across B8A to B11 -- 749 nm
+                        with an absorption stretch inside -- the class is carried
+                        by a faint dotted rule, which says the two runs belong
+                        to one curve without drawing a shape nobody measured.
+                      */}
+                      {measuredRuns(s.points).map((run, k, runs) => (
+                        <g key={`run-${k}`}>
+                          <polyline
+                            points={run
+                              .map(
+                                (p) =>
+                                  `${figure.x(p.wavelength_nm)},${figure.y(p.mean)}`
+                              )
+                              .join(" ")}
+                            fill="none"
+                            stroke={s.stroke}
+                            strokeWidth={STROKE.series}
+                            // A second channel, so colour is never the only one.
+                            strokeDasharray={s.dash}
+                            strokeLinejoin="round"
+                          />
+                          {k > 0 && (
+                            <line
+                              x1={figure.x(runs[k - 1].at(-1)!.wavelength_nm)}
+                              y1={figure.y(runs[k - 1].at(-1)!.mean)}
+                              x2={figure.x(run[0].wavelength_nm)}
+                              y2={figure.y(run[0].mean)}
+                              stroke={s.stroke}
+                              strokeWidth={1}
+                              strokeDasharray="1 4"
+                              strokeLinecap="round"
+                              opacity={0.55}
+                            />
+                          )}
+                        </g>
+                      ))}
                       {s.points.map((p) => (
                         <circle
                           key={p.band}
@@ -597,13 +631,17 @@ export function SpectraEditor({
               the reader is reading it.
             */}
             <div
-              className="shrink-0 rounded-sm border p-1.5"
-              style={{ borderColor: "rgb(var(--p-line) / 0.22)", minHeight: 58 }}
+              className="shrink-0 rounded-md border border-[rgb(var(--p-line)/0.45)] bg-[rgb(var(--p-ink))] px-3 py-2"
+              style={{ minHeight: 58 }}
             >
               {hovered ? (
                 <>
                   <p className="telemetry mb-1 text-meta text-muted-foreground">
-                    {hovered.band} · {hovered.nm} nm · mean [p05, p95]
+                    {hovered.band} · {hovered.nm} nm
+                    {S2_BANDS[hovered.band]
+                      ? ` · ${S2_BANDS[hovered.band].width} nm wide · ${S2_BANDS[hovered.band].res} m`
+                      : ""}{" "}
+                    · mean [p05, p95]
                   </p>
                   <div className="flex flex-wrap gap-x-4 gap-y-0.5">
                     {figure.series.map((s) => {
@@ -629,7 +667,7 @@ export function SpectraEditor({
                   </div>
                 </>
               ) : (
-                <p className="text-meta text-muted-foreground">
+                <p className="text-label text-muted-foreground">
                   {/*
                     Which class is lit, and why, when the reader did not light
                     it. A highlight with no stated cause reads as a defect.
@@ -656,13 +694,123 @@ export function SpectraEditor({
               it was assigned to, and the spectrum cannot be read as evidence
               that the assignment was right.
             */}
-            <p className="shrink-0 text-meta text-muted-foreground">
+            <p className="shrink-0 text-label text-muted-foreground">
               Class means over predicted pixels, so this describes what the classifier
               grouped together rather than whether the grouping is correct. Smallest
               class n = {figure.minPixels.toLocaleString()} pixels.
             </p>
+
+            <SpectralReading series={figure.series} />
           </div>
         )}
+      </div>
+    </div>
+  )
+}
+
+/*
+  WHAT A SPECTROSCOPIST READS OFF THE CURVES, as figures and as checks.
+
+  Three features, each tied to one absorber: the depth of the red chlorophyll
+  absorption once the continuum from the green peak to the NIR shoulder is
+  removed, NDVI for how far NIR scattering outweighs it, and NDMI for canopy
+  water, which absorbs in the SWIR against the NIR. A class whose spectrum
+  fails a physical check is named with what failed, and its features are not
+  computed from the failing bands.
+*/
+function SpectralReading({ series }: { series: Series[] }) {
+  const rows = series.map((s) => {
+    const byBand: Record<string, number> = {}
+    for (const p of s.points) byBand[p.band] = p.mean
+    return {
+      s,
+      features: spectralFeatures(byBand),
+      checks: spectralChecks(byBand),
+      n: Math.min(...s.points.map((p) => p.n_pixels)),
+    }
+  })
+  const failing = rows.filter((r) => r.checks.length > 0)
+  const fmt = (v: number | null, digits = 2) => (v === null ? "—" : v.toFixed(digits))
+
+  return (
+    <div className="flex shrink-0 flex-col gap-3 pt-2">
+      {failing.length > 0 && (
+        <Callout title="Not a surface reflectance">
+          <ul className="flex flex-col gap-1.5">
+            {failing.map((r) => (
+              <li key={r.s.classId}>
+                <span className="text-foreground">{r.s.name}</span>,{" "}
+                {r.n.toLocaleString()} pixels: {r.checks.map((c) => c.text).join(" ")}
+                {r.checks.some((c) =>
+                  c.bands.some((b) => (S2_BANDS[b]?.res ?? 10) > 10)
+                ) &&
+                  r.n < 200 &&
+                  " B8A, B11 and B12 are 20 m bands resampled to the 10 m grid, so a class this small along an edge takes much of them from its neighbours; a gap this large also points at the 20 m bands being registered off the class grid."}
+              </li>
+            ))}
+          </ul>
+        </Callout>
+      )}
+
+      <div>
+        <p className="text-label font-medium text-foreground">Absorption features</p>
+        <p className="mt-0.5 text-label text-muted-foreground">
+          Red depth is the chlorophyll absorption at 665 nm below the continuum from B03
+          to B08; NDVI weighs NIR scattering against it; NDMI is canopy water, as B11
+          absorbs against B8A.
+        </p>
+        <table className="mt-2 w-full text-label">
+          <thead>
+            <tr className="text-meta text-muted-foreground">
+              <th className="pb-1.5 text-left font-normal">Class</th>
+              <th className="w-20 pb-1.5 text-right font-normal">Red depth</th>
+              <th className="w-16 pb-1.5 text-right font-normal">NDVI</th>
+              <th className="w-16 pb-1.5 text-right font-normal">NDMI</th>
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-[rgb(var(--p-line)/0.25)]">
+            {rows.map(({ s, features, checks }) => {
+              /*
+                A feature drawn from a band that fails a check is not given:
+                which of B08 and B8A is wrong cannot be told from the two
+                numbers, so neither is used.
+              */
+              const bad = new Set(checks.flatMap((c) => c.bands))
+              const cell = (v: number | null, uses: string[]) => {
+                const off = uses.some((b) => bad.has(b))
+                return (
+                  <td
+                    className={cn(
+                      "telemetry py-1.5 text-right tabular-nums",
+                      off ? "text-muted-foreground" : "text-foreground"
+                    )}
+                    title={
+                      off ? "Not computed: a band it needs fails a check" : undefined
+                    }
+                  >
+                    {off ? "—" : fmt(v)}
+                  </td>
+                )
+              }
+              return (
+                <tr key={s.classId}>
+                  <td className="py-1.5">
+                    <span className="flex min-w-0 items-center gap-2">
+                      <span
+                        className="h-0.5 w-3 shrink-0 rounded-full"
+                        style={{ background: s.stroke }}
+                      />
+                      <span className="truncate text-foreground">{s.name}</span>
+                    </span>
+                  </td>
+                  {cell(features.redDepth, ["B03", "B04", "B08"])}
+                  {cell(features.ndvi, ["B04", "B08"])}
+                  {cell(features.ndmi, ["B8A", "B11"])}
+                </tr>
+              )
+            })}
+          </tbody>
+        </table>
       </div>
     </div>
   )
