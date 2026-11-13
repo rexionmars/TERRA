@@ -33,6 +33,24 @@ import { cn } from "@/lib/utils"
 
 const MENU_ITEM = "[role='menuitem']:not(:disabled)"
 
+/*
+  THE SHELL EVERY MENU IS DRAWN IN: a dark plate at the frame's own depth,
+  lightest at its top, with a faint edge and a long soft shadow, and its rows
+  set in from that edge so the row under the pointer is a rounded plate inside
+  the menu rather than a band across it.
+
+  Dark rather than raised. A menu opens over the map and over areas painted in
+  ink, and what holds it apart from either is its edge and its shadow, not a
+  lighter ground: a grey plate over imagery read as a second panel rather than
+  as a list that will close. Text and muted text are measured on control and on
+  ink in contrast.ts, the two ends of the gradient, at 4.5 or more.
+*/
+const MENU_SHELL = "rounded-md border p-1.5 shadow-[0_16px_40px_rgb(0_0_0/0.5)]"
+const MENU_SHELL_STYLE = {
+  background: "linear-gradient(180deg, rgb(var(--p-control)), rgb(var(--p-ink)))",
+  borderColor: "rgb(var(--p-line) / 0.55)",
+} as const
+
 /**
  * Walk a panel's rows with the arrow keys, as a menu is walked.
  *
@@ -202,19 +220,12 @@ export function MenuPopover({
             ref={panelRef}
             role={role}
             onKeyDown={onMenuKeys}
-            className={cn(
-              "rounded-sm border py-1 shadow-[0_8px_24px_rgba(0,0,0,0.55)]",
-              detached ? "fixed z-1200" : "absolute z-60"
-            )}
+            className={cn(MENU_SHELL, detached ? "fixed z-1200" : "absolute z-60")}
             style={{
+              ...MENU_SHELL_STYLE,
               left: pos?.x ?? -9999,
               top: pos?.y ?? -9999,
               width: `${widthRem}rem`,
-              // Raised rather than ink: the panel floats over areas painted in
-              // ink, and a panel the same colour as the ground behind it reads
-              // as a hole rather than as a surface.
-              background: "var(--s-float)",
-              borderColor: "rgb(var(--p-line-strong) / 0.5)",
               // Hidden until placed, so the first frame is never at the corner.
               visibility: pos ? "visible" : "hidden",
             }}
@@ -257,14 +268,16 @@ export function MenuItem({
       title={title}
       onClick={onSelect}
       className={cn(
-        "flex w-full items-center gap-2 py-[3px] text-left text-meta transition-colors",
+        "flex w-full items-center gap-2 rounded-sm py-1.5 text-left text-body transition-colors",
         // One glyph's width, so a sub-entry lines up under its parent's label
         // rather than under its icon.
         indented ? "pr-2 pl-7" : "px-2",
         disabled
           ? "cursor-not-allowed text-muted-foreground/40"
-          : // The row the arrows reached, drawn as the row the pointer is on.
-            "text-foreground outline-none hover:bg-accent-dim focus-visible:bg-accent-dim"
+          : // The row the arrows reached, drawn as the row the pointer is on: a
+            // plate of the hover tone, not the accent's, since a row in a menu
+            // is where the pointer is and not yet what was chosen.
+            "text-foreground outline-none hover:bg-hover focus-visible:bg-hover"
       )}
     >
       {/* A fixed slot whether or not there is a glyph, so the labels of a
@@ -336,7 +349,7 @@ export function MenuGroup({
 }) {
   return (
     <div className="py-0.5">
-      <p className="eyebrow px-2 pb-0.5 !text-micro">{label}</p>
+      <p className="px-2 pt-1 pb-1 text-meta text-muted-foreground">{label}</p>
       {children}
     </div>
   )
@@ -426,18 +439,16 @@ export function ContextMenu({
       ref={panelRef}
       role="menu"
       onKeyDown={onMenuKeys}
-      className="absolute z-70 w-[14rem] rounded-sm border py-1 shadow-[0_8px_24px_rgba(0,0,0,0.55)]"
+      className={cn(MENU_SHELL, "absolute z-70 w-[14rem]")}
       style={{
+        ...MENU_SHELL_STYLE,
         left: pos?.x ?? -9999,
         top: pos?.y ?? -9999,
-        background: "var(--s-float)",
-        borderColor: "rgb(var(--p-line-strong) / 0.5)",
         visibility: pos ? "visible" : "hidden",
       }}
     >
-      <p className="truncate px-2 pt-0.5 pb-1 text-meta text-muted-foreground">
-        {title}
-      </p>
+      {/* What the menu acts on, as its heading, over the rule. */}
+      <p className="truncate px-2 pt-1 pb-1.5 text-label text-foreground">{title}</p>
       <MenuRule />
       {children}
     </div>,
@@ -448,7 +459,7 @@ export function ContextMenu({
 export function MenuRule() {
   return (
     <div
-      className="my-1 h-px"
+      className="mx-1 my-1.5 h-px"
       style={{ background: "rgb(var(--p-line) / 0.4)" }}
       aria-hidden
     />
