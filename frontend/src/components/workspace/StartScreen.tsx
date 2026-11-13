@@ -16,7 +16,7 @@ import { File, FolderOpen, Stack, type Icon } from "@/components/icons"
 
 import { GetAppVersion } from "../../../wailsjs/go/main/App"
 import { BrowserOpenURL } from "../../../wailsjs/runtime/runtime"
-import { BRAND_TAGLINE } from "@/lib/brand"
+import { BRAND_PHOTO, BRAND_TAGLINE } from "@/lib/brand"
 import {
   OPERATORS,
   pollOperator,
@@ -32,31 +32,32 @@ import { cn } from "@/lib/utils"
 const RECENT_SHOWN = 5
 
 /*
-  The picture across the top: the ararajuba, the golden parakeet the mark is
-  drawn from. It is not a release still. The release's code name stays in
-  RELEASE_NAME and FEATURED_STILL, which this card does not show.
-
-  CC BY-SA 3.0, from Wikimedia Commons, where it is also offered under the
-  GFDL. The licence asks for the author, the licence and a way to the source.
-  The card names the first two and links to the file's page, which states all
-  three. The file here is cropped and resized from the original, so it is an
-  adaptation and carries the same licence. That binds this one file and not
-  the code around it.
-
-  Produced as docs/RELEASING.md encodes the stills. The 3197x2530 original was
-  cropped at full width to the card's 500:210, from y 253 to 1596, then resized
-  to 1600x672 with Lanczos and passed through cwebp -q 82, giving 67 KB.
+  The picture across the top: the splash's photograph, cropped to the card, so
+  the start screen opens on the picture the boot window has just shown. It is
+  not a release still. The release's code name stays in RELEASE_NAME and
+  FEATURED_STILL, which this card does not show. BRAND_PHOTO holds the credit,
+  the licence's terms and how the file was produced.
 */
 const START_PICTURE = {
-  path: "/terra-start-ararajuba.webp",
+  path: "/terra-start-water-tap.webp",
   subject:
-    "a golden parakeet (Guaruba guarouba) on a branch, facing right, its " +
-    "head in the upper right of the frame, on a dark brown ground",
-  author: "H. Zell",
-  license: "CC BY-SA 3.0",
-  source:
-    "https://commons.wikimedia.org/wiki/File:Guaruba_guarouba_-_Karlsruhe_Zoo_01.jpg",
+    "two children at a concrete water tap in a dry field, filling a yellow " +
+    "jerrycan, under a blue sky with hills behind",
 }
+
+/*
+  The splash's base, here in the panel's colour: the tab rises from the card's
+  panel into the picture's foot with the wordmark on it, so the picture and
+  the rows below read as one piece, as the photograph and the bar do on the
+  splash. Both are masks, painted with the theme's panel and text colours,
+  since the panel is light under the light theme. 0.72 of the splash's full
+  window, so the wordmark is 108 px wide in a 500 px card.
+
+  The numbers are terra-name-tab.svg's: 305.66 by 34 units, the wordmark 150
+  units wide and set 9.7 units below the tab's foot, where it sits on the
+  splash's bar.
+*/
+const TAB_UNIT = 0.72
 
 /*
   Claimed once per launch, not per mount: the studio screen remounts whenever a
@@ -216,13 +217,15 @@ export function StartScreen({
       >
         {/*
           The picture at the card's width, under the void scrim, with the
-          lockup and the outlined wordmark over it. It stays dark in either
-          theme, as the splash does.
+          lockup, the version and the credit over its sky and the tab at its
+          foot. The picture and its type stay dark in either theme, as the
+          splash does; the tab takes the panel's colour.
+
+          Not clipped, so the wordmark can run down past the picture's foot
+          onto the panel, as it runs onto the bar on the splash. The card
+          itself clips at its rounded corners.
         */}
-        <div
-          className="relative h-[210px] overflow-hidden"
-          style={{ background: "#04060b" }}
-        >
+        <div className="relative h-[210px]" style={{ background: "#04060b" }}>
           <img
             src={START_PICTURE.path}
             alt=""
@@ -230,63 +233,76 @@ export function StartScreen({
             draggable={false}
           />
           {/*
-            Dark at the top for the two lines set there, dark at the foot for
-            the wordmark and the credit. Measured over the ararajuba at the
-            card's size, against the brightest pixel under each line, in the
-            line's own colour:
-            - the tagline, bone at 92%: 12.06;
-            - the version, bone at 92%: 8.03;
-            - the credit, bone at 70%: 6.33;
-            - the wordmark: 4.49, over the 3.0 that large type needs.
-            The three lines clear WCAG's 4.5. The stops were set over Cumulus,
-            a bright cloud, where the tagline read 5.96. They stay at that
-            strength so that a lighter picture does not need them redone.
+            Dark at the top for the lines set on the sky, and clear from the
+            middle down, so the people and the ground are shown as they were
+            taken. Measured at the card's size, against the brightest pixel
+            under each line, in the line's own colour: the tagline 6.49, the
+            version 7.21, the credit 5.42. The credit read 4.55 at 80% bone, so
+            it is set at the version's 92%. The wordmark is on the tab, in the
+            panel's own text colour.
           */}
           <div
             className="absolute inset-0"
             style={{
               background:
-                "linear-gradient(180deg, rgb(4 6 11 / 0.86) 0%, rgb(4 6 11 / 0.62) 22%, rgb(4 6 11 / 0.15) 42%, rgb(4 6 11 / 0.55) 70%, rgb(4 6 11 / 0.9) 100%)",
+                "linear-gradient(180deg, rgb(4 6 11 / 0.82) 0%, rgb(4 6 11 / 0.5) 24%, rgb(4 6 11 / 0) 52%)",
             }}
             aria-hidden
           />
           <div className="absolute top-4 left-5 flex items-center gap-2.5">
             <img src="/terra-logo.png" alt="" className="size-6" draggable={false} />
             <span
-              className="telemetry w-min border-l pl-2.5 text-micro leading-tight tracking-[0.14em] uppercase"
+              className="w-min border-l pl-2.5 text-micro leading-tight tracking-[0.16em] capitalize"
               style={{
-                color: "rgb(236 232 223 / 0.92)",
-                borderColor: "rgb(236 232 223 / 0.3)",
+                color: "rgb(236 232 223 / 0.95)",
+                borderColor: "rgb(236 232 223 / 0.55)",
               }}
             >
               {BRAND_TAGLINE}
             </span>
           </div>
-          {version && (
-            <span
-              className="telemetry absolute top-4 right-4 text-meta tracking-[0.12em] uppercase"
+          <div className="absolute top-4 right-4 flex flex-col items-end gap-1">
+            {version && (
+              <span
+                className="telemetry text-meta tracking-[0.12em] uppercase"
+                style={{ color: "rgb(236 232 223 / 0.92)" }}
+              >
+                v{version}
+              </span>
+            )}
+            <button
+              type="button"
+              className="cursor-pointer text-meta hover:underline focus-visible:ring-1 focus-visible:ring-ring focus-visible:outline-none"
               style={{ color: "rgb(236 232 223 / 0.92)" }}
+              title="Cropped and resized from the original on Pexels"
+              onClick={() => BrowserOpenURL(BRAND_PHOTO.source)}
             >
-              v{version}
-            </span>
-          )}
-          <img
-            src="/terra-wordmark.svg"
-            alt="TERRA"
-            width={4669}
-            height={728}
-            className="absolute bottom-4 left-5 h-auto w-[300px]"
-            draggable={false}
+              Photo: {BRAND_PHOTO.author} · {BRAND_PHOTO.license}
+            </button>
+          </div>
+          <div
+            className="absolute left-1/2 -translate-x-1/2"
+            style={{
+              bottom: -2 * TAB_UNIT,
+              width: 305.66 * TAB_UNIT,
+              aspectRatio: "305.66 / 34",
+              background: "var(--s-panel)",
+              mask: 'url("/terra-name-tab.svg") center / 100% 100% no-repeat',
+            }}
+            aria-hidden
           />
-          <button
-            type="button"
-            className="absolute right-4 bottom-3.5 cursor-pointer text-meta hover:underline focus-visible:ring-1 focus-visible:ring-ring focus-visible:outline-none"
-            style={{ color: "rgb(236 232 223 / 0.7)" }}
-            title="Cropped and resized from the original on Wikimedia Commons"
-            onClick={() => BrowserOpenURL(START_PICTURE.source)}
-          >
-            Photo: {START_PICTURE.author} · {START_PICTURE.license}
-          </button>
+          <div
+            role="img"
+            aria-label="TERRA"
+            className="absolute left-1/2 -translate-x-1/2"
+            style={{
+              bottom: -9.7 * TAB_UNIT,
+              width: 150 * TAB_UNIT,
+              aspectRatio: "4669 / 728",
+              background: "var(--foreground)",
+              mask: 'url("/terra-wordmark-filled.svg") center / 100% 100% no-repeat',
+            }}
+          />
         </div>
 
         <div ref={rows} className="grid grid-cols-2 gap-x-6 px-6 pt-4 pb-2">

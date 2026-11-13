@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react"
 import { EventsOn, EventsOff } from "../../wailsjs/runtime/runtime"
 import { GetAppVersion, GetBootLogs, GetBootState } from "../../wailsjs/go/main/App"
-import { BRAND_TAGLINE } from "@/lib/brand"
+import { BRAND_PHOTO, BRAND_TAGLINE } from "@/lib/brand"
 
 /** What the status reads; set by the Go side once the sidecar probe answers. */
 type BootState = "booting" | "ready" | "failed"
@@ -31,9 +31,6 @@ function preBundleElapsed(): number {
   return Number.isFinite(t0) ? Math.max(0, performance.now() - t0) : 0
 }
 
-/** The three orbits of the scene; splash.css gives each its size and rate. */
-const ORBITS = [1, 2, 3] as const
-
 type SplashScreenProps = {
   /** When true, fade/scale out before the main window opens. */
   exiting?: boolean
@@ -53,12 +50,11 @@ type SplashScreenProps = {
 /**
  * Compact boot UI for the small splash window, before the main shell.
  *
- * The Earth at night under three turning orbits, after the constellation
- * section of pixxel.space: a status bar with the boot state and the version,
- * the website header's lockup over its wordmark, and the boot log's last line
- * in the foot. The styles are in splash.css, shared with the copy index.html
- * paints first, and this renders the same markup so the handoff between the
- * two does not show.
+ * A photograph of the ground across the window, with the lockup and the boot
+ * state over its sky and a base at the foot: a bar with the boot log's last
+ * line and the version, and a tab rising from it with the wordmark. The styles
+ * are in splash.css, shared with the copy index.html paints first, and this
+ * renders the same markup so the handoff between the two does not show.
  */
 export function SplashScreen({ exiting = false, live = true }: SplashScreenProps) {
   const [logs, setLogs] = useState<string[]>(["booting…"])
@@ -132,39 +128,49 @@ export function SplashScreen({ exiting = false, live = true }: SplashScreenProps
       style={{ ["--sp-elapsed" as string]: `${Math.round(elapsed)}ms` }}
     >
       <div className="splash__scene" aria-hidden>
-        <div className="splash__sky">
-          <div className="splash__stars splash__stars--a" />
-          <div className="splash__stars splash__stars--b" />
-          <div className="splash__stars splash__stars--c" />
-        </div>
-        {ORBITS.map((n) => (
-          <div key={n} className={`splash__orbit splash__orbit--${n}`}>
-            <img className="splash__sat" src="/terra-splash-satellite.svg" alt="" />
-          </div>
-        ))}
-        <img className="splash__earth" src="/terra-splash-earth.webp" alt="" />
+        <img
+          className="splash__photo"
+          srcSet="/terra-splash-water-tap-840.webp 840w, /terra-splash-water-tap.webp 2400w"
+          sizes="100vw"
+          src="/terra-splash-water-tap.webp"
+          alt=""
+        />
+        <div className="splash__scrim" />
       </div>
 
       <div className="splash__bar">
+        <span className="splash__spacer" />
         {live && (
           <span className="splash__state">
             <span className={`splash__dot splash__dot--${state}`} aria-hidden />
             {STATE_LABEL[state]}
           </span>
         )}
-        <span className="splash__spacer" />
-        {/*
-          The version alone. The release's code name used to follow it here;
-          it was taken off the splash, which now carries nothing over the
-          scene but the version, the lockup and the wordmark.
-        */}
-        {version && <span>v{version}</span>}
       </div>
 
-      <div className="splash__body">
-        <div className="splash__lockup">
-          <img className="splash__mark" src="/terra-logo.png" alt="" />
-          <p className="splash__tagline">{BRAND_TAGLINE}</p>
+      <div className="splash__lockup">
+        <img className="splash__mark" src="/terra-logo.png" alt="" />
+        <p className="splash__tagline">{BRAND_TAGLINE}</p>
+      </div>
+
+      <div className="splash__base">
+        <div className="splash__tab" />
+        <div className="splash__foot app-no-drag">
+          {live && (
+            <p className="splash__log" title={statusLine}>
+              {statusLine}
+            </p>
+          )}
+          <p className="splash__meta">
+            <span className="splash__credit">
+              Photo: {BRAND_PHOTO.author} · {BRAND_PHOTO.license}
+            </span>
+            {/*
+              The version alone. The release's code name used to follow it;
+              the splash carries no name over the picture but the wordmark.
+            */}
+            {version && <span>v{version}</span>}
+          </p>
         </div>
         <img
           className="splash__word"
@@ -174,15 +180,6 @@ export function SplashScreen({ exiting = false, live = true }: SplashScreenProps
           height={728}
         />
       </div>
-
-      {live && (
-        <div className="splash__foot app-no-drag">
-          <p className="splash__label">Boot</p>
-          <p className="splash__log" title={statusLine}>
-            {statusLine}
-          </p>
-        </div>
-      )}
     </div>
   )
 }

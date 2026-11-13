@@ -13,14 +13,14 @@
   THE TOKENS ARE THE WEBSITE'S, not the application's. The design is the one
   TERRA-website names "ground segment" (its src/styles/global.css): a void
   ground, bone type, and one signal colour that is never used for data. They
-  are fixed rather than read from the theme on purpose. The website is dark
-  only, the scene below is space, and under the light theme the application's
-  tokens would put dark type over a night sky.
+  are fixed rather than read from the theme on purpose: the picture is a
+  photograph whatever the theme, and the light theme's tokens would put dark
+  type on the darkened sky and on the void bar.
 
-  The mono face is the application's telemetry face and not the website's IBM
-  Plex Mono: index.html already loads it, and a second mono family fetched for a
-  screen that is up for three seconds would arrive as a visible swap. The
-  display face is not loaded at all; see .splash__word.
+  The mono face is the application's telemetry face and Inter its text face,
+  both loaded by index.html. A face fetched for a screen that is up for three
+  seconds would arrive as a visible swap, so the wordmark is not type at all;
+  see .splash__word.
 */
 .splash {
   --sp-void: 4 6 11;
@@ -28,46 +28,34 @@
   --sp-dust: 169 173 184;
   --sp-faint: 125 130 144;
   --sp-signal: 200 242 90;
-  --sp-rule: rgb(var(--sp-bone) / 0.12);
   --sp-mono: "JetBrains Mono", ui-monospace, "SF Mono", Menlo, monospace;
+  --sp-sans: Inter, ui-sans-serif, system-ui, sans-serif;
   /*
     Sized for two windows: the 420x280 boot window, and the full window the
     application menu shows this in again. The floors are the boot window's
     and the ceilings are the website's own sizes for the same roles.
   */
-  --sp-gutter: clamp(20px, 3.4vw, 48px);
+  --sp-gutter: clamp(12px, 2vw, 28px);
   --sp-label: clamp(9px, 0.75vw, 11px);
-  --sp-value: clamp(10px, 0.9vw, 13px);
   /*
-    The scene is sized from the Earth's diameter, and the Earth from the
-    window's short side, so the full window shows the boot window's picture
-    enlarged rather than the same Earth lost in a wider field. 74vmin is 207 px
-    in the boot window.
-
-    The type is placed from the Earth too, and not from the status bar above
-    it. The bar is 52 px in both windows, so type set below it sat higher
-    against the orbits in the full window, where the outer satellite passed
-    under the lockup within a second of opening. In vh, since every copy of
-    this is fixed to the viewport, so the sky's clearing can be placed in the
-    same terms.
-
-    The status bar is as tall as the window's title bar, so that the traffic
-    lights sit on its centre line (see splash__bar). The scene hangs below it:
-    the Earth's centre is 73vh less 30 px under the bar's foot, which is where
-    the composition was set and measured, under a bar 30 px tall. In the boot
-    window that keeps the lockup 14 px clear of the bar's rule.
+    The status band is as tall as the window's title bar, so that the traffic
+    lights sit on its centre line; see .splash__bar.
   */
   --sp-bar: 52px;
-  --sp-earth: 74vmin;
-  --sp-earth-y: calc(var(--sp-bar) + 73vh - 30px);
-  --sp-type-y: calc(var(--sp-earth-y) - var(--sp-earth) * 0.773);
+  /*
+    One length for the base -- the bar, the tab and the wordmark -- set so the
+    full window at 1440x900 is 1px, with a floor of 0.55px that keeps the
+    wordmark 82 px wide in the boot window, where the window's own scale would
+    leave it at 44.
+  */
+  --sp-unit: max(0.55px, min(calc(100vw / 1440), calc(100vh / 900)));
+  --sp-base: calc(var(--sp-unit) * 30);
+  --sp-rise: calc(var(--sp-unit) * 32);
   /* Set by SplashScreen.tsx; see "One clock" below. */
   --sp-elapsed: 0s;
 
   position: fixed;
   inset: 0;
-  display: flex;
-  flex-direction: column;
   overflow: hidden;
   isolation: isolate;
   background: rgb(var(--sp-void));
@@ -107,9 +95,8 @@
 }
 
 /*
-  The scene, after the constellation section of pixxel.space: stars that
-  twinkle, the Earth rising into the frame, and three orbits turning around it
-  with a satellite on each. The type comes in over it.
+  The picture: a photograph of the ground the application observes, across the
+  whole window, with the name carried up into it from the foot on a tab.
 
   ONE CLOCK FOR BOTH COPIES. Every animation starts at its own delay minus
   --sp-elapsed. The pre-bundle copy leaves that at zero, so its animations
@@ -117,12 +104,12 @@
   --sp-elapsed to the time since then, read from the stamp index.html writes
   on the pre-bundle copy. It therefore starts each animation part-way through,
   at the frame the copy over it is showing. Without that, the cross-fade
-  between the two would show the Earth rising twice and every satellite in two
-  places.
+  between the two would show the photograph settle twice and the base rise
+  twice.
 
   Timed against the splash, which is held for three seconds plus the fade --
-  see minSplash in app.go. The entrance is over by 2.3 s, so the boot window
-  shows it whole and then holds the finished picture, still turning.
+  see minSplash in app.go. The entrance is over by 3.2 s and most of it by
+  1 s, so the boot window shows it whole.
 */
 .splash__scene {
   position: absolute;
@@ -131,557 +118,80 @@
   overflow: hidden;
   pointer-events: none;
 }
-
 /*
-  The stars: three layers, each twinkling on its own period, so no two layers
-  dim together and the field never pulses as one. Each layer is one element
-  painted once; only its opacity moves, which the compositor does without
-  repainting.
-
-  The positions are in percent, so the full window spreads the same 78 stars
-  over a larger field, as space looks from a larger window. They come from a
-  seeded generator, run once: a fixed sky, not a new one per launch.
+  Pinned to its top edge, so a window wider than the photograph's 3:2 crops the
+  ground under the base rather than the sky the lockup is set on.
 */
-.splash__sky,
-.splash__stars {
+.splash__photo {
   position: absolute;
   inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  object-position: 50% 0%;
+  animation: splash-settle 3.2s cubic-bezier(0.16, 1, 0.3, 1)
+    calc(0s - var(--sp-elapsed)) both;
 }
-/*
-  KEPT OUT FROM UNDER THE SMALL TYPE. A star is a point as bright as the type
-  itself, so one under a 9 px line is the brightest pixel in its box, and the
-  status, the version and the tagline each read under 1.5 where one fell. The
-  sky starts below the status bar, and a soft clearing is cut around the
-  lockup, centred where splash__body puts it. The wordmark keeps the stars
-  behind it: as a logotype it has no floor, and a sky cleared behind it as well
-  left a bare band across the top of the frame.
-
-  MEASURED at 420x280 and at 1440x900, at 1, 2, 3, 4, 6, 8 and 9 s: the
-  brightest pixel of the scene under each line, with the type made transparent,
-  against that line's colour. Status 16.58, version 9.03, tagline 7.57 at its
-  worst, the BOOT label 5.15, the boot line 14.62 (16.36 in the full window).
-  The wordmark reads 0.94 and 0.84: its brightest pixel is a city light between
-  two letters, and it is recorded so that a new Earth can be compared against
-  it. Satellites are left out of this only because none reaches the type in
-  that time; see the orbits below.
-*/
-.splash__sky {
-  top: var(--sp-bar);
-  -webkit-mask-image: radial-gradient(
-    calc(var(--sp-earth) * 0.6) calc(var(--sp-earth) * 0.2) at 50%
-      calc(var(--sp-type-y) + var(--sp-earth) * 0.07 - var(--sp-bar)),
-    transparent 70%,
-    #000
-  );
-  mask-image: radial-gradient(
-    calc(var(--sp-earth) * 0.6) calc(var(--sp-earth) * 0.2) at 50%
-      calc(var(--sp-type-y) + var(--sp-earth) * 0.07 - var(--sp-bar)),
-    transparent 70%,
-    #000
-  );
-  animation: splash-fade 1.6s ease-out calc(0s - var(--sp-elapsed)) both;
-}
-.splash__stars {
-  background-repeat: no-repeat;
-  animation: splash-twinkle var(--twinkle) ease-in-out
-    calc(var(--twinkle-at) - var(--sp-elapsed)) infinite;
-}
-@keyframes splash-twinkle {
-  50% {
-    opacity: 0.25;
-  }
-}
-.splash__stars--a {
-  --twinkle: 3.4s;
-  --twinkle-at: -0.6s;
-
-  background-image:
-    radial-gradient(1px 1px at 73.6% 21.5%, rgb(var(--sp-dust) / 0.8) 40%, transparent),
-    radial-gradient(
-      0.8px 0.8px at 59% 23.3%,
-      rgb(var(--sp-faint) / 0.9) 40%,
-      transparent
-    ),
-    radial-gradient(
-      1.2px 1.2px at 85.4% 58.4%,
-      rgb(var(--sp-faint) / 0.9) 40%,
-      transparent
-    ),
-    radial-gradient(
-      0.8px 0.8px at 95.3% 45.8%,
-      rgb(var(--sp-dust) / 0.8) 40%,
-      transparent
-    ),
-    radial-gradient(
-      0.9px 0.9px at 97.2% 98.9%,
-      rgb(var(--sp-dust) / 0.55) 40%,
-      transparent
-    ),
-    radial-gradient(
-      1.7px 1.7px at 47.2% 24.5%,
-      rgb(var(--sp-bone) / 0.9) 40%,
-      transparent
-    ),
-    radial-gradient(
-      0.9px 0.9px at 77.2% 68.5%,
-      rgb(var(--sp-bone) / 0.9) 40%,
-      transparent
-    ),
-    radial-gradient(
-      1.2px 1.2px at 98.6% 67.9%,
-      rgb(var(--sp-dust) / 0.55) 40%,
-      transparent
-    ),
-    radial-gradient(
-      1.7px 1.7px at 97.8% 81.5%,
-      rgb(var(--sp-dust) / 0.8) 40%,
-      transparent
-    ),
-    radial-gradient(1px 1px at 38.8% 45.3%, rgb(var(--sp-bone) / 0.7) 40%, transparent),
-    radial-gradient(
-      0.9px 0.9px at 73.4% 74.3%,
-      rgb(var(--sp-dust) / 0.55) 40%,
-      transparent
-    ),
-    radial-gradient(
-      1.2px 1.2px at 22.6% 4.6%,
-      rgb(var(--sp-bone) / 0.5) 40%,
-      transparent
-    ),
-    radial-gradient(
-      1.7px 1.7px at 71.8% 51.7%,
-      rgb(var(--sp-dust) / 0.55) 40%,
-      transparent
-    ),
-    radial-gradient(
-      0.9px 0.9px at 35.4% 38.3%,
-      rgb(var(--sp-bone) / 0.7) 40%,
-      transparent
-    ),
-    radial-gradient(
-      1.2px 1.2px at 82.1% 84.2%,
-      rgb(var(--sp-bone) / 0.9) 40%,
-      transparent
-    ),
-    radial-gradient(
-      0.9px 0.9px at 52.6% 46.1%,
-      rgb(var(--sp-dust) / 0.55) 40%,
-      transparent
-    ),
-    radial-gradient(
-      1.7px 1.7px at 31.4% 66.1%,
-      rgb(var(--sp-dust) / 0.8) 40%,
-      transparent
-    ),
-    radial-gradient(
-      0.8px 0.8px at 63.5% 11.3%,
-      rgb(var(--sp-bone) / 0.5) 40%,
-      transparent
-    ),
-    radial-gradient(
-      1.4px 1.4px at 97.8% 14.7%,
-      rgb(var(--sp-dust) / 0.55) 40%,
-      transparent
-    ),
-    radial-gradient(
-      1.7px 1.7px at 87.8% 84.2%,
-      rgb(var(--sp-bone) / 0.5) 40%,
-      transparent
-    ),
-    radial-gradient(
-      0.9px 0.9px at 61.1% 37.4%,
-      rgb(var(--sp-bone) / 0.9) 40%,
-      transparent
-    ),
-    radial-gradient(1px 1px at 83.3% 88%, rgb(var(--sp-faint) / 0.9) 40%, transparent),
-    radial-gradient(
-      1.1px 1.1px at 98.2% 24.6%,
-      rgb(var(--sp-bone) / 0.7) 40%,
-      transparent
-    ),
-    radial-gradient(
-      1.4px 1.4px at 17.2% 29.7%,
-      rgb(var(--sp-bone) / 0.7) 40%,
-      transparent
-    ),
-    radial-gradient(
-      1.2px 1.2px at 62.8% 9.9%,
-      rgb(var(--sp-dust) / 0.55) 40%,
-      transparent
-    ),
-    radial-gradient(
-      1.2px 1.2px at 52.8% 71.9%,
-      rgb(var(--sp-dust) / 0.8) 40%,
-      transparent
-    );
-}
-.splash__stars--b {
-  --twinkle: 4.6s;
-  --twinkle-at: -2.1s;
-
-  background-image:
-    radial-gradient(
-      1.2px 1.2px at 79.7% 56.1%,
-      rgb(var(--sp-dust) / 0.55) 40%,
-      transparent
-    ),
-    radial-gradient(
-      1.7px 1.7px at 57.7% 76.2%,
-      rgb(var(--sp-dust) / 0.8) 40%,
-      transparent
-    ),
-    radial-gradient(
-      1.2px 1.2px at 72.9% 59.5%,
-      rgb(var(--sp-faint) / 0.9) 40%,
-      transparent
-    ),
-    radial-gradient(
-      1.2px 1.2px at 64.7% 30.7%,
-      rgb(var(--sp-bone) / 0.7) 40%,
-      transparent
-    ),
-    radial-gradient(
-      1.1px 1.1px at 74.2% 71.9%,
-      rgb(var(--sp-dust) / 0.55) 40%,
-      transparent
-    ),
-    radial-gradient(
-      0.8px 0.8px at 52% 63.1%,
-      rgb(var(--sp-faint) / 0.9) 40%,
-      transparent
-    ),
-    radial-gradient(1px 1px at 17.3% 97.3%, rgb(var(--sp-bone) / 0.9) 40%, transparent),
-    radial-gradient(
-      1px 1px at 48.7% 12.7%,
-      rgb(var(--sp-faint) / 0.9) 40%,
-      transparent
-    ),
-    radial-gradient(1px 1px at 31% 2%, rgb(var(--sp-bone) / 0.9) 40%, transparent),
-    radial-gradient(
-      1.1px 1.1px at 7% 54.8%,
-      rgb(var(--sp-bone) / 0.5) 40%,
-      transparent
-    ),
-    radial-gradient(
-      0.8px 0.8px at 80.7% 15.3%,
-      rgb(var(--sp-dust) / 0.8) 40%,
-      transparent
-    ),
-    radial-gradient(
-      1.7px 1.7px at 39.9% 27.8%,
-      rgb(var(--sp-bone) / 0.5) 40%,
-      transparent
-    ),
-    radial-gradient(
-      1.4px 1.4px at 82.7% 42%,
-      rgb(var(--sp-bone) / 0.9) 40%,
-      transparent
-    ),
-    radial-gradient(
-      1.7px 1.7px at 29.7% 36.1%,
-      rgb(var(--sp-bone) / 0.5) 40%,
-      transparent
-    ),
-    radial-gradient(
-      1.4px 1.4px at 68.7% 46.1%,
-      rgb(var(--sp-bone) / 0.7) 40%,
-      transparent
-    ),
-    radial-gradient(
-      0.8px 0.8px at 56.8% 23.7%,
-      rgb(var(--sp-bone) / 0.5) 40%,
-      transparent
-    ),
-    radial-gradient(
-      0.8px 0.8px at 32.2% 32.5%,
-      rgb(var(--sp-bone) / 0.7) 40%,
-      transparent
-    ),
-    radial-gradient(1px 1px at 20.3% 19.9%, rgb(var(--sp-dust) / 0.8) 40%, transparent),
-    radial-gradient(
-      0.8px 0.8px at 16.3% 64.5%,
-      rgb(var(--sp-dust) / 0.8) 40%,
-      transparent
-    ),
-    radial-gradient(
-      1.1px 1.1px at 17.8% 76.3%,
-      rgb(var(--sp-dust) / 0.8) 40%,
-      transparent
-    ),
-    radial-gradient(
-      1.7px 1.7px at 65.8% 51.7%,
-      rgb(var(--sp-bone) / 0.5) 40%,
-      transparent
-    ),
-    radial-gradient(
-      1.2px 1.2px at 24.5% 20%,
-      rgb(var(--sp-bone) / 0.9) 40%,
-      transparent
-    ),
-    radial-gradient(
-      1.4px 1.4px at 20.7% 16.2%,
-      rgb(var(--sp-bone) / 0.7) 40%,
-      transparent
-    ),
-    radial-gradient(
-      0.8px 0.8px at 65.3% 49.8%,
-      rgb(var(--sp-bone) / 0.7) 40%,
-      transparent
-    ),
-    radial-gradient(
-      0.9px 0.9px at 73.4% 76.6%,
-      rgb(var(--sp-bone) / 0.5) 40%,
-      transparent
-    ),
-    radial-gradient(1px 1px at 83.9% 63.5%, rgb(var(--sp-dust) / 0.8) 40%, transparent);
-}
-.splash__stars--c {
-  --twinkle: 2.6s;
-  --twinkle-at: -1.2s;
-
-  background-image:
-    radial-gradient(1px 1px at 93.9% 93%, rgb(var(--sp-bone) / 0.7) 40%, transparent),
-    radial-gradient(
-      1.2px 1.2px at 84.6% 80.3%,
-      rgb(var(--sp-bone) / 0.7) 40%,
-      transparent
-    ),
-    radial-gradient(
-      1.7px 1.7px at 81.8% 2.7%,
-      rgb(var(--sp-bone) / 0.5) 40%,
-      transparent
-    ),
-    radial-gradient(
-      1.7px 1.7px at 57.3% 45.3%,
-      rgb(var(--sp-bone) / 0.9) 40%,
-      transparent
-    ),
-    radial-gradient(
-      1.1px 1.1px at 6.6% 25.4%,
-      rgb(var(--sp-faint) / 0.9) 40%,
-      transparent
-    ),
-    radial-gradient(
-      1.1px 1.1px at 5.6% 34.4%,
-      rgb(var(--sp-bone) / 0.9) 40%,
-      transparent
-    ),
-    radial-gradient(
-      0.9px 0.9px at 8.1% 97.8%,
-      rgb(var(--sp-bone) / 0.5) 40%,
-      transparent
-    ),
-    radial-gradient(
-      1.7px 1.7px at 66.6% 46.6%,
-      rgb(var(--sp-bone) / 0.9) 40%,
-      transparent
-    ),
-    radial-gradient(1px 1px at 63.2% 98.9%, rgb(var(--sp-bone) / 0.7) 40%, transparent),
-    radial-gradient(
-      1px 1px at 90.3% 59.2%,
-      rgb(var(--sp-faint) / 0.9) 40%,
-      transparent
-    ),
-    radial-gradient(0.8px 0.8px at 44% 75%, rgb(var(--sp-bone) / 0.5) 40%, transparent),
-    radial-gradient(
-      0.9px 0.9px at 21.4% 92.6%,
-      rgb(var(--sp-bone) / 0.9) 40%,
-      transparent
-    ),
-    radial-gradient(
-      0.8px 0.8px at 92% 6.2%,
-      rgb(var(--sp-bone) / 0.9) 40%,
-      transparent
-    ),
-    radial-gradient(
-      1.7px 1.7px at 95.3% 17.6%,
-      rgb(var(--sp-dust) / 0.8) 40%,
-      transparent
-    ),
-    radial-gradient(
-      0.8px 0.8px at 43.4% 54.5%,
-      rgb(var(--sp-dust) / 0.8) 40%,
-      transparent
-    ),
-    radial-gradient(
-      1.4px 1.4px at 80.2% 63.7%,
-      rgb(var(--sp-bone) / 0.9) 40%,
-      transparent
-    ),
-    radial-gradient(
-      1.4px 1.4px at 78.5% 16.1%,
-      rgb(var(--sp-bone) / 0.7) 40%,
-      transparent
-    ),
-    radial-gradient(
-      1.1px 1.1px at 35.1% 13.5%,
-      rgb(var(--sp-dust) / 0.55) 40%,
-      transparent
-    ),
-    radial-gradient(
-      1.2px 1.2px at 71.7% 83.5%,
-      rgb(var(--sp-bone) / 0.5) 40%,
-      transparent
-    ),
-    radial-gradient(
-      0.9px 0.9px at 74.6% 79.7%,
-      rgb(var(--sp-faint) / 0.9) 40%,
-      transparent
-    ),
-    radial-gradient(
-      1.1px 1.1px at 10.7% 8%,
-      rgb(var(--sp-bone) / 0.7) 40%,
-      transparent
-    ),
-    radial-gradient(
-      1.7px 1.7px at 26.4% 86.8%,
-      rgb(var(--sp-dust) / 0.55) 40%,
-      transparent
-    ),
-    radial-gradient(
-      1.1px 1.1px at 81.5% 62%,
-      rgb(var(--sp-faint) / 0.9) 40%,
-      transparent
-    ),
-    radial-gradient(
-      1.2px 1.2px at 16.8% 14.6%,
-      rgb(var(--sp-faint) / 0.9) 40%,
-      transparent
-    ),
-    radial-gradient(
-      1px 1px at 61.5% 98.7%,
-      rgb(var(--sp-faint) / 0.9) 40%,
-      transparent
-    ),
-    radial-gradient(
-      1.2px 1.2px at 65.4% 87.3%,
-      rgb(var(--sp-bone) / 0.7) 40%,
-      transparent
-    );
-}
-
-/*
-  The Earth: South America on the night side, with the cities lit, and the day
-  coming round over Africa on the right limb.
-
-  public/terra-splash-earth.webp is an orthographic view centred on 18 S,
-  58 W, rendered from two NASA Earth Observatory mosaics in the public domain:
-  Blue Marble, land and oceans (2002) for the day side, and Earth at Night
-  (Suomi NPP VIIRS, 2012) for the night side, with the Sun 132 degrees east of
-  the centre and 8 degrees north. The disc fills 90% of the square; the rest is
-  the glow of the atmosphere, which is why the box is the diameter over 0.9.
-
-  It rises into place rather than appearing, as the constellation section's
-  Earth moves up as it is scrolled to.
-*/
-.splash__earth {
-  position: absolute;
-  top: var(--sp-earth-y);
-  left: 50%;
-  width: calc(var(--sp-earth) / 0.9);
-  height: calc(var(--sp-earth) / 0.9);
-  translate: -50% -50%;
-  animation: splash-rise 2.2s cubic-bezier(0.16, 1, 0.3, 1)
-    calc(0.1s - var(--sp-elapsed)) both;
-}
-@keyframes splash-rise {
+@keyframes splash-settle {
   from {
     opacity: 0;
-    transform: translateY(14%) scale(1.08);
+    transform: scale(1.05);
   }
-}
-
-/*
-  The orbits: hairline rings about the Earth's centre, each turning at its own
-  rate and carrying one satellite. The ring sizes are pixxel.space's, as
-  multiples of the Earth's diameter. The periods grow outward, as an orbit's
-  does with its height.
-
-  WHERE EACH SATELLITE STARTS, AND HOW FAST IT GOES, keep the type clear for
-  as long as the boot window can be up: the probe answers within eight
-  seconds, and the window fades as it does. The inner satellite starts on the
-  right, below the wordmark, and goes down behind the boot line; the middle
-  one rises on the left; the outer one runs along the top of the frame. The
-  first to reach any type is the middle one, at the T, at 9.25 s. At
-  pixxel.space's 25 s a turn it reached the T at 4.5 s. The full
-  window shows them for as long as it is open, and there they pass behind the
-  type each turn.
-
-  The satellite is the one in the application's logo: a light bus with a yellow
-  band, one blue panel per wing, the lens facing the Earth. Turned a quarter
-  turn on its ring, so the lens points at the centre.
-*/
-.splash__orbit {
-  position: absolute;
-  top: var(--sp-earth-y);
-  left: 50%;
-  width: calc(var(--sp-earth) * var(--orbit));
-  height: calc(var(--sp-earth) * var(--orbit));
-  translate: -50% -50%;
-  border: 1px solid rgb(var(--sp-bone) / 0.1);
-  border-radius: 50%;
-  animation:
-    splash-orbit var(--period) linear calc(0s - var(--sp-elapsed)) infinite,
-    splash-fade 1.4s ease-out calc(var(--enter) - var(--sp-elapsed)) both;
-}
-.splash__orbit--1 {
-  --orbit: 1.31;
-  --period: 60s;
-  --enter: 0.45s;
-  --start: 335deg;
-}
-.splash__orbit--2 {
-  --orbit: 1.53;
-  --period: 75s;
-  --enter: 0.6s;
-  --start: 170deg;
-}
-.splash__orbit--3 {
-  --orbit: 1.75;
-  --period: 90s;
-  --enter: 0.75s;
-  --start: 256deg;
-}
-@keyframes splash-orbit {
-  from {
-    rotate: 0deg;
+  22% {
+    opacity: 1;
   }
   to {
-    rotate: 360deg;
+    transform: scale(1);
   }
 }
-.splash__sat {
+/*
+  Darker at the top, for the lockup and the status set on the sky, and clear
+  from a third of the way down, so the people and the ground are shown as they
+  were taken.
+
+  MEASURED on the pre-bundle copy at 420x280 and at 1440x900 with the
+  entrance finished: the brightest pixel of the scene under each line, with
+  the type made transparent, against that line's own colour. Tagline 5.10 and
+  5.28, status 5.82 and 7.98. The boot line, the version and the credit are
+  on the void bar, and the wordmark on the void tab.
+*/
+.splash__scrim {
   position: absolute;
-  top: 50%;
-  left: 50%;
-  width: calc(var(--sp-earth) * 0.19);
-  height: auto;
-  transform-origin: 0 0;
-  transform: rotate(var(--start)) translateX(calc(var(--sp-earth) * var(--orbit) / 2))
-    rotate(90deg) translate(-50%, -50%);
+  inset: 0;
+  background: linear-gradient(
+    180deg,
+    rgb(var(--sp-void) / 0.74) 0%,
+    rgb(var(--sp-void) / 0.4) 18%,
+    rgb(var(--sp-void) / 0) 36%
+  );
 }
 
 /*
-  The status bar, at the height of the title bar it shares.
+  The status band, at the height of the title bar it shares.
 
   The window keeps macOS's traffic lights over its content (TitleBarHiddenInset
-  in main.go), centred 26px down and ending 79px in. The bar is 52px tall so
-  that they sit on its centre line, and it starts its text clear of them.
+  in main.go), centred 26px down and ending 79px in. The band is 52px tall so
+  that they sit on its centre line, and it starts its content clear of them.
+  It carries no rule and no ground of its own: the sky runs up behind the
+  lights.
 */
 .splash__bar {
+  position: absolute;
+  top: 0;
+  right: 0;
+  left: 0;
   display: flex;
-  flex: none;
   align-items: center;
-  gap: 14px;
   height: var(--sp-bar);
   padding: 0 16px 0 92px;
-  border-bottom: 1px solid var(--sp-rule);
-  color: rgb(var(--sp-dust));
   font-size: var(--sp-label);
   letter-spacing: 0.12em;
   line-height: 1;
   text-transform: uppercase;
   white-space: nowrap;
+}
+.splash__spacer {
+  flex: 1;
 }
 .splash__state {
   display: inline-flex;
@@ -719,125 +229,181 @@
   animation: none;
   background: rgb(var(--sp-dust));
 }
-.splash__spacer {
-  flex: 1;
-}
 
 /*
-  The type, centred over the top of the Earth, as the constellation section
-  sets its heading. Sized and placed from the Earth, like the scene, so the
-  full window enlarges the boot window's layout instead of leaving small type
-  in a large sky; see --sp-type-y.
+  The website header's lockup: the mark without its lettering, since the name
+  is on the tab below and the tagline beside it.
+
+  In the boot window it sits in the status band, right of the traffic lights:
+  below the band the people in the photograph begin at once, and a lockup set
+  there crossed the head of the child on the left. In the full window it is
+  set large under the band, as one word to a line.
 */
-.splash__body {
-  position: absolute;
-  top: var(--sp-type-y);
-  right: 0;
-  left: 0;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: calc(var(--sp-earth) * 0.05);
-  padding: 0 var(--sp-gutter);
-}
-/* The website header's lockup, with the name moved out to the wordmark below it. */
 .splash__lockup {
+  position: absolute;
+  top: calc(var(--sp-bar) / 2 - 13px);
+  left: 92px;
   display: flex;
   align-items: center;
-  gap: calc(var(--sp-earth) * 0.05);
+  gap: 10px;
   animation: splash-enter 1.1s cubic-bezier(0.2, 0.7, 0.2, 1)
     calc(0.35s - var(--sp-elapsed)) both;
 }
 .splash__mark {
   flex: none;
-  width: calc(var(--sp-earth) * 0.14);
-  height: calc(var(--sp-earth) * 0.14);
+  width: 26px;
+  height: 26px;
 }
 .splash__tagline {
-  /* One word to a line, as the website stacks "Earth / Observation". */
-  width: min-content;
   margin: 0;
-  padding-left: calc(var(--sp-earth) * 0.05);
-  border-left: 1px solid rgb(var(--sp-bone) / 0.26);
-  color: rgb(var(--sp-dust));
-  font-size: max(var(--sp-label), calc(var(--sp-earth) * 0.042));
-  letter-spacing: 0.14em;
+  padding-left: 10px;
+  border-left: 1px solid rgb(var(--sp-bone) / 0.55);
+  color: rgb(var(--sp-bone) / 0.95);
+  font-family: var(--sp-sans);
+  font-size: 9.5px;
+  font-weight: 400;
+  letter-spacing: 0.16em;
   line-height: 1.3;
-  text-transform: uppercase;
+  text-transform: capitalize;
+  white-space: nowrap;
 }
 
 /*
-  The website footer's wordmark, as outlines rather than as type, and filled.
+  The base: a void bar across the foot, and a tab rising from its middle with
+  the wordmark on it. public/terra-name-tab.svg draws the bar's top edge and
+  the tab as one outline and gives the construction; it is used as a mask here
+  so the start screen can paint the same shape in the panel's colour.
 
-  public/terra-wordmark.svg is "TERRA" in Archivo at the setting the website's
-  .footer__word uses -- width 125, weight 800, 0.04em tracking -- instanced from
-  the website's own @fontsource-variable/archivo file and shaped with its
-  kerning, then written out as a path. Set as text it would need Archivo loaded
-  into the application for five letters, and a face that arrives after first
-  paint is a swap on a screen that lasts three seconds.
-
-  public/terra-wordmark-filled.svg is the same path, filled in bone instead of
-  stroked. The website's hairline outline lets the Earth show through every
-  letter, and where the word crosses the lit cities of North America the
-  lights inside the letters broke the name up.
-
-  It is drawn on from the left, behind a soft edge, the way the website's hero
-  writes its heading in. The mask is 2.2 times the word's width and opaque
-  over its first 45%, so at the end of the move the word is wholly inside the
-  opaque part.
+  The bar carries the boot line on the left and the version on the right, so
+  the frame that holds the name also says what the application is doing. The
+  boot line stops short of the wordmark, and an ellipsis takes what does not
+  fit.
 */
-.splash__word {
-  display: block;
-  width: calc(var(--sp-earth) * 1.15);
-  max-width: 100%;
-  height: auto;
-  -webkit-mask-image: linear-gradient(90deg, #000 45%, transparent 55%);
-  mask-image: linear-gradient(90deg, #000 45%, transparent 55%);
-  -webkit-mask-size: 220% 100%;
-  mask-size: 220% 100%;
-  -webkit-mask-repeat: no-repeat;
-  mask-repeat: no-repeat;
-  animation:
-    splash-enter 1.1s cubic-bezier(0.2, 0.7, 0.2, 1) calc(0.5s - var(--sp-elapsed)) both,
-    splash-wipe 1.6s cubic-bezier(0.45, 0, 0.2, 1) calc(0.5s - var(--sp-elapsed)) both;
+.splash__base {
+  position: absolute;
+  right: 0;
+  bottom: 0;
+  left: 0;
+  height: calc(var(--sp-base) + var(--sp-rise));
+  animation: splash-rise 0.9s cubic-bezier(0.16, 1, 0.3, 1)
+    calc(0.15s - var(--sp-elapsed)) both;
 }
-@keyframes splash-wipe {
+@keyframes splash-rise {
   from {
-    -webkit-mask-position: 100% 0;
-    mask-position: 100% 0;
-  }
-  to {
-    -webkit-mask-position: 0 0;
-    mask-position: 0 0;
+    transform: translateY(100%);
   }
 }
-
-/* At the foot of the window: the type above it is out of the flow. */
+.splash__tab {
+  position: absolute;
+  bottom: calc(var(--sp-base) - var(--sp-unit) * 2);
+  left: 50%;
+  width: calc(var(--sp-unit) * 305.66);
+  aspect-ratio: 305.66 / 34;
+  translate: -50% 0;
+  background: rgb(var(--sp-void));
+  -webkit-mask: url("/terra-name-tab.svg") center / 100% 100% no-repeat;
+  mask: url("/terra-name-tab.svg") center / 100% 100% no-repeat;
+}
 .splash__foot {
-  flex: none;
-  margin-top: auto;
-  padding: clamp(9px, 1vw, 14px) var(--sp-gutter) clamp(10px, 1.1vw, 16px);
-  border-top: 1px solid var(--sp-rule);
-  background: rgb(var(--sp-void) / 0.55);
-  -webkit-backdrop-filter: blur(10px);
-  backdrop-filter: blur(10px);
-}
-.splash__label {
-  margin: 0;
-  color: rgb(var(--sp-faint));
+  position: absolute;
+  right: 0;
+  bottom: 0;
+  left: 0;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  height: var(--sp-base);
+  padding: 0 var(--sp-gutter);
+  background: rgb(var(--sp-void));
+  color: rgb(var(--sp-dust));
   font-size: var(--sp-label);
-  letter-spacing: 0.14em;
-  line-height: 1.35;
-  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  line-height: 1;
+  white-space: nowrap;
 }
+/*
+  Half the window, less half the wordmark (150 units), a gap of 10 and the
+  gutter. The line may run in under the tab's foot, which is the bar's own
+  colour, but not under the wordmark, whose foot reaches into the bar.
+*/
 .splash__log {
-  margin: 2px 0 0;
+  min-width: 0;
+  max-width: calc(50% - var(--sp-unit) * 85 - var(--sp-gutter));
+  margin: 0;
   overflow: hidden;
   color: rgb(var(--sp-bone));
-  font-size: var(--sp-value);
-  line-height: 1.4;
   text-overflow: ellipsis;
+  /*
+    Set on the line itself and not left to .splash__foot: index.css sets
+    text-wrap on paragraphs, which turns wrapping back on in the React copy.
+  */
   white-space: nowrap;
+}
+.splash__meta {
+  display: flex;
+  flex: none;
+  gap: 1.6em;
+  margin: 0 0 0 auto;
+  white-space: nowrap;
+}
+/* There is no room for the credit beside the tab at 420 px; the start screen gives it. */
+.splash__credit {
+  display: none;
+}
+/*
+  The website footer's wordmark, as outlines rather than as type, filled in
+  bone. public/terra-wordmark-filled.svg is "TERRA" in Archivo at the setting
+  the website's .footer__word uses -- width 125, weight 800, 0.04em tracking --
+  instanced from the website's own @fontsource-variable/archivo file and shaped
+  with its kerning, then written out as a path. Set as text it would need
+  Archivo loaded into the application for five letters.
+
+  150 units wide, centred on the tab and across the height of the bar and the
+  tab together, which sets it on the shape as one piece rather than on the tab
+  alone.
+*/
+.splash__word {
+  position: absolute;
+  bottom: calc(var(--sp-unit) * 20.3);
+  left: 50%;
+  display: block;
+  width: calc(var(--sp-unit) * 150);
+  height: auto;
+  translate: -50% 0;
+}
+
+/*
+  The full window, which the application menu opens this in: the lockup leaves
+  the status band and is set large under it, and the credit has room in the bar.
+*/
+@media (min-height: 400px) {
+  .splash__scrim {
+    background: linear-gradient(
+      180deg,
+      rgb(var(--sp-void) / 0.66) 0%,
+      rgb(var(--sp-void) / 0.52) 15%,
+      rgb(var(--sp-void) / 0) 34%
+    );
+  }
+  .splash__lockup {
+    top: max(64px, calc(var(--sp-unit) * 76));
+    left: max(24px, calc(var(--sp-unit) * 40));
+    gap: calc(var(--sp-unit) * 16);
+  }
+  .splash__mark {
+    width: calc(var(--sp-unit) * 58);
+    height: calc(var(--sp-unit) * 58);
+  }
+  .splash__tagline {
+    width: min-content;
+    padding-left: calc(var(--sp-unit) * 16);
+    font-size: max(11px, calc(var(--sp-unit) * 19));
+    white-space: normal;
+  }
+  .splash__credit {
+    display: inline;
+    color: rgb(var(--sp-dust) / 0.8);
+  }
 }
 
 @keyframes splash-fade {
@@ -848,34 +414,29 @@
 @keyframes splash-enter {
   from {
     opacity: 0;
-    transform: translateY(calc(var(--sp-earth) * 0.06));
+    transform: translateY(6px);
   }
 }
 
 /*
-  Motion is the first thing this application shows, and a scene in which
-  everything turns, rises and twinkles is exactly what this setting exists to
-  turn off. The stars, the Earth, the orbits and the type all stay, and fade in
-  as they do otherwise; only the movement stops. The pulse blinks at a fixed
-  rate whatever the boot is doing, so it is decoration rather than status and
-  has nothing to report by moving.
+  Motion is the first thing this application shows, and a picture that settles
+  and a base that rises are what this setting exists to turn off. Everything
+  stays and fades in as it does otherwise; only the movement stops. The pulse
+  blinks at a fixed rate whatever the boot is doing, so it is decoration rather
+  than status and has nothing to report by moving.
 */
 @media (prefers-reduced-motion: reduce) {
-  .splash__stars,
   .splash__dot {
     animation: none;
   }
-  .splash__orbit {
-    animation: splash-fade 1.4s ease-out calc(var(--enter) - var(--sp-elapsed)) both;
+  .splash__photo {
+    animation: splash-fade 0.7s ease-out calc(0s - var(--sp-elapsed)) both;
   }
-  .splash__earth,
+  .splash__base {
+    animation: splash-fade 0.7s ease-out calc(0.15s - var(--sp-elapsed)) both;
+  }
   .splash__lockup {
     animation-name: splash-fade;
-  }
-  .splash__word {
-    -webkit-mask-image: none;
-    mask-image: none;
-    animation: splash-fade 1.1s ease-out calc(0.5s - var(--sp-elapsed)) both;
   }
   .splash,
   .splash--exit {

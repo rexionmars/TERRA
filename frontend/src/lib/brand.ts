@@ -63,3 +63,26 @@ export const RELEASE_NAME = "Sunset"
 
 /** Where the source, the issues and the documents are. */
 export const REPO_URL = "https://github.com/rexionmars/TERRA"
+
+/**
+ * The photograph the splash and the start screen are set on: the ground the
+ * application observes, seen from where people stand on it.
+ *
+ * Peter Godfrey's "Two children filling a container at a rural water tap", on
+ * Pexels. The Pexels licence asks for no credit and allows use in an
+ * application; it forbids showing identifiable people in a bad light and
+ * implying that the people in a picture endorse a product. So the picture
+ * carries no claim, no quote and no caption that speaks for them, and it is
+ * credited anyway, by name and with a way to the source.
+ *
+ * The files are resized from the 6016x4015 original with Lanczos and passed
+ * through cwebp -q 82, as docs/RELEASING.md encodes the stills:
+ * terra-splash-water-tap.webp at 2400 px wide and its 840 px copy for the
+ * boot window, and terra-start-water-tap.webp, cropped at full width from
+ * y 650 to 3177 to the start card's 500:210 and resized to 1600x672.
+ */
+export const BRAND_PHOTO = {
+  author: "Peter Godfrey",
+  license: "Pexels",
+  source: "https://www.pexels.com/photo/13613219/",
+}
