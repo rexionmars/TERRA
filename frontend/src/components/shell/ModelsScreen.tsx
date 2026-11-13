@@ -1,4 +1,4 @@
-import { useState } from "react"
+import { useEffect, useState } from "react"
 
 import {
   ImportModel,
@@ -6,14 +6,41 @@ import {
   RemoveModel,
 } from "../../../wailsjs/go/main/App"
 import { BrowserOpenURL } from "../../../wailsjs/runtime/runtime"
-import { CaretRight, Play, Trash, UploadSimple } from "@/components/icons"
+import {
+  ArrowsClockwise,
+  CaretRight,
+  Check,
+  CircleNotch,
+  DownloadSimple,
+  Play,
+  Trash,
+  UploadSimple,
+  X,
+} from "@/components/icons"
 import { ConfirmDelete } from "@/components/ui/ConfirmDelete"
 import { ModalHeader, ModalShell } from "@/components/ui/ModalShell"
 import { btnGhost, btnPrimaryCommit } from "@/components/ui/buttons"
 import { MAPBIOMAS_CLASS_LEGEND } from "@/lib/classPalette"
 import { fileSize, refreshModels, useInstalledModels } from "@/lib/installedModels"
+import {
+  cancelDownload,
+  catalogEntry,
+  compareVersions,
+  downloadModel,
+  ensureModelCatalog,
+  readModelCatalog,
+  useModelCatalog,
+} from "@/lib/modelCatalog"
 import { notifyError, notifyInfo } from "@/lib/notify"
-import type { ModelFact, ModelInfo, ModelKind } from "@/lib/types"
+import type {
+  CatalogEntry,
+  ModelCatalog,
+  ModelDownload,
+  ModelFact,
+  ModelInfo,
+  ModelKind,
+  ModelManifest,
+} from "@/lib/types"
 import { cn } from "@/lib/utils"
 
 /*
@@ -23,17 +50,84 @@ import { cn } from "@/lib/utils"
 */
 const PICTURE = "shrink-0 object-cover [image-rendering:pixelated]"
 
-const keyOf = (m: ModelInfo) => `${m.manifest.id}@${m.manifest.version}`
+/** One model, by id: the newest version the catalogue lists and the newest installed. */
+interface Row {
+  id: string
+  entry?: CatalogEntry
+  installed?: ModelInfo
+}
+
+/** Where a model stands on this machine. */
+type Standing =
+  | { kind: "absent" }
+  | { kind: "installed" }
+  | { kind: "update"; from: string }
+  | { kind: "downloading"; progress: ModelDownload }
+
+/** The catalogue's models in its order, then the installed ones it does not list. */
+function rowsOf(catalog: ModelCatalog | null, installed: readonly ModelInfo[]): Row[] {
+  const ids: string[] = []
+  for (const e of catalog?.models ?? []) {
+    if (!ids.includes(e.manifest.id)) ids.push(e.manifest.id)
+  }
+  for (const m of installed) {
+    if (!ids.includes(m.manifest.id)) ids.push(m.manifest.id)
+  }
+  return ids.map((id) => ({
+    id,
+    entry: catalogEntry(catalog, id),
+    installed: installed.find((m) => m.manifest.id === id),
+  }))
+}
 
 /**
- * Models: the packages installed on this machine, as cards, and a page for each.
+ * What a row describes: the installed package when it is the catalogue's
+ * version or newer, else the catalogue's. A model is described before it is
+ * downloaded, from the manifest the catalogue carries.
+ */
+function shownOf(r: Row): {
+  manifest: ModelManifest
+  digest: string
+  picture_uri: string
+} {
+  if (
+    r.installed &&
+    (!r.entry ||
+      compareVersions(r.installed.manifest.version, r.entry.manifest.version) >= 0)
+  ) {
+    return r.installed
+  }
+  // A row is made from a catalogue entry or an installed package, so one is there.
+  return (r.entry ?? r.installed) as CatalogEntry
+}
+
+function standingOf(
+  r: Row,
+  downloads: Readonly<Record<string, ModelDownload>>
+): Standing {
+  const progress = downloads[r.id]
+  if (progress) return { kind: "downloading", progress }
+  if (!r.installed) return { kind: "absent" }
+  if (
+    r.entry &&
+    compareVersions(r.entry.manifest.version, r.installed.manifest.version) > 0
+  ) {
+    return { kind: "update", from: r.installed.manifest.version }
+  }
+  return { kind: "installed" }
+}
+
+/**
+ * Models: the catalogue of published models, as cards, and a page for each.
  *
- * THE APPLICATION SHIPS NO MODEL. This is where the reader installs the ones
- * they want and removes the ones they do not, and everything the screen says
- * about a model -- what it reads, how it works, how it was evaluated, its
- * limits and files -- comes from that model's own package (model.json), so a
- * model nobody wrote a line of this file for is described as fully as the
- * first ones were. internal/models says how a package is checked.
+ * THE APPLICATION SHIPS NO MODEL. The reader looks through what the catalogue
+ * offers, reads a model's page, and downloads the ones they want; a package of
+ * their own is imported from a file. Everything the screen says about a model
+ * -- what it reads, how it works, how it was evaluated, its limits and files --
+ * comes from that model's manifest, which the catalogue carries before the
+ * download and the package after it, so a model nobody wrote a line of this
+ * file for is described as fully as the first ones were. lib/modelCatalog.ts
+ * reads the catalogue and internal/models checks what is downloaded.
  *
  * Full screen over the map, as Compare and Workflows are, and in their frame:
  * a header with the place, and the page under it.
@@ -47,10 +141,14 @@ export function ModelsScreen({
   /** Back to the map, with Classification open on this model. */
   onRun: (id: ModelKind) => void
 }) {
-  const { models, loaded } = useInstalledModels()
+  const { models: installed, loaded } = useInstalledModels()
+  const { catalog, reading, error, downloads } = useModelCatalog()
   const [open, setOpen] = useState<string | null>(null)
   const [asking, setAsking] = useState(false)
-  const card = models.find((m) => keyOf(m) === open) ?? null
+  useEffect(ensureModelCatalog, [])
+
+  const rows = rowsOf(catalog, installed)
+  const row = rows.find((r) => r.id === open) ?? null
 
   const importPackage = async () => {
     setAsking(false)
@@ -60,7 +158,7 @@ export function ModelsScreen({
       const info = (await ImportModel(path)) as unknown as ModelInfo
       await refreshModels()
       notifyInfo(`${info.manifest.name} ${info.manifest.version} installed`)
-      setOpen(keyOf(info))
+      setOpen(info.manifest.id)
     } catch (e) {
       notifyError("The model could not be installed", e)
     }
@@ -69,7 +167,7 @@ export function ModelsScreen({
   return (
     <div className="app-no-drag absolute inset-0 z-480 flex flex-col bg-app">
       <header className="flex h-12 shrink-0 items-center gap-1.5 border-b border-border px-4">
-        {card ? (
+        {row ? (
           <>
             <button
               type="button"
@@ -80,7 +178,7 @@ export function ModelsScreen({
             </button>
             <CaretRight className="size-3 text-muted-foreground" />
             <h1 className="text-title font-medium text-foreground">
-              {card.manifest.name}
+              {shownOf(row).manifest.name}
             </h1>
           </>
         ) : (
@@ -94,19 +192,26 @@ export function ModelsScreen({
       </header>
       <div className="min-h-0 flex-1 overflow-y-auto">
         <div className="mx-auto max-w-[72rem] px-8 py-8">
-          {card ? (
+          {row ? (
             <ModelPage
-              card={card}
+              row={row}
+              standing={standingOf(row, downloads)}
               current={current}
               onRun={onRun}
-              onRemoved={() => setOpen(null)}
+              onRemoved={() => {
+                if (!row.entry) setOpen(null)
+              }}
             />
           ) : (
             <ModelList
-              models={models}
+              rows={rows}
+              catalog={catalog}
+              reading={reading}
+              error={error}
               loaded={loaded}
+              downloads={downloads}
               current={current}
-              onOpen={(m) => setOpen(keyOf(m))}
+              onOpen={(r) => setOpen(r.id)}
               onImport={() => setAsking(true)}
             />
           )}
@@ -123,36 +228,62 @@ export function ModelsScreen({
 }
 
 function ModelList({
-  models,
+  rows,
+  catalog,
+  reading,
+  error,
   loaded,
+  downloads,
   current,
   onOpen,
   onImport,
 }: {
-  models: readonly ModelInfo[]
+  rows: readonly Row[]
+  catalog: ModelCatalog | null
+  reading: boolean
+  error: string | null
   loaded: boolean
+  downloads: Readonly<Record<string, ModelDownload>>
   current: ModelKind
-  onOpen: (m: ModelInfo) => void
+  onOpen: (r: Row) => void
   onImport: () => void
 }) {
-  const n = models.length
+  const listed = rows.filter((r) => r.entry)
+  const imported = rows.filter((r) => !r.entry)
+  const card = (r: Row) => (
+    <li key={r.id}>
+      <ModelCard
+        row={r}
+        standing={standingOf(r, downloads)}
+        current={current}
+        onOpen={() => onOpen(r)}
+      />
+    </li>
+  )
   return (
     <>
       <h2 className="font-display text-display font-semibold text-foreground">
-        Installed models
+        Catalogue
       </h2>
-      <p className="mt-1 text-label text-muted-foreground">
-        {n === 0
-          ? "TERRA ships without models: install the ones you want to run."
-          : `${n} ${n === 1 ? "model" : "models"} on this machine, each checked against its own digests before every run`}
-      </p>
-      {loaded && n === 0 && (
+      <CatalogueNote catalog={catalog} reading={reading} error={error} />
+      {listed.length > 0 && <ul className={GRID}>{listed.map(card)}</ul>}
+
+      {imported.length > 0 && (
+        <section className="mt-12">
+          <h3 className="text-heading font-medium text-foreground">Imported</h3>
+          <p className="mt-1 text-label text-muted-foreground">
+            Installed from a file, not from the catalogue.
+          </p>
+          <ul className={GRID}>{imported.map(card)}</ul>
+        </section>
+      )}
+
+      {loaded && !reading && rows.length === 0 && (
         <div className="mt-6 max-w-prose rounded-md border border-dashed border-border p-6">
-          <p className="text-read text-foreground">No model is installed yet.</p>
+          <p className="text-read text-foreground">No model to show.</p>
           <p className="mt-2 text-label text-muted-foreground">
-            A model comes as a package: a zip holding its files and a model.json that
-            names each with its SHA-256. Import one you have, and Classification will
-            offer it.
+            Without the catalogue, a model can still be installed from its package: a
+            zip holding its files and a model.json that names each with its SHA-256.
           </p>
           <button
             type="button"
@@ -164,110 +295,305 @@ function ModelList({
           </button>
         </div>
       )}
-      <ul className="mt-6 grid [grid-template-columns:repeat(auto-fill,minmax(min(100%,26rem),1fr))] gap-4">
-        {models.map((m) => (
-          <li key={keyOf(m)}>
-            <button
-              type="button"
-              onClick={() => onOpen(m)}
-              className="flex h-full w-full overflow-hidden rounded-md border border-border bg-[rgb(var(--p-surface))] text-left transition-colors hover:border-[rgb(var(--p-line-strong)/0.6)] hover:bg-[rgb(var(--p-head))] focus-visible:ring-1 focus-visible:ring-ring focus-visible:outline-none"
-            >
-              <Picture model={m} className="size-44" />
-              <span className="flex min-w-0 flex-1 flex-col gap-1.5 p-4">
-                <span className="flex items-center gap-2">
-                  <span className="text-heading font-medium text-foreground">
-                    {m.manifest.name}
-                  </span>
-                  <span className="telemetry text-meta text-muted-foreground">
-                    {m.manifest.version}
-                  </span>
-                  {m.manifest.id === current && <InUse />}
-                </span>
-                <span className="text-label text-muted-foreground">
-                  {m.manifest.summary}
-                </span>
-                <span className="mt-auto flex flex-wrap gap-1.5 pt-2">
-                  <Tag>{taskName(m.manifest.task)}</Tag>
-                  {(m.manifest.requires ?? []).map((r) => (
-                    <Tag key={r}>needs {r}</Tag>
-                  ))}
-                  <Tag>
-                    {m.manifest.evaluation?.figures[0]
-                      ? `${m.manifest.evaluation.figures[0].label} ${m.manifest.evaluation.figures[0].value}`
-                      : "No evaluation recorded"}
-                  </Tag>
-                </span>
-              </span>
-            </button>
-          </li>
-        ))}
-      </ul>
     </>
   )
 }
 
+const GRID =
+  "mt-6 grid [grid-template-columns:repeat(auto-fill,minmax(min(100%,26rem),1fr))] gap-4"
+
+/** Where the list came from, and what to do when it is not the published one. */
+function CatalogueNote({
+  catalog,
+  reading,
+  error,
+}: {
+  catalog: ModelCatalog | null
+  reading: boolean
+  error: string | null
+}) {
+  const retry = (
+    <button
+      type="button"
+      onClick={() => void readModelCatalog()}
+      disabled={reading}
+      className="text-accent-quiet underline-offset-2 hover:underline disabled:opacity-60"
+    >
+      {reading ? "Reading…" : "Try again"}
+    </button>
+  )
+  const unsupported = catalog?.unsupported ?? 0
+  return (
+    <div className="mt-1 max-w-prose text-label text-muted-foreground">
+      {!catalog && reading && (
+        <p className="flex items-center gap-1.5">
+          <CircleNotch className="size-3.5 animate-spin" />
+          Reading the catalogue from GitHub
+        </p>
+      )}
+      {!catalog && !reading && error && (
+        <p>
+          The catalogue could not be read: {error}. {retry}
+        </p>
+      )}
+      {catalog?.origin === "online" && (
+        <p>
+          The models published for TERRA. Each download is checked against the SHA-256
+          listed here before it is installed, and runs only on this machine.
+        </p>
+      )}
+      {catalog?.origin === "built-in" && (
+        <p>
+          The published catalogue could not be read: {catalog.problem}. This is the list
+          as this version of TERRA knows it. {retry}
+        </p>
+      )}
+      {unsupported > 0 && (
+        <p className="mt-1">
+          {unsupported} more {unsupported === 1 ? "model needs" : "models need"} a newer
+          version of TERRA.
+        </p>
+      )}
+    </div>
+  )
+}
+
+function ModelCard({
+  row,
+  standing,
+  current,
+  onOpen,
+}: {
+  row: Row
+  standing: Standing
+  current: ModelKind
+  onOpen: () => void
+}) {
+  const shown = shownOf(row)
+  const m = shown.manifest
+  return (
+    <button
+      type="button"
+      onClick={onOpen}
+      className="flex h-full w-full overflow-hidden rounded-md border border-border bg-[rgb(var(--p-surface))] text-left transition-colors hover:border-[rgb(var(--p-line-strong)/0.6)] hover:bg-[rgb(var(--p-head))] focus-visible:ring-1 focus-visible:ring-ring focus-visible:outline-none"
+    >
+      <Picture uri={shown.picture_uri} manifest={m} className="w-44 self-stretch" />
+      <span className="flex min-w-0 flex-1 flex-col gap-1.5 p-4">
+        <span className="flex items-center gap-2">
+          <span className="text-heading font-medium text-foreground">{m.name}</span>
+          <span className="telemetry text-meta text-muted-foreground">{m.version}</span>
+          {m.id === current && row.installed && <InUse />}
+        </span>
+        {packagers(m) && (
+          <span className="-mt-1 text-meta text-muted-foreground">
+            Packaged by {packagers(m)}
+          </span>
+        )}
+        <span className="text-label text-muted-foreground">{m.summary}</span>
+        <span className="mt-auto flex flex-wrap gap-1.5 pt-2">
+          <Tag>{taskName(m.task)}</Tag>
+          {(m.requires ?? []).map((r) => (
+            <Tag key={r}>needs {r}</Tag>
+          ))}
+          <Tag>
+            {m.evaluation?.figures[0]
+              ? `${m.evaluation.figures[0].label} ${m.evaluation.figures[0].value}`
+              : "No evaluation recorded"}
+          </Tag>
+        </span>
+        <span className="mt-2 border-t border-border pt-2.5">
+          <StandingLine standing={standing} entry={row.entry} />
+        </span>
+      </span>
+    </button>
+  )
+}
+
+/** One line on a card: installed, to download, or how far the download is. */
+function StandingLine({
+  standing,
+  entry,
+}: {
+  standing: Standing
+  entry?: CatalogEntry
+}) {
+  switch (standing.kind) {
+    case "downloading":
+      return <Progress progress={standing.progress} />
+    case "installed":
+      return (
+        <span className="flex items-center gap-1.5 text-label text-foreground">
+          <Check className="size-3.5 text-accent-quiet" />
+          Installed
+        </span>
+      )
+    case "update":
+      return (
+        <span className="flex items-center gap-1.5 text-label text-foreground">
+          <ArrowsClockwise className="size-3.5 text-accent-quiet" />
+          {entry?.manifest.version} available
+          <span className="text-muted-foreground">· {standing.from} installed</span>
+        </span>
+      )
+    case "absent":
+      return (
+        <span className="flex items-center gap-1.5 text-label text-muted-foreground">
+          <DownloadSimple className="size-3.5" />
+          Not installed{entry && ` · ${fileSize(entry.package.size)} to download`}
+        </span>
+      )
+  }
+}
+
+/** A download's bar, and how much of it has arrived from where. */
+function Progress({ progress: p }: { progress: ModelDownload }) {
+  const share = p.total > 0 ? Math.min(1, p.received / p.total) : 0
+  return (
+    <span
+      role="progressbar"
+      aria-valuemin={0}
+      aria-valuemax={100}
+      aria-valuenow={Math.round(share * 100)}
+      aria-label={`Downloading ${p.id}`}
+      className="flex w-full flex-col gap-1.5"
+    >
+      <span className="block h-1 overflow-hidden rounded-sm bg-[rgb(var(--p-control))]">
+        <span
+          className="block h-full bg-primary transition-[width] duration-150"
+          style={{ width: `${share * 100}%` }}
+        />
+      </span>
+      <span className="text-label text-muted-foreground tabular-nums">
+        Downloading from {p.source} · {fileSize(p.received)} of {fileSize(p.total)}
+      </span>
+    </span>
+  )
+}
+
 function ModelPage({
-  card,
+  row,
+  standing,
   current,
   onRun,
   onRemoved,
 }: {
-  card: ModelInfo
+  row: Row
+  standing: Standing
   current: ModelKind
   onRun: (id: ModelKind) => void
   onRemoved: () => void
 }) {
-  const m = card.manifest
+  const shown = shownOf(row)
+  const m = shown.manifest
+  const { entry, installed } = row
   const [removing, setRemoving] = useState<"ask" | "busy" | null>(null)
   const remove = async () => {
+    if (!installed) return
     setRemoving("busy")
     try {
-      await RemoveModel(m.id, m.version)
+      await RemoveModel(installed.manifest.id, installed.manifest.version)
       await refreshModels()
+      setRemoving(null)
       onRemoved()
     } catch (e) {
       notifyError("The model could not be removed", e)
       setRemoving(null)
     }
   }
+  const download = async () => {
+    if (!entry) return
+    try {
+      const info = await downloadModel(entry)
+      notifyInfo(`${info.manifest.name} ${info.manifest.version} installed`)
+    } catch (e) {
+      const why = e instanceof Error ? e.message : String(e)
+      if (why.includes("cancelled")) notifyInfo(`${m.name}: the download was cancelled`)
+      else notifyError(`${m.name} could not be installed`, e)
+    }
+  }
+  const offers = standing.kind === "absent" || standing.kind === "update"
+  const needs = m.requires?.length
+    ? `Needs ${m.requires.join(" and ")}, installed from Settings › System.`
+    : "Runs in every installation."
   return (
     <>
       <div className="flex flex-wrap items-start gap-6">
-        <Picture model={card} className="size-48 rounded-md border border-border" />
+        <Picture
+          uri={shown.picture_uri}
+          manifest={m}
+          className="size-48 rounded-md border border-border"
+        />
         <div className="min-w-0 flex-1 basis-80">
           <p className="eyebrow">
             {taskName(m.task)} · {m.version}
           </p>
           <h2 className="mt-1 flex items-center gap-2 font-display text-display font-semibold text-foreground">
             {m.name}
-            {m.id === current && <InUse />}
+            {m.id === current && installed && <InUse />}
           </h2>
+          {packagers(m) && (
+            <p className="mt-1 text-label text-muted-foreground">
+              Packaged by {packagers(m)}
+            </p>
+          )}
           <p className="mt-2 max-w-prose text-read text-muted-foreground">
             {m.summary}
           </p>
-          <div className="mt-5 flex flex-wrap items-center gap-x-3 gap-y-2">
-            <button
-              type="button"
-              onClick={() => onRun(m.id)}
-              className={btnPrimaryCommit}
-            >
-              <Play className="size-3.5" />
-              Run on the map
-            </button>
-            <button
-              type="button"
-              onClick={() => setRemoving("ask")}
-              className={btnGhost}
-            >
-              <Trash className="size-3.5" />
-              Remove
-            </button>
-            <span className="text-label text-muted-foreground">
-              {m.requires?.length
-                ? `Needs ${m.requires.join(" and ")}, installed from Settings › System.`
-                : "Runs in every installation."}
-            </span>
-          </div>
+          {standing.kind === "downloading" ? (
+            <div className="mt-5 flex max-w-md items-center gap-3">
+              <Progress progress={standing.progress} />
+              <button
+                type="button"
+                onClick={() => cancelDownload(m.id)}
+                className={btnGhost}
+              >
+                <X className="size-3.5" />
+                Cancel
+              </button>
+            </div>
+          ) : (
+            <div className="mt-5 flex flex-wrap items-center gap-x-3 gap-y-2">
+              {offers && entry && (
+                <button
+                  type="button"
+                  onClick={() => void download()}
+                  className={btnPrimaryCommit}
+                >
+                  <DownloadSimple className="size-3.5" />
+                  {standing.kind === "update"
+                    ? `Update to ${entry.manifest.version}`
+                    : "Download and install"}
+                </button>
+              )}
+              {installed && (
+                <button
+                  type="button"
+                  onClick={() => onRun(m.id)}
+                  className={offers ? btnGhost : btnPrimaryCommit}
+                >
+                  <Play className="size-3.5" />
+                  Run on the map
+                </button>
+              )}
+              {installed && (
+                <button
+                  type="button"
+                  onClick={() => setRemoving("ask")}
+                  className={btnGhost}
+                >
+                  <Trash className="size-3.5" />
+                  {standing.kind === "update"
+                    ? `Remove ${installed.manifest.version}`
+                    : "Remove"}
+                </button>
+              )}
+              <span className="text-label text-muted-foreground">
+                {offers && entry
+                  ? `${fileSize(entry.package.size)} from ${entry.sources.map((x) => x.name).join(" or ")}. ${needs}`
+                  : needs}
+              </span>
+            </div>
+          )}
         </div>
       </div>
 
@@ -340,9 +666,21 @@ function ModelPage({
           <Facts
             rows={[
               { label: "Id", value: `${m.id} ${m.version}` },
+              { label: "Packaged by", value: packagers(m) || "not stated" },
               { label: "Licence", value: m.license || "not stated" },
               ...(m.doi ? [{ label: "DOI", value: m.doi }] : []),
-              { label: "Digest", value: card.digest.slice(0, 16) },
+              { label: "Digest", value: shown.digest.slice(0, 16) },
+              ...(entry
+                ? [
+                    {
+                      label: "Download",
+                      value: `${entry.package.name}, ${fileSize(entry.package.size)}, from ${entry.sources.map((x) => x.name).join(" or ")}`,
+                    },
+                  ]
+                : []),
+              ...(installed
+                ? [{ label: "Installed", value: installed.manifest.version }]
+                : []),
             ]}
           />
           <ul className="mt-3 flex flex-col gap-1">
@@ -374,7 +712,7 @@ function ModelPage({
       {removing && (
         <ConfirmDelete
           eyebrow="REMOVE MODEL"
-          title={`${m.name} ${m.version}`}
+          title={`${m.name} ${installed?.manifest.version ?? m.version}`}
           subtitle="Its files leave this machine. Runs made with it keep their results and still name it; running it again needs it installed."
           confirmLabel="Remove"
           busy={removing === "busy"}
@@ -422,8 +760,16 @@ function TrustDialog({
   )
 }
 
-function Picture({ model, className }: { model: ModelInfo; className: string }) {
-  if (!model.picture_uri) {
+function Picture({
+  uri,
+  manifest,
+  className,
+}: {
+  uri: string
+  manifest: ModelManifest
+  className: string
+}) {
+  if (!uri) {
     return (
       <span
         aria-hidden
@@ -436,17 +782,27 @@ function Picture({ model, className }: { model: ModelInfo; className: string }) 
   }
   return (
     <img
-      src={model.picture_uri}
+      src={uri}
       alt=""
       title={
-        model.manifest.picture
-          ? `Picture: ${model.manifest.picture.author} · ${model.manifest.picture.license}`
+        manifest.picture
+          ? `Picture: ${manifest.picture.author} · ${manifest.picture.license}`
           : undefined
       }
       draggable={false}
       className={cn(PICTURE, className)}
     />
   )
+}
+
+/**
+ * Who made the package, as a reader says a list of names: "A", "A and B",
+ * "A, B and C". Empty when the package names nobody.
+ */
+function packagers(m: ModelManifest): string {
+  const names = (m.packaged_by ?? []).map((p) => p.name)
+  if (names.length <= 1) return names[0] ?? ""
+  return `${names.slice(0, -1).join(", ")} and ${names[names.length - 1]}`
 }
 
 const taskName = (task: string) =>
