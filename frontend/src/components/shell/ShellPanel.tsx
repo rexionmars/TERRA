@@ -1,4 +1,4 @@
-import { CaretRight, X } from "@/components/icons"
+import { CaretLeft, CaretRight, X } from "@/components/icons"
 import { cn } from "@/lib/utils"
 
 export interface Crumb {
@@ -39,6 +39,14 @@ export function ShellPanel({
 }) {
   const parents = crumbs.slice(0, -1)
   const place = crumbs[crumbs.length - 1]
+  /*
+    THE WAY BACK IS A CONTROL, NOT ONLY A WORD. The path above the title steps
+    back too, but it is a 10px label in the muted tone, and a reader inside a
+    product did not find it: the only control in sight was the one that closes
+    the panel. So the nearest step back is also a button the size of that one,
+    on the other side of the header, where a way back is looked for.
+  */
+  const back = [...parents].reverse().find((c) => c.onClick)
   return (
     <aside
       ref={panelRef}
@@ -48,7 +56,23 @@ export function ShellPanel({
         wide ? "w-[44rem]" : "w-[26rem]"
       )}
     >
-      <header className="flex h-12 shrink-0 items-center gap-1.5 border-b border-border pr-2 pl-4">
+      <header
+        className={cn(
+          "flex h-12 shrink-0 items-center gap-1.5 border-b border-border pr-2",
+          back ? "pl-2" : "pl-4"
+        )}
+      >
+        {back && (
+          <button
+            type="button"
+            onClick={back.onClick}
+            aria-label={`Back to ${back.label}`}
+            title={`Back to ${back.label}`}
+            className="flex size-8 shrink-0 items-center justify-center rounded-sm text-muted-foreground transition-colors hover:bg-hover hover:text-foreground"
+          >
+            <CaretLeft className="size-4" />
+          </button>
+        )}
         {/*
           TWO LINES: THE PATH IN TELEMETRY, THE PLACE IN DISPLAY. The path is
           where the panel sits, a small label to step back along; the place is
@@ -68,7 +92,7 @@ export function ShellPanel({
                     <button
                       type="button"
                       onClick={c.onClick}
-                      className="truncate uppercase transition-colors hover:text-foreground"
+                      className="truncate uppercase underline-offset-2 transition-colors hover:text-foreground hover:underline"
                     >
                       {c.label}
                     </button>
