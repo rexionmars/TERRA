@@ -145,7 +145,7 @@ function Socket({
         style={{
           width: SOCKET,
           height: SOCKET,
-          background: open ? "var(--b-card)" : colour,
+          background: open ? "var(--b-node-card)" : colour,
           boxShadow: open
             ? `inset 0 0 0 2px ${colour}, 0 0 0 1px rgb(0 0 0 / 0.55)`
             : "0 0 0 1px rgb(0 0 0 / 0.55)",
@@ -666,12 +666,11 @@ export function SocketCanvas({
                 }
               }}
               data-selected={n.selected ? "true" : undefined}
-              className="group/node pointer-events-auto absolute rounded-md"
+              className="group/node node-card pointer-events-auto absolute rounded-md"
               style={{
                 left: n.place.x,
                 top: n.place.y,
                 width: n.w,
-                background: "var(--b-card)",
                 ["--b-lit" as string]: n.lit.band,
                 ["--b-lit-ink" as string]: n.lit.ink,
                 /*
@@ -684,7 +683,7 @@ export function SocketCanvas({
                   `inset 0 2px 0 ${n.head}`,
                   n.selected
                     ? "0 0 0 1.5px rgb(var(--p-accent)), 0 0 0 5px rgb(var(--p-accent) / 0.16)"
-                    : `0 0 0 1px ${n.status === "busy" ? "var(--warning)" : "var(--b-card-edge)"}`,
+                    : `0 0 0 1px ${n.status === "busy" ? "var(--warning)" : "var(--b-node-edge)"}`,
                   "0 14px 32px -14px rgb(0 0 0 / 0.6)",
                 ].join(", "),
                 zIndex: front === n.id ? 1 : undefined,

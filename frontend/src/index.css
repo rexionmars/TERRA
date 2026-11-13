@@ -339,6 +339,29 @@
   --b-card-ink: #c2c3c5;
 
   /*
+    THE NODE CARD, on the Workflows and Compare boards: near black and matte,
+    a few steps lighter at its top, with a grain over it, as a printed panel
+    on a dark ground. It is darker than the field it stands on (--p-ink,
+    #141414) everywhere but its top, so it reads as a panel and not as a hole,
+    and its edge is a neutral hairline, which is what separates the two.
+
+    Its own tokens rather than --b-card's: that ground is the run graph's and
+    every part's body, and this is the one surface that changes.
+
+    The grain is fractal noise spread to near full contrast and laid at 6 %,
+    drawn as an SVG tile: specks about 6 levels apart that read as a texture.
+    It lifts the card's mean by about 7 levels, which is why the colours are
+    set that much under where the card is meant to sit. Laid softer and wider,
+    the noise lifted the whole card before any speck could be seen. Measured
+    with --p-text and --p-muted at both ends of the gradient, in
+    lib/contrast.ts.
+  */
+  --b-node-card: #0a0a0b;
+  --b-node-card-top: #17171a;
+  --b-node-edge: #38383b;
+  --b-node-grain: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='g'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/%3E%3CfeColorMatrix type='saturate' values='0'/%3E%3CfeComponentTransfer%3E%3CfeFuncR type='linear' slope='8' intercept='-3.6'/%3E%3CfeFuncG type='linear' slope='8' intercept='-3.6'/%3E%3CfeFuncB type='linear' slope='8' intercept='-3.6'/%3E%3CfeFuncA type='linear' slope='0' intercept='1'/%3E%3C/feComponentTransfer%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23g)' opacity='0.06'/%3E%3C/svg%3E");
+
+  /*
     THE FOUR BANDS AT 0.6 OF THEIR CHROMA, AND WHY THE LITERALS MOVED.
 
     The references were taken at full chroma and the board read as alive: four
@@ -576,6 +599,13 @@
   --b-card-head: #c2c3c5;
   --b-card-edge: #c2c3c5;
   --b-card-ink: #23262c;
+
+  /* The node card: see the dark block. A light matte panel here, its grain
+     lighter, since the same noise on a light ground reads as dirt. */
+  --b-node-card: #f1f1f1;
+  --b-node-card-top: #fafafa;
+  --b-node-edge: #c2c3c5;
+  --b-node-grain: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='g'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/%3E%3CfeColorMatrix type='saturate' values='0'/%3E%3CfeComponentTransfer%3E%3CfeFuncR type='linear' slope='8' intercept='-3.6'/%3E%3CfeFuncG type='linear' slope='8' intercept='-3.6'/%3E%3CfeFuncB type='linear' slope='8' intercept='-3.6'/%3E%3CfeFuncA type='linear' slope='0' intercept='1'/%3E%3C/feComponentTransfer%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23g)' opacity='0.04'/%3E%3C/svg%3E");
 
   /* WHERE a run reads -- the area, a scene, a store. Heavy: ringed in itself. */
   --b-source-body: #f4f4f4;
@@ -1280,6 +1310,14 @@
     animation: none;
     stroke-dasharray: none;
   }
+}
+
+/* A node card's ground, from the tokens beside --b-card (THE NODE CARD). */
+.node-card {
+  background-color: var(--b-node-card);
+  background-image:
+    var(--b-node-grain),
+    linear-gradient(170deg, var(--b-node-card-top), var(--b-node-card) 60%);
 }
 
 .app-shell-enter {

@@ -61,6 +61,8 @@ const CSS_BOARD_HEX: Record<string, string> = {
   boardCardHead: "--b-card-head",
   boardCardEdge: "--b-card-edge",
   boardCardInk: "--b-card-ink",
+  nodeCard: "--b-node-card",
+  nodeCardTop: "--b-node-card-top",
   sourceBody: "--b-source-body",
   sourceHead: "--b-source-head",
   sourceEdge: "--b-source-edge",
