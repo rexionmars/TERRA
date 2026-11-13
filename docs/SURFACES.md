@@ -16,6 +16,7 @@ disagree, the code is right and this file is stale.
 | Compare | [`frontend/src/components/shell/CompareScreen.tsx`](../frontend/src/components/shell/CompareScreen.tsx) |
 | Workflows | [`frontend/src/components/shell/WorkflowsScreen.tsx`](../frontend/src/components/shell/WorkflowsScreen.tsx) |
 | Models | [`frontend/src/components/shell/ModelsScreen.tsx`](../frontend/src/components/shell/ModelsScreen.tsx); the catalogue and its downloads in [`frontend/src/lib/modelCatalog.ts`](../frontend/src/lib/modelCatalog.ts), the installed packages in [`frontend/src/lib/installedModels.ts`](../frontend/src/lib/installedModels.ts) |
+| Settings | [`frontend/src/components/shell/SettingsScreen.tsx`](../frontend/src/components/shell/SettingsScreen.tsx); the profile in [`frontend/src/components/shell/ProfileSection.tsx`](../frontend/src/components/shell/ProfileSection.tsx) |
 | Banners with a title held on the page's ground, and their scenes | [`frontend/src/components/ui/TabbedBanner.tsx`](../frontend/src/components/ui/TabbedBanner.tsx), the scenes in [`frontend/src/lib/orbitScenes.ts`](../frontend/src/lib/orbitScenes.ts) |
 | Readings the destinations share | [`frontend/src/components/workspace/`](../frontend/src/components/workspace/) |
 
@@ -29,6 +30,7 @@ disagree, the code is right and this file is stale.
 | **Workflows** | The compositor, full screen |
 | **Models** | The trained land-cover models, as cards, with a page for each: what it reads, how it works, how it was evaluated, and a button that runs it through Classification |
 | **Activity** | What the application has said, kept after each notification leaves |
+| **Settings** | Opened from the account at the foot of the rail. The profile, under a cover the reader picks; appearance; the data on this machine, with backup and restore; the Python environment; and the keymap |
 
 **One panel at a time.** The shell holds a single value saying which is open, so
 opening one closes the last rather than stacking or dividing the window. The map

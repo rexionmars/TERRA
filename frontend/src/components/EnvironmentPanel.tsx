@@ -19,6 +19,7 @@
  */
 import { useCallback, useEffect, useRef, useState } from "react"
 import { ArrowsClockwise, Check, CircleNotch, Warning, X } from "@/components/icons"
+import { CARD } from "@/components/shell/settingsParts"
 import { EventsOn } from "../../wailsjs/runtime/runtime"
 import {
   BuildManagedEnvironment,
@@ -220,8 +221,8 @@ export function EnvironmentPanel() {
       )}
 
       {/* What is in use, and whether it works. */}
-      <section className="rounded-sm border border-border bg-secondary/50 p-4">
-        <p className="eyebrow mb-3">In use</p>
+      <section className={cn(CARD, "p-5")}>
+        <h3 className="mb-2 text-read font-medium text-foreground">In use</h3>
         {loading && !active ? (
           <p className="flex items-center gap-2 text-body text-muted-foreground">
             <CircleNotch className="size-3.5 animate-spin" />
@@ -278,9 +279,11 @@ export function EnvironmentPanel() {
         should be able to reclaim them without rebuilding the environment.
       */}
       {optional.length > 0 && active && !active.unreachable && (
-        <section className="rounded-sm border border-border bg-secondary/50 p-4">
-          <p className="eyebrow mb-1">Optional components</p>
-          <p className="mb-3 text-body text-muted-foreground">
+        <section className={cn(CARD, "p-5")}>
+          <h3 className="mb-0.5 text-read font-medium text-foreground">
+            Optional components
+          </h3>
+          <p className="mb-3 text-label text-muted-foreground">
             Not installed by default, because nothing else needs them. Each one says
             what it unlocks and what it costs.
           </p>
@@ -321,9 +324,11 @@ export function EnvironmentPanel() {
       <EarthdataSection />
 
       {/* The recommended repair, and the interpreters it can be built on. */}
-      <section className="rounded-sm border border-border bg-secondary/50 p-4">
-        <p className="eyebrow mb-1">Interpreters on this machine</p>
-        <p className="mb-3 text-body text-muted-foreground">
+      <section className={cn(CARD, "p-5")}>
+        <h3 className="mb-0.5 text-read font-medium text-foreground">
+          Interpreters on this machine
+        </h3>
+        <p className="mb-3 text-label text-muted-foreground">
           TERRA can build its own environment from any Python{" "}
           {active?.min_python ?? "3.12"} or newer, and keep it beside its database
           rather than inside the application — so an update does not discard it.
@@ -388,9 +393,9 @@ export function EnvironmentPanel() {
         saying which.
       */}
       {(state?.paths ?? []).length > 0 && (
-        <section className="rounded-sm border border-border bg-secondary/50 p-4">
-          <p className="eyebrow mb-1">Locations</p>
-          <p className="mb-3 text-body text-muted-foreground">
+        <section className={cn(CARD, "p-5")}>
+          <h3 className="mb-0.5 text-read font-medium text-foreground">Locations</h3>
+          <p className="mb-3 text-label text-muted-foreground">
             Where TERRA reads its parts from, as resolved at startup. Set by the
             installation and by environment variables, not editable here.
           </p>
@@ -409,8 +414,10 @@ export function EnvironmentPanel() {
       )}
 
       {log.length > 0 && (
-        <section className="rounded-sm border border-border bg-secondary/50 p-4">
-          <p className="eyebrow mb-3">{building ? "Installing" : "Last install"}</p>
+        <section className={cn(CARD, "p-5")}>
+          <h3 className="mb-2 text-read font-medium text-foreground">
+            {building ? "Installing" : "Last install"}
+          </h3>
           {/* Verbatim, not summarised. What pip is resolving is the only
                   honest answer to why this is taking minutes, and on failure
                   the reason is in these lines. */}
@@ -489,9 +496,9 @@ function EarthdataSection() {
   const fromEnv = status?.source === "EARTHDATA_TOKEN"
 
   return (
-    <section className="rounded-sm border border-border bg-secondary/50 p-4">
-      <p className="eyebrow mb-1">Earthdata token</p>
-      <p className="mb-3 text-body text-muted-foreground">
+    <section className={cn(CARD, "p-5")}>
+      <h3 className="mb-0.5 text-read font-medium text-foreground">Earthdata token</h3>
+      <p className="mb-3 text-label text-muted-foreground">
         The NASA Earthdata login the mineral map reads EMIT reflectance with. Nothing
         else in TERRA uses it. The token is tested against the LP DAAC before it is
         saved, and it is not shown again once saved.

@@ -1,7 +1,8 @@
 /** Where the reader is: which destination, which panel, and how they got there. */
-import { useState } from "react"
+import { useCallback, useState } from "react"
 
 import { readRailOpen } from "@/components/shell/ShellChrome"
+import type { SettingsPage } from "@/lib/auth"
 
 /** Which panel is held up over the map. One value, so there is only ever one. */
 export type ShellPanelId =
@@ -11,7 +12,7 @@ export function useShellNavigation() {
   // Over the map at launch, and gone as soon as the reader begins something.
   const [startOpen, setStartOpen] = useState(false)
   const [destination, setDestination] = useState<
-    "explore" | "analyses" | "compare" | "workflows" | "models"
+    "explore" | "analyses" | "compare" | "workflows" | "models" | "settings"
   >("explore")
   /*
     Each stays mounted once opened, hidden behind the map. The grid's choices survive
@@ -40,6 +41,18 @@ export function useShellNavigation() {
     setStartOpen(false)
     setDestination("models")
   }
+  /*
+    Nor is Settings, which reads what it shows from the store each time; the
+    page it was left on is kept, so the account at the foot of the rail
+    returns to it.
+  */
+  const [settingsSection, setSettingsSection] = useState<SettingsPage>("profile")
+  // Stable, since the shell opens Settings from an effect on a request.
+  const goSettings = useCallback((page?: SettingsPage) => {
+    setStartOpen(false)
+    if (page) setSettingsSection(page)
+    setDestination("settings")
+  }, [])
   const [railOpen, setRailOpen] = useState(readRailOpen)
 
   const [panel, setPanel] = useState<ShellPanelId | null>(null)
@@ -61,6 +74,9 @@ export function useShellNavigation() {
     goCompare,
     goWorkflows,
     goModels,
+    settingsSection,
+    setSettingsSection,
+    goSettings,
     railOpen,
     setRailOpen,
     panel,

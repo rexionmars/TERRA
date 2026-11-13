@@ -13,7 +13,6 @@ import { SCREEN } from "@/lib/motion"
 import type { Preferences } from "@/lib/types"
 import { AuthPage } from "@/pages/AuthPage"
 import { MapShell } from "@/pages/MapShell"
-import { ProfilePage } from "@/pages/ProfilePage"
 import { useAnalysisResults } from "@/session/analysisResults"
 import { useAreaActions } from "@/session/areas"
 import { useBootReveal } from "@/session/boot"
@@ -231,7 +230,7 @@ function AppBody({
     loadGallery: composition.loadGallery,
     setShowCompositionOverlay: composition.setShowCompositionOverlay,
   })
-  const { openSavedAnalysis, loadingRun } = useSavedRunLoader({
+  const { openSavedAnalysis } = useSavedRunLoader({
     areas,
     analysisLabel,
     setAnalysisLabel,
@@ -276,8 +275,9 @@ function AppBody({
           the project hub, whose management moved into the studio itself. What
           was left named the studio, and a list of one is not navigation.
 
-          Settings and sign-in are reached from the title bar, which is where
-          an account control belongs and where this column had put it too.
+          Settings is a destination in the map's shell, opened from the
+          account at the foot of the rail; signing in is the one screen beside
+          it.
         */}
         <div className="relative min-h-0 min-w-0 flex-1">
           {/*
@@ -328,9 +328,6 @@ function AppBody({
             )}
           </AnimatePresence>
           {screen === "auth" && <AuthPage />}
-          {screen === "profile" && (
-            <ProfilePage loadingRun={loadingRun} onOpenRun={openSavedAnalysis} />
-          )}
         </div>
       </div>
     </div>
