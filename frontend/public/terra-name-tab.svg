@@ -1,0 +1,19 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 305.66 34">
+<!--
+  The tab that carries the TERRA wordmark up from a bar, on the splash and on the
+  start screen. Used as a mask and painted by whatever holds it: the void on the
+  splash, the panel on the start screen.
+
+  In units where the wordmark is 150 wide (so 23.39 tall, at 4669:728):
+  - the tab rises 32 above the bar, and its top edge is the wordmark plus 2.1
+    cap heights on each side, 248.23;
+  - its sides fall at 60 degrees, the angle of the triangular mark, so the
+    emblem and the tab are drawn in one geometry;
+  - a side meets the top edge in a convex corner 0.28 of the rise, and meets
+    the bar in a concave fillet 0.32 of the rise, so the bar and the tab read
+    as one shape with no seam at the joint;
+  - the shape runs 2 below the bar's top edge, so the holder can overlap the
+    bar by that much and no hairline of background shows between them.
+-->
+<path d="M0 32 Q10.24 32 15.36 23.13 L24.24 7.76 Q28.72 0 37.68 0 H267.99 Q276.95 0 281.43 7.76 L290.3 23.13 Q295.42 32 305.66 32 V34 H0 Z"/>
+</svg>

@@ -31,10 +31,16 @@
     <!-- Must run before Leaflet loads: PointerEvent exists in WKWebView/desktop
          and would otherwise set L.Browser.touch=true, closing polygons at 3 pts. -->
     <script>window.L_NO_TOUCH = true</script>
-    <!-- The Earth is the largest thing the splash draws and the first to move,
-         so it is fetched with the stylesheet rather than when the parser
-         reaches its img. -->
-    <link rel="preload" as="image" href="/terra-splash-earth.webp"/>
+    <!-- The photograph is the largest thing the splash draws and the first to
+         move, so it is fetched with the stylesheet rather than when the parser
+         reaches its img. The same candidates as the img, so the preload is the
+         file the img then uses: the 840 px one in the 420x280 boot window. -->
+    <link
+      rel="preload"
+      as="image"
+      imagesrcset="/terra-splash-water-tap-840.webp 840w, /terra-splash-water-tap.webp 2400w"
+      imagesizes="100vw"
+    />
     <!-- The splash's styles, shared with SplashScreen.tsx. Linked here rather
          than imported by the bundle, because the markup below paints before
          the bundle loads -- in development, CSS a module imports arrives only
@@ -51,33 +57,34 @@
 </head>
 <body>
 <!-- The splash until React mounts. The same markup SplashScreen.tsx renders,
-     without the version: that comes from the Go side, which React asks. -->
+     without the version, which comes from the Go side when React asks, and
+     without the photo credit, which only the full window shows, and this copy
+     is only ever painted in the boot window. -->
 <div id="splash" class="splash" aria-hidden="true">
   <div class="splash__scene">
-    <div class="splash__sky">
-      <div class="splash__stars splash__stars--a"></div>
-      <div class="splash__stars splash__stars--b"></div>
-      <div class="splash__stars splash__stars--c"></div>
-    </div>
-    <div class="splash__orbit splash__orbit--1"><img class="splash__sat" src="/terra-splash-satellite.svg" alt=""/></div>
-    <div class="splash__orbit splash__orbit--2"><img class="splash__sat" src="/terra-splash-satellite.svg" alt=""/></div>
-    <div class="splash__orbit splash__orbit--3"><img class="splash__sat" src="/terra-splash-satellite.svg" alt=""/></div>
-    <img class="splash__earth" src="/terra-splash-earth.webp" alt=""/>
+    <img
+      class="splash__photo"
+      srcset="/terra-splash-water-tap-840.webp 840w, /terra-splash-water-tap.webp 2400w"
+      sizes="100vw"
+      src="/terra-splash-water-tap.webp"
+      alt=""
+    />
+    <div class="splash__scrim"></div>
   </div>
   <div class="splash__bar">
-    <span class="splash__state"><span class="splash__dot"></span>Booting</span>
     <span class="splash__spacer"></span>
+    <span class="splash__state"><span class="splash__dot"></span>Booting</span>
   </div>
-  <div class="splash__body">
-    <div class="splash__lockup">
-      <img class="splash__mark" src="/terra-logo.png" alt=""/>
-      <p class="splash__tagline">__BRAND_TAGLINE__</p>
+  <div class="splash__lockup">
+    <img class="splash__mark" src="/terra-logo.png" alt=""/>
+    <p class="splash__tagline">__BRAND_TAGLINE__</p>
+  </div>
+  <div class="splash__base">
+    <div class="splash__tab"></div>
+    <div class="splash__foot">
+      <p class="splash__log">booting…</p>
     </div>
     <img class="splash__word" src="/terra-wordmark-filled.svg" alt="" width="4669" height="728"/>
-  </div>
-  <div class="splash__foot">
-    <p class="splash__label">Boot</p>
-    <p class="splash__log">booting…</p>
   </div>
 </div>
 <!-- When this copy began to animate, for the React copy to start its own
