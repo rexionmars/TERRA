@@ -26,6 +26,8 @@
 import { useEffect, useMemo, useRef, useState } from "react"
 import { CaretLeft, CaretRight, DownloadSimple, Polygon, X } from "@/components/icons"
 import { NumberField } from "@/components/ui/NumberField"
+import { PHOTO_CHIP } from "@/components/ui/TabbedBanner"
+import { cn } from "@/lib/utils"
 import { parseFields, type FieldsTarget } from "@/lib/fields"
 import type { FieldsAnalysis, MineralAnalysis, PredictResult } from "@/lib/types"
 import { notifyExportFail, notifyExportOk } from "@/lib/notify"
@@ -209,11 +211,11 @@ const GUESS_H: Record<NodeKind, number> = {
 }
 
 /*
-  A node's header by its category, from the parts the run graph already
-  measured against --b-node-ink (lib/contrast.ts): Input takes the source part,
-  Filter the method, Mask the catalogue's magenta, Color the period's yellow,
-  Analysis the value part, and Output the run node's red, as Blender's output
-  nodes are red. `band` and `ink` are what a chosen control inside is drawn in.
+  A node's colour by its category, from the parts the run graph already
+  measured (lib/contrast.ts): Input takes the source part, Filter the method,
+  Mask the catalogue's magenta, Color the period's yellow, Analysis the value
+  part, and Output the run card's gold. The colour is the card's top edge
+  (SocketCanvas); `band` and `ink` are what a chosen control inside is drawn in.
 */
 const PART: Record<NodeCategory, string> = {
   input: "source",
@@ -226,7 +228,7 @@ const PART: Record<NodeCategory, string> = {
   output: "action",
 }
 const paint = (c: NodeCategory) => ({
-  head: `var(--b-${PART[c]}-node)`,
+  head: `var(--b-${PART[c]}-head)`,
   band: `var(--b-${PART[c]}-head)`,
   ink: `var(--b-${PART[c]}-ink)`,
 })
@@ -2587,23 +2589,36 @@ export function CompositorEditor({
         const v = readyValue(r)
         if (!v) return <StatusNote result={r} />
         const image = painted(v)
-        const inner = WIDTH.viewer - 20
+        /*
+          THE PICTURE IS THE CARD. Set edge to edge and down to the card's
+          foot, on the sunk plate the Analyses gallery shows a run on, with its
+          grid set on it as a chip: a viewer is read for what it shows, and an
+          inset frame with a figure under it read as a form with an image in it.
+        */
+        const width = WIDTH.viewer
         return (
-          <>
+          <div className="relative -mx-2.5 -mb-2.5 overflow-hidden rounded-b-md border-t border-[var(--hairline)] bg-[rgb(var(--p-sunk))]">
             <RasterCanvas
               image={image}
               style={{
-                width: inner,
+                display: "block",
+                width,
                 height: Math.min(
-                  260,
-                  Math.round((inner * image.height) / Math.max(1, image.width))
+                  300,
+                  Math.round((width * image.height) / Math.max(1, image.width))
                 ),
-                background: "rgb(var(--p-line) / 0.12)",
-                borderRadius: 2,
               }}
             />
-            <Figure label="Grid" value={`${image.width} \u00d7 ${image.height} px`} />
-          </>
+            <span
+              title="Grid, in pixels"
+              className={cn(
+                "telemetry absolute right-2 bottom-2 px-2 py-0.5 text-micro",
+                PHOTO_CHIP
+              )}
+            >
+              {`${image.width} \u00d7 ${image.height} px`}
+            </span>
+          </div>
         )
       }
 
@@ -2723,7 +2738,12 @@ export function CompositorEditor({
             title="Remove (X)"
             onPointerDown={(e) => e.stopPropagation()}
             onClick={() => remove(node.id)}
-            className="grid size-4 shrink-0 place-items-center rounded-sm opacity-70 hover:bg-hover hover:opacity-100"
+            /*
+              Shown on the card under the pointer and on the selected one: a
+              cross on every card of a board is twenty marks that say the same
+              thing, and none of them is what a card is read for.
+            */
+            className="grid size-4 shrink-0 place-items-center rounded-sm text-muted-foreground opacity-0 group-hover/node:opacity-100 group-data-[selected=true]/node:opacity-100 hover:bg-hover hover:text-foreground focus-visible:opacity-100"
           >
             <X className="size-2.5" />
           </button>

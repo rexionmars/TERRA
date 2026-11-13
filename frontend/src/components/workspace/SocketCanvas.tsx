@@ -9,6 +9,14 @@
  * A NODE IS A HEADER, ITS OUTPUTS, ITS INPUTS, THEN ITS SETTINGS. Blender sets
  * some settings between the outputs and the inputs; they are set after both
  * here, so every socket sits at a height known without measuring a row.
+ *
+ * A NODE IS A DARK CARD, AND ITS CATEGORY IS AN EDGE. The header was a band
+ * filled in the category's dark tone, and a board of twenty nodes was twenty
+ * coloured slabs, every one as loud as the next, over the figures they hold.
+ * The category is now the card's top edge and a wash that fades under the
+ * name: found at a glance at any zoom, and quiet beside what the card shows.
+ * Colour at full strength is kept for what is small and has to be found -- a
+ * socket, a wire, a chosen option.
  */
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react"
 import { ArrowsOut, CaretDown, CaretRight, TreeStructure } from "@/components/icons"
@@ -17,7 +25,7 @@ import { cn } from "@/lib/utils"
 export type Place = { x: number; y: number }
 
 /** The fixed geometry that places sockets without measuring rows. */
-const HEAD_H = 26
+const HEAD_H = 30
 const ROW_H = 22
 const BODY_PAD = 4
 const SOCKET = 10
@@ -46,7 +54,7 @@ export interface SocketNode {
    */
   h: number
   header: React.ReactNode
-  /** The header band's colour. */
+  /** The node's category colour: its top edge and the wash under its name. */
   head: string
   /** What a chosen control inside the node is drawn in: see nodeCard's Choice. */
   lit: { band: string; ink: string }
@@ -112,11 +120,17 @@ function Socket({
   side,
   onPointerDown,
   label,
+  open = false,
 }: {
   colour: string
   side: "left" | "right"
   onPointerDown?: (e: React.PointerEvent) => void
   label: string
+  /**
+   * Nothing is linked to it: a ring in its colour rather than a disc, so which
+   * sockets carry a wire reads without following the wires.
+   */
+  open?: boolean
 }) {
   return (
     <span
@@ -131,8 +145,10 @@ function Socket({
         style={{
           width: SOCKET,
           height: SOCKET,
-          background: colour,
-          boxShadow: "0 0 0 1px rgb(0 0 0 / 0.55)",
+          background: open ? "var(--b-card)" : colour,
+          boxShadow: open
+            ? `inset 0 0 0 2px ${colour}, 0 0 0 1px rgb(0 0 0 / 0.55)`
+            : "0 0 0 1px rgb(0 0 0 / 0.55)",
         }}
       />
     </span>
@@ -480,6 +496,14 @@ export function SocketCanvas({
   }
 
   const byId = new Map(nodes.map((n) => [n.id, n]))
+  /* Outputs with a wire leaving them, drawn filled; the rest are rings. */
+  const fedOutputs = new Set(links.map((l) => linkKey(l.from, l.fromSocket)))
+  /*
+    WITH A NODE SELECTED, ITS WIRES ARE THE ONES READ. A board of twenty nodes
+    crosses forty wires, and which of them belong to the node in hand cannot be
+    told by following them; the rest step back until nothing is selected.
+  */
+  const inHand = new Set(nodes.filter((n) => n.selected).map((n) => n.id))
 
   const outputPoint = (n: SocketNode, socket: string) => {
     const i = Math.max(
@@ -562,13 +586,19 @@ export function SocketCanvas({
                 inputSocketY(b, j, folded.has(b.id))
               )
               const selected = selectedLink === linkKey(l.to, l.toSocket)
+              const aside =
+                !selected && inHand.size > 0 && !inHand.has(l.from) && !inHand.has(l.to)
               const stroke = selected
                 ? "rgb(var(--p-accent))"
                 : l.state === "failed"
                   ? "var(--p-wire-failed)"
                   : l.colour
               return (
-                <g key={`${l.to}-${l.toSocket}`}>
+                <g
+                  key={`${l.to}-${l.toSocket}`}
+                  opacity={aside ? 0.22 : 1}
+                  className="transition-opacity duration-150"
+                >
                   <path
                     d={d}
                     fill="none"
@@ -635,7 +665,8 @@ export function SocketCanvas({
                   onSelect(n.id, { ctrl: e.ctrlKey || e.metaKey, shift: e.shiftKey })
                 }
               }}
-              className="pointer-events-auto absolute rounded-md"
+              data-selected={n.selected ? "true" : undefined}
+              className="group/node pointer-events-auto absolute rounded-md"
               style={{
                 left: n.place.x,
                 top: n.place.y,
@@ -643,20 +674,33 @@ export function SocketCanvas({
                 background: "var(--b-card)",
                 ["--b-lit" as string]: n.lit.band,
                 ["--b-lit-ink" as string]: n.lit.ink,
-                boxShadow: `0 0 0 ${n.selected ? "1.5px rgb(var(--p-accent))" : `1px ${n.status === "busy" ? "var(--warning)" : "rgb(0 0 0 / 0.6)"}`}, 0 6px 18px -6px rgb(0 0 0 / 0.65)`,
+                /*
+                  The category as the card's top edge: an inset shadow follows
+                  the corner radius where a drawn line would square it off.
+                  Selected, the accent rings the card with a halo; busy, the
+                  warning rings it; otherwise its own edge does.
+                */
+                boxShadow: [
+                  `inset 0 2px 0 ${n.head}`,
+                  n.selected
+                    ? "0 0 0 1.5px rgb(var(--p-accent)), 0 0 0 5px rgb(var(--p-accent) / 0.16)"
+                    : `0 0 0 1px ${n.status === "busy" ? "var(--warning)" : "var(--b-card-edge)"}`,
+                  "0 14px 32px -14px rgb(0 0 0 / 0.6)",
+                ].join(", "),
                 zIndex: front === n.id ? 1 : undefined,
               }}
             >
               <div
                 onPointerDown={(e) => beginNode(e, n)}
                 className={cn(
-                  "relative flex cursor-grab items-center gap-1 pr-1.5 pl-1 text-body active:cursor-grabbing",
-                  isFolded ? "rounded-md" : "rounded-t-md"
+                  "relative flex cursor-grab items-center gap-1 pr-1.5 pl-1 text-body font-medium text-foreground active:cursor-grabbing",
+                  isFolded
+                    ? "rounded-md"
+                    : "rounded-t-md border-b border-[var(--hairline)]"
                 )}
                 style={{
                   height: HEAD_H,
-                  background: n.head,
-                  color: "var(--b-node-ink)",
+                  background: `linear-gradient(to bottom, color-mix(in srgb, ${n.head} 16%, transparent), transparent)`,
                 }}
               >
                 <button
@@ -665,7 +709,7 @@ export function SocketCanvas({
                   onClick={() => toggleFold(n.id)}
                   aria-expanded={!isFolded}
                   aria-label={isFolded ? "Unfold" : "Fold"}
-                  className="grid size-4 shrink-0 place-items-center rounded-sm opacity-80 hover:bg-hover hover:opacity-100"
+                  className="grid size-4 shrink-0 place-items-center rounded-sm text-muted-foreground hover:bg-hover hover:text-foreground"
                 >
                   {isFolded ? (
                     <CaretRight className="size-2.5" />
@@ -683,6 +727,7 @@ export function SocketCanvas({
                       colour={s.colour}
                       side="right"
                       label={`Link from ${s.label}`}
+                      open={!fedOutputs.has(linkKey(n.id, s.id))}
                       onPointerDown={(e) => beginLink(e, n.id, s.id)}
                     />
                   ))}
@@ -706,6 +751,7 @@ export function SocketCanvas({
                         colour={s.colour}
                         side="right"
                         label={`Link from ${s.label}`}
+                        open={!fedOutputs.has(linkKey(n.id, s.id))}
                         onPointerDown={(e) => beginLink(e, n.id, s.id)}
                       />
                     </div>
@@ -720,6 +766,7 @@ export function SocketCanvas({
                         colour={s.colour}
                         side="left"
                         label={s.linked ? `Pull the link off ${s.label}` : s.label}
+                        open={!s.linked}
                         onPointerDown={(e) => pullOff(e, n.id, s.id)}
                       />
                       <span
@@ -733,7 +780,7 @@ export function SocketCanvas({
                       </span>
                     </div>
                   ))}
-                  <div className="flex flex-col gap-1.5 px-2.5 pt-1 pb-2">
+                  <div className="flex flex-col gap-1.5 px-2.5 pt-1 pb-2.5">
                     {n.children}
                   </div>
                 </div>

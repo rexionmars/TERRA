@@ -11,15 +11,12 @@ import { cn } from "@/lib/utils"
 /**
  * A card's header: its name, and nothing else.
  *
- * As Solara writes it and Blender before it. The glyph that stood before the
- * name, and the small letter-spaced type the name was set in, were chosen for
- * a header that was a wash over the card; a node header is a band of its own,
- * and on it the name in body type is the whole of what needs saying. The
- * category is the band's colour.
+ * As Solara writes it and Blender before it: the name in body type is the
+ * whole of what needs saying. The category is the card's top edge, drawn by
+ * the canvas (SocketCanvas), not a glyph before the name.
  *
- * NO COLOUR NAMED HERE. The band sets `color` -- --b-node-ink on every header
- * -- and this inherits it, so the pair is measured where both are written
- * down, in index.css.
+ * NO COLOUR NAMED HERE. The header sets the text colour and this inherits it,
+ * so a card read in either theme names itself in that theme's text.
  */
 export function Head({ label }: { label: string }) {
   /*
@@ -72,8 +69,8 @@ export function Choice({
             : "text-muted-foreground hover:bg-hover hover:text-foreground"
       )}
       /*
-        A CHOSEN OPTION IS A CHIP IN THE CARD'S OWN COLOUR, and it is the same
-        pair the header band is: the band filled, the band's ink on it.
+        A CHOSEN OPTION IS A CHIP IN THE CARD'S OWN COLOUR: the category band
+        filled, the band's ink on it, the colour of the card's top edge.
 
         It was `bg-accent-dim text-foreground inset-ring-1 inset-ring-accent` --
         a brown plate with an orange ring, the chassis's accent at the one

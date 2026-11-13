@@ -460,33 +460,6 @@
   --b-aside-head: #476664;
   --b-aside-edge: #476664;
   --b-aside-ink: #d3e2de;
-
-  /*
-    THE NODE HEADERS, as Blender's and Solara's node editors draw them: a dark
-    tone of each category, with light type on it. The bands above keep the
-    category at full strength for what is small and has to be found -- a
-    socket, a wire, a lit control -- and the header, which is large, is where
-    the full strength had turned the board into four coloured slabs. The four
-    parts take Solara's own heads; value, the catalogue and the aside card are
-    darkened from their bands, and the run node takes Solara's red.
-
-    A card that holds nothing takes --b-card-node, the dark theme's card head:
-    the light theme's is a pale grey, and light type on it would not read.
-
-    Measured with --b-node-ink on each, in lib/contrast.ts: card 8.49, source
-    6.20, when 5.24, method 7.40, value 7.05, catalogue 7.18, run 7.50, aside
-    8.62. The same in both themes: a header is a node's chrome, not the
-    room's.
-  */
-  --b-node-ink: #e6e6e6;
-  --b-card-node: #3a3f47;
-  --b-source-node: #3c5a3a;
-  --b-when-node: #6a5d2a;
-  --b-method-node: #4a3f78;
-  --b-value-node: #6b3f35;
-  --b-catalogue-node: #5d4059;
-  --b-action-node: #6e3636;
-  --b-aside-node: #34403f;
 }
 
 /*
@@ -645,17 +618,6 @@
   --b-aside-head: #476664;
   --b-aside-edge: #476664;
   --b-aside-ink: #d3e2de;
-
-  /* The node headers, unchanged: see the dark block. */
-  --b-node-ink: #e6e6e6;
-  --b-card-node: #3a3f47;
-  --b-source-node: #3c5a3a;
-  --b-when-node: #6a5d2a;
-  --b-method-node: #4a3f78;
-  --b-value-node: #6b3f35;
-  --b-catalogue-node: #5d4059;
-  --b-action-node: #6e3636;
-  --b-aside-node: #34403f;
 }
 
 /*
