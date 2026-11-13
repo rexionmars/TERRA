@@ -1909,9 +1909,6 @@ export function GlobeSurface({
       {ready && !failure && (
         <MapBar className="app-no-drag absolute top-[calc(var(--frame-reach,0px)+0.75rem)] right-3 z-400 flex flex-col">
           {leadingTools}
-          {leadingTools && (
-            <div aria-hidden className="h-1 bg-[rgb(var(--p-line)/0.45)]" />
-          )}
           {/*
             THE COLUMN READS IN THE ORDER THE WORK HAPPENS: find the place,
             light the ground, draw on it. One column rather than a bar per
