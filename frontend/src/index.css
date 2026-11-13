@@ -1067,6 +1067,12 @@
   --text-title--line-height: 1.35;
   --text-display: 18px;
   --text-display--line-height: 1.25;
+  /*
+    One step past the window's own title, for the one headline a full-window
+    screen sets over its banner. Nothing in a panel or a card takes it.
+  */
+  --text-hero: 28px;
+  --text-hero--line-height: 1.15;
 
   --font-sans: var(--font-sans);
   --font-mono: var(--font-telemetry);
@@ -1323,6 +1329,21 @@
   }
   to {
     opacity: 1;
+  }
+}
+
+/*
+  The catalogue banner's clock: the bar in the shown scene's dot fills over the
+  time a scene stays, and the scene turns when it is full
+  (components/shell/CatalogueHero.tsx). Not withheld under reduced motion: the
+  banner starts stopped there, and runs only when the reader presses play.
+*/
+@keyframes terra-scene-dwell {
+  from {
+    transform: scaleX(0);
+  }
+  to {
+    transform: scaleX(1);
   }
 }
 

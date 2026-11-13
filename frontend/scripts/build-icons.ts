@@ -109,6 +109,7 @@ const ICONS: Record<string, string> = {
   Note: "actions/16/view-pim-notes",
   Package: "actions/16/package",
   Path: "actions/16/draw-path",
+  Pause: "actions/16/media-playback-pause",
   Pencil: "actions/16/document-edit",
   PencilSimple: "actions/16/edit-rename",
   Planet: "actions/22/map-globe",

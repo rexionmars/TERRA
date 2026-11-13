@@ -8,6 +8,7 @@ import {
   hangingNotch,
   leftCorner,
   rightCorner,
+  risingTab,
 } from "./frameCorners"
 
 describe("leftCorner", () => {
@@ -72,6 +73,36 @@ describe("hangingNotch", () => {
   it("falls at 60 degrees on either side", () => {
     const { d } = hangingNotch(360, 44)
     const side = d.match(/Q[\d.]+ 0 ([\d.]+) ([\d.]+) L([\d.]+) ([\d.]+)/)
+    expect(side).not.toBeNull()
+    const [x1, y1, x2, y2] = side!.slice(1).map(Number)
+    expect((Math.atan2(y2 - y1, x2 - x1) * 180) / Math.PI).toBeCloseTo(60, 0)
+  })
+})
+
+describe("risingTab", () => {
+  it("rises from the picture's foot along its left edge", () => {
+    const { d, height } = risingTab(420, 72)
+    expect(height).toBe(72 + CARD_RADIUS)
+    expect(d.startsWith(`M0 ${height} V0 `)).toBe(true)
+    expect(d.endsWith(`${height} Z`)).toBe(true)
+  })
+
+  it("turns the picture's corner above it at the container radius", () => {
+    expect(risingTab(420, 72).d).toContain(
+      `A${CARD_RADIUS} ${CARD_RADIUS} 0 0 0 ${CARD_RADIUS} ${CARD_RADIUS}`
+    )
+  })
+
+  it("is as wide at its top as what it holds", () => {
+    const top = risingTab(420, 72).d.match(/ H([\d.]+) Q([\d.]+) /)
+    expect(top).not.toBeNull()
+    expect(Number(top![2])).toBe(420)
+    expect(Number(top![1])).toBeCloseTo(420 - 0.28 * 72, 1)
+  })
+
+  it("falls at 60 degrees to the foot", () => {
+    const { d } = risingTab(420, 72)
+    const side = d.match(/Q[\d.]+ \d+ ([\d.]+) ([\d.]+) L([\d.]+) ([\d.]+)/)
     expect(side).not.toBeNull()
     const [x1, y1, x2, y2] = side!.slice(1).map(Number)
     expect((Math.atan2(y2 - y1, x2 - x1) * 180) / Math.PI).toBeCloseTo(60, 0)

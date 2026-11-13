@@ -114,3 +114,34 @@ export function hangingNotch(
   ].join(" ")
   return { d, total: Number(n(total)) }
 }
+
+/**
+ * A tab rising from a picture's foot at its left, in the corner pieces'
+ * construction at the rise `rise`: the ground under the picture reaching up
+ * into it to hold a title, as the splash's base reaches up to hold the name.
+ *
+ * In the tab's own box, whose left is the picture's left edge and whose
+ * bottom is its foot: the tab's top is `width` wide at y = CARD_RADIUS, its
+ * side falls at 60 degrees to the foot, and the box is `total` wide and
+ * `height` high. Above the tab the picture turns its own corner round it, at
+ * the container radius, as the card does round the corner pieces.
+ */
+export function risingTab(
+  width: number,
+  rise: number
+): { d: string; total: number; height: number } {
+  const r = CARD_RADIUS
+  const fillet = 0.32 * rise
+  const corner = 0.28 * rise
+  const run = rise / Math.tan(Math.PI / 3)
+  const foot = r + rise
+  const root = width + run
+  const total = root + fillet
+  const d = [
+    `M0 ${n(foot)} V0 A${r} ${r} 0 0 0 ${r} ${r} H${n(width - corner)}`,
+    `Q${n(width)} ${r} ${n(width + corner * COS)} ${n(r + corner * SIN)}`,
+    `L${n(root - fillet * COS)} ${n(foot - fillet * SIN)}`,
+    `Q${n(root)} ${n(foot)} ${n(total)} ${n(foot)} Z`,
+  ].join(" ")
+  return { d, total: Number(n(total)), height: Number(n(foot)) }
+}
