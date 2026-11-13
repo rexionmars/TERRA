@@ -211,6 +211,7 @@ Tailwind utilities.
 | `text-read` | 13px | 1.5 | What is read in a panel |
 | `text-title` | 15px | 1.35 | A panel's title |
 | `text-display` | 18px | 1.25 | A window's own title, and one large reading on a card |
+| `text-hero` | 28px | 1.15 | The one headline of a full-window screen's banner, as the Models catalogue's |
 
 `micro` is a floor, not a size to reach for. It is legible only because every use
 of it is uppercase monospace with wide tracking, or a figure in the telemetry face.

@@ -17,6 +17,7 @@ import {
   UploadSimple,
   X,
 } from "@/components/icons"
+import { CatalogueHero } from "@/components/shell/CatalogueHero"
 import { ConfirmDelete } from "@/components/ui/ConfirmDelete"
 import { ModalHeader, ModalShell } from "@/components/ui/ModalShell"
 import { btnGhost, btnPrimaryCommit } from "@/components/ui/buttons"
@@ -262,9 +263,10 @@ function ModelList({
   )
   return (
     <>
-      <h2 className="font-display text-display font-semibold text-foreground">
-        Catalogue
-      </h2>
+      <CatalogueHero
+        published={catalog ? listed.length : null}
+        installed={rows.filter((r) => r.installed).length}
+      />
       <CatalogueNote catalog={catalog} reading={reading} error={error} />
       {listed.length > 0 && <ul className={GRID}>{listed.map(card)}</ul>}
 
@@ -300,7 +302,7 @@ function ModelList({
 }
 
 const GRID =
-  "mt-6 grid [grid-template-columns:repeat(auto-fill,minmax(min(100%,26rem),1fr))] gap-4"
+  "mt-8 grid [grid-template-columns:repeat(auto-fill,minmax(min(100%,26rem),1fr))] gap-4"
 
 /** Where the list came from, and what to do when it is not the published one. */
 function CatalogueNote({
@@ -323,8 +325,12 @@ function CatalogueNote({
     </button>
   )
   const unsupported = catalog?.unsupported ?? 0
+  // The published catalogue, read just now and whole, needs no note: the
+  // banner says what it is.
+  if (catalog?.origin === "online" && unsupported === 0) return null
+  if (!catalog && !reading && !error) return null
   return (
-    <div className="mt-1 max-w-prose text-label text-muted-foreground">
+    <div className="mt-4 max-w-prose text-label text-muted-foreground">
       {!catalog && reading && (
         <p className="flex items-center gap-1.5">
           <CircleNotch className="size-3.5 animate-spin" />
@@ -334,12 +340,6 @@ function CatalogueNote({
       {!catalog && !reading && error && (
         <p>
           The catalogue could not be read: {error}. {retry}
-        </p>
-      )}
-      {catalog?.origin === "online" && (
-        <p>
-          The models published for TERRA. Each download is checked against the SHA-256
-          listed here before it is installed, and runs only on this machine.
         </p>
       )}
       {catalog?.origin === "built-in" && (
