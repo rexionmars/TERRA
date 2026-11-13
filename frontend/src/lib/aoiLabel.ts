@@ -67,6 +67,31 @@ export function resolveAoiDisplayLabel(opts: {
   return opts.fallback ?? "Custom AOI"
 }
 
+/**
+ * The name of the area a run was made over, for a list of runs.
+ *
+ * The summary's aoi_label, frozen when the run was made; else the area's slug
+ * out of a run-<area>-<stamp> label, which is all an older row carries; else
+ * null, and the caller names the run by its product. A placeholder is no name
+ * in either place, nor is the "aoi" makeRunLabel writes when it was given none.
+ */
+export function runAreaName(run: {
+  label?: string | null
+  summary?: string | null
+}): string | null {
+  const frozen = aoiLabelFromRunSummary(run.summary)
+  if (frozen && !isPlaceholderAoiLabel(frozen)) return frozen
+  const slug = /^run-(.+)-\d{8}-\d{6}$/.exec((run.label ?? "").trim())?.[1]
+  if (!slug || PLACEHOLDER_SLUGS.has(slug)) return null
+  return slug.replace(/-/g, " ")
+}
+
+const PLACEHOLDER_SLUGS = new Set([
+  "aoi",
+  "legacy",
+  ...[...PLACEHOLDER_AOI_LABELS].map((l) => slugifyAoi(l)).filter(Boolean),
+])
+
 /** Read aoi_label from a run's summary JSON if present. */
 export function aoiLabelFromRunSummary(summary?: string | null): string | undefined {
   if (!summary?.trim()) return undefined
