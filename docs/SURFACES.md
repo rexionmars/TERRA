@@ -13,6 +13,7 @@ disagree, the code is right and this file is stale.
 | Navigation rail and the path at the top right | [`frontend/src/components/shell/ShellChrome.tsx`](../frontend/src/components/shell/ShellChrome.tsx) |
 | The frame around the map, and its corner pieces | [`frontend/src/components/shell/ShellCorners.tsx`](../frontend/src/components/shell/ShellCorners.tsx), the geometry in [`frontend/src/lib/frameCorners.ts`](../frontend/src/lib/frameCorners.ts) |
 | The panels | [`frontend/src/components/shell/`](../frontend/src/components/shell/) |
+| Analyses | [`frontend/src/components/shell/AnalysesScreen.tsx`](../frontend/src/components/shell/AnalysesScreen.tsx); a run's card and picture in [`frontend/src/components/shell/analysisParts.tsx`](../frontend/src/components/shell/analysisParts.tsx), the days and batches in [`frontend/src/lib/runBatches.ts`](../frontend/src/lib/runBatches.ts) |
 | Compare | [`frontend/src/components/shell/CompareScreen.tsx`](../frontend/src/components/shell/CompareScreen.tsx) |
 | Workflows | [`frontend/src/components/shell/WorkflowsScreen.tsx`](../frontend/src/components/shell/WorkflowsScreen.tsx) |
 | Models | [`frontend/src/components/shell/ModelsScreen.tsx`](../frontend/src/components/shell/ModelsScreen.tsx); the catalogue and its downloads in [`frontend/src/lib/modelCatalog.ts`](../frontend/src/lib/modelCatalog.ts), the installed packages in [`frontend/src/lib/installedModels.ts`](../frontend/src/lib/installedModels.ts) |
@@ -25,7 +26,7 @@ disagree, the code is right and this file is stale.
 | Place | What it is for |
 | --- | --- |
 | **Explore** | The map. Products, Compositions, Result, Points and Layers are tools on its right edge, and each opens a panel over it. The Areas panel, the areas of the project and their fields, with drawing, import and the IBGE catalogue, opens from **Manage areas…** in the area's menu at the top right |
-| **Analyses** | Every saved run, filed under its project |
+| **Analyses** | Every saved run, filed under its project and laid out by day, newest first. The runs of one request over several areas are framed as a batch, each named for its area. One press shows a run beside the page; two open it on the map |
 | **Compare** | Runs as nodes on a board, and readings linked to any of them, as many as wanted |
 | **Workflows** | The compositor, full screen |
 | **Models** | The trained land-cover models, as cards, with a page for each: what it reads, how it works, how it was evaluated, and a button that runs it through Classification |

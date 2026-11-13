@@ -32,7 +32,7 @@ import {
   type GlobeOverlayTarget,
 } from "@/components/workspace/GlobeOverlayMenu"
 import { RunOnMapContext } from "@/components/workspace/RunQueue"
-import { RunBrowser } from "@/components/workspace/RunBrowser"
+import { AnalysesScreen } from "@/components/shell/AnalysesScreen"
 import type { Area } from "@/lib/areas"
 import { useAppSurfaces } from "@/lib/appSurfaces"
 import { useAuth } from "@/lib/auth"
@@ -979,7 +979,7 @@ export function MapShell(props: MapShellProps) {
               )}
             >
               <div className="min-h-0 flex-1">
-                <RunBrowser
+                <AnalysesScreen
                   surface={pageRef.current}
                   activeProjectId={props.activeProjectId ?? null}
                   onActivateProject={props.onActivateProject}

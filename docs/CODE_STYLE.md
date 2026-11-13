@@ -306,8 +306,8 @@ Decisions not yet taken. Each one, once taken, changes this page.
 - **A formatter for Python.** `ruff format` would rewrite 57 files, which is a decision
   of its own. If it is adopted, `quote-style = "single"` keeps the quotes the code
   already uses.
-- **The frontend's leftovers.** z-index has 19 values and no scale. `CompositorEditor`,
-  `GlobeSurface`, `ProfilePage` and `RunBrowser` are each still one large function. The
+- **The frontend's leftovers.** z-index has 19 values and no scale. `CompositorEditor`
+  and `GlobeSurface` are each still one large function. The
   `studio` and `board` vocabulary survives in names, along with the
   `components/workspace/` folder.
 - **Cross-module dead code** in the frontend is not checked in CI.

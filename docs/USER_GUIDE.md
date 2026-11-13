@@ -100,7 +100,11 @@ A queued product runs over a saved area, one job after another, and the queue is
 listed in its form. A running product keeps a progress strip over the map when its
 panel is closed. When a run finishes, its result opens.
 
-Runs are saved locally, so you can reopen them from **Analyses**.
+Runs are saved locally, so you can reopen them from **Analyses**. There, choose a
+project in the column at the left, or **All analyses**. Runs are listed by day, newest
+first, and the runs of one request over several areas are grouped as a batch. Select
+a run to see what it found and to move or delete it, and double-click it, or press
+**Open on the map**, to open it. The **+** beside Projects makes a new project.
 
 ## 5. Read a result
 
