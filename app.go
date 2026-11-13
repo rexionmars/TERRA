@@ -59,6 +59,10 @@ type App struct {
 	// Analyses queued over areas not in hand; see app_jobs.go. Written once
 	// at startup, under mu.
 	jobs *jobs.Queue
+
+	// The model catalogue last read and the downloads under way; see
+	// app_models.go.
+	models modelState
 }
 
 // NewApp creates a new App.

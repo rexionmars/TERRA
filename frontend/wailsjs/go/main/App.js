@@ -62,6 +62,10 @@ export function CancelJob(arg1) {
   return window['go']['main']['App']['CancelJob'](arg1);
 }
 
+export function CancelModelDownload(arg1) {
+  return window['go']['main']['App']['CancelModelDownload'](arg1);
+}
+
 export function ChooseBackupArchive() {
   return window['go']['main']['App']['ChooseBackupArchive']();
 }
@@ -182,6 +186,10 @@ export function InspectStorage() {
   return window['go']['main']['App']['InspectStorage']();
 }
 
+export function InstallCatalogModel(arg1, arg2) {
+  return window['go']['main']['App']['InstallCatalogModel'](arg1, arg2);
+}
+
 export function ListAreaRuns(arg1, arg2) {
   return window['go']['main']['App']['ListAreaRuns'](arg1, arg2);
 }
@@ -240,6 +248,10 @@ export function Logout() {
 
 export function ManageOptionalPackage(arg1, arg2) {
   return window['go']['main']['App']['ManageOptionalPackage'](arg1, arg2);
+}
+
+export function ModelCatalog() {
+  return window['go']['main']['App']['ModelCatalog']();
 }
 
 export function OpenExternal(arg1) {

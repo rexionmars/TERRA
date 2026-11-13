@@ -306,6 +306,16 @@ because a run that recorded that version would no longer say which files
 made it.
 */
 func Import(root, src string) (*Package, error) {
+	return install(root, src, nil)
+}
+
+/*
+install is Import, with one more check before the package is moved into place:
+want, when given, may refuse what the stage holds. A download uses it to refuse
+a package other than the one its catalogue entry describes, while refusing
+still leaves nothing installed.
+*/
+func install(root, src string, want func(*Package) error) (*Package, error) {
 	if err := os.MkdirAll(root, 0o755); err != nil {
 		return nil, err
 	}
@@ -333,6 +343,11 @@ func Import(root, src string) (*Package, error) {
 	}
 	if err := p.Verify(); err != nil {
 		return nil, err
+	}
+	if want != nil {
+		if err := want(p); err != nil {
+			return nil, err
+		}
 	}
 
 	dest := filepath.Join(root, p.Manifest.ID, p.Manifest.Version)

@@ -1676,3 +1676,42 @@ export interface ModelRef {
   version: string
   digest: string
 }
+
+/** One place a published package can be downloaded from. */
+export interface ModelSource {
+  /** The host as the reader knows it: "GitHub", "Zenodo". */
+  name: string
+  url: string
+}
+
+/** A published package, as the catalogue lists it. */
+export interface CatalogEntry {
+  manifest: ModelManifest
+  /** The package's fingerprint; the installed package must have the same one. */
+  digest: string
+  picture_uri: string
+  /** The zip itself: its file name, SHA-256 and size. */
+  package: ModelFile
+  /** Tried in order until one gives the zip the catalogue pins. */
+  sources: ModelSource[]
+}
+
+/** The catalogue as the Models screen reads it. */
+export interface ModelCatalog {
+  models: CatalogEntry[] | null
+  /** "online" when read just now; "built-in" when the copy this build carries is shown. */
+  origin: "online" | "built-in"
+  /** Why the published catalogue was not read; empty when it was. */
+  problem: string
+  /** Entries left out because this version of TERRA cannot run them. */
+  unsupported: number
+}
+
+/** The progress of a package being downloaded. */
+export interface ModelDownload {
+  id: string
+  version: string
+  source: string
+  received: number
+  total: number
+}

@@ -93,3 +93,51 @@ type ModelRef struct {
 	Version string `json:"version"`
 	Digest  string `json:"digest"`
 }
+
+// ModelSource is one place a published package can be downloaded from.
+type ModelSource struct {
+	// Name is the host as the reader knows it: "GitHub", "Zenodo".
+	Name string `json:"name"`
+	URL  string `json:"url"`
+}
+
+/*
+CatalogEntry is a published package, as the catalogue lists it: what the
+Models screen shows before the package is installed, and what its download is
+checked against.
+*/
+type CatalogEntry struct {
+	// Manifest is the model.json inside the package, as published.
+	Manifest ModelManifest `json:"manifest"`
+	// Digest is the package's fingerprint, as ModelInfo.Digest; the installed
+	// package must have the same one.
+	Digest     string `json:"digest"`
+	PictureURI string `json:"picture_uri"`
+	// Package is the zip itself: its file name, SHA-256 and size.
+	Package ModelFile `json:"package"`
+	// Sources are tried in order until one gives the zip the catalogue pins.
+	Sources []ModelSource `json:"sources"`
+}
+
+// ModelCatalog is the catalogue as the Models screen reads it.
+type ModelCatalog struct {
+	Models []CatalogEntry `json:"models"`
+	// Origin is "online" when the published catalogue was read just now, and
+	// "built-in" when it could not be and the copy this build carries is shown.
+	Origin string `json:"origin"`
+	// Problem says why the published catalogue was not read; empty when it was.
+	Problem string `json:"problem"`
+	// Unsupported counts the entries left out because this version of TERRA
+	// cannot run them: a family it does not know, or a newer manifest format.
+	Unsupported int `json:"unsupported"`
+}
+
+// ModelDownload is the progress of a package being downloaded.
+type ModelDownload struct {
+	ID      string `json:"id"`
+	Version string `json:"version"`
+	// Source is the name of the source being read.
+	Source   string `json:"source"`
+	Received int64  `json:"received"`
+	Total    int64  `json:"total"`
+}
