@@ -22,8 +22,7 @@ disagree, the code is right and this file is stale.
 
 | Place | What it is for |
 | --- | --- |
-| **Explore** | The map. Products, Compositions, Result, Points and Layers are tools on its right edge, and each opens a panel over it |
-| **Areas** | The areas of the project and their fields; draw, import, or take a state or municipality from IBGE |
+| **Explore** | The map. Products, Compositions, Result, Points and Layers are tools on its right edge, and each opens a panel over it. The Areas panel, the areas of the project and their fields, with drawing, import and the IBGE catalogue, opens from **Manage areas…** in the area's menu at the top right |
 | **Analyses** | Every saved run, filed under its project |
 | **Compare** | Runs as nodes on a board, and readings linked to any of them, as many as wanted |
 | **Workflows** | The compositor, full screen |

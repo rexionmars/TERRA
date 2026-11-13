@@ -22,11 +22,12 @@ On launch, TERRA shows a short boot screen while it probes the Python sidecar, t
 the map, with the start screen over it. After a version bump you may see **What's
 New** once.
 
-- **Left rail:** Explore, Areas, Analyses, Compare, Workflows, Models, Activity, and
+- **Left rail:** Explore, Analyses, Compare, Workflows, Models, Activity, and
   your account at the foot. The button above the account shows the labels.
 - **Top right corner:** where you are, as one path: **TERRA EO**, the open project
   and the area, each a menu. **TERRA EO** opens the application's menu: project
-  files, settings, the Python environment and storage.
+  files, settings, the Python environment and storage. The area's menu ends with
+  **Manage areas…**, which opens the Areas panel.
 - **Right edge of the map:** Products, Compositions, Result, Points and Layers,
   then the map's own tools: search, basemap, imagery date, relief, draw, edit,
   import, delete.
@@ -51,10 +52,10 @@ open the map refuses the shape. Create one from the project menu at the top righ
 ## 3. Make an area
 
 - **Draw:** the pencil on the map's right edge.
-- **Import:** a `.kml` or GeoJSON file, from Areas or the map's tools.
-- **Catalogue:** a Brazilian state or municipality from IBGE, under Areas.
+- **Import:** a `.kml` or GeoJSON file, from the Areas panel or the map's tools.
+- **Catalogue:** a Brazilian state or municipality from IBGE, in the Areas panel.
 
-Areas lists them with their hectares and runs. Pressing one goes to it; its rename
+The Areas panel, under **Manage areas…** in the area's menu at the top right, lists them with their hectares and runs. Pressing one goes to it; its rename
 and delete buttons appear on hover. Fields delineated in an area are listed under it.
 
 **Shift-press** several areas or fields, on the map or in the list, to select them.
