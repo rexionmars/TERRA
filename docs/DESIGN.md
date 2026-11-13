@@ -3,11 +3,12 @@
 Neutral near-black surfaces with the hue left to the accent, monospace
 telemetry, and a density chosen on purpose.
 
-Four families preceded this one: Mars sand under an orange accent, cool greys
-under a blue one, neutral greys under blue, and neutral greys under Tangerine
-Alloy's orange. This keeps the surfaces free of hue, takes its warm paper from
-Tangerine Alloy and its accent from the TERRA mark, the ararajuba yellow, so the
-accent is the only colour on screen that is not data and it is the emblem's own.
+Five families preceded this one: Mars sand under an orange accent, cool greys
+under a blue one, neutral greys under blue, neutral greys under Tangerine Alloy's
+orange, and the same greys under the TERRA mark's yellow. This keeps the surfaces
+free of hue, takes its warm paper from Tangerine Alloy and its accent, `#FC6F20`,
+from an orange reference palette whose cream, `#FEE8D0`, is the light theme's
+accent plate, so the accent is the only colour on screen that is not data.
 
 The implementation is the source of truth. This file describes it; where the two
 disagree, the code is right and this file is stale.
@@ -61,9 +62,9 @@ green, which its hex code hides and a screen does not, so it was not taken.
 | `--p-line-strong` | `133 133 133` | `#858585` | Component boundary |
 | `--p-muted` | `155 155 155` | `#9B9B9B` | Secondary text |
 | `--p-text` | `217 211 209` | `#D9D3D1` | Text, the reference's warm paper |
-| `--p-accent` | `244 192 16` | `#F4C010` | Fill, focus, active state |
-| `--p-accent-quiet` | `250 206 72` | `#FACE48` | The accent **as text** |
-| `--p-accent-dim` | `62 48 6` | `#3E3006` | The plate a chosen value lights on |
+| `--p-accent` | `252 111 32` | `#FC6F20` | Fill, focus, active state |
+| `--p-accent-quiet` | `255 116 40` | `#FF7428` | The accent **as text** |
+| `--p-accent-dim` | `74 33 13` | `#4A210D` | The plate a chosen value lights on |
 
 ### Light
 
@@ -83,9 +84,9 @@ is darkened rather than reused, so the label on a filled button clears 4.5.
 | `--p-line-strong` | `118 116 115` | `#767473` |
 | `--p-muted` | `82 80 79` | `#52504F` |
 | `--p-text` | `20 20 20` | `#141414` |
-| `--p-accent` | `122 88 0` | `#7A5800` |
-| `--p-accent-quiet` | `104 74 0` | `#684A00` |
-| `--p-accent-dim` | `250 235 190` | `#FAEBBE` |
+| `--p-accent` | `172 52 0` | `#AC3400` |
+| `--p-accent-quiet` | `163 52 0` | `#A33400` |
+| `--p-accent-dim` | `254 232 208` | `#FEE8D0` |
 
 **Show an image of a palette before applying it.** Hex codes alone hid the green
 tint above; a screenshot of the application in it did not.
@@ -97,12 +98,12 @@ tint above; a screenshot of the application in it did not.
 These are not style preferences. Each one is a ratio that fails.
 
 **1. The accent is not a text colour.** It is a fill, a focus ring and an active
-state, held to 3.0. Today's yellow happens to measure 7.57 on the raised surface, but
-text that has to read as the accent uses `--p-accent-quiet`, which clears 4.5 on
-every surface (12.27 / 10.72 / 8.54 on ink, panel and raised in the dark theme).
+state, held to 3.0. Today's orange measures 4.54 on the raised surface, but text
+that has to read as the accent uses `--p-accent-quiet`, which clears 4.5 on every
+surface (6.83 / 5.97 / 4.75 on ink, panel and raised in the dark theme).
 
 **2. A filled accent button takes the ink.** `--primary-foreground` is `--p-ink`:
-**10.87** dark and 4.94 light. White on the dark fill is 1.69.
+**6.52** dark and 4.90 light. White on the dark fill is 2.82.
 
 **3. Adjacent surfaces need a border.** Surface separation against the ink is 1.14
 and 1.44, so two panels are told apart by their border rather than by luminance,
@@ -142,9 +143,10 @@ dark and failed in light by 2.76.
 ### Warning is not the accent
 
 A status colour derived from a brand colour breaks the moment the brand colour
-moves, and a yellow warning beside a yellow accent would say nothing. It is the
-orange the accent left, per theme, `#FA733C` dark and `#9A390B` light, and it is in
-the check, because a literal that derives from nothing is unchecked by default.
+moves, and an orange warning beside an orange accent would say nothing. It is a
+yellow of its own, per theme, `#F0CF4C` dark and `#6D5900` light, 50 degrees of hue
+from the accent, and it is in the check, because a literal that derives from nothing
+is unchecked by default.
 
 ### Focus
 

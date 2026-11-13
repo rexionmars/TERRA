@@ -207,12 +207,13 @@ const AREA_FILL = "terra-areas-fill"
 const AREA_LINE = "terra-areas-line"
 /*
   UNDER THE LINE, because the line is the accent and the ground is anything. The
-  accent measures 1.07 on a bright field and 2.9 on pasture, under the 3.0 a boundary
-  needs, and no single colour clears both a roof and a canopy. The casing is what the
-  line is read against wherever it goes, so it is a literal and does not follow the
-  theme: its ground is the imagery, not the chassis. Fields are drawn thinner and in
-  their own lime, which holds on imagery without one where the old field yellow did,
-  and is 39 degrees of OKLCH hue from the accent so a field is not read as an area.
+  orange before this one, #EC662D, measured 2.44 on red soil and 2.25 on grass,
+  under the 3.0 a boundary needs, and no single colour clears both a roof and a
+  canopy. The casing is what the line is read against wherever it goes, so it is a
+  literal and does not follow the theme: its ground is the imagery, not the chassis.
+  Fields are drawn thinner and in their own lime, which holds on imagery without one
+  where the old field yellow did, and is 83 degrees of OKLCH hue from the accent so
+  a field is not read as an area.
 */
 const AREA_CASING = "terra-areas-casing"
 
@@ -1078,7 +1079,7 @@ export function GlobeSurface({
                   "#ffffff",
                   IS_FIELD,
                   FIELD_LINE_COLOR,
-                  "#F4C010",
+                  "#FC6F20",
                 ],
                 "line-width": ["case", IS_SELECTED, 1.5, IS_FIELD, 1, 1.5],
               },
@@ -1124,7 +1125,7 @@ export function GlobeSurface({
 
     const paint = () => {
       if (!map.isStyleLoaded()) return
-      const accent = token("--p-accent", "#F4C010")
+      const accent = token("--p-accent", "#FC6F20")
       // AREA_FILL is not repainted: its one colour is the selection's white.
       map.setPaintProperty(AREA_LINE, "line-color", [
         "case",
