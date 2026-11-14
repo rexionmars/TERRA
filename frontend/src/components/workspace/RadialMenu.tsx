@@ -18,7 +18,8 @@
  * QUIET OVER THE BOARD. No shadow under the ring and none under the options,
  * and the accent at half strength: the ring is a moment between two actions on
  * the board, and drawn at full weight it took the eye off the card the reader
- * had right-clicked.
+ * had right-clicked. An option is told apart by its small picture, a crop of
+ * ground showing what it does, rather than by a dot in its category's colour.
  *
  * Nothing here knows about workflows. The caller gives the options and acts on
  * the one picked; an option that opens another ring is the caller's to show.
@@ -32,7 +33,9 @@ import { cn } from "@/lib/utils"
 export interface RadialItem {
   id: string
   label: string
-  /** A mark in a category's colour, before the label. */
+  /** A small round picture of what it does, before the label, with its credit. */
+  picture?: { path: string; credit: string }
+  /** A mark in a category's colour, before the label, where there is no picture. */
   colour?: string
   /** An icon before the label, where there is no colour to show. */
   icon?: React.ReactNode
@@ -310,12 +313,16 @@ export function RadialMenu({
             type="button"
             role="menuitem"
             aria-disabled={off || undefined}
-            title={item.blockedBy ?? item.label}
+            title={
+              item.blockedBy ??
+              (item.picture ? `${item.label}\n${item.picture.credit}` : item.label)
+            }
             onClick={() => choose(i)}
             onPointerEnter={() => setHot(i)}
             onFocus={() => setHot(i)}
             className={cn(
-              "node-card radial-pop absolute flex h-8 max-w-[13rem] items-center gap-2 rounded-full px-3 text-label whitespace-nowrap",
+              "node-card radial-pop absolute flex h-8 max-w-[13rem] items-center gap-2 rounded-full pr-3 text-label whitespace-nowrap",
+              item.picture || item.icon ? "pl-1" : "pl-3",
               "focus-visible:outline-none",
               off ? "cursor-not-allowed text-muted-foreground" : "text-foreground"
             )}
@@ -330,7 +337,17 @@ export function RadialMenu({
               } as React.CSSProperties
             }
           >
-            {item.colour ? (
+            {item.picture ? (
+              <img
+                src={item.picture.path}
+                alt=""
+                draggable={false}
+                className={cn(
+                  "size-6 shrink-0 rounded-full object-cover",
+                  off && "opacity-40 grayscale"
+                )}
+              />
+            ) : item.colour ? (
               <span
                 aria-hidden
                 className={cn("size-2 shrink-0 rounded-full", off && "opacity-40")}
@@ -340,7 +357,11 @@ export function RadialMenu({
                 }}
               />
             ) : item.icon ? (
-              <span aria-hidden className="flex shrink-0 text-muted-foreground">
+              // In a slot the size of a picture, so labels start in one place.
+              <span
+                aria-hidden
+                className="grid size-6 shrink-0 place-items-center text-muted-foreground"
+              >
                 {item.icon}
               </span>
             ) : null}

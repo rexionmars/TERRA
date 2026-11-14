@@ -158,6 +158,7 @@ import {
   type FieldSet,
 } from "@/lib/fieldSets"
 import { notifyInfo } from "@/lib/notify"
+import { categoryPicture, kindPicture } from "@/lib/piePictures"
 
 /** How wide each kind is drawn: settings at the run graph's width, readings wider. */
 const WIDTH: Record<NodeKind, number> = {
@@ -1890,7 +1891,7 @@ export function CompositorEditor({
         id: only ? only.kind : c,
         // A category of one is that one node: picking it adds it.
         label: only ? only.label : label,
-        colour: paint(c).band,
+        picture: only ? kindPicture(only.kind) : categoryPicture(c),
         opens: !only,
         blockedBy: only ? kindRefusal(only.kind, target) : null,
       }
@@ -1910,7 +1911,7 @@ export function CompositorEditor({
         items: NODE_KINDS.filter((k) => k.category === c).map((k) => ({
           id: k.kind,
           label: k.label,
-          colour: paint(c).band,
+          picture: kindPicture(k.kind),
           blockedBy: kindRefusal(k.kind, t),
         })),
       }
