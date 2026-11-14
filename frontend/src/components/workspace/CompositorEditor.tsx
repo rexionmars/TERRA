@@ -6,8 +6,11 @@
  * are added from a menu of categories -- Input, Output, Filter, Mask, Color,
  * Analysis -- and joined socket to socket; a Viewer draws what reaches it
  * inside its own card. Shift+A adds at the pointer, X removes the selected
- * node, Home frames the graph and Ctrl+Shift+click sends a node's outputs to
- * the Viewer in turn.
+ * node, Shift+D duplicates it, Home frames the graph and Ctrl+Shift+click
+ * sends a node's outputs to the Viewer in turn. A right-click opens a pie menu
+ * (RadialMenu) of what can be done where it landed: on the field, add a node
+ * there; on a node, add after it, duplicate, view, disconnect, fold or remove
+ * it; on a wire, remove it or set a node on it.
  *
  * THE IMAGE STAYS IN THE CARD. Blender also draws the active Viewer behind the
  * whole graph, as a backdrop; that was tried here and taken out, because a
@@ -24,7 +27,20 @@
  * being stored, so opening the editor is not an edit.
  */
 import { useEffect, useMemo, useRef, useState } from "react"
-import { CaretLeft, CaretRight, DownloadSimple, Polygon, X } from "@/components/icons"
+import {
+  CaretLeft,
+  CaretRight,
+  CornersOut,
+  Copy,
+  DownloadSimple,
+  Eye,
+  Minus,
+  Path,
+  Plus,
+  Polygon,
+  Trash,
+  X,
+} from "@/components/icons"
 import { NumberField } from "@/components/ui/NumberField"
 import { PHOTO_CHIP } from "@/components/ui/TabbedBanner"
 import { cn } from "@/lib/utils"
@@ -40,6 +56,7 @@ import {
   linkKey,
   SocketCanvas,
   type CanvasApi,
+  type ContextTarget,
   type Place,
   type SocketLink,
   type SocketNode,
@@ -57,6 +74,7 @@ import { chosenPartition, zonesGeoJSON } from "@/lib/zones"
 import { AreaHeaderMenus } from "./areaHeader"
 import { ContextMenu, MenuGroup, MenuItem, MenuRule, MenuPopover } from "./MenuPopover"
 import { HeaderMenu } from "./HeaderControls"
+import { RadialMenu, type RadialItem } from "./RadialMenu"
 import { classIndexFor, NO_CLASS } from "@/lib/classMask"
 import { loadImage } from "@/lib/smoothOverlay"
 import { changedPixels, WINDOW_SIZES } from "@/lib/classFilters"
@@ -233,6 +251,34 @@ const paint = (c: NodeCategory) => ({
   band: `var(--b-${PART[c]}-head)`,
   ink: `var(--b-${PART[c]}-ink)`,
 })
+
+/** The pie menu opened by a right-click, and the ring of it showing. */
+interface Pie {
+  at: { x: number; y: number }
+  /** The press that opened it is still down. */
+  held: boolean
+  target: ContextTarget
+  /**
+   * The first ring (what can be done there), the categories a node is added
+   * from ("add", after a node or on a wire), or one category's kinds.
+   */
+  ring: "root" | "add" | NodeCategory
+}
+
+/*
+  The categories round the pie, clockwise from the top, set as a graph reads:
+  where data comes in on the left, where it leaves on the right, and the
+  readings, the most used, straight up.
+*/
+const PIE_CATEGORIES: readonly NodeCategory[] = [
+  "analysis",
+  "mineral",
+  "output",
+  "color",
+  "mask",
+  "input",
+  "filter",
+]
 
 /*
   A socket's colour says what it carries, as Blender's do: a class map in the
@@ -1570,6 +1616,11 @@ export function CompositorEditor({
   const pointer = useRef({ x: 0, y: 0 })
   const [menu, setMenu] = useState<"view" | "add" | "node" | null>(null)
   const [addAt, setAddAt] = useState<{ x: number; y: number } | null>(null)
+  const [pie, setPie] = useState<Pie | null>(null)
+  const [field, setField] = useState<HTMLElement | null>(null)
+  // For the keys, which are read in a listener registered once.
+  const pieOpen = useRef(false)
+  pieOpen.current = !!pie
 
   /* ---- Editing ------------------------------------------------------------ */
 
@@ -1713,6 +1764,299 @@ export function CompositorEditor({
     if (r.ok) edit({ ...r.graph, viewer })
   }
 
+  /**
+   * A copy of a node, beside it, with its settings. Its inputs keep their
+   * links, so it reads what the original reads: a second filter or reading
+   * on the same input, to set differently and compare.
+   */
+  const duplicate = (id: string) => {
+    const node = nodeOf(graph, id)
+    if (!node) return
+    const copyId = nextNodeId(graph, node.kind)
+    const copy: GraphNode = { ...structuredClone(node), id: copyId }
+    // Under the original, where both can be read; place() steps past any node there.
+    const at = graph.places[id] ?? api.current?.centre() ?? { x: 0, y: 0 }
+    const h = heights[id] ?? GUESS_H[node.kind]
+    let next = addNode(graph, copy, place({ x: at.x, y: at.y + h + 32 }))
+    for (const l of graph.links.filter((l) => l.to === id)) {
+      const r = connect(next, { ...l, to: copyId }, runOutputs)
+      if (r.ok) next = r.graph
+    }
+    edit(next)
+    setSelected(copyId)
+  }
+
+  /** Every link into a node, taken off; what it feeds stays linked. */
+  const detach = (id: string) =>
+    edit({ ...graph, links: graph.links.filter((l) => l.to !== id) })
+
+  /** Why a kind cannot be set on a wire, or null where it can. */
+  const insertRefusal = (
+    kind: NodeKind,
+    to: string,
+    toSocket: string
+  ): string | null => {
+    const l = graph.links.find((x) => x.to === to && x.toSocket === toSocket)
+    if (!l) return "That link is no longer on the graph."
+    const meta = kindMeta(kind)
+    const type = outputType(graph, l.from, l.fromSocket, runOutputs)
+    if (!meta.inputs.some((i) => !type || i.accepts.includes(type))) {
+      return `${meta.label} has no input this link's output fits.`
+    }
+    if (!meta.outputs.length) return `${meta.label} has no output to pass the link on.`
+    return null
+  }
+
+  /**
+   * A node set on a wire, halfway along it: the wire's source feeds the new
+   * node, and the new node feeds what the wire fed. Where either half cannot
+   * be made, nothing changes and the reason is said.
+   */
+  const insert = (kind: NodeKind, to: string, toSocket: string) => {
+    const l = graph.links.find((x) => x.to === to && x.toSocket === toSocket)
+    if (!l) return
+    const id = nextNodeId(graph, kind)
+    const node = createNode(kind, id)
+    const a = graph.places[l.from]
+    const b = graph.places[l.to]
+    const source = nodeOf(graph, l.from)
+    const mid =
+      a && b && source
+        ? {
+            x: (a.x + WIDTH[source.kind] + b.x) / 2 - WIDTH[kind] / 2,
+            y: (a.y + b.y) / 2,
+          }
+        : (api.current?.centre() ?? { x: 0, y: 0 })
+    let next = addNode(disconnect(graph, to, toSocket), node, place(mid))
+    const type = outputType(next, l.from, l.fromSocket, runOutputs)
+    const input = inputsOf(next, node).find((i) => !type || i.accepts.includes(type))
+    const fed = input
+      ? connect(
+          next,
+          { from: l.from, fromSocket: l.fromSocket, to: id, toSocket: input.id },
+          runOutputs
+        )
+      : null
+    if (!fed?.ok) {
+      notifyInfo(
+        "That node was not set on the link",
+        fed?.reason ?? `${kindMeta(kind).label} has no input this link's output fits.`
+      )
+      return
+    }
+    next = fed.graph
+    let reason = `${kindMeta(kind).label} has no output ${kindMeta(nodeOf(graph, to)?.kind ?? kind).label} takes there.`
+    for (const out of outputsOf(node, runOutputs)) {
+      const r = connect(
+        next,
+        { from: id, fromSocket: out.id, to, toSocket },
+        runOutputs
+      )
+      if (r.ok) {
+        edit(r.graph)
+        setSelected(id)
+        setSelectedLink(null)
+        return
+      }
+      reason = r.reason
+    }
+    notifyInfo("That node was not set on the link", reason)
+  }
+
+  const openPie = (
+    target: ContextTarget,
+    at: { x: number; y: number },
+    held: boolean
+  ) => {
+    setAddAt(null)
+    setMenu(null)
+    if (target.kind === "node") {
+      setSelected(target.id)
+      setSelectedLink(null)
+    } else if (target.kind === "link") {
+      setSelectedLink(linkKey(target.to, target.toSocket))
+      setSelected(null)
+    }
+    setPie({ at, held, target, ring: "root" })
+  }
+
+  /** The categories, as the ring of a pie that adds: one press from any of them. */
+  const categoryItems = (target: ContextTarget): RadialItem[] =>
+    PIE_CATEGORIES.map((c) => {
+      const kinds = NODE_KINDS.filter((k) => k.category === c)
+      const only = kinds.length === 1 ? kinds[0] : undefined
+      const label = CATEGORIES.find((x) => x.id === c)?.label ?? c
+      return {
+        id: only ? only.kind : c,
+        // A category of one is that one node: picking it adds it.
+        label: only ? only.label : label,
+        colour: paint(c).band,
+        opens: !only,
+        blockedBy: only ? kindRefusal(only.kind, target) : null,
+      }
+    })
+
+  const kindRefusal = (kind: NodeKind, target: ContextTarget) =>
+    refuse(kind) ??
+    (target.kind === "link" ? insertRefusal(kind, target.to, target.toSocket) : null)
+
+  /** The title and the options of the ring showing. */
+  const pieRing = (p: Pie): { title: string; items: RadialItem[] } => {
+    const t = p.target
+    if (p.ring !== "root" && p.ring !== "add") {
+      const c = p.ring
+      return {
+        title: CATEGORIES.find((x) => x.id === c)?.label ?? c,
+        items: NODE_KINDS.filter((k) => k.category === c).map((k) => ({
+          id: k.kind,
+          label: k.label,
+          colour: paint(c).band,
+          blockedBy: kindRefusal(k.kind, t),
+        })),
+      }
+    }
+    if (t.kind === "field" || p.ring === "add") {
+      return {
+        title:
+          t.kind === "node" ? "Add after" : t.kind === "link" ? "Set on link" : "Add",
+        items: categoryItems(t),
+      }
+    }
+    if (t.kind === "link") {
+      return {
+        title: "Link",
+        items: [
+          {
+            id: "insert",
+            label: "Set a node on it",
+            icon: <Plus className="size-3.5" />,
+            opens: true,
+          },
+          {
+            id: "unlink",
+            label: "Remove link",
+            icon: <Trash className="size-3.5" />,
+            note: "X",
+          },
+        ],
+      }
+    }
+    const node = nodeOf(graph, t.id)
+    const outs = node ? outputsOf(node, runOutputs) : []
+    const folded = api.current?.isFolded(t.id) ?? false
+    // Clockwise from the top: adding after it straight up, removing it straight down.
+    return {
+      title: node ? title(node) : "Node",
+      items: [
+        {
+          id: "after",
+          label: "Add after",
+          icon: <Plus className="size-3.5" />,
+          opens: true,
+          blockedBy: outs.length ? null : "It has no output to feed another node.",
+        },
+        {
+          id: "viewer",
+          label: "Link to Viewer",
+          icon: <Eye className="size-3.5" />,
+          blockedBy:
+            node?.kind === "viewer"
+              ? "It is a Viewer."
+              : outs.length
+                ? null
+                : "It has no output to view.",
+        },
+        {
+          id: "duplicate",
+          label: "Duplicate",
+          icon: <Copy className="size-3.5" />,
+          note: "Shift+D",
+        },
+        {
+          id: "remove",
+          label: "Remove",
+          icon: <Trash className="size-3.5" />,
+          note: "X",
+        },
+        {
+          id: "detach",
+          label: "Disconnect inputs",
+          icon: <Path className="size-3.5" />,
+          blockedBy: graph.links.some((l) => l.to === t.id)
+            ? null
+            : "Nothing is linked into it.",
+        },
+        {
+          id: "fold",
+          label: folded ? "Unfold" : "Fold",
+          icon: folded ? (
+            <CornersOut className="size-3.5" />
+          ) : (
+            <Minus className="size-3.5" />
+          ),
+        },
+      ],
+    }
+  }
+
+  const pickPie = (p: Pie, id: string) => {
+    const t = p.target
+    const close = () => setPie(null)
+    /** A node kind chosen: added where the pie was opened, after the node, or on the wire. */
+    const put = (kind: NodeKind) => {
+      if (t.kind === "link") insert(kind, t.to, t.toSocket)
+      else if (t.kind === "node") add(kind)
+      else add(kind, api.current?.toBoard(p.at.x, p.at.y))
+      close()
+    }
+    const isCategory = (x: string): x is NodeCategory =>
+      CATEGORIES.some((c) => c.id === x)
+    if (p.ring !== "root" && p.ring !== "add") return put(id as NodeKind)
+    if (t.kind === "field" || p.ring === "add") {
+      if (isCategory(id)) setPie({ ...p, held: false, ring: id })
+      else put(id as NodeKind)
+      return
+    }
+    if (t.kind === "link") {
+      if (id === "insert") setPie({ ...p, held: false, ring: "add" })
+      else {
+        edit(disconnect(graph, t.to, t.toSocket))
+        setSelectedLink(null)
+        close()
+      }
+      return
+    }
+    switch (id) {
+      case "after":
+        setPie({ ...p, held: false, ring: "add" })
+        return
+      case "viewer":
+        toViewer(t.id)
+        break
+      case "duplicate":
+        duplicate(t.id)
+        break
+      case "remove":
+        remove(t.id)
+        break
+      case "detach":
+        detach(t.id)
+        break
+      case "fold":
+        api.current?.toggleFold(t.id)
+        break
+    }
+    close()
+  }
+
+  /** One ring back: from a category to the categories, from those to the node's or wire's own. */
+  const pieBack = (p: Pie): (() => void) | undefined => {
+    if (p.ring === "root") return undefined
+    const outer: Pie["ring"] =
+      p.ring === "add" || p.target.kind === "field" ? "root" : "add"
+    return () => setPie({ ...p, held: false, ring: outer })
+  }
+
   /*
     The keys, while the pointer is over the field: no area holds the focus in
     this studio, and the pointer is what says which one a key is for (see
@@ -1721,7 +2065,7 @@ export function CompositorEditor({
   */
   const onKey = useRef<(e: KeyboardEvent) => void>(() => {})
   onKey.current = (e: KeyboardEvent) => {
-    if (!over.current || e.defaultPrevented || e.repeat) return
+    if (!over.current || pieOpen.current || e.defaultPrevented || e.repeat) return
     if (
       (e.target as HTMLElement | null)?.closest?.(
         "input, textarea, select, [contenteditable='true']"
@@ -1731,6 +2075,7 @@ export function CompositorEditor({
     }
     const plain = !e.metaKey && !e.ctrlKey && !e.altKey
     if (e.code === "KeyA" && e.shiftKey && plain) setAddAt({ ...pointer.current })
+    else if (e.code === "KeyD" && e.shiftKey && plain && selected) duplicate(selected)
     else if (
       (e.code === "KeyX" || e.key === "Delete" || e.key === "Backspace") &&
       plain &&
@@ -2859,6 +3204,20 @@ export function CompositorEditor({
         </MenuPopover>
       </AreaHeaderMenus>
 
+      {pie && (
+        <RadialMenu
+          key={`${pie.target.kind}-${pie.ring}`}
+          at={pie.at}
+          held={pie.held}
+          surface={surface}
+          within={field}
+          {...pieRing(pie)}
+          onPick={(id) => pickPie(pie, id)}
+          onBack={pieBack(pie)}
+          onClose={() => setPie(null)}
+        />
+      )}
+
       <ContextMenu
         at={addAt}
         surface={surface}
@@ -2873,6 +3232,7 @@ export function CompositorEditor({
       </ContextMenu>
 
       <div
+        ref={setField}
         className="h-full w-full"
         onPointerEnter={() => (over.current = true)}
         onPointerLeave={() => (over.current = false)}
@@ -2899,15 +3259,24 @@ export function CompositorEditor({
             }}
             apiRef={api}
             onArrange={arrangeNodes}
+            onContext={openPie}
           />
         ) : (
           <div
             className="flex h-full items-center justify-center p-4"
             style={{ background: "var(--s-field)" }}
+            onContextMenu={(e) => {
+              e.preventDefault()
+              openPie(
+                { kind: "field" },
+                { x: e.clientX, y: e.clientY },
+                (e.buttons & 2) !== 0
+              )
+            }}
           >
             <p className="max-w-[26rem] text-center text-meta leading-relaxed text-muted-foreground">
               {runs.length || fieldSets.length
-                ? "The graph is empty. Add a Run node from the Add menu, or press Shift+A over this area."
+                ? "The graph is empty. Right-click here, press Shift+A, or use the Add menu to add a Run node."
                 : "No run in this workflow. A run brought in with Add a run offers its rasters here, one output each."}
             </p>
           </div>

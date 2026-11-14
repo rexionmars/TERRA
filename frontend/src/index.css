@@ -1300,12 +1300,30 @@
   }
 }
 
+/*
+  A pie menu's option coming out from the centre (RadialMenu.tsx): from
+  --radial-from, toward the centre, to where it stands. Under reduced motion it
+  is simply there.
+*/
+.radial-pop {
+  animation: radial-pop 150ms cubic-bezier(0.2, 0.8, 0.2, 1) both;
+}
+@keyframes radial-pop {
+  from {
+    opacity: 0;
+    translate: var(--radial-from, 0 0);
+    scale: 0.94;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .radial-pop {
+    animation: none;
+  }
+}
+
 /* A node card's ground, from the tokens beside --b-card (THE NODE CARD). */
 .node-card {
   background-color: var(--b-node-card);
-  background-image:
-    var(--b-node-grain),
-    linear-gradient(170deg, var(--b-node-card-top), var(--b-node-card) 60%);
 }
 
 .app-shell-enter {
