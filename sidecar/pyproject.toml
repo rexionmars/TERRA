@@ -64,7 +64,7 @@ ignore_missing_imports = true
 # cheaper thing: it does not ask for annotations, it asks that the annotations
 # and inferences that exist do not contradict each other. Every module passes
 # it, so the CI step guards the package rather than four modules of it.
-module = ["terra.protocol", "terra.registry", "terra.cli", "terra.stac", "terra.report.*"]
+module = ["terra.protocol", "terra.registry", "terra.cli", "terra.stac", "terra.models", "terra.report.*"]
 disallow_untyped_defs = true
 disallow_incomplete_defs = true
 

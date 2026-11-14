@@ -186,7 +186,8 @@ function classifyBrief(i: MethodInputs): MethodBrief {
       {
         title: "Output",
         lines: [
-          `${m.classes.length} MapBiomas classes: ${m.classes.join(", ")}`,
+          // A classification runs a land-cover package, which lists its classes.
+          `${m.classes?.length ?? 0} MapBiomas classes: ${(m.classes ?? []).join(", ")}`,
           family?.output ?? "confidence: as the model reports it",
         ],
       },

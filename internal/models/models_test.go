@@ -30,7 +30,7 @@ func writePackage(t *testing.T, dir, version string) analysis.ModelManifest {
 	}
 	m := analysis.ModelManifest{
 		Format: 1, ID: "test-rf", Version: version, Name: "Test RF",
-		Family: "feature_rf", Classes: []int{3, 21}, Files: files,
+		Family: "feature_rf", Task: LandCover, Classes: []int{3, 21}, Files: files,
 	}
 	writeManifest(t, dir, m)
 	return m
@@ -261,5 +261,127 @@ func TestWhoMadeAPackageIsNamedOrLeftOut(t *testing.T) {
 	writeManifest(t, dir, m)
 	if _, err := Load(dir); err == nil || !strings.Contains(err.Error(), "without a name") {
 		t.Fatalf("got %v, want a nameless packager refused", err)
+	}
+}
+
+// withFamily makes a family known for the length of one test, as a family of a
+// task other than land cover is until the sidecar runs one.
+func withFamily(t *testing.T, name string, f family) {
+	t.Helper()
+	families[name] = f
+	t.Cleanup(func() { delete(families, name) })
+}
+
+// writeCurve writes a time_series package of one parameters file into dir,
+// with a manifest that describes it truly, and returns the manifest.
+func writeCurve(t *testing.T, dir, name string, data []byte) analysis.ModelManifest {
+	t.Helper()
+	withFamily(t, "test_curve", family{task: "time_series", roles: []string{"parameters"}})
+	if err := os.WriteFile(filepath.Join(dir, name), data, 0o644); err != nil {
+		t.Fatal(err)
+	}
+	sum := sha256.Sum256(data)
+	m := analysis.ModelManifest{
+		Format: 1, ID: "test-curve", Version: "1.0.0", Name: "Test curve",
+		Family: "test_curve", Task: "time_series",
+		Files: map[string]analysis.ModelFile{
+			"parameters": {Name: name, SHA256: hex.EncodeToString(sum[:]), Size: int64(len(data))},
+		},
+	}
+	writeManifest(t, dir, m)
+	return m
+}
+
+func TestALandCoverModelMustListItsClasses(t *testing.T) {
+	dir := t.TempDir()
+	m := writePackage(t, dir, "1.0.0")
+	m.Classes = nil
+	writeManifest(t, dir, m)
+	if _, err := Load(dir); err == nil || !strings.Contains(err.Error(), "lists no classes") {
+		t.Fatalf("got %v, want a land-cover model without classes refused", err)
+	}
+}
+
+func TestAModelOfAnotherTaskListsNoClasses(t *testing.T) {
+	dir := t.TempDir()
+	m := writeCurve(t, dir, "parameters.json", []byte(`{"length_scale_days": 32.0}`))
+	m.Classes = []int{3, 21}
+	writeManifest(t, dir, m)
+	if _, err := Load(dir); err == nil || !strings.Contains(err.Error(), "does not emit") {
+		t.Fatalf("got %v, want classes refused outside land cover", err)
+	}
+}
+
+func TestAnUnknownTaskIsRefused(t *testing.T) {
+	dir := t.TempDir()
+	m := writePackage(t, dir, "1.0.0")
+	m.Task = "flood_extent"
+	writeManifest(t, dir, m)
+	if _, err := Load(dir); err == nil || !strings.Contains(err.Error(), "does not know") {
+		t.Fatalf("got %v, want the task refused", err)
+	}
+}
+
+func TestAFamilyOfAnotherTaskIsRefused(t *testing.T) {
+	dir := t.TempDir()
+	m := writePackage(t, dir, "1.0.0")
+	m.Task, m.Classes = "time_series", nil
+	writeManifest(t, dir, m)
+	if _, err := Load(dir); err == nil || !strings.Contains(err.Error(), "does land_cover and not time_series") {
+		t.Fatalf("got %v, want the pairing refused", err)
+	}
+}
+
+func TestAModelOfAnotherTaskInstallsFromJSONAndIsStillPinned(t *testing.T) {
+	src := t.TempDir()
+	writeCurve(t, src, "parameters.json", []byte(`{"length_scale_days": 32.0}`))
+	p, err := Import(t.TempDir(), src)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if p.Manifest.Task != "time_series" || len(p.Manifest.Classes) != 0 {
+		t.Fatalf("installed as %s with classes %v", p.Manifest.Task, p.Manifest.Classes)
+	}
+	if err := os.WriteFile(filepath.Join(p.Dir, "parameters.json"), []byte(`{"length_scale_days": 64.0}`), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := p.Verify(); err == nil || !strings.Contains(err.Error(), "does not match") {
+		t.Fatalf("got %v, want a changed file refused", err)
+	}
+}
+
+func TestAModelOfAnotherTaskCannotHoldAPickle(t *testing.T) {
+	for _, name := range []string{"parameters.joblib", "parameters.pt", "parameters"} {
+		dir := t.TempDir()
+		writeCurve(t, dir, name, []byte("pickled"))
+		if _, err := Load(dir); err == nil || !strings.Contains(err.Error(), "neither JSON nor NPZ") {
+			t.Fatalf("%s: got %v, want it refused", name, err)
+		}
+	}
+}
+
+// The manifests under model/packages, as written by hand: the packager fills
+// in each file's digest and size and changes nothing else.
+func TestThePackagesThisRepositoryBuildsStillPass(t *testing.T) {
+	sources, err := filepath.Glob(filepath.Join("..", "..", "model", "packages", "*", manifestName))
+	if err != nil || len(sources) == 0 {
+		t.Fatalf("no manifest under model/packages: %v", err)
+	}
+	for _, path := range sources {
+		raw, err := os.ReadFile(path)
+		if err != nil {
+			t.Fatal(err)
+		}
+		var m analysis.ModelManifest
+		if err := json.Unmarshal(raw, &m); err != nil {
+			t.Fatalf("%s: %v", path, err)
+		}
+		for role, f := range m.Files {
+			f.SHA256, f.Size = strings.Repeat("0", 64), 0
+			m.Files[role] = f
+		}
+		if err := check(m); err != nil {
+			t.Errorf("%s: %v", path, err)
+		}
 	}
 }

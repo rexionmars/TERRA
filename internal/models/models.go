@@ -7,16 +7,18 @@ data directory at models/<id>/<version>/, where it survives updates of the
 application. A run names a model by id; Resolve finds its directory, and the
 sidecar runs what it finds there.
 
-PINNED BY DIGEST. A package's files are pickles, and loading one runs whatever
-it says. Its manifest records the SHA-256 of every file; Import refuses a
-package whose files do not hash to it, and the sidecar checks them again before
-every run (sidecar/terra/models.py), so a file changed after installing is
-never loaded.
+PINNED BY DIGEST. A land-cover package's files are pickles, and loading one
+runs whatever it says. Its manifest records the SHA-256 of every file; Import
+refuses a package whose files do not hash to it, and the sidecar checks them
+again before every run (sidecar/terra/models.py), so a file changed after
+installing is never loaded. A package of any other task may hold only JSON and
+NPZ, which the sidecar reads without running anything.
 
 WEIGHTS ONLY, IN A KNOWN FAMILY. A package brings no code. It names one of the
-architectures the sidecar can run, and roles mirrors the files each needs, from
-ROLES in terra/models.py: a package of an unknown family is refused at import,
-where the reader can still be told why, rather than at the first run.
+architectures the sidecar can run and the task the model does, and families
+mirrors FAMILIES in terra/models.py: a package of an unknown family or task, or
+of a family that does another task, is refused at import, where the reader can
+still be told why, rather than at the first run.
 */
 package models
 
@@ -32,6 +34,7 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"slices"
 	"sort"
 	"strconv"
 	"strings"
@@ -41,18 +44,46 @@ import (
 
 const (
 	manifestName = "model.json"
-	format       = 1
+	// format stays 1 when a task is added: a TERRA that predates the task
+	// refuses its packages by their family, which it does not know.
+	format = 1
 	// maxPackage bounds what an import will unpack, so a crafted archive
 	// cannot fill the disk before its manifest is read.
 	maxPackage = 4 << 30
+	// pictureRole is the card's picture. The shell inlines it and the sidecar
+	// never opens it, so it is an image whatever the task.
+	pictureRole = "picture"
 )
 
-// roles are the files each family needs; terra/models.py ROLES is the
-// authority, and the two change together.
-var roles = map[string][]string{
-	"feature_rf":           {"model", "scaler", "label_encoder", "feature_names"},
-	"sequence_transformer": {"checkpoint"},
-	"embedding_rf":         {"label_encoder"},
+// LandCover is the task of a model that classifies land cover: the only task
+// whose models emit MapBiomas classes, and the one Classification runs.
+const LandCover = "land_cover"
+
+// tasks are what a model can do; TASKS in terra/models.py is the authority,
+// and the two change together. A model of any task but land cover estimates a
+// quantity and lists no classes.
+var tasks = map[string]bool{
+	LandCover:             true,
+	"time_series":         true,
+	"observation_quality": true,
+}
+
+// plainSuffixes are the files a model of a task other than land cover may hold.
+var plainSuffixes = []string{".json", ".npz"}
+
+// family is an architecture the sidecar runs: the task it does, and the files
+// it reads.
+type family struct {
+	task  string
+	roles []string
+}
+
+// families mirror FAMILIES in terra/models.py, which is the authority; the two
+// change together.
+var families = map[string]family{
+	"feature_rf":           {LandCover, []string{"model", "scaler", "label_encoder", "feature_names"}},
+	"sequence_transformer": {LandCover, []string{"checkpoint"}},
+	"embedding_rf":         {LandCover, []string{"label_encoder"}},
 }
 
 var (
@@ -93,15 +124,24 @@ func check(m analysis.ModelManifest) error {
 	if !idPattern.MatchString(m.ID) {
 		return fmt.Errorf("model id %q is not a valid id", m.ID)
 	}
-	base, ok := roles[m.Family]
+	fam, ok := families[m.Family]
 	if !ok {
 		return fmt.Errorf("model %s is a %q, which this version of TERRA cannot run", m.ID, m.Family)
+	}
+	if !tasks[m.Task] {
+		return fmt.Errorf("model %s is for %q, a task this version of TERRA does not know", m.ID, m.Task)
+	}
+	if fam.task != m.Task {
+		return fmt.Errorf("model %s is a %s, which does %s and not %s", m.ID, m.Family, fam.task, m.Task)
 	}
 	if m.Version == "" || strings.ContainsAny(m.Version, `/\`) || m.Version == "." || m.Version == ".." {
 		return fmt.Errorf("model %s has no usable version", m.ID)
 	}
-	if len(m.Classes) == 0 {
+	if m.Task == LandCover && len(m.Classes) == 0 {
 		return fmt.Errorf("model %s lists no classes", m.ID)
+	}
+	if m.Task != LandCover && len(m.Classes) > 0 {
+		return fmt.Errorf("model %s lists classes, which a %s model does not emit", m.ID, m.Task)
 	}
 	for _, p := range m.PackagedBy {
 		if strings.TrimSpace(p.Name) == "" {
@@ -109,7 +149,7 @@ func check(m analysis.ModelManifest) error {
 		}
 	}
 	// A copy: the variants' roles are appended, and the table is shared.
-	need := append([]string(nil), base...)
+	need := append([]string(nil), fam.roles...)
 	if m.Family == "embedding_rf" {
 		if len(m.Variants) == 0 {
 			return fmt.Errorf("model %s names no variant", m.ID)
@@ -132,6 +172,11 @@ func check(m analysis.ModelManifest) error {
 		}
 		if f.Size < 0 {
 			return fmt.Errorf("model %s: %s has no size", m.ID, f.Name)
+		}
+		if m.Task != LandCover && role != pictureRole &&
+			!slices.Contains(plainSuffixes, strings.ToLower(filepath.Ext(f.Name))) {
+			return fmt.Errorf("model %s: %s is neither JSON nor NPZ, the only files a %s model may hold",
+				m.ID, f.Name, m.Task)
 		}
 	}
 	var missing []string
@@ -196,7 +241,7 @@ func (p *Package) Digest() string {
 // Info is the package as the frontend lists it, with its picture inlined.
 func (p *Package) Info() analysis.ModelInfo {
 	info := analysis.ModelInfo{Manifest: p.Manifest, Digest: p.Digest()}
-	if f, ok := p.Manifest.Files["picture"]; ok {
+	if f, ok := p.Manifest.Files[pictureRole]; ok {
 		if raw, err := os.ReadFile(filepath.Join(p.Dir, f.Name)); err == nil {
 			mime := "image/webp"
 			switch strings.ToLower(filepath.Ext(f.Name)) {

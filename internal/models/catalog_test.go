@@ -193,3 +193,22 @@ func TestACatalogueThatCannotBeReachedSaysWhy(t *testing.T) {
 		t.Fatalf("got %v, want the answer named", err)
 	}
 }
+
+func TestACatalogueEntryOfAnotherTaskAndAnUnknownFamilyIsLeftOut(t *testing.T) {
+	_, good := publish(t)
+	good.Sources = []analysis.ModelSource{{Name: "GitHub", URL: "https://example.org/pkg.zip"}}
+	curve := good
+	curve.Manifest.ID, curve.Manifest.Family, curve.Manifest.Task = "gp-interval", "gaussian_process", "time_series"
+	curve.Manifest.Classes = nil
+	curve.Manifest.Files = map[string]analysis.ModelFile{
+		"parameters": {Name: "parameters.json", SHA256: strings.Repeat("1", 64), Size: 120},
+	}
+	curve.Digest = (&Package{Manifest: curve.Manifest}).Digest()
+	entries, unsupported, err := ParseCatalog(catalogue(t, 1, curve, good))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(entries) != 1 || entries[0].Manifest.ID != "test-rf" || unsupported != 1 {
+		t.Fatalf("kept %d, left out %d; want test-rf kept and the other left out", len(entries), unsupported)
+	}
+}

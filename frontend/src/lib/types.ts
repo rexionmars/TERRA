@@ -1637,12 +1637,16 @@ export interface ModelManifest {
   id: string
   version: string
   name: string
-  /** The architecture the sidecar runs it as. */
+  /** The architecture the sidecar runs it as. Each family does one task. */
   family: string
+  /** What the model does, e.g. "land_cover"; internal/models holds the list. */
   task: string
   summary: string
-  /** The MapBiomas codes it emits. */
-  classes: number[]
+  /**
+   * The MapBiomas codes a land_cover model emits. A model of any other task
+   * estimates a quantity and lists none.
+   */
+  classes: number[] | null
   /** "single", and "temporal" for a model that reruns over a growing stack. */
   modes: string[] | null
   /** Optional Python packages it needs, e.g. "torch". */
@@ -1703,7 +1707,10 @@ export interface ModelCatalog {
   origin: "online" | "built-in"
   /** Why the published catalogue was not read; empty when it was. */
   problem: string
-  /** Entries left out because this version of TERRA cannot run them. */
+  /**
+   * Entries left out because this version of TERRA cannot run them: a family
+   * or a task it does not know, or a newer manifest format.
+   */
   unsupported: number
 }
 

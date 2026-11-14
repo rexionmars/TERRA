@@ -51,11 +51,14 @@ type ModelManifest struct {
 	Version string `json:"version"`
 	Name    string `json:"name"`
 	// Family is the architecture the sidecar runs it as: feature_rf,
-	// sequence_transformer or embedding_rf.
-	Family  string `json:"family"`
+	// sequence_transformer or embedding_rf. Each family does one task.
+	Family string `json:"family"`
+	// Task is what the model does: land_cover, time_series or
+	// observation_quality (internal/models holds the list).
 	Task    string `json:"task"`
 	Summary string `json:"summary"`
-	// Classes are the MapBiomas codes it emits.
+	// Classes are the MapBiomas codes a land_cover model emits. A model of any
+	// other task estimates a quantity, and its manifest lists none.
 	Classes []int `json:"classes"`
 	// Modes are the classify modes it supports: "single", and "temporal" for
 	// a model that can be rerun over a cumulative stack.
@@ -128,7 +131,8 @@ type ModelCatalog struct {
 	// Problem says why the published catalogue was not read; empty when it was.
 	Problem string `json:"problem"`
 	// Unsupported counts the entries left out because this version of TERRA
-	// cannot run them: a family it does not know, or a newer manifest format.
+	// cannot run them: a family or a task it does not know, or a newer
+	// manifest format.
 	Unsupported int `json:"unsupported"`
 }
 
