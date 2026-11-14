@@ -71,6 +71,7 @@ import {
 import { comparePairTables, formatGroundWidth, groundWidthM } from "@/lib/compareGrid"
 import { predictionSource } from "@/lib/mapLayers"
 import { notifyError, notifyInfo, notifySuccess } from "@/lib/notify"
+import { readingPicture } from "@/lib/piePictures"
 import { loadedRunAssets, type RunAsset } from "@/lib/runAssets"
 import { datesByMonth } from "@/lib/runSummary"
 import { PHOTO_CHIP } from "@/components/ui/TabbedBanner"
@@ -519,7 +520,7 @@ export function CompareScreen({
   const readingItem = (kind: ReadingKind): RadialItem => ({
     id: kind,
     label: readingDef(kind).label,
-    colour: "var(--b-value-head)",
+    picture: readingPicture(kind),
     note: shapeNote(kind),
   })
 
