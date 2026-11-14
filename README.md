@@ -23,10 +23,10 @@ It is not a general-purpose GIS and does not set out to cover the ground that
 Earth Engine or QGIS already cover.
 
 <p align="center">
-  <img src="docs/img/map/terra-map.webp" alt="A classification raster over farmland near Cascavel on the full-screen map, with the navigation rail on the left and the result panel on the right showing the period, the class areas and the limit on reading them" width="900" />
+  <img src="docs/img/map/terra-map.webp" alt="A classification raster over farmland in Mato Grosso on the map, with the navigation rail on the left and the result panel on the right showing the period read, the class areas and the agreement with MapBiomas by class" width="900" />
 </p>
 
-<p align="center"><em>A classification over farmland near Cascavel: the raster on the ground it was measured on, and its figures beside it with the limit on reading them</em></p>
+<p align="center"><em>A classification over farmland in Mato Grosso: the raster on the ground it was measured on, and beside it the class areas and how far they agree with MapBiomas</em></p>
 
 ## The map, and what is held up in front of it
 
@@ -35,16 +35,18 @@ or taken from IBGE, a product chosen from a list, a period set, and a run starte
 Its result opens over the ground it was measured on, in one panel at a time, with
 the limit on reading it beside the figures.
 
-**Compare** is where runs are set side by side, on a fixed grid. It exists because a
+**Compare** is where runs are set side by side, as cards on a board. It exists because a
 map cannot do this: a map puts things where they are, so two areas hundreds of
-kilometres apart cannot be set beside each other on one. Each tile is drawn to its
-own scale and says how much ground it spans.
+kilometres apart cannot be set beside each other on one. Each run is drawn to its
+own scale and says how much ground it spans, and the readings that compare them
+(differences, domain shift, spectra, separability) are cards linked to the runs they
+read.
 
 <p align="center">
-  <img src="docs/img/map/terra-compare.webp" alt="The Compare screen: a fixed grid with a classification, management zones, vegetation health and radar over one farm and surface water over a city centre, each tile saying how much ground it spans" width="900" />
+  <img src="docs/img/map/terra-compare.webp" alt="The Compare board: a classification, management zones and radar over one area and vegetation health over another, each card saying how much ground it spans, and a Spectra reading linked to the classification, read in full in the panel at the right" width="900" />
 </p>
 
-<p align="center"><em>Compare: four products over one farm and surface water over a city centre, each to its own scale</em></p>
+<p align="center"><em>Compare: four runs over two areas, each to its own scale, and the class spectra of the classification read beside them</em></p>
 
 **Workflows** is the compositor, where the products of several runs are combined. Each run
 offers its outputs as sockets; nodes filter, mask, mix and tabulate them, and
@@ -55,10 +57,10 @@ report node writes up whatever reaches it. Under a field set the same graph is
 evaluated once per field.
 
 <p align="center">
-  <img src="docs/img/map/terra-workflows.webp" alt="The compositor at full screen: a run node feeding a majority filter, a viewer, class areas and a change card" width="900" />
+  <img src="docs/img/map/terra-workflows.webp" alt="The compositor: three runs over one area feeding season dates, a majority filter and a sieve, management zones, a radar series, a viewer, a change card, a mix, class areas and a PDF report node" width="900" />
 </p>
 
-<p align="center"><em>Workflows: a classification through a majority filter, with the raster, the class areas and what the filter changed read as cards</em></p>
+<p align="center"><em>Workflows: a classification through a majority filter and a sieve, with what the filters changed, the season, the zones and the radar series of the same area read as cards and gathered into a report</em></p>
 
 Comparison answers where a classification is wrong
 rather than how much of it is right: the confusion against the reference, the
@@ -146,7 +148,7 @@ compositor the fields of a set are also compared with each other on a date they
 share.
 
 <p align="center">
-  <img src="docs/img/map/terra-health.webp" alt="NDVI departure from earlier seasons drawn over one area on the map, with the NDVI and NDRE figures and the season chart in the result panel" width="900" />
+  <img src="docs/img/map/terra-health.webp" alt="NDVI departure from earlier seasons drawn over one area on the map with its field boundaries, with the NDVI and NDRE figures and the season chart in the result panel" width="900" />
 </p>
 
 <p align="center"><em>Vegetation health over one area: NDVI on one date against the median of the same days in earlier seasons, with the figures and the limit on reading them</em></p>
@@ -202,10 +204,10 @@ the EMIT L2B mineral product compared pixel by pixel. An Earthdata token is
 required.
 
 <p align="center">
-  <img src="docs/img/v7/terra-v7-mineral.webp" alt="EMIT mineral classes for 2.0 to 2.5 micrometres raised over one area on the globe, with the Al-OH and Fe3+ band positions and the mineral figures as compositor cards" width="900" />
+  <img src="docs/img/map/terra-mineral.webp" alt="EMIT mineral classes for 0.4 to 1.3 micrometres over one area on the map, with the coverage, the area of each class and the sections for references, passes, band positions and the comparison with EMIT L2B in the result panel" width="900" />
 </p>
 
-<p align="center"><em>The mineral map of one area: the 2.0-2.5 µm classes on the globe beside the Al-OH and Fe3+ band positions, and the map's figures as compositor cards. Captured in the interface before the current one</em></p>
+<p align="center"><em>The mineral map of one area: the 0.4-1.3 µm classes on the ground, and beside them how much of the area was observed and identified, and the area of each class</em></p>
 
 ### Reports
 
