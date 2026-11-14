@@ -4,7 +4,12 @@ import { MethodPanel } from "@/components/workspace/MethodPanel"
 import { RunQueue } from "@/components/workspace/RunQueue"
 import { btnGhost, btnPrimaryCommit } from "@/components/ui/buttons"
 import { MODE_OPTIONS, modeBlockedBy } from "@/lib/classifyOptions"
-import { installedModel, modelName, useInstalledModels } from "@/lib/installedModels"
+import {
+  classifiers,
+  installedModel,
+  modelName,
+  useInstalledModels,
+} from "@/lib/installedModels"
 import { isJobKind } from "@/lib/jobs"
 import {
   BOARD_TOOLS,
@@ -84,7 +89,8 @@ function Plate({ product }: { product: ProductId }) {
 }
 
 /**
- * The model to classify with: the packages installed on this machine.
+ * The model to classify with: the land-cover packages installed on this
+ * machine. A package of another task is installed beside them and not listed.
  *
  * One entry per model, its newest version, which is what a run that pins no
  * version uses. With none installed there is nothing to pick, so the field says
@@ -101,14 +107,12 @@ function ModelField({
   onOpenModels?: () => void
 }) {
   const { models, loaded } = useInstalledModels()
-  const newest = models.filter(
-    (m, i) => models.findIndex((x) => x.manifest.id === m.manifest.id) === i
-  )
+  const newest = classifiers(models)
   if (loaded && newest.length === 0) {
     return (
       <Field label="Model">
         <p className="text-label text-muted-foreground">
-          No model is installed.{" "}
+          No land-cover model is installed.{" "}
           {onOpenModels && (
             <button
               type="button"

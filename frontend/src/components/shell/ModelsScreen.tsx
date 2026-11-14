@@ -602,7 +602,8 @@ function ModelPage({
                     : "Download and install"}
                 </button>
               )}
-              {installed && (
+              {/* Classification is the only run a package starts on the map. */}
+              {installed && m.task === LAND_COVER && (
                 <button
                   type="button"
                   onClick={() => onRun(m.id)}

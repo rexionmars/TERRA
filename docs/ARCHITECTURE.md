@@ -100,6 +100,7 @@ package may hold pickles; a package of any other task holds JSON and NPZ, and
 the sidecar reads an NPZ with `allow_pickle=False`. A package brings weights
 only: a new architecture is a new family in `terra/models.py` and the code that
 runs it, and a new model of a known family is a manifest and its files.
+Classification lists and resolves `land_cover` packages only.
 
 The Models screen lists the **catalogue**, `catalog.json` in the models
 repository, [rexionmars/TERRA-models](https://github.com/rexionmars/TERRA-models),

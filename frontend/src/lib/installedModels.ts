@@ -75,6 +75,19 @@ export function installedModel(id: string): ModelInfo | undefined {
 /** The task of a model that classifies land cover, the one Classification runs. */
 export const LAND_COVER = "land_cover"
 
+/**
+ * The installed models Classification can run: land-cover models only, one per
+ * id, its newest version. A model of another task emits no classes, and the
+ * shell refuses to classify with it (internal/models Resolve).
+ */
+export function classifiers(models: readonly ModelInfo[]): ModelInfo[] {
+  return models.filter(
+    (m, i) =>
+      m.manifest.task === LAND_COVER &&
+      models.findIndex((x) => x.manifest.id === m.manifest.id) === i
+  )
+}
+
 const EARLIER: Record<string, string> = {
   spectral: "Random Forest",
   temporal_transformer: "Temporal Transformer",
