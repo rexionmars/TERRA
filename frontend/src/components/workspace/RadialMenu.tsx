@@ -15,6 +15,11 @@
  * the arrows move round the ring, Enter picks, a digit picks that option, and
  * Escape steps back a ring or closes it.
  *
+ * QUIET OVER THE BOARD. No shadow under the ring and none under the options,
+ * and the accent at half strength: the ring is a moment between two actions on
+ * the board, and drawn at full weight it took the eye off the card the reader
+ * had right-clicked.
+ *
  * Nothing here knows about workflows. The caller gives the options and acts on
  * the one picked; an option that opens another ring is the caller's to show.
  */
@@ -46,6 +51,8 @@ const HUB = 64
 const GESTURE = 14
 /** Beyond the ring by this much, a click is a dismissal and not a pick. */
 const REACH = 140
+/** The accent, at the strength the ring draws it. */
+const AIM = "rgb(var(--p-accent) / 0.5)"
 
 const radiusFor = (n: number) => (n <= 4 ? 96 : n <= 6 ? 116 : 136)
 
@@ -217,14 +224,7 @@ export function RadialMenu({
       aria-label={title}
       tabIndex={-1}
       className="absolute inset-0 z-70 outline-none"
-      style={{
-        /*
-          The board under the ring steps back, so an option over a card does
-          not read as part of the card: the pills are the cards' own ground.
-        */
-        background: `radial-gradient(circle at ${cx}px ${cy}px, rgb(var(--p-sunk) / 0.82) ${R + 40}px, transparent ${R + 240}px)`,
-        cursor: "var(--cursor-default)",
-      }}
+      style={{ cursor: "var(--cursor-default)" }}
       onContextMenu={(e) => e.preventDefault()}
       onPointerDown={(e) => {
         e.stopPropagation()
@@ -257,7 +257,7 @@ export function RadialMenu({
             <path
               d={arc(track, aimAngle, Math.min(0.5, Math.PI / n))}
               fill="none"
-              stroke="rgb(var(--p-accent))"
+              stroke={AIM}
               strokeWidth={3}
               strokeLinecap="round"
             />
@@ -266,7 +266,7 @@ export function RadialMenu({
               y1={Math.sin(aimAngle) * (track + 6)}
               x2={Math.cos(aimAngle) * (R - 18)}
               y2={Math.sin(aimAngle) * (R - 18)}
-              stroke="rgb(var(--p-accent) / 0.35)"
+              stroke="rgb(var(--p-accent) / 0.25)"
               strokeWidth={1.5}
               strokeDasharray="2 4"
             />
@@ -285,7 +285,7 @@ export function RadialMenu({
           top: cy - HUB / 2,
           width: HUB,
           height: HUB,
-          boxShadow: "0 0 0 1px var(--b-node-edge), 0 10px 28px -10px rgb(0 0 0 / 0.6)",
+          boxShadow: "0 0 0 1px var(--b-node-edge)",
         }}
       >
         {onBack && <ArrowLeft className="size-3 shrink-0 text-muted-foreground" />}
@@ -324,9 +324,7 @@ export function RadialMenu({
                 left: x,
                 top: y,
                 transform: `translate(${anchor}, -50%)`,
-                boxShadow: on
-                  ? "0 0 0 1.5px rgb(var(--p-accent)), 0 10px 24px -12px rgb(0 0 0 / 0.6)"
-                  : "0 0 0 1px var(--b-node-edge), 0 10px 24px -12px rgb(0 0 0 / 0.6)",
+                boxShadow: on ? `0 0 0 1.5px ${AIM}` : "0 0 0 1px var(--b-node-edge)",
                 "--radial-from": `${-cos * 28}px ${-Math.sin(a) * 28}px`,
                 animationDelay: `${i * 14}ms`,
               } as React.CSSProperties
