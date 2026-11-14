@@ -19,6 +19,60 @@ hand-written "unreleased" section beside a generated one is the same list twice,
 and only one of them is kept current.
 
 
+## [0.10.0](https://github.com/rexionmars/TERRA/compare/v0.9.0...v0.10.0) (2026-11-14)
+
+
+### Features
+
+* **analyses:** the Analyses screen is a gallery of runs, by day and by batch ([83b3fd2](https://github.com/rexionmars/TERRA/commit/83b3fd2f966d25687a889af55f9c25de3bfd63b6))
+* **classify:** only a land-cover model is offered and run for classification ([b11fa6c](https://github.com/rexionmars/TERRA/commit/b11fa6ca9d6d955871893e1fe5b11dddfdad4eb4))
+* **compare:** a right-click on the board opens the pie menu ([35987a2](https://github.com/rexionmars/TERRA/commit/35987a2321f987bf3edbd31f2b38f303c2abb720))
+* **compare:** a run's card shows its map, its classes and its scale, and runs stand in one column ([f4fa966](https://github.com/rexionmars/TERRA/commit/f4fa9669d30e4ec77de65cd568de84af05a311c7))
+* **compare:** a saved run is chosen by its area and what it found ([885a06d](https://github.com/rexionmars/TERRA/commit/885a06de82dde180630676aa1118a21d5ae984f0))
+* **compare:** Cohort, Domain shift and Tables are set in the readings' sections ([d9d40b3](https://github.com/rexionmars/TERRA/commit/d9d40b36eaaeb7ebe312b0cb1a1db09e26daf259))
+* **compare:** the Differences reading shows the two runs and says what each figure means ([e697040](https://github.com/rexionmars/TERRA/commit/e697040f197bcc116c25a4a288781b83a7955697))
+* **compare:** the spectral readings read a spectrum as reflectance spectroscopy does ([88f25b9](https://github.com/rexionmars/TERRA/commit/88f25b9e4e4be5d1d98e6561688f151e6f084790))
+* **frontend:** headings are set in Exo 2, and a panel's header names its path above its place ([9d31165](https://github.com/rexionmars/TERRA/commit/9d311655dd1c66c8b8a51984e69a1f11cf4b12f5))
+* **frontend:** the accent is the ararajuba yellow of the TERRA mark ([559eebf](https://github.com/rexionmars/TERRA/commit/559eebf78b9dbdf4973863cbd3973ab027e6222a))
+* **globe:** zoom, centre and credits read as one strip at the foot of the globe ([a7f5a36](https://github.com/rexionmars/TERRA/commit/a7f5a36c59322922fe932d3afdea5632bf46b632))
+* **map:** any raster's legend can be put on the map from its menu ([617331a](https://github.com/rexionmars/TERRA/commit/617331aee24c5c5305380f994cacb6328de62817))
+* **map:** the camera control is a compass dial ([449301c](https://github.com/rexionmars/TERRA/commit/449301c5633a9d674cac3b815c640689b9961487))
+* **map:** the location search opens in a notch hanging from the frame ([561f758](https://github.com/rexionmars/TERRA/commit/561f758e54c20b92ed957ba90ecca0b62924a633))
+* **map:** the Visualization panel is called Compositions ([9a23813](https://github.com/rexionmars/TERRA/commit/9a238135e9f8c6e269a300959610a9b498e84367))
+* **menus:** a menu is a dark plate with its rows set in from the edge ([2305e99](https://github.com/rexionmars/TERRA/commit/2305e992551e34fe00278bb02f9616d2e3cce448))
+* **models:** a catalogue card is a picture that darkens into its text ([8f8cdc8](https://github.com/rexionmars/TERRA/commit/8f8cdc83807092df49b156792b09b632011d3392))
+* **models:** a catalogue may list models in preparation, and the Models screen shows them without a download ([ced3af6](https://github.com/rexionmars/TERRA/commit/ced3af65ed848b3e3e15e8580c9de5afd29bf889))
+* **models:** a Models screen installs, describes and removes model packages ([e612a60](https://github.com/rexionmars/TERRA/commit/e612a605dc0f2d483e5d59a43a600bf847202a04))
+* **models:** a package declares its task, and only a land-cover package lists classes or holds pickles ([f4d1723](https://github.com/rexionmars/TERRA/commit/f4d1723fe29485beff6ed0cc59bf82fa88d53b15))
+* **models:** a package names who made it ([23b4ca2](https://github.com/rexionmars/TERRA/commit/23b4ca22d637344c6498ec4967e2e6ee5319384f))
+* **models:** a run classifies with an installed model package, checked by digest ([01edb2a](https://github.com/rexionmars/TERRA/commit/01edb2ac2fa46816a8e696cd67477836bfea0fae))
+* **models:** the application reads the published catalogue and installs from it ([b4d1263](https://github.com/rexionmars/TERRA/commit/b4d1263319cea5c3884bf8eb752dd7bd78d4987a))
+* **models:** the catalogue lists five models in preparation, for time series and observation quality ([5e85a5f](https://github.com/rexionmars/TERRA/commit/5e85a5f159b34d9dfdb1f4f2b894544f2af883fa))
+* **models:** the catalogue opens on a banner that turns through scenes from orbit ([df1503d](https://github.com/rexionmars/TERRA/commit/df1503dc90b3731451ed0cf9d94ba725d9a779f7))
+* **models:** the frontend offers and describes the models that are installed ([a4bac96](https://github.com/rexionmars/TERRA/commit/a4bac968aa1f1b38ffd9a7a1fcdf4cf8beea61a6))
+* **models:** the Models screen offers the published models for download ([fc1db2f](https://github.com/rexionmars/TERRA/commit/fc1db2fae9164e0651ac2b2b19d3e0d98ceaf133))
+* **models:** who packaged a model is kept in its manifest and not shown ([bee3251](https://github.com/rexionmars/TERRA/commit/bee3251281282376834e3b2dd90e363bb8403a06))
+* **notifications:** a notification is lit from its left by its status ([48649f9](https://github.com/rexionmars/TERRA/commit/48649f94316c8354ddd6c44a4cdeb7e4ae39aedf))
+* **settings:** settings and the profile are a place in the map's shell ([7e373a5](https://github.com/rexionmars/TERRA/commit/7e373a52f4d4e1ab851012e01f9b4e629c5abc90))
+* **settings:** the profile photo is a rounded square ([195e9e2](https://github.com/rexionmars/TERRA/commit/195e9e2d4a0fc2fce6f0eb8950a51522d86e0ac0))
+* **shell:** areas are managed from the area's menu, not from the rail ([c888db3](https://github.com/rexionmars/TERRA/commit/c888db33becb022f912d01c45e2df689e3ed5c61))
+* **shell:** the header centres the place in a field and names the TERRA EO menu ([01c8f65](https://github.com/rexionmars/TERRA/commit/01c8f65757a230e00f239174c3a58eef14887dc4))
+* **shell:** the map is a card in the window's frame, which reaches into its corners ([c1c8a6d](https://github.com/rexionmars/TERRA/commit/c1c8a6d8560bee22201991c597e7d356022e9382))
+* **splash:** the splash and the start screen are set on a photograph of the ground ([5f965a4](https://github.com/rexionmars/TERRA/commit/5f965a4d2bd7c908b7df62c24af7b91c341c86af))
+* **theme:** the accent is orange, #FC6F20, and the warning a yellow again ([ce85328](https://github.com/rexionmars/TERRA/commit/ce853281acfece87a5088b928999459ff68b30b8))
+* **workflows:** a node card is near black and matte, with a grain ([ed6827d](https://github.com/rexionmars/TERRA/commit/ed6827d7948d05167b39063661d5008b6390b326))
+* **workflows:** a node's category is its card's top edge, not a filled header ([0d51de0](https://github.com/rexionmars/TERRA/commit/0d51de0097a16086ee158e3302d88cef00fbf442))
+* **workflows:** a node's header is filled in its category's colour, on a flat grey card ([470a512](https://github.com/rexionmars/TERRA/commit/470a5122c16872b967f6346f3944b5f96be8a4be))
+* **workflows:** a right-click opens a pie menu of what can be done where it lands ([fe41666](https://github.com/rexionmars/TERRA/commit/fe41666c8f4df9c2a2cf3c531f1be3b9e828945a))
+
+
+### Bug fixes
+
+* **globe:** a raised raster follows the relief instead of lying at sea level ([7c85848](https://github.com/rexionmars/TERRA/commit/7c858481195a5d7578b95a61290c3242185225cb))
+* **globe:** the active area's tint lies under the rasters, not over them ([086b216](https://github.com/rexionmars/TERRA/commit/086b216f37995f2152c6cc60ff2ad9728d881bcc))
+* **map:** the tool column has one rule between every button ([40a6589](https://github.com/rexionmars/TERRA/commit/40a6589508f1aa56ccbae57f1d618b30bf14e13a))
+* **panels:** a panel with a level above it has a back button ([417836c](https://github.com/rexionmars/TERRA/commit/417836c09480639fa2238377b38f0b6d73aec15f))
+
 ## [0.9.0](https://github.com/rexionmars/TERRA/compare/v0.8.0...v0.9.0) (2026-11-09)
 
 
