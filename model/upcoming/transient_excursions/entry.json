@@ -1,0 +1,12 @@
+{
+  "id": "transient_excursions",
+  "name": "Transient excursions",
+  "task": "observation_quality",
+  "summary": "Marks the dates on which a field is briefly brighter in blue, or darker in blue and near infrared, than in the 15 days before and after, without the scene classification layer.",
+  "status": "Tested on fields in Bahia, Mato Grosso and Paraná, from another reading of the same Sentinel-2 scenes: it accounts for 26 % to 62 % of the excess in the noise's heavy tail in Paraná, and for less than 10 % in Mato Grosso and Bahia. Whether it becomes a model of its own or part of Observation noise is not decided.",
+  "limits": [
+    "Weak in Mato Grosso and Bahia, where most of the heavy tail is something it does not mark.",
+    "After the marked dates are removed, the noise still has a heavy tail in every region.",
+    "A date is marked only when it departs from both sides in the same direction, so a change that lasts, such as a harvest, is not marked."
+  ]
+}

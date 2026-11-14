@@ -66,7 +66,9 @@ PREPARING = ROOT / 'model' / 'upcoming'
 LISTED = ('spectral', 'temporal_transformer')
 # The models in preparation it lists, in the order the Models screen shows them:
 # the furthest from a release last.
-UPCOMING: tuple[str, ...] = ()
+UPCOMING: tuple[str, ...] = (
+    'gp_series', 'observation_noise', 'transient_excursions', 'series_events', 's1_orbit_noise',
+)
 
 # What an entry.json may hold, in the order the catalogue gives it; the first
 # five are required. internal/models/catalog.go checks them again on reading.

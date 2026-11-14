@@ -1,0 +1,7 @@
+{
+  "id": "s1_orbit_noise",
+  "name": "Radar noise by orbit",
+  "task": "observation_quality",
+  "summary": "Gives the noise of a field's Sentinel-1 backscatter series for each orbit it is seen from: mixing orbits raises the noise's standard deviation from 1.37 dB to 1.94 dB.",
+  "status": "Its inclusion is decided, and the work has not started."
+}

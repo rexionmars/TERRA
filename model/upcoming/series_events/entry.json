@@ -1,0 +1,7 @@
+{
+  "id": "series_events",
+  "name": "Series events",
+  "task": "time_series",
+  "summary": "Finds abrupt changes in a field's series, such as a harvest, and sets them apart from its smooth trajectory and its noise.",
+  "status": "A step detector over the Gaussian Process trajectory was tested and set aside: its false alarms stayed near 5 %, but it found only the largest injected steps. Detection from the trajectory's derivative is to be tested next."
+}

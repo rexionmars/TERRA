@@ -1,0 +1,12 @@
+{
+  "id": "observation_noise",
+  "name": "Observation noise",
+  "task": "observation_quality",
+  "summary": "Gives each date of a field's Sentinel-2 series its own noise, from how many of the field's points were clear on that date.",
+  "status": "Measured on fields in Bahia, Mato Grosso and Paraná, from another reading of the same Sentinel-2 scenes: over 1 to 5 days, the noise's standard deviation is 2.6 to 5.9 times larger on dates with one to three clear points than on dates with all nine. It waits to be measured again on series read by TERRA itself, and to be packaged.",
+  "limits": [
+    "The count of clear points predicts the size of the noise, not its heavy tail: the largest departures come on dates where every point was clear.",
+    "Dates with few clear points may also carry more haze and shadow on the rest of the scene, so not all of their extra noise need come from the count.",
+    "Measured on nine points per field. How it carries over to the clear pixels of a polygon, as TERRA reads them, has not been checked."
+  ]
+}
