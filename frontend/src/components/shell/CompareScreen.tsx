@@ -1,6 +1,16 @@
 import { useEffect, useMemo, useRef, useState } from "react"
 
-import { CaretRight, Copy, Trash, X } from "@/components/icons"
+import {
+  ArrowsClockwise,
+  CaretRight,
+  CornersOut,
+  Copy,
+  Minus,
+  Path,
+  Plus,
+  Trash,
+  X,
+} from "@/components/icons"
 import { ConfusionMatrix } from "@/components/workspace/AgreementCharts"
 import {
   PredictionComparison,
@@ -12,12 +22,15 @@ import {
   LibraryLimitEditor,
   type LibraryLimitMode,
 } from "@/components/workspace/LibraryLimitEditor"
-import { MenuItem, MenuPopover } from "@/components/workspace/MenuPopover"
-import { RunPicker } from "@/components/workspace/RunPicker"
+import { ContextMenu, MenuItem, MenuPopover } from "@/components/workspace/MenuPopover"
+import { RadialMenu, type RadialItem } from "@/components/workspace/RadialMenu"
+import { RunList, RunPicker } from "@/components/workspace/RunPicker"
 import { SeparabilityEditor } from "@/components/workspace/SeparabilityEditor"
 import {
   SocketCanvas,
   type CanvasApi,
+  type ContextTarget,
+  type Place,
   type SocketLink,
   type SocketNode,
 } from "@/components/workspace/SocketCanvas"
@@ -85,6 +98,40 @@ const READING_PAINT = {
   lit: { band: "var(--b-value-head)", ink: "var(--b-value-ink)" },
 }
 const CLASSES = "var(--b-source-head)"
+
+/** The pie a right-click opens on the board, and the ring of it showing. */
+interface ComparePie {
+  at: { x: number; y: number }
+  /** The press that opened it is still down. */
+  held: boolean
+  target: ContextTarget
+  /** What can be done there, or the readings to add after a run. */
+  ring: "root" | "readings"
+}
+
+/** The pie's option that opens the run picker rather than adding a reading. */
+const ADD_RUN = "add-run"
+
+/*
+  The readings round the pie that adds, clockwise from the top: the pair
+  readings first, where the board's own first reading stands, and adding a
+  run on the left, the side the runs stand on.
+*/
+const PIE_ADD: readonly (ReadingKind | typeof ADD_RUN)[] = [
+  "differences",
+  "shift",
+  "cohort",
+  "spectra",
+  "separability",
+  "library",
+  ADD_RUN,
+  "tables",
+]
+
+const shapeNote = (kind: ReadingKind) => {
+  const shape = readingDef(kind).shape
+  return shape === "pair" ? "A, B" : shape === "cohort" ? "1 + n" : "n"
+}
 const FREE = "var(--b-card-ink)"
 const READING_GUESS_H = 150
 
@@ -236,6 +283,15 @@ export function CompareScreen({
   const [menu, setMenu] = useState<"view" | "add" | null>(null)
   const [libraryModes, setLibraryModes] = useState<Record<string, LibraryLimitMode>>({})
   const api = useRef<CanvasApi | null>(null)
+  const [pie, setPie] = useState<ComparePie | null>(null)
+  const [boardEl, setBoardEl] = useState<HTMLElement | null>(null)
+  /** Where the pie's run list is open, in window coordinates. */
+  const [runAt, setRunAt] = useState<{ x: number; y: number } | null>(null)
+  /**
+   * A run chosen from that list, and the board point it was asked for at:
+   * it arrives on the board once loaded, and is set down there then.
+   */
+  const placing = useRef<{ id: string; at: Place } | null>(null)
 
   /* What can feed a reading: a class map with a legend to read it by. */
   const sides = useMemo<PredictionCompareSide[]>(
@@ -274,6 +330,21 @@ export function CompareScreen({
   }, [sideKey])
 
   const placeOf = (id: string, index: number) => board.places[id] ?? runSlot(index)
+
+  // A run asked for from the pie stands where it was asked for, once it is here.
+  const runKey = gridRuns.map((r) => r.id).join("|")
+  useEffect(() => {
+    const wanted = placing.current
+    if (!wanted || !gridRuns.some((r) => r.id === wanted.id)) return
+    placing.current = null
+    setBoard((b) =>
+      b.places[wanted.id]
+        ? b
+        : { ...b, places: { ...b.places, [wanted.id]: freeSpot(wanted.at) } }
+    )
+    // The key stands for the runs in hand; the array is rebuilt each render.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [runKey])
 
   const pairOf = (
     r: ReadingNode
@@ -372,6 +443,234 @@ export function CompareScreen({
   const doArrange = () => {
     setBoard((b) => arrange(b, runIds, heights, present))
     requestAnimationFrame(() => api.current?.fit())
+  }
+
+  /* ---- The pie a right-click opens --------------------------------------- */
+
+  /** `at`, stepped down past any node already standing there. */
+  const freeSpot = (at: Place): Place => {
+    let p = { x: Math.round(at.x), y: Math.round(at.y) }
+    const taken = [
+      ...gridRuns.map((r, i) => placeOf(r.id, i)),
+      ...board.readings.flatMap((r) => board.places[r.id] ?? []),
+    ]
+    while (taken.some((q) => Math.abs(q.x - p.x) < 40 && Math.abs(q.y - p.y) < 40)) {
+      p = { ...p, y: p.y + 56 }
+    }
+    return p
+  }
+
+  /** A reading set down at `at`, fed from `feed` where a run is given. */
+  const addAt = (kind: ReadingKind, at: Place, feed?: string) => {
+    const id = nextReadingId(board)
+    let next = addReading(board, kind, id, freeSpot(at))
+    if (feed) {
+      const linked = linkRun(next, feed, id, null, present)
+      if (!("refused" in linked)) next = linked.board
+    }
+    setBoard(next)
+    setSelected(id)
+  }
+
+  /** A copy of a reading under it, reading the same runs at the same inputs. */
+  const duplicate = (id: string) => {
+    const r = board.readings.find((x) => x.id === id)
+    if (!r) return
+    const copyId = nextReadingId(board)
+    const at = board.places[id] ?? { x: READING_X, y: 0 }
+    const next = addReading(
+      board,
+      r.kind,
+      copyId,
+      freeSpot({ x: at.x, y: at.y + (heights[id] ?? READING_GUESS_H) + 32 })
+    )
+    const copied = board.links
+      .filter((l) => l.reading === id)
+      .map((l) => ({ ...l, reading: copyId }))
+    setBoard({ ...next, links: [...next.links, ...copied] })
+    setSelected(copyId)
+  }
+
+  /** A pair reading's A and B, each where the other was. */
+  const swap = (id: string) =>
+    setBoard((b) => ({
+      ...b,
+      links: b.links.map((l) =>
+        l.reading !== id
+          ? l
+          : l.socket === "a"
+            ? { ...l, socket: "b" }
+            : l.socket === "b"
+              ? { ...l, socket: "a" }
+              : l
+      ),
+    }))
+
+  const openPie = (
+    target: ContextTarget,
+    at: { x: number; y: number },
+    held: boolean
+  ) => {
+    setMenu(null)
+    if (target.kind === "node") setSelected(target.id)
+    setPie({ at, held, target, ring: "root" })
+  }
+
+  const readingItem = (kind: ReadingKind): RadialItem => ({
+    id: kind,
+    label: readingDef(kind).label,
+    colour: "var(--b-value-head)",
+    note: shapeNote(kind),
+  })
+
+  /** The title and the options of the ring showing. */
+  const pieRing = (p: ComparePie): { title: string; items: RadialItem[] } => {
+    const t = p.target
+    if (p.ring === "readings") {
+      return {
+        title: "Read with",
+        items: PIE_ADD.flatMap((k) => (k === ADD_RUN ? [] : [readingItem(k)])),
+      }
+    }
+    if (t.kind === "field") {
+      return {
+        title: "Add",
+        items: PIE_ADD.map((k) =>
+          k === ADD_RUN
+            ? { id: ADD_RUN, label: "Add a run", icon: <Plus className="size-3.5" /> }
+            : readingItem(k)
+        ),
+      }
+    }
+    if (t.kind === "link") {
+      return {
+        title: "Link",
+        items: [
+          {
+            id: "read",
+            label: "Open the reading",
+            icon: <CaretRight className="size-3.5" />,
+          },
+          { id: "unlink", label: "Remove link", icon: <Trash className="size-3.5" /> },
+        ],
+      }
+    }
+    const folded = api.current?.isFolded(t.id) ?? false
+    const fold: RadialItem = {
+      id: "fold",
+      label: folded ? "Unfold" : "Fold",
+      icon: folded ? (
+        <CornersOut className="size-3.5" />
+      ) : (
+        <Minus className="size-3.5" />
+      ),
+    }
+    const run = gridRuns.find((r) => r.id === t.id)
+    if (run) {
+      return {
+        title: titled(run.label),
+        items: [
+          {
+            id: "read",
+            label: "Read with",
+            icon: <Plus className="size-3.5" />,
+            opens: true,
+            blockedBy: present.has(run.id) ? null : "It has no class map to read.",
+          },
+          fold,
+          {
+            id: "remove",
+            label: "Remove",
+            icon: <Trash className="size-3.5" />,
+            blockedBy: run.live
+              ? "The run on the map stays here while it is on the map."
+              : null,
+          },
+        ],
+      }
+    }
+    const r = board.readings.find((x) => x.id === t.id)
+    if (!r) return { title: "Node", items: [] }
+    const pair = readingDef(r.kind).shape === "pair"
+    const linked = linkedRuns(board, r, present).length
+    return {
+      title: readingDef(r.kind).label,
+      items: [
+        { id: "duplicate", label: "Duplicate", icon: <Copy className="size-3.5" /> },
+        ...(pair
+          ? [
+              {
+                id: "swap",
+                label: "Swap A and B",
+                icon: <ArrowsClockwise className="size-3.5" />,
+                blockedBy: linked ? null : "Nothing is linked into it.",
+              },
+            ]
+          : []),
+        {
+          id: "detach",
+          label: "Disconnect inputs",
+          icon: <Path className="size-3.5" />,
+          blockedBy: linked ? null : "Nothing is linked into it.",
+        },
+        {
+          id: "remove",
+          label: "Remove",
+          icon: <Trash className="size-3.5" />,
+          note: "X",
+        },
+        fold,
+      ],
+    }
+  }
+
+  const pickPie = (p: ComparePie, id: string) => {
+    const t = p.target
+    setPie(null)
+    if (p.ring === "readings" && t.kind === "node") {
+      const at = placeOf(t.id, runIds.indexOf(t.id))
+      addAt(
+        id as ReadingKind,
+        { x: Math.max(READING_X, at.x + RUN_W + 60), y: at.y },
+        t.id
+      )
+      return
+    }
+    if (t.kind === "field") {
+      if (id === ADD_RUN) setRunAt(p.at)
+      else {
+        const at = api.current?.toBoard(p.at.x, p.at.y) ?? { x: READING_X, y: 0 }
+        addAt(id as ReadingKind, { x: at.x - 24, y: at.y - 14 })
+      }
+      return
+    }
+    if (t.kind === "link") {
+      if (id === "unlink") setBoard((b) => unlink(b, t.to, t.toSocket))
+      else setSelected(t.to)
+      return
+    }
+    const run = gridRuns.find((r) => r.id === t.id)
+    switch (id) {
+      case "read":
+        setPie({ ...p, held: false, ring: "readings" })
+        return
+      case "fold":
+        api.current?.toggleFold(t.id)
+        return
+      case "remove":
+        if (run) onDropRun(run)
+        else remove(t.id)
+        return
+      case "duplicate":
+        duplicate(t.id)
+        return
+      case "swap":
+        swap(t.id)
+        return
+      case "detach":
+        setBoard((b) => ({ ...b, links: b.links.filter((l) => l.reading !== t.id) }))
+        return
+    }
   }
 
   const readingSummary = (r: ReadingNode): string => {
@@ -665,8 +964,50 @@ export function CompareScreen({
         </div>
       </header>
 
+      <ContextMenu
+        at={runAt}
+        surface={surface}
+        title="Add a run"
+        widthRem={24}
+        onClose={() => setRunAt(null)}
+      >
+        <RunList
+          runs={savedRuns}
+          projects={projects}
+          excludeRunIds={new Set(runIds)}
+          onPick={(run) => {
+            const at = runAt && api.current?.toBoard(runAt.x, runAt.y)
+            placing.current = at
+              ? { id: run.id, at: { x: at.x - 24, y: at.y - 14 } }
+              : null
+            setRunAt(null)
+            onAddRun(run)
+          }}
+          onEscape={() => setRunAt(null)}
+        />
+      </ContextMenu>
+
+      {pie && (
+        <RadialMenu
+          key={`${pie.target.kind}-${pie.ring}`}
+          at={pie.at}
+          held={pie.held}
+          surface={surface}
+          within={boardEl}
+          {...pieRing(pie)}
+          onPick={(id) => pickPie(pie, id)}
+          onBack={
+            pie.ring === "readings"
+              ? () => setPie({ ...pie, held: false, ring: "root" })
+              : undefined
+          }
+          onClose={() => setPie(null)}
+        />
+      )}
+
       <div className="flex min-h-0 flex-1">
         <div
+          ref={setBoardEl}
           className="relative min-w-0 flex-1 outline-none"
           tabIndex={-1}
           onKeyDown={(e) => {
@@ -686,10 +1027,22 @@ export function CompareScreen({
             }
           }}
         >
-          {n === 0 ? (
-            empty(
-              "Add a saved run to set it beside another. Runs of any area and any product can stand here."
-            )
+          {n === 0 && !board.readings.length ? (
+            <div
+              className="h-full"
+              onContextMenu={(e) => {
+                e.preventDefault()
+                openPie(
+                  { kind: "field" },
+                  { x: e.clientX, y: e.clientY },
+                  (e.buttons & 2) !== 0
+                )
+              }}
+            >
+              {empty(
+                "Add a saved run to set it beside another. Runs of any area and any product can stand here. A right-click opens what can be added."
+              )}
+            </div>
           ) : (
             <SocketCanvas
               className="absolute inset-0"
@@ -708,6 +1061,7 @@ export function CompareScreen({
               onSelectLink={(to) => setSelected(to)}
               apiRef={api}
               onArrange={doArrange}
+              onContext={openPie}
             />
           )}
         </div>
@@ -766,9 +1120,9 @@ export function CompareScreen({
           ) : (
             <div className="flex h-full flex-col gap-3 overflow-auto p-4">
               <p className="text-read text-muted-foreground">
-                Select a reading on the board to read it here. Add one from Add, then
-                pull a link from a run's Classes onto its inputs. A run can feed any
-                number of readings.
+                Select a reading on the board to read it here. Add one from Add, or
+                right-click a run and choose Read with, then pull a link from a run's
+                Classes onto its inputs. A run can feed any number of readings.
               </p>
               {board.readings.length > 0 && (
                 <section className="flex flex-col gap-2">

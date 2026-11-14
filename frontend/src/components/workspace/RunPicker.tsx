@@ -20,7 +20,7 @@
  * the boards does. The control stays outside the scrolling board, so it does
  * not scroll away from the list it adds to.
  */
-import { useMemo, useState } from "react"
+import { useEffect, useMemo, useRef, useState } from "react"
 
 import { MagnifyingGlass, Plus } from "@/components/icons"
 import {
@@ -118,6 +118,15 @@ export function RunList({
   onEscape: () => void
 }) {
   const [query, setQuery] = useState("")
+  const search = useRef<HTMLInputElement | null>(null)
+  /*
+    After the panel is placed: a panel measures itself hidden first, and a
+    hidden field cannot take the focus, so autoFocus alone can miss.
+  */
+  useEffect(() => {
+    const frame = requestAnimationFrame(() => search.current?.focus())
+    return () => cancelAnimationFrame(frame)
+  }, [])
 
   const groups = useMemo(() => {
     const q = query.trim().toLowerCase()
@@ -160,6 +169,7 @@ export function RunList({
       <label className="mx-1 mt-1 mb-1.5 flex shrink-0 items-center gap-2 rounded-full border border-[rgb(var(--p-line)/0.45)] px-3 py-1.5">
         <MagnifyingGlass className="size-3.5 shrink-0 text-muted-foreground" />
         <input
+          ref={search}
           autoFocus
           value={query}
           onChange={(e) => setQuery(e.target.value)}

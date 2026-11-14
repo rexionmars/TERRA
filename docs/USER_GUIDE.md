@@ -156,6 +156,11 @@ and **X** removes the reading selected.
 
 Two classifications on an empty board get a Differences node linked to both.
 
+A right-click opens the same ring as on Workflows (section 9). On empty ground it adds
+a reading there, or a run. On a run, **Read with** adds a reading already linked to it.
+On a reading it duplicates it with its links, swaps A and B, disconnects its inputs,
+folds or removes it. On a wire it removes the link or opens the reading.
+
 ## 9. Workflows
 
 The compositor, full screen. Each run in hand offers its outputs as sockets; nodes
