@@ -163,6 +163,12 @@ filter, mask, mix and tabulate them. A Viewer shows a result beside the graph, a
 node draws it on the map, under Layers, and a PDF report node writes up what reaches
 it. Use **Add** or Shift+A for nodes.
 
+A right-click opens a ring of what can be done where it lands. On empty ground it adds
+a node there: pick a category, then the node. On a node it adds one after it (already
+linked), duplicates it (Shift+D), links it to the Viewer, disconnects its inputs, folds
+it or removes it. On a wire it removes the link or sets a node on it. Click an option,
+or hold the right button, move toward an option and let go. Escape steps back a ring.
+
 **Save** stores the graph and its runs under a name, and the menu by that name opens
 another. A saved workflow is kept in the project and in its `.terra` file. Closing
 with unsaved changes asks first.

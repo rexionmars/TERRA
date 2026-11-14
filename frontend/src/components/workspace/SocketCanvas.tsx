@@ -82,7 +82,16 @@ export interface CanvasApi {
   /** The board point at the middle of the pane. */
   centre: () => Place
   fit: () => void
+  /** Fold a node to its header, or open it again. */
+  toggleFold: (id: string) => void
+  isFolded: (id: string) => boolean
 }
+
+/** What a secondary press landed on: the empty field, a node, or a wire. */
+export type ContextTarget =
+  | { kind: "field" }
+  | { kind: "node"; id: string }
+  | { kind: "link"; to: string; toSocket: string }
 
 interface View {
   x: number
@@ -169,6 +178,7 @@ export function SocketCanvas({
   onSelectLink,
   apiRef,
   onArrange,
+  onContext,
   className,
 }: {
   nodes: readonly SocketNode[]
@@ -202,6 +212,18 @@ export function SocketCanvas({
    * the result, since where nodes stand is its data, not this canvas's.
    */
   onArrange?: () => void
+  /**
+   * A secondary press -- the right button, a two-finger tap, Ctrl+click on a
+   * Mac -- and what it landed on, with the window point, and whether the
+   * secondary button is still down (it is on a Mac, where the menu event comes
+   * with the press; elsewhere it comes with the release). Without it the field
+   * leaves the press to the page.
+   */
+  onContext?: (
+    target: ContextTarget,
+    at: { x: number; y: number },
+    held: boolean
+  ) => void
   className?: string
 }) {
   const hostRef = useRef<HTMLDivElement | null>(null)
@@ -266,6 +288,16 @@ export function SocketCanvas({
     return { x: (clientX - r.left - v.x) / v.z, y: (clientY - r.top - v.y) / v.z }
   }, [])
 
+  const [folded, setFolded] = useState<ReadonlySet<string>>(new Set())
+  const toggleFold = (id: string) =>
+    setFolded((prev) => {
+      const next = new Set(prev)
+      if (!next.delete(id)) next.add(id)
+      return next
+    })
+  const foldedRef = useRef(folded)
+  foldedRef.current = folded
+
   useEffect(() => {
     if (!apiRef) return
     apiRef.current = {
@@ -278,6 +310,13 @@ export function SocketCanvas({
         touched.current = false
         fit()
       },
+      toggleFold: (id) =>
+        setFolded((prev) => {
+          const next = new Set(prev)
+          if (!next.delete(id)) next.add(id)
+          return next
+        }),
+      isFolded: (id) => foldedRef.current.has(id),
     }
     return () => {
       apiRef.current = null
@@ -345,14 +384,6 @@ export function SocketCanvas({
     host.addEventListener("wheel", onWheel, { passive: false })
     return () => host.removeEventListener("wheel", onWheel)
   }, [])
-
-  const [folded, setFolded] = useState<ReadonlySet<string>>(new Set())
-  const toggleFold = (id: string) =>
-    setFolded((prev) => {
-      const next = new Set(prev)
-      if (!next.delete(id)) next.add(id)
-      return next
-    })
 
   /*
     One gesture at a time. Every gesture captures the pointer on the field
@@ -547,6 +578,32 @@ export function SocketCanvas({
       onPointerMove={onPointerMove}
       onPointerUp={endDrag}
       onPointerCancel={() => endDrag()}
+      onContextMenu={(e) => {
+        if (!onContext) return
+        const el = e.target as Element
+        // A text field inside a card keeps its own menu: cut, copy and paste.
+        if (el.closest("input, textarea, select, [contenteditable='true']")) return
+        e.preventDefault()
+        const node = el.closest<HTMLElement>("[data-node-id]")
+        const wire = el.closest<SVGElement>("[data-link-to]")
+        const at = { x: e.clientX, y: e.clientY }
+        const held = (e.buttons & 2) !== 0
+        if (node?.dataset.nodeId) {
+          onContext({ kind: "node", id: node.dataset.nodeId }, at, held)
+        } else if (wire?.dataset.linkTo && wire.dataset.linkSocket) {
+          onContext(
+            {
+              kind: "link",
+              to: wire.dataset.linkTo,
+              toSocket: wire.dataset.linkSocket,
+            },
+            at,
+            held
+          )
+        } else {
+          onContext({ kind: "field" }, at, held)
+        }
+      }}
       className={cn(
         "app-no-drag relative h-full w-full touch-none overflow-hidden select-none",
         gesture && "gesture-lock",
@@ -628,6 +685,8 @@ export function SocketCanvas({
                     fill="none"
                     stroke="transparent"
                     strokeWidth={12}
+                    data-link-to={l.to}
+                    data-link-socket={l.toSocket}
                     style={{ pointerEvents: "stroke", cursor: "pointer" }}
                     onPointerDown={(e) => {
                       if (e.button !== 0) return
@@ -666,6 +725,7 @@ export function SocketCanvas({
                   onSelect(n.id, { ctrl: e.ctrlKey || e.metaKey, shift: e.shiftKey })
                 }
               }}
+              data-node-id={n.id}
               data-selected={n.selected ? "true" : undefined}
               className="group/node node-card pointer-events-auto absolute rounded-md"
               style={{
