@@ -374,6 +374,7 @@ export function ContextMenu({
   at,
   surface,
   title,
+  widthRem = 14,
   onClose,
   children,
 }: {
@@ -382,6 +383,8 @@ export function ContextMenu({
   surface: HTMLElement | null
   /** What the menu is about, named at its head. */
   title: string
+  /** Wider for a panel of rows with pictures, as the run list is. */
+  widthRem?: number
   onClose: () => void
   children: React.ReactNode
 }) {
@@ -439,9 +442,10 @@ export function ContextMenu({
       ref={panelRef}
       role="menu"
       onKeyDown={onMenuKeys}
-      className={cn(MENU_SHELL, "absolute z-70 w-[14rem]")}
+      className={cn(MENU_SHELL, "absolute z-70")}
       style={{
         ...MENU_SHELL_STYLE,
+        width: `${widthRem}rem`,
         left: pos?.x ?? -9999,
         top: pos?.y ?? -9999,
         visibility: pos ? "visible" : "hidden",
