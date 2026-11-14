@@ -1,0 +1,32 @@
+{
+  "id": "gp_series",
+  "name": "Gaussian Process",
+  "task": "time_series",
+  "summary": "Fits a smooth trajectory to a field's Sentinel-2 series and gives its 95 % interval, which widens where clouds leave gaps.",
+  "status": "Calibrated per region on fields in Bahia, Mato Grosso and Paraná, from another reading of the same Sentinel-2 scenes. It waits to be refitted and evaluated on series read by TERRA itself.",
+  "reads": [
+    {
+      "label": "Imagery",
+      "value": "Sentinel-2 L2A scenes over the polygon. A date counts when at least 30 % of the polygon is clear, and of two orbits on one date the clearer is kept"
+    },
+    {
+      "label": "Bands",
+      "value": "B02, B03, B04 and B08 at 10 m, with NDVI and EVI per pixel: the median over the polygon's clear pixels on each date"
+    },
+    {
+      "label": "Series",
+      "value": "The six medians projected on three principal components, each fitted with a Gaussian process of a seasonal oscillator and a local term, with heavy-tailed noise"
+    }
+  ],
+  "limits": [
+    "Calibrated on fields in Bahia, Mato Grosso and Paraná. Elsewhere it would use one scale fitted on the three regions together, which has not been checked outside them.",
+    "Coverage was checked on the three principal components, and in Bahia their interval is slightly wider than it needs to be. The NDVI interval built from them has not been checked yet.",
+    "The trajectory is smooth: a harvest or another abrupt change shows up spread over weeks, not as a step."
+  ],
+  "picture": {
+    "subject": "a soybean-then-maize field in Mato Grosso, September 2020 to August 2021, read as TERRA reads it: observed NDVI in orange dots, the model's trajectory as a green line and its 95 % interval shaded. Drawn with the model before its refit; the NDVI interval is not calibrated yet",
+    "author": "Contains modified Copernicus Sentinel data 2020–2021",
+    "license": "CC BY 4.0",
+    "source": "https://planetarycomputer.microsoft.com/dataset/sentinel-2-l2a"
+  }
+}
