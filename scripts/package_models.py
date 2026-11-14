@@ -32,6 +32,15 @@ if it goes to Zenodo (the DOI is inside the zip), run this, create the release
 with the zip and upload it to Zenodo, and only then put the catalogue at the
 root of the models repository, so it never lists a zip that is not there yet.
 
+MODELS IN PREPARATION are listed too, under `upcoming`, before they have a
+release: a card that says what the model will do and what its release waits
+for, with nothing to download. Each is model/upcoming/<id>/entry.json, written
+by hand with the fields in ENTRY_FIELDS, and picture.webp (or .png, .jpg) beside
+it, which is inlined as the card's picture. Only those in UPCOMING are listed,
+in its order. A model is in LISTED or in UPCOMING, never both: when it is
+published it moves from one to the other. With UPCOMING empty the catalogue
+has no `upcoming` key, as before there was one.
+
 Run from the repository root:
 
     python3 scripts/package_models.py
@@ -51,9 +60,18 @@ SOURCES = ROOT / 'model' / 'packages'
 WEIGHTS = ROOT / 'model'
 OUT = ROOT / 'dist' / 'models'
 CATALOG = ROOT / 'model' / 'catalog.json'
+PREPARING = ROOT / 'model' / 'upcoming'
 
 # The packages the catalogue offers, in the order the Models screen lists them.
 LISTED = ('spectral', 'temporal_transformer')
+# The models in preparation it lists, in the order the Models screen shows them:
+# the furthest from a release last.
+UPCOMING: tuple[str, ...] = ()
+
+# What an entry.json may hold, in the order the catalogue gives it; the first
+# five are required. internal/models/catalog.go checks them again on reading.
+ENTRY_FIELDS = ('id', 'name', 'task', 'summary', 'status', 'reads', 'limits', 'picture')
+ENTRY_REQUIRED = ENTRY_FIELDS[:5]
 
 RELEASE = 'https://github.com/rexionmars/TERRA-models/releases/download/{id}-{version}/{zip}'
 ZENODO = 'https://zenodo.org/records/{record}/files/{zip}?download=1'
@@ -119,21 +137,56 @@ def catalog_entry(manifest: dict, target: Path, found: dict[str, Path]) -> dict:
     if m := ZENODO_DOI.match(manifest.get('doi') or ''):
         sources.append({'name': 'Zenodo', 'url': ZENODO.format(record=m.group(1), zip=zip_name)})
 
-    picture_uri = ''
-    if picture := found.get('picture'):
-        kind = PICTURE_TYPES.get(picture.suffix.lower(), 'image/webp')
-        picture_uri = f'data:{kind};base64,' + base64.b64encode(picture.read_bytes()).decode()
-
+    picture = found.get('picture')
     return {
         'manifest': manifest,
         'digest': package_digest(manifest['files']),
-        'picture_uri': picture_uri,
+        'picture_uri': picture_uri(picture) if picture else '',
         'package': {'name': zip_name, 'sha256': sha256(target), 'size': target.stat().st_size},
         'sources': sources,
     }
 
 
+def picture_uri(path: Path) -> str:
+    kind = PICTURE_TYPES.get(path.suffix.lower(), 'image/webp')
+    return f'data:{kind};base64,' + base64.b64encode(path.read_bytes()).decode()
+
+
+def upcoming_entry(source: Path) -> dict:
+    """
+    The catalogue entry of a model in preparation: its entry.json, and its
+    picture inlined. Refuses a field the catalogue does not carry, so a
+    version or an address never reaches a model that has no release.
+    """
+    entry = json.loads((source / 'entry.json').read_text(encoding='utf-8'))
+    if entry.get('id') != source.name:
+        sys.exit(f"{source}: entry.json names {entry.get('id')!r}, not {source.name!r}")
+    if extra := sorted(set(entry) - set(ENTRY_FIELDS)):
+        sys.exit(f"{source.name}: entry.json holds {', '.join(extra)}, which a model in "
+                 'preparation does not have')
+    if missing := [f for f in ENTRY_REQUIRED if not entry.get(f)]:
+        sys.exit(f"{source.name}: entry.json has no {', '.join(missing)}")
+    out = {f: entry[f] for f in ENTRY_FIELDS if f in entry}
+    pictures = [p for p in sorted(source.glob('picture.*')) if p.suffix.lower() in PICTURE_TYPES]
+    if len(pictures) > 1:
+        sys.exit(f"{source.name}: more than one picture ({', '.join(p.name for p in pictures)})")
+    if pictures:
+        out['picture_uri'] = picture_uri(pictures[0])
+    return out
+
+
+def catalog_text(models: list[dict], upcoming: list[dict]) -> str:
+    """The catalogue as written: with no model in preparation, as it was before them."""
+    catalog: dict = {'format': 1, 'models': models}
+    if upcoming:
+        catalog['upcoming'] = upcoming
+    return json.dumps(catalog, ensure_ascii=False, indent=2) + '\n'
+
+
 def main() -> None:
+    if both := sorted(set(LISTED) & set(UPCOMING)):
+        sys.exit(f"{', '.join(both)} is in LISTED and in UPCOMING; a model is published "
+                 'or in preparation, not both')
     sources = sorted(p for p in SOURCES.iterdir() if (p / 'model.json').is_file())
     if not sources:
         sys.exit(f'no model.json under {SOURCES}')
@@ -151,9 +204,11 @@ def main() -> None:
     missing = [i for i in LISTED if i not in entries]
     if missing:
         sys.exit(f"LISTED names {', '.join(missing)}, which has no package under {SOURCES}")
-    catalog = {'format': 1, 'models': [entries[i] for i in LISTED]}
-    CATALOG.write_text(json.dumps(catalog, ensure_ascii=False, indent=2) + '\n', encoding='utf-8')
-    print(f'{CATALOG.relative_to(ROOT)}  {len(LISTED)} models')
+    if missing := [i for i in UPCOMING if not (PREPARING / i / 'entry.json').is_file()]:
+        sys.exit(f"UPCOMING names {', '.join(missing)}, which has no entry.json under {PREPARING}")
+    upcoming = [upcoming_entry(PREPARING / i) for i in UPCOMING]
+    CATALOG.write_text(catalog_text([entries[i] for i in LISTED], upcoming), encoding='utf-8')
+    print(f'{CATALOG.relative_to(ROOT)}  {len(LISTED)} models, {len(upcoming)} in preparation')
 
 
 if __name__ == '__main__':

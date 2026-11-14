@@ -122,9 +122,31 @@ type CatalogEntry struct {
 	Sources []ModelSource `json:"sources"`
 }
 
+/*
+UpcomingEntry is a model being prepared for TERRA that has no release yet: what
+the Models screen says about it before there is anything to download. It has no
+version, digest, package or source, so nothing can be installed from it.
+*/
+type UpcomingEntry struct {
+	ID      string `json:"id"`
+	Name    string `json:"name"`
+	Task    string `json:"task"`
+	Summary string `json:"summary"`
+	// Status says what the release still waits for, as a sentence.
+	Status  string        `json:"status"`
+	Reads   []ModelFact   `json:"reads"`
+	Limits  []string      `json:"limits"`
+	Picture *ModelPicture `json:"picture"`
+	// PictureURI is the card's picture as a data URI, empty without one.
+	PictureURI string `json:"picture_uri"`
+}
+
 // ModelCatalog is the catalogue as the Models screen reads it.
 type ModelCatalog struct {
 	Models []CatalogEntry `json:"models"`
+	// Upcoming are the models in preparation, in the catalogue's order. None
+	// can be installed, and none is counted in Unsupported.
+	Upcoming []UpcomingEntry `json:"upcoming"`
 	// Origin is "online" when the published catalogue was read just now, and
 	// "built-in" when it could not be and the copy this build carries is shown.
 	Origin string `json:"origin"`

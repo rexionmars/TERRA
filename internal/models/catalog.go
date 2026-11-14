@@ -15,11 +15,18 @@ in the order they are tried.
 The catalogue is what vouches for a download. A package from it is installed
 without the warning an imported one gets, because its digests were fixed by
 whoever published it, in the repository the application is built from.
+
+MODELS IN PREPARATION are listed apart, under "upcoming": a model being prepared
+for TERRA, described before it has a release, with what the release still waits
+for and nothing to download. A TERRA that predates the list reads the file as
+before, because encoding/json passes over a key it does not know, so the
+catalogue keeps format 1.
 */
 
 import (
 	"context"
 	"crypto/sha256"
+	"encoding/base64"
 	"encoding/hex"
 	"encoding/json"
 	"errors"
@@ -30,6 +37,7 @@ import (
 	"net/url"
 	"os"
 	"path/filepath"
+	"regexp"
 	"strings"
 	"time"
 
@@ -41,6 +49,10 @@ const (
 	// maxCatalog bounds what is read of a catalogue: each entry inlines a
 	// picture of a few tens of kilobytes, and a few hundred entries fit.
 	maxCatalog = 16 << 20
+	// maxPictureURI bounds the picture of a model in preparation, as a data
+	// URI: about eight times the pictures published today (some 34 kB), so
+	// that sixty-four of them still fit in maxCatalog.
+	maxPictureURI = 256 << 10
 	// progressEvery is how often a download reports, so the interface is told
 	// often enough to move a bar and not so often that it is flooded.
 	progressEvery = 100 * time.Millisecond
@@ -49,35 +61,60 @@ const (
 // The file's shape. Entries are read one at a time, so one the application
 // cannot read leaves the others listed.
 type catalogFile struct {
-	Format int               `json:"format"`
-	Models []json.RawMessage `json:"models"`
+	Format   int               `json:"format"`
+	Models   []json.RawMessage `json:"models"`
+	Upcoming []json.RawMessage `json:"upcoming"`
 }
 
-/*
-ParseCatalog reads a catalogue, keeping the entries this version can install.
+// pictureURI is the head of a picture inlined in the catalogue: the image
+// types scripts/package_models.py inlines, in base64.
+var pictureURI = regexp.MustCompile(`^data:(image/(?:webp|png|jpeg));base64,`)
 
-An entry that does not read -- a family or a task the sidecar does not know, a
-newer manifest format, a digest that disagrees with its own files -- is counted in
-unsupported and left out, rather than offered and refused after the download.
-A catalogue of a newer format is refused whole.
+/*
+ParseCatalog reads a catalogue: the packages this version can install, and the
+models in preparation it can describe. Origin and Problem are the caller's.
+
+A package entry that does not read -- a family or a task the sidecar does not
+know, a newer manifest format, a digest that disagrees with its own files -- is
+counted in Unsupported and left out, rather than offered and refused after the
+download. An upcoming entry that does not read is left out and not counted,
+because what it lacks is not a newer TERRA. So is one whose id a package entry
+or an earlier upcoming entry already has: that model is published, or listed
+once already. A catalogue of a newer format is refused whole.
 */
-func ParseCatalog(raw []byte) (entries []analysis.CatalogEntry, unsupported int, err error) {
+func ParseCatalog(raw []byte) (analysis.ModelCatalog, error) {
 	var f catalogFile
 	if err := json.Unmarshal(raw, &f); err != nil {
-		return nil, 0, fmt.Errorf("the catalogue is not valid JSON: %w", err)
+		return analysis.ModelCatalog{}, fmt.Errorf("the catalogue is not valid JSON: %w", err)
 	}
 	if f.Format != catalogFormat {
-		return nil, 0, fmt.Errorf("the catalogue is format %d, and this version of TERRA reads %d", f.Format, catalogFormat)
+		return analysis.ModelCatalog{}, fmt.Errorf("the catalogue is format %d, and this version of TERRA reads %d", f.Format, catalogFormat)
 	}
+	var c analysis.ModelCatalog
+	// Every id a package entry names, read or not: a package this version
+	// cannot install is published all the same, and needs a newer TERRA.
+	named := map[string]bool{}
 	for _, r := range f.Models {
 		var e analysis.CatalogEntry
-		if json.Unmarshal(r, &e) != nil || checkEntry(e) != nil {
-			unsupported++
+		err := json.Unmarshal(r, &e)
+		if e.Manifest.ID != "" {
+			named[e.Manifest.ID] = true
+		}
+		if err != nil || checkEntry(e) != nil {
+			c.Unsupported++
 			continue
 		}
-		entries = append(entries, e)
+		c.Models = append(c.Models, e)
 	}
-	return entries, unsupported, nil
+	for _, r := range f.Upcoming {
+		var u analysis.UpcomingEntry
+		if json.Unmarshal(r, &u) != nil || checkUpcoming(u) != nil || named[u.ID] {
+			continue
+		}
+		named[u.ID] = true
+		c.Upcoming = append(c.Upcoming, u)
+	}
+	return c, nil
 }
 
 func checkEntry(e analysis.CatalogEntry) error {
@@ -104,6 +141,40 @@ func checkEntry(e analysis.CatalogEntry) error {
 		if err != nil || (u.Scheme != "https" && u.Scheme != "http") || u.Host == "" {
 			return fmt.Errorf("model %s: %q is not a download address", e.Manifest.ID, s.URL)
 		}
+	}
+	return nil
+}
+
+// checkUpcoming refuses a model in preparation the Models screen could not
+// describe truly.
+func checkUpcoming(u analysis.UpcomingEntry) error {
+	if !idPattern.MatchString(u.ID) {
+		return fmt.Errorf("upcoming model id %q is not a valid id", u.ID)
+	}
+	for _, f := range []struct{ name, value string }{
+		{"name", u.Name}, {"summary", u.Summary}, {"status", u.Status},
+	} {
+		if strings.TrimSpace(f.value) == "" {
+			return fmt.Errorf("upcoming model %s has no %s", u.ID, f.name)
+		}
+	}
+	if !tasks[u.Task] {
+		return fmt.Errorf("upcoming model %s is for %q, a task this version of TERRA does not know", u.ID, u.Task)
+	}
+	if u.PictureURI == "" {
+		return nil
+	}
+	if len(u.PictureURI) > maxPictureURI {
+		return fmt.Errorf("upcoming model %s: its picture is larger than %d kB", u.ID, maxPictureURI>>10)
+	}
+	head := pictureURI.FindStringSubmatch(u.PictureURI)
+	if head == nil {
+		return fmt.Errorf("upcoming model %s: its picture is not a WebP, PNG or JPEG data URI", u.ID)
+	}
+	// The bytes must be the image the URI names, or the card shows a broken one.
+	body, err := base64.StdEncoding.DecodeString(u.PictureURI[len(head[0]):])
+	if err != nil || http.DetectContentType(body) != head[1] {
+		return fmt.Errorf("upcoming model %s: its picture is not the %s its data URI names", u.ID, head[1])
 	}
 	return nil
 }

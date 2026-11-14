@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest"
 
-import { catalogEntry, compareVersions } from "@/lib/modelCatalog"
-import type { CatalogEntry, ModelCatalog } from "@/lib/types"
+import { catalogEntry, compareVersions, inPreparation } from "@/lib/modelCatalog"
+import type { CatalogEntry, ModelCatalog, ModelInfo, UpcomingEntry } from "@/lib/types"
 
 const entry = (id: string, version: string) =>
   ({ manifest: { id, version } }) as unknown as CatalogEntry
@@ -38,5 +38,38 @@ describe("catalogEntry", () => {
   it("gives nothing for a model the catalogue does not list, or without one", () => {
     expect(catalogEntry(catalog, "prithvi")).toBeUndefined()
     expect(catalogEntry(null, "rf")).toBeUndefined()
+  })
+})
+
+describe("inPreparation", () => {
+  const coming = (id: string) => ({ id }) as UpcomingEntry
+  const installed = (id: string) => ({ manifest: { id } }) as unknown as ModelInfo
+  const catalog = {
+    models: [entry("rf", "1.0.0")],
+    upcoming: [coming("gp-interval"), coming("cloud-score"), coming("phenology")],
+    origin: "online",
+    problem: "",
+    unsupported: 0,
+  } as ModelCatalog
+
+  it("keeps the catalogue's order", () => {
+    expect(inPreparation(catalog, []).map((u) => u.id)).toEqual([
+      "gp-interval",
+      "cloud-score",
+      "phenology",
+    ])
+  })
+
+  it("leaves out a model whose id is installed", () => {
+    expect(
+      inPreparation(catalog, [installed("cloud-score"), installed("rf")]).map(
+        (u) => u.id
+      )
+    ).toEqual(["gp-interval", "phenology"])
+  })
+
+  it("gives none for a catalogue without the list, or without a catalogue", () => {
+    expect(inPreparation({ ...catalog, upcoming: null }, [])).toEqual([])
+    expect(inPreparation(null, [])).toEqual([])
   })
 })

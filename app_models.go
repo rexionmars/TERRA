@@ -137,7 +137,8 @@ func (a *App) RemoveModel(id, version string) error {
 }
 
 /*
-ModelCatalog reads the published catalogue: the models a reader can download.
+ModelCatalog reads the published catalogue: the models a reader can download,
+and the models in preparation, which the screen describes and cannot install.
 
 When it cannot be read -- no connection, or a catalogue too new for this
 version -- the copy this build carries is returned instead, with the reason, so
@@ -152,19 +153,22 @@ func (a *App) ModelCatalog() (analysis.ModelCatalog, error) {
 	ctx, cancel := context.WithTimeout(a.parentContext(), catalogWait)
 	defer cancel()
 
-	out := analysis.ModelCatalog{Origin: "online"}
+	var out analysis.ModelCatalog
 	raw, err := a.remote().Catalog(ctx, address)
 	if err == nil {
-		out.Models, out.Unsupported, err = models.ParseCatalog(raw)
+		out, err = models.ParseCatalog(raw)
+		out.Origin = "online"
 	}
 	if err != nil {
-		out = analysis.ModelCatalog{Origin: "built-in", Problem: err.Error()}
 		var berr error
-		out.Models, out.Unsupported, berr = models.ParseCatalog(builtinCatalog)
+		out, berr = models.ParseCatalog(builtinCatalog)
 		if berr != nil {
 			return analysis.ModelCatalog{}, fmt.Errorf("the catalogue this build carries cannot be read: %w", berr)
 		}
+		out.Origin, out.Problem = "built-in", err.Error()
 	}
+	// Only the packages: a model in preparation has nothing to download, so an
+	// install that names one is refused as a model the catalogue does not list.
 	a.models.mu.Lock()
 	a.models.catalog = out.Models
 	a.models.mu.Unlock()

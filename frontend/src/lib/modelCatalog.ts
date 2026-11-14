@@ -18,7 +18,13 @@ import {
 } from "../../wailsjs/go/main/App"
 import { EventsOn } from "../../wailsjs/runtime/runtime"
 import { refreshModels } from "@/lib/installedModels"
-import type { CatalogEntry, ModelCatalog, ModelDownload, ModelInfo } from "@/lib/types"
+import type {
+  CatalogEntry,
+  ModelCatalog,
+  ModelDownload,
+  ModelInfo,
+  UpcomingEntry,
+} from "@/lib/types"
 
 interface Snapshot {
   catalog: ModelCatalog | null
@@ -133,6 +139,20 @@ export function catalogEntry(
   return (catalog?.models ?? [])
     .filter((e) => e.manifest.id === id)
     .sort((a, b) => compareVersions(b.manifest.version, a.manifest.version))[0]
+}
+
+/**
+ * The models in preparation the Models screen shows, in the catalogue's order.
+ * One whose id is installed is left out: the installed package has a card of
+ * its own, and saying of it that it is not published would be wrong.
+ */
+export function inPreparation(
+  catalog: ModelCatalog | null,
+  installed: readonly ModelInfo[]
+): UpcomingEntry[] {
+  return (catalog?.upcoming ?? []).filter(
+    (u) => !installed.some((m) => m.manifest.id === u.id)
+  )
 }
 
 /**
