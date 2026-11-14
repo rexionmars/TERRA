@@ -296,12 +296,24 @@ func List(root string) (pkgs []*Package, errs []error) {
 	return pkgs, errs
 }
 
-// Resolve finds the installed package for id: the given version, or the newest
-// installed when version is empty.
-func Resolve(root, id, version string) (*Package, error) {
+/*
+Resolve finds the installed package for id: the given version, or the newest
+installed when version is empty. A package found for another task than the one
+the caller runs is refused rather than passed on, because the sidecar runs a
+package by its family, and a family of one task cannot do another's.
+*/
+func Resolve(root, task, id, version string) (*Package, error) {
 	pkgs, _ := List(root)
 	for _, p := range pkgs {
 		if p.Manifest.ID == id && (version == "" || p.Manifest.Version == version) {
+			if p.Manifest.Task != task {
+				name := p.Manifest.Name
+				if name == "" {
+					name = p.Manifest.ID
+				}
+				return nil, fmt.Errorf("%s is a model for %s, and this run needs one for %s; choose another",
+					name, taskWords(p.Manifest.Task), taskWords(task))
+			}
 			return p, nil
 		}
 	}
@@ -309,6 +321,11 @@ func Resolve(root, id, version string) (*Package, error) {
 		return nil, fmt.Errorf("%w: %s %s; install it from Models", ErrNotInstalled, id, version)
 	}
 	return nil, fmt.Errorf("%w: %s; install it from Models", ErrNotInstalled, id)
+}
+
+// taskWords is a task as a sentence says it: "land cover" for land_cover.
+func taskWords(task string) string {
+	return strings.ReplaceAll(task, "_", " ")
 }
 
 /*

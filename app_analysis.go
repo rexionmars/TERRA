@@ -25,7 +25,9 @@ func (a *App) predict(ctx context.Context, req analysis.PredictRequest) (*analys
 		return nil, errors.New("runner not initialized")
 	}
 	// The model is an installed package; app_models.go says where they live.
-	// An empty id is the default the preferences have always held.
+	// An empty id is the default the preferences have always held. Only a
+	// land-cover package resolves here: a model of another task emits no
+	// classes to map.
 	if req.ModelKind == "" {
 		req.ModelKind = "spectral"
 	}
@@ -33,7 +35,7 @@ func (a *App) predict(ctx context.Context, req analysis.PredictRequest) (*analys
 	if root == "" {
 		return nil, errors.New("the local store is not open")
 	}
-	pkg, err := models.Resolve(root, req.ModelKind, req.ModelVersion)
+	pkg, err := models.Resolve(root, models.LandCover, req.ModelKind, req.ModelVersion)
 	if err != nil {
 		return nil, err
 	}

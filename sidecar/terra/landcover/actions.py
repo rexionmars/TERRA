@@ -127,6 +127,13 @@ def predict(req, work_dir):
         models.verify(package)
     except models.PackageError as e:
         protocol.fail(str(e))
+    # The shell resolves only land-cover packages for this action; this holds
+    # when the sidecar is run by hand. classify.run takes any family it does
+    # not know for the Random Forest.
+    if package.task != models.LAND_COVER:
+        task = package.task.replace('_', ' ')
+        protocol.fail(f'{package.name} is a model for {task} and emits no '
+                      'classes; classify with a land-cover model')
 
     rf_model = scaler = label_encoder = feature_names = None
     n_dates_model = 22

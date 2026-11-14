@@ -213,15 +213,15 @@ func TestResolveFindsTheNewestVersionUnlessOneIsNamed(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
-	p, err := Resolve(root, "test-rf", "")
+	p, err := Resolve(root, LandCover, "test-rf", "")
 	if err != nil || p.Manifest.Version != "1.10.0" {
 		t.Fatalf("got %v %v, want 1.10.0", p, err)
 	}
-	p, err = Resolve(root, "test-rf", "1.2.0")
+	p, err = Resolve(root, LandCover, "test-rf", "1.2.0")
 	if err != nil || p.Manifest.Version != "1.2.0" {
 		t.Fatalf("got %v %v, want 1.2.0", p, err)
 	}
-	if _, err := Resolve(root, "absent", ""); !errors.Is(err, ErrNotInstalled) {
+	if _, err := Resolve(root, LandCover, "absent", ""); !errors.Is(err, ErrNotInstalled) {
 		t.Fatalf("got %v, want ErrNotInstalled", err)
 	}
 }
@@ -357,6 +357,22 @@ func TestAModelOfAnotherTaskCannotHoldAPickle(t *testing.T) {
 		if _, err := Load(dir); err == nil || !strings.Contains(err.Error(), "neither JSON nor NPZ") {
 			t.Fatalf("%s: got %v, want it refused", name, err)
 		}
+	}
+}
+
+func TestResolveRefusesAModelOfAnotherTask(t *testing.T) {
+	root := t.TempDir()
+	src := t.TempDir()
+	writeCurve(t, src, "parameters.json", []byte(`{"length_scale_days": 32.0}`))
+	if _, err := Import(root, src); err != nil {
+		t.Fatal(err)
+	}
+	_, err := Resolve(root, LandCover, "test-curve", "")
+	if err == nil || errors.Is(err, ErrNotInstalled) || !strings.Contains(err.Error(), "a model for time series") {
+		t.Fatalf("got %v, want the task named", err)
+	}
+	if p, err := Resolve(root, "time_series", "test-curve", ""); err != nil || p.Manifest.ID != "test-curve" {
+		t.Fatalf("got %v %v, want it found for its own task", p, err)
 	}
 }
 
