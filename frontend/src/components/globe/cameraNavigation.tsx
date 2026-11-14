@@ -125,51 +125,36 @@ export function useCameraNavigation(
  * its title.
  */
 
-/** The compass's own box, in px: the dial is drawn in a 96-unit square. */
-const DIAL = 96
-const C = DIAL / 2
-/** The outer ring, broken at the top for the index. */
-const RING_R = 45
-/** The arc from north to the index runs between the ring and the ticks. */
-const ARC_R = 41
-/** The ticks hang inward from here. */
-const TICK_R = 38
-/** The cardinal letters sit on this circle. */
-const LETTER_R = 27
-
-const CARDINALS = [
-  { at: 0, letter: "N" },
-  { at: 90, letter: "E" },
-  { at: 180, letter: "S" },
-  { at: 270, letter: "W" },
-] as const
-const TICKS = Array.from({ length: 72 }, (_, i) => i * 5)
-const POINTS = ["N", "NE", "E", "SE", "S", "SW", "W", "NW"] as const
-
-/** A point on a circle about the dial's centre, at `deg` clockwise from the top. */
-function onCircle(r: number, deg: number): [number, number] {
-  const a = (deg * Math.PI) / 180
-  return [C + r * Math.sin(a), C - r * Math.cos(a)]
-}
+/** The needle is drawn in a 16-unit square, as the glyphs beside it are. */
+const BOX = 16
+const C = BOX / 2
 
 /**
- * The camera as a compass.
+ * The least the needle is flattened to. A camera at MapLibre's 85 degrees
+ * would squash it to a twelfth of its length, a line with no direction left
+ * in it; at this floor the tip still says which way north is.
+ */
+const MIN_SQUASH = 0.3
+
+/**
+ * The camera as one needle, at the size of the map's other controls.
  *
- * THE DIAL TURNS AND THE INDEX DOES NOT. The triangle at the top is where the
- * camera faces; the dial under it carries north round as the map turns, so
- * the letter under the triangle is the way the reader is looking, and the
- * figure in the middle says it in degrees. North alone is in the accent: it is
- * the one direction a reader squares to, and the arc from it to the index in
- * the same colour is how far the view is turned away -- the distance the press
- * on this control takes back.
+ * IT WAS A FULL COMPASS -- a 96 px dial with seventy-two ticks, four letters,
+ * the heading in degrees and the tilt written under it -- and it drew the eye
+ * away from the imagery it sat on whenever the view was turned. The reader
+ * needs two things from it: that the view is not square, and a press that
+ * squares it. The control's presence says the first, since it shows only
+ * while the view is turned or tilted, and the needle says the rest.
  *
- * THE TILT IS WRITTEN, NOT DRAWN. The control also undoes a tilted camera, so
- * it says how far it is tilted, under the heading, and says nothing when the
- * camera looks straight down.
+ * THE NEEDLE LIES ON THE GROUND. It turns with the map, so the accent tip
+ * points where north is on the screen, and it is flattened by the tilt as a
+ * line drawn on the ground would be, so a tilted view reads as a shortened
+ * needle without a figure to read. The heading and the tilt in degrees are on
+ * the title, for the reader who asks.
  *
  * DRAWN BY MUTATION, NOT BY RENDER. Bearing and pitch change on every frame of
  * a drag, and putting them in React state would re-render the control sixty
- * times a second for numbers nothing else reads. The angles and the figures
+ * times a second for numbers nothing else reads. The transform and the title
  * are written straight onto the elements that carry them, from the map's own
  * events; the hook above returns only whether the view is level.
  */
@@ -182,11 +167,8 @@ export function CameraControls({
   level: boolean
   className?: string
 }) {
-  const dialRef = useRef<SVGGElement | null>(null)
-  const arcRef = useRef<SVGPathElement | null>(null)
-  const headingRef = useRef<SVGTextElement | null>(null)
-  const pointRef = useRef<SVGTextElement | null>(null)
-  const tiltRef = useRef<SVGTextElement | null>(null)
+  const buttonRef = useRef<HTMLButtonElement | null>(null)
+  const needleRef = useRef<SVGGElement | null>(null)
 
   useEffect(() => {
     if (!map) return
@@ -194,30 +176,20 @@ export function CameraControls({
       const bearing = map.getBearing()
       const pitch = map.getPitch()
       // North's screen angle is the bearing turned the other way: a camera
-      // facing east has north on its left.
-      dialRef.current?.setAttribute("transform", `rotate(${-bearing} ${C} ${C})`)
-      // The turn away from north, the short way round, in (-180, 180].
-      const away = ((((bearing + 180) % 360) + 360) % 360) - 180
-      if (arcRef.current) {
-        if (Math.abs(away) < 0.5) {
-          arcRef.current.setAttribute("d", "")
-        } else {
-          const [fx, fy] = onCircle(ARC_R, away > 0 ? -away : 0)
-          const [tx, ty] = onCircle(ARC_R, away > 0 ? 0 : -away)
-          arcRef.current.setAttribute(
-            "d",
-            `M ${fx} ${fy} A ${ARC_R} ${ARC_R} 0 0 1 ${tx} ${ty}`
-          )
-        }
-      }
+      // facing east has north on its left. The turn is applied on the ground
+      // first and the tilt's foreshortening on the screen after it.
+      const squash = Math.max(MIN_SQUASH, Math.cos((pitch * Math.PI) / 180))
+      needleRef.current?.setAttribute(
+        "transform",
+        `translate(${C} ${C}) scale(1 ${squash}) rotate(${-bearing}) translate(${-C} ${-C})`
+      )
       const heading = Math.round(((bearing % 360) + 360) % 360) % 360
-      if (headingRef.current) headingRef.current.textContent = `${heading}°`
-      if (pointRef.current) {
-        pointRef.current.textContent = POINTS[Math.round(heading / 45) % 8]
-      }
-      if (tiltRef.current) {
-        tiltRef.current.textContent = pitch >= 0.5 ? `tilt ${Math.round(pitch)}°` : ""
-      }
+      const tilt = Math.round(pitch)
+      buttonRef.current?.setAttribute(
+        "title",
+        `Level, facing north (r). Heading ${heading}°, tilt ${tilt}°. ` +
+          "n faces north, u looks straight down."
+      )
     }
     paint()
     const subs = [
@@ -235,118 +207,28 @@ export function CameraControls({
   // Nothing to square when the view is already square. The control appears
   // with the turn or the tilt it undoes, and leaves with it.
   if (level) return null
-  const [gapL] = onCircle(RING_R, -9)
-  const [gapR] = onCircle(RING_R, 9)
-  const gapY = onCircle(RING_R, 9)[1]
   return (
     <button
+      ref={buttonRef}
       type="button"
-      title="Level, facing north (r). n faces north, u looks straight down."
       aria-label="Level the view, facing north"
       onClick={() => map?.easeTo({ bearing: 0, pitch: 0, duration: 400 })}
       className={cn(
-        "map-chrome app-no-drag rounded-full border transition-colors",
+        // MapBar and MapButton's measurements, as a bar of one.
+        "map-chrome app-no-drag flex size-[2.125rem] items-center justify-center rounded-md",
+        "border border-[rgb(var(--p-line)/0.28)] shadow-[0_2px_8px_rgb(0_0_0/0.28)]",
+        "text-muted-foreground transition-colors",
+        "hover:bg-[rgb(var(--p-surface-raised)/0.92)] hover:text-foreground",
         "focus-visible:ring-1 focus-visible:ring-ring focus-visible:outline-none",
         className
       )}
-      style={{
-        width: DIAL,
-        height: DIAL,
-        // The menus' plate (MenuPopover), as a disc.
-        background:
-          "linear-gradient(180deg, rgb(var(--p-control) / 0.94), rgb(var(--p-ink) / 0.94))",
-        borderColor: "rgb(var(--p-line) / 0.45)",
-        boxShadow: "0 12px 32px rgb(0 0 0 / 0.45)",
-        backdropFilter: "blur(14px)",
-      }}
     >
-      <svg viewBox={`0 0 ${DIAL} ${DIAL}`} className="block size-full" aria-hidden>
-        {/* The ring, fixed, broken at the top where the index stands. */}
-        <path
-          d={`M ${gapR} ${gapY} A ${RING_R} ${RING_R} 0 1 1 ${gapL} ${gapY}`}
-          fill="none"
-          stroke="rgb(var(--p-text) / 0.28)"
-          strokeWidth={1}
-        />
-        {/* The index: where the camera faces. */}
-        <path
-          d={`M ${C - 4} 1.5 L ${C + 4} 1.5 L ${C} 8 Z`}
-          fill="rgb(var(--p-text) / 0.75)"
-        />
-        {/* How far the view is turned from north. */}
-        <path
-          ref={arcRef}
-          fill="none"
-          stroke="rgb(var(--p-accent))"
-          strokeWidth={2}
-          strokeLinecap="round"
-        />
-        <g ref={dialRef}>
-          {TICKS.map((d) => {
-            const len = d % 90 === 0 ? 7 : d % 30 === 0 ? 5 : 2.5
-            const [x1, y1] = onCircle(TICK_R, d)
-            const [x2, y2] = onCircle(TICK_R - len, d)
-            return (
-              <line
-                key={d}
-                x1={x1}
-                y1={y1}
-                x2={x2}
-                y2={y2}
-                stroke={d === 0 ? "rgb(var(--p-accent))" : "rgb(var(--p-text))"}
-                strokeOpacity={d === 0 ? 1 : d % 30 === 0 ? 0.7 : 0.35}
-                strokeWidth={d % 30 === 0 ? 1.25 : 0.75}
-              />
-            )
-          })}
-          {CARDINALS.map(({ at, letter }) => (
-            <text
-              key={letter}
-              x={C}
-              y={C - LETTER_R}
-              transform={`rotate(${at} ${C} ${C})`}
-              textAnchor="middle"
-              dominantBaseline="central"
-              fontSize={9}
-              fontWeight={600}
-              fill={at === 0 ? "rgb(var(--p-accent))" : "rgb(var(--p-muted))"}
-            >
-              {letter}
-            </text>
-          ))}
+      <svg viewBox={`0 0 ${BOX} ${BOX}`} className="size-4" aria-hidden>
+        <g ref={needleRef}>
+          {/* North half in the accent: the one direction a reader squares to. */}
+          <path d="M 8 1 L 11 8 L 5 8 Z" fill="rgb(var(--p-accent))" />
+          <path d="M 5 8 L 11 8 L 8 15 Z" fill="currentColor" />
         </g>
-        {/* The way the camera faces, as a point of the compass and in degrees. */}
-        <text
-          ref={pointRef}
-          x={C}
-          y={C - 10}
-          textAnchor="middle"
-          dominantBaseline="central"
-          fontSize={7}
-          letterSpacing={0.6}
-          fill="rgb(var(--p-muted))"
-          style={{ fontFamily: "var(--font-telemetry)" }}
-        />
-        <text
-          ref={headingRef}
-          x={C}
-          y={C + 2}
-          textAnchor="middle"
-          dominantBaseline="central"
-          fontSize={15}
-          fill="rgb(var(--p-text))"
-          style={{ fontVariantNumeric: "tabular-nums" }}
-        />
-        <text
-          ref={tiltRef}
-          x={C}
-          y={C + 14}
-          textAnchor="middle"
-          dominantBaseline="central"
-          fontSize={6.5}
-          fill="rgb(var(--p-muted))"
-          style={{ fontFamily: "var(--font-telemetry)" }}
-        />
       </svg>
     </button>
   )
