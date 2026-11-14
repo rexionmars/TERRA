@@ -389,8 +389,9 @@ function ModelCard({
   const shown = shownOf(row)
   const m = shown.manifest
   const figure = m.evaluation?.figures[0]
+  // Who packaged a model is kept in its manifest and not shown: the card and
+  // the page describe the model, not the people behind it.
   const facts = [
-    packagers(m) && `Packaged by ${packagers(m)}`,
     figure ? `${figure.label} ${figure.value}` : "No evaluation recorded",
     ...(m.requires ?? []).map((r) => `needs ${r}`),
   ].filter(Boolean)
@@ -568,11 +569,6 @@ function ModelPage({
             {m.name}
             {m.id === current && installed && <InUse />}
           </h2>
-          {packagers(m) && (
-            <p className="mt-1 text-label text-muted-foreground">
-              Packaged by {packagers(m)}
-            </p>
-          )}
           <p className="mt-2 max-w-prose text-read text-muted-foreground">
             {m.summary}
           </p>
@@ -707,7 +703,6 @@ function ModelPage({
           <Facts
             rows={[
               { label: "Id", value: `${m.id} ${m.version}` },
-              { label: "Packaged by", value: packagers(m) || "not stated" },
               { label: "Licence", value: m.license || "not stated" },
               ...(m.doi ? [{ label: "DOI", value: m.doi }] : []),
               { label: "Digest", value: shown.digest.slice(0, 16) },
@@ -834,16 +829,6 @@ function Picture({
       className={cn(PICTURE, className)}
     />
   )
-}
-
-/**
- * Who made the package, as a reader says a list of names: "A", "A and B",
- * "A, B and C". Empty when the package names nobody.
- */
-function packagers(m: ModelManifest): string {
-  const names = (m.packaged_by ?? []).map((p) => p.name)
-  if (names.length <= 1) return names[0] ?? ""
-  return `${names.slice(0, -1).join(", ")} and ${names[names.length - 1]}`
 }
 
 /** What each task internal/models knows is called on a card and a page. */

@@ -89,7 +89,7 @@ role, with its SHA-256 and size, and states what the model is.
 | `classes` | MapBiomas codes it emits; required for `land_cover`, absent or empty for every other task |
 | `modes`, `requires`, `variants` | The classify modes it supports, optional Python packages, embedding heads |
 | `summary`, `reads`, `method`, `evaluation`, `limits`, `license`, `doi`, `picture` | What the Models screen and the method brief say about it |
-| `packaged_by` | Who made the package, as `[{"name": ...}]`; who developed the model is named by the evaluation's `source` |
+| `packaged_by` | Who made the package, as `[{"name": ...}]`; kept in the manifest, and not shown on the Models screen |
 
 Installed packages live under the data directory at `models/<id>/<version>/`
 (`internal/models`). A package of an unknown family or task, of a family that
