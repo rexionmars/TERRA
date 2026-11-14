@@ -214,8 +214,9 @@ const GUESS_H: Record<NodeKind, number> = {
   A node's colour by its category, from the parts the run graph already
   measured (lib/contrast.ts): Input takes the source part, Filter the method,
   Mask the catalogue's magenta, Color the period's yellow, Analysis the value
-  part, and Output the run card's gold. The colour is the card's top edge
-  (SocketCanvas); `band` and `ink` are what a chosen control inside is drawn in.
+  part, and Output the run card's gold. The colour fills the card's header,
+  the name set on it in `ink` (SocketCanvas); a chosen control inside is drawn
+  in the same pair.
 */
 const PART: Record<NodeCategory, string> = {
   input: "source",
@@ -2743,7 +2744,7 @@ export function CompositorEditor({
               cross on every card of a board is twenty marks that say the same
               thing, and none of them is what a card is read for.
             */
-            className="grid size-4 shrink-0 place-items-center rounded-sm text-muted-foreground opacity-0 group-hover/node:opacity-100 group-data-[selected=true]/node:opacity-100 hover:bg-hover hover:text-foreground focus-visible:opacity-100"
+            className="grid size-4 shrink-0 place-items-center rounded-sm opacity-0 group-hover/node:opacity-80 group-data-[selected=true]/node:opacity-80 hover:bg-[rgb(0_0_0/0.12)] hover:opacity-100 focus-visible:opacity-100"
           >
             <X className="size-2.5" />
           </button>

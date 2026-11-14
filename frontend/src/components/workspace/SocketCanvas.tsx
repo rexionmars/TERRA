@@ -10,13 +10,11 @@
  * some settings between the outputs and the inputs; they are set after both
  * here, so every socket sits at a height known without measuring a row.
  *
- * A NODE IS A DARK CARD, AND ITS CATEGORY IS AN EDGE. The header was a band
- * filled in the category's dark tone, and a board of twenty nodes was twenty
- * coloured slabs, every one as loud as the next, over the figures they hold.
- * The category is now the card's top edge and a wash that fades under the
- * name: found at a glance at any zoom, and quiet beside what the card shows.
- * Colour at full strength is kept for what is small and has to be found -- a
- * socket, a wire, a chosen option.
+ * A NODE IS A DARK CARD UNDER A HEADER IN ITS CATEGORY'S COLOUR: the colour
+ * its wires and sockets are drawn in, filled flat across the header, with the
+ * ink measured for it on the name. A card and the wire into it read as one
+ * thing. No glow and no wash: the selected card is ringed in the accent, and
+ * the header is one colour edge to edge.
  */
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react"
 import { ArrowsOut, CaretDown, CaretRight, TreeStructure } from "@/components/icons"
@@ -54,7 +52,10 @@ export interface SocketNode {
    */
   h: number
   header: React.ReactNode
-  /** The node's category colour: its top edge and the wash under its name. */
+  /**
+   * The node's category colour, filling its header. The name is set on it in
+   * `lit.ink`, the ink measured for that colour.
+   */
   head: string
   /** What a chosen control inside the node is drawn in: see nodeCard's Choice. */
   lit: { band: string; ink: string }
@@ -673,16 +674,11 @@ export function SocketCanvas({
                 width: n.w,
                 ["--b-lit" as string]: n.lit.band,
                 ["--b-lit-ink" as string]: n.lit.ink,
-                /*
-                  The category as the card's top edge: an inset shadow follows
-                  the corner radius where a drawn line would square it off.
-                  Selected, the accent rings the card with a halo; busy, the
-                  warning rings it; otherwise its own edge does.
-                */
+                // Selected, the accent rings the card; busy, the warning does;
+                // otherwise its own edge.
                 boxShadow: [
-                  `inset 0 2px 0 ${n.head}`,
                   n.selected
-                    ? "0 0 0 1.5px rgb(var(--p-accent)), 0 0 0 5px rgb(var(--p-accent) / 0.16)"
+                    ? "0 0 0 1.5px rgb(var(--p-accent))"
                     : `0 0 0 1px ${n.status === "busy" ? "var(--warning)" : "var(--b-node-edge)"}`,
                   "0 14px 32px -14px rgb(0 0 0 / 0.6)",
                 ].join(", "),
@@ -692,14 +688,13 @@ export function SocketCanvas({
               <div
                 onPointerDown={(e) => beginNode(e, n)}
                 className={cn(
-                  "relative flex cursor-grab items-center gap-1 pr-1.5 pl-1 text-body font-medium text-foreground active:cursor-grabbing",
-                  isFolded
-                    ? "rounded-md"
-                    : "rounded-t-md border-b border-[var(--hairline)]"
+                  "relative flex cursor-grab items-center gap-1 pr-1.5 pl-1 text-body font-medium active:cursor-grabbing",
+                  isFolded ? "rounded-md" : "rounded-t-md"
                 )}
                 style={{
                   height: HEAD_H,
-                  background: `linear-gradient(to bottom, color-mix(in srgb, ${n.head} 16%, transparent), transparent)`,
+                  background: n.head,
+                  color: n.lit.ink,
                 }}
               >
                 <button
@@ -708,7 +703,7 @@ export function SocketCanvas({
                   onClick={() => toggleFold(n.id)}
                   aria-expanded={!isFolded}
                   aria-label={isFolded ? "Unfold" : "Fold"}
-                  className="grid size-4 shrink-0 place-items-center rounded-sm text-muted-foreground hover:bg-hover hover:text-foreground"
+                  className="grid size-4 shrink-0 place-items-center rounded-sm opacity-70 hover:bg-[rgb(0_0_0/0.12)] hover:opacity-100"
                 >
                   {isFolded ? (
                     <CaretRight className="size-2.5" />
