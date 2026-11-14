@@ -12,11 +12,11 @@ import { cn } from "@/lib/utils"
  * A card's header: its name, and nothing else.
  *
  * As Solara writes it and Blender before it: the name in body type is the
- * whole of what needs saying. The category is the card's top edge, drawn by
+ * whole of what needs saying. The category is the header's colour, filled by
  * the canvas (SocketCanvas), not a glyph before the name.
  *
- * NO COLOUR NAMED HERE. The header sets the text colour and this inherits it,
- * so a card read in either theme names itself in that theme's text.
+ * NO COLOUR NAMED HERE. The header sets the ink measured for its colour and
+ * this inherits it, so the pair is checked where both are written down.
  */
 export function Head({ label }: { label: string }) {
   /*
@@ -70,7 +70,7 @@ export function Choice({
       )}
       /*
         A CHOSEN OPTION IS A CHIP IN THE CARD'S OWN COLOUR: the category band
-        filled, the band's ink on it, the colour of the card's top edge.
+        filled, the band's ink on it, the same pair as the card's header.
 
         It was `bg-accent-dim text-foreground inset-ring-1 inset-ring-accent` --
         a brown plate with an orange ring, the chassis's accent at the one
