@@ -22,7 +22,12 @@ import { ConfirmDelete } from "@/components/ui/ConfirmDelete"
 import { ModalHeader, ModalShell } from "@/components/ui/ModalShell"
 import { btnGhost, btnPrimaryCommit } from "@/components/ui/buttons"
 import { MAPBIOMAS_CLASS_LEGEND } from "@/lib/classPalette"
-import { fileSize, refreshModels, useInstalledModels } from "@/lib/installedModels"
+import {
+  fileSize,
+  LAND_COVER,
+  refreshModels,
+  useInstalledModels,
+} from "@/lib/installedModels"
 import {
   cancelDownload,
   catalogEntry,
@@ -630,28 +635,31 @@ function ModelPage({
       </div>
 
       <div className="mt-10 grid gap-x-12 gap-y-8 md:grid-cols-2">
-        <Section title="What it predicts">
-          <ul className="flex flex-col gap-1.5">
-            {m.classes.map((code) => {
-              const c = MAPBIOMAS_CLASS_LEGEND.find((x) => x.id === code)
-              return (
-                <li key={code} className="flex items-center gap-2 text-read">
-                  <span
-                    aria-hidden
-                    className="size-3 shrink-0 rounded-xs outline-1 -outline-offset-1 outline-[rgb(var(--p-line)/0.5)]"
-                    style={{ background: c?.color ?? "transparent" }}
-                  />
-                  <span className="text-foreground">
-                    {c?.name ?? "MapBiomas class"}
-                  </span>
-                  <span className="telemetry text-meta text-muted-foreground">
-                    class {code}
-                  </span>
-                </li>
-              )
-            })}
-          </ul>
-        </Section>
+        {/* Only a land-cover model lists classes; another estimates a quantity. */}
+        {m.classes?.length ? (
+          <Section title="What it predicts">
+            <ul className="flex flex-col gap-1.5">
+              {m.classes.map((code) => {
+                const c = MAPBIOMAS_CLASS_LEGEND.find((x) => x.id === code)
+                return (
+                  <li key={code} className="flex items-center gap-2 text-read">
+                    <span
+                      aria-hidden
+                      className="size-3 shrink-0 rounded-xs outline-1 -outline-offset-1 outline-[rgb(var(--p-line)/0.5)]"
+                      style={{ background: c?.color ?? "transparent" }}
+                    />
+                    <span className="text-foreground">
+                      {c?.name ?? "MapBiomas class"}
+                    </span>
+                    <span className="telemetry text-meta text-muted-foreground">
+                      class {code}
+                    </span>
+                  </li>
+                )
+              })}
+            </ul>
+          </Section>
+        ) : null}
         <Section title="What it reads">
           <Facts rows={m.reads ?? []} />
         </Section>
@@ -837,8 +845,14 @@ function packagers(m: ModelManifest): string {
   return `${names.slice(0, -1).join(", ")} and ${names[names.length - 1]}`
 }
 
-const taskName = (task: string) =>
-  task === "land_cover" ? "Land use and land cover" : task.replace(/_/g, " ")
+/** What each task internal/models knows is called on a card and a page. */
+const TASK_NAMES: Record<string, string> = {
+  [LAND_COVER]: "Land use and land cover",
+  time_series: "Time series",
+  observation_quality: "Observation quality",
+}
+
+const taskName = (task: string) => TASK_NAMES[task] ?? task.replace(/_/g, " ")
 
 function Section({ title, children }: { title: string; children: React.ReactNode }) {
   return (

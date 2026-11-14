@@ -72,6 +72,9 @@ export function installedModel(id: string): ModelInfo | undefined {
   return snapshot.models.find((m) => m.manifest.id === id)
 }
 
+/** The task of a model that classifies land cover, the one Classification runs. */
+export const LAND_COVER = "land_cover"
+
 const EARLIER: Record<string, string> = {
   spectral: "Random Forest",
   temporal_transformer: "Temporal Transformer",

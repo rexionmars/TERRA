@@ -56,8 +56,8 @@ type catalogFile struct {
 /*
 ParseCatalog reads a catalogue, keeping the entries this version can install.
 
-An entry that does not read -- a family the sidecar does not know, a newer
-manifest format, a digest that disagrees with its own files -- is counted in
+An entry that does not read -- a family or a task the sidecar does not know, a
+newer manifest format, a digest that disagrees with its own files -- is counted in
 unsupported and left out, rather than offered and refused after the download.
 A catalogue of a newer format is refused whole.
 */

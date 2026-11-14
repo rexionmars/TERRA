@@ -84,18 +84,22 @@ role, with its SHA-256 and size, and states what the model is.
 | `format` | The manifest's version, `1` |
 | `id`, `version` | `id` is what a run records as `model_kind`; lower case, digits, `.`, `_`, `-` |
 | `family` | How the sidecar runs it: `feature_rf`, `sequence_transformer` or `embedding_rf` |
-| `files` | Role to `{name, sha256, size}`; the roles each family needs are `ROLES` in `sidecar/terra/models.py` |
-| `classes`, `modes`, `requires`, `variants` | MapBiomas codes it emits, the classify modes it supports, optional Python packages, embedding heads |
+| `task` | What it does: `land_cover`, `time_series` or `observation_quality`; each family does one task, and the three above do `land_cover` |
+| `files` | Role to `{name, sha256, size}`; the task and the roles of each family are `FAMILIES` in `sidecar/terra/models.py` |
+| `classes` | MapBiomas codes it emits; required for `land_cover`, absent or empty for every other task |
+| `modes`, `requires`, `variants` | The classify modes it supports, optional Python packages, embedding heads |
 | `summary`, `reads`, `method`, `evaluation`, `limits`, `license`, `doi`, `picture` | What the Models screen and the method brief say about it |
 | `packaged_by` | Who made the package, as `[{"name": ...}]`; who developed the model is named by the evaluation's `source` |
 
 Installed packages live under the data directory at `models/<id>/<version>/`
-(`internal/models`). A package of an unknown family, with a file named outside
-its folder, or whose files do not hash to the manifest is refused at import, and
-the sidecar checks the digests again before every run, because loading a pickle
-runs code. A package brings weights only: a new architecture is a new family in
-`terra/models.py` and `terra/landcover/classify.py`, and a new model of a known
-family is a manifest and its files.
+(`internal/models`). A package of an unknown family or task, of a family that
+does another task, with a file named outside its folder, or whose files do not
+hash to the manifest is refused at import, and the sidecar checks the digests
+again before every run, because loading a pickle runs code. Only a `land_cover`
+package may hold pickles; a package of any other task holds JSON and NPZ, and
+the sidecar reads an NPZ with `allow_pickle=False`. A package brings weights
+only: a new architecture is a new family in `terra/models.py` and the code that
+runs it, and a new model of a known family is a manifest and its files.
 
 The Models screen lists the **catalogue**, `catalog.json` in the models
 repository, [rexionmars/TERRA-models](https://github.com/rexionmars/TERRA-models),
