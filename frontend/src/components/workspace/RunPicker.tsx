@@ -53,6 +53,70 @@ export function RunPicker({
   onPick: (run: InferenceRun) => void
 }) {
   const [open, setOpen] = useState(false)
+
+  return (
+    <MenuPopover
+      open={open}
+      onOpenChange={setOpen}
+      surface={surface}
+      widthRem={24}
+      align="end"
+      trigger={(p) => (
+        <button
+          type="button"
+          ref={p.ref}
+          onClick={p.onClick}
+          disabled={busy}
+          aria-expanded={p["aria-expanded"]}
+          aria-haspopup={p["aria-haspopup"]}
+          title="Bring in a saved run"
+          className={cn(
+            "flex h-8 shrink-0 items-center gap-1.5 rounded-sm border border-border px-2.5 text-label transition-colors",
+            "focus-visible:ring-1 focus-visible:ring-ring focus-visible:outline-none",
+            "disabled:cursor-not-allowed disabled:opacity-50",
+            open
+              ? "bg-selected text-foreground"
+              : "text-muted-foreground hover:bg-hover hover:text-foreground"
+          )}
+        >
+          <Plus className="size-3.5 shrink-0" />
+          {busy ? "Loading…" : "Add a run"}
+        </button>
+      )}
+    >
+      <RunList
+        runs={runs}
+        projects={projects}
+        excludeRunIds={excludeRunIds}
+        onPick={(r) => {
+          setOpen(false)
+          onPick(r)
+        }}
+        onEscape={() => setOpen(false)}
+      />
+    </MenuPopover>
+  )
+}
+
+/**
+ * The saved runs to choose from, searchable, by project: the body of the
+ * header's picker, and of the list a board's pie menu opens where it was
+ * opened, so a run is chosen where the reader is working rather than in the
+ * corner of the screen.
+ */
+export function RunList({
+  runs,
+  projects,
+  excludeRunIds,
+  onPick,
+  onEscape,
+}: {
+  runs: InferenceRun[]
+  projects: Project[]
+  excludeRunIds: ReadonlySet<string>
+  onPick: (run: InferenceRun) => void
+  onEscape: () => void
+}) {
   const [query, setQuery] = useState("")
 
   const groups = useMemo(() => {
@@ -87,102 +151,65 @@ export function RunPicker({
   const total = groups.reduce((n, g) => n + g.runs.length, 0)
 
   return (
-    <MenuPopover
-      open={open}
-      onOpenChange={setOpen}
-      surface={surface}
-      widthRem={24}
-      align="end"
-      trigger={(p) => (
-        <button
-          type="button"
-          ref={p.ref}
-          onClick={p.onClick}
-          disabled={busy}
-          aria-expanded={p["aria-expanded"]}
-          aria-haspopup={p["aria-haspopup"]}
-          title="Bring in a saved run"
-          className={cn(
-            "flex h-8 shrink-0 items-center gap-1.5 rounded-sm border border-border px-2.5 text-label transition-colors",
-            "focus-visible:ring-1 focus-visible:ring-ring focus-visible:outline-none",
-            "disabled:cursor-not-allowed disabled:opacity-50",
-            open
-              ? "bg-selected text-foreground"
-              : "text-muted-foreground hover:bg-hover hover:text-foreground"
-          )}
-        >
-          <Plus className="size-3.5 shrink-0" />
-          {busy ? "Loading…" : "Add a run"}
-        </button>
-      )}
-    >
-      {/*
-        Layout only: the plate, its edge, shadow and placement belong to
-        MenuPopover, as every other menu's do. The height is bounded here,
-        since this is the one popover whose content is a list of any length.
-      */}
-      <div className="flex max-h-[26rem] flex-col overflow-hidden">
-        <label className="mx-1 mt-1 mb-1.5 flex shrink-0 items-center gap-2 rounded-full border border-[rgb(var(--p-line)/0.45)] px-3 py-1.5">
-          <MagnifyingGlass className="size-3.5 shrink-0 text-muted-foreground" />
-          <input
-            autoFocus
-            value={query}
-            onChange={(e) => setQuery(e.target.value)}
-            onKeyDown={(e) => {
-              // The board closes on Escape from a listener on the window;
-              // here it should close the list and no more.
-              e.stopPropagation()
-              if (e.key === "Escape") setOpen(false)
-            }}
-            placeholder="Find by area, product or project"
-            aria-label="Find a run"
-            className="min-w-0 flex-1 border-0 bg-transparent text-body text-foreground outline-none placeholder:text-muted-foreground"
-          />
-        </label>
+    /*
+      Layout only: the plate, its edge, shadow and placement belong to the
+      menu around it, as every other menu's do. The height is bounded here,
+      since this is the one panel whose content is a list of any length.
+    */
+    <div className="flex max-h-[26rem] flex-col overflow-hidden">
+      <label className="mx-1 mt-1 mb-1.5 flex shrink-0 items-center gap-2 rounded-full border border-[rgb(var(--p-line)/0.45)] px-3 py-1.5">
+        <MagnifyingGlass className="size-3.5 shrink-0 text-muted-foreground" />
+        <input
+          autoFocus
+          value={query}
+          onChange={(e) => setQuery(e.target.value)}
+          onKeyDown={(e) => {
+            // The board closes on Escape from a listener on the window;
+            // here it should close the list and no more.
+            e.stopPropagation()
+            if (e.key === "Escape") onEscape()
+          }}
+          placeholder="Find by area, product or project"
+          aria-label="Find a run"
+          className="min-w-0 flex-1 border-0 bg-transparent text-body text-foreground outline-none placeholder:text-muted-foreground"
+        />
+      </label>
 
-        <div className="min-h-0 flex-1 overflow-y-auto">
-          {total === 0 ? (
-            <p className="px-3 py-3 text-label text-muted-foreground">
-              {query.trim()
-                ? "No run matches that."
-                : runs.length === 0
-                  ? "No saved runs yet."
-                  : "Every saved run is already here."}
-            </p>
-          ) : (
-            groups.map((g) => (
-              <div key={g.id || "none"} role="group" aria-label={g.name}>
-                {/*
-                  Sticky, because the list scrolls past several projects and a
-                  row seen without its heading says what was analysed without
-                  saying where. Opaque, in the tone the popover's plate starts
-                  at, so rows scrolled under it do not show through.
-                */}
-                <p
-                  className="sticky top-0 z-10 flex items-baseline justify-between border-b border-[rgb(var(--p-line)/0.3)] px-3 pt-2.5 pb-1.5 text-label font-medium text-foreground"
-                  style={{ background: "rgb(var(--p-control))" }}
-                >
-                  {g.name}
-                  <span className="telemetry text-meta font-normal text-muted-foreground">
-                    {g.runs.length}
-                  </span>
-                </p>
-                {g.runs.map((r) => (
-                  <PickerRow
-                    key={r.id}
-                    run={r}
-                    onPick={() => {
-                      setOpen(false)
-                      onPick(r)
-                    }}
-                  />
-                ))}
-              </div>
-            ))
-          )}
-        </div>
+      <div className="min-h-0 flex-1 overflow-y-auto">
+        {total === 0 ? (
+          <p className="px-3 py-3 text-label text-muted-foreground">
+            {query.trim()
+              ? "No run matches that."
+              : runs.length === 0
+                ? "No saved runs yet."
+                : "Every saved run is already here."}
+          </p>
+        ) : (
+          groups.map((g) => (
+            <div key={g.id || "none"} role="group" aria-label={g.name}>
+              {/*
+                Sticky, because the list scrolls past several projects and a
+                row seen without its heading says what was analysed without
+                saying where. Opaque, in the tone the popover's plate starts
+                at, so rows scrolled under it do not show through.
+              */}
+              <p
+                className="sticky top-0 z-10 flex items-baseline justify-between border-b border-[rgb(var(--p-line)/0.3)] px-3 pt-2.5 pb-1.5 text-label font-medium text-foreground"
+                style={{ background: "rgb(var(--p-control))" }}
+              >
+                {g.name}
+                <span className="telemetry text-meta font-normal text-muted-foreground">
+                  {g.runs.length}
+                </span>
+              </p>
+              {g.runs.map((r) => (
+                <PickerRow key={r.id} run={r} onPick={() => onPick(r)} />
+              ))}
+            </div>
+          ))
+        )}
       </div>
-    </MenuPopover>
+    </div>
   )
 }
 
