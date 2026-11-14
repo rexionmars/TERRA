@@ -2609,8 +2609,55 @@ export namespace analysis {
 	
 	
 	
+	export class UpcomingEntry {
+	    id: string;
+	    name: string;
+	    task: string;
+	    summary: string;
+	    status: string;
+	    reads: ModelFact[];
+	    limits: string[];
+	    picture?: ModelPicture;
+	    picture_uri: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new UpcomingEntry(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.id = source["id"];
+	        this.name = source["name"];
+	        this.task = source["task"];
+	        this.summary = source["summary"];
+	        this.status = source["status"];
+	        this.reads = this.convertValues(source["reads"], ModelFact);
+	        this.limits = source["limits"];
+	        this.picture = this.convertValues(source["picture"], ModelPicture);
+	        this.picture_uri = source["picture_uri"];
+	    }
+	
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
+	}
 	export class ModelCatalog {
 	    models: CatalogEntry[];
+	    upcoming: UpcomingEntry[];
 	    origin: string;
 	    problem: string;
 	    unsupported: number;
@@ -2622,6 +2669,7 @@ export namespace analysis {
 	    constructor(source: any = {}) {
 	        if ('string' === typeof source) source = JSON.parse(source);
 	        this.models = this.convertValues(source["models"], CatalogEntry);
+	        this.upcoming = this.convertValues(source["upcoming"], UpcomingEntry);
 	        this.origin = source["origin"];
 	        this.problem = source["problem"];
 	        this.unsupported = source["unsupported"];
@@ -3539,6 +3587,7 @@ export namespace analysis {
 	        this.polygon_geojson = source["polygon_geojson"];
 	    }
 	}
+	
 	
 	
 	

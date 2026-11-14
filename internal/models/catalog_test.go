@@ -1,11 +1,15 @@
 package models
 
 import (
+	"bytes"
 	"context"
 	"crypto/sha256"
+	"encoding/base64"
 	"encoding/hex"
 	"encoding/json"
 	"errors"
+	"image"
+	"image/png"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -171,17 +175,17 @@ func TestACatalogueKeepsTheEntriesThisVersionCanRun(t *testing.T) {
 	newer.Manifest.Family = "diffusion"
 	wrong := good
 	wrong.Digest = strings.Repeat("0", 64)
-	entries, unsupported, err := ParseCatalog(catalogue(t, 1, good, newer, wrong, "not an entry"))
+	c, err := ParseCatalog(catalogue(t, 1, good, newer, wrong, "not an entry"))
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(entries) != 1 || entries[0].Manifest.ID != "test-rf" || unsupported != 3 {
-		t.Fatalf("kept %d, left out %d; want 1 and 3", len(entries), unsupported)
+	if len(c.Models) != 1 || c.Models[0].Manifest.ID != "test-rf" || c.Unsupported != 3 {
+		t.Fatalf("kept %d, left out %d; want 1 and 3", len(c.Models), c.Unsupported)
 	}
 }
 
 func TestACatalogueOfANewerFormatIsRefused(t *testing.T) {
-	if _, _, err := ParseCatalog(catalogue(t, 2)); err == nil || !strings.Contains(err.Error(), "format 2") {
+	if _, err := ParseCatalog(catalogue(t, 2)); err == nil || !strings.Contains(err.Error(), "format 2") {
 		t.Fatalf("got %v, want the format named", err)
 	}
 }
@@ -204,11 +208,140 @@ func TestACatalogueEntryOfAnotherTaskAndAnUnknownFamilyIsLeftOut(t *testing.T) {
 		"parameters": {Name: "parameters.json", SHA256: strings.Repeat("1", 64), Size: 120},
 	}
 	curve.Digest = (&Package{Manifest: curve.Manifest}).Digest()
-	entries, unsupported, err := ParseCatalog(catalogue(t, 1, curve, good))
+	c, err := ParseCatalog(catalogue(t, 1, curve, good))
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(entries) != 1 || entries[0].Manifest.ID != "test-rf" || unsupported != 1 {
-		t.Fatalf("kept %d, left out %d; want test-rf kept and the other left out", len(entries), unsupported)
+	if len(c.Models) != 1 || c.Models[0].Manifest.ID != "test-rf" || c.Unsupported != 1 {
+		t.Fatalf("kept %d, left out %d; want test-rf kept and the other left out", len(c.Models), c.Unsupported)
+	}
+}
+
+// listed is a published entry that reads, with a source.
+func listed(t *testing.T) analysis.CatalogEntry {
+	t.Helper()
+	_, e := publish(t)
+	e.Sources = []analysis.ModelSource{{Name: "GitHub", URL: "https://example.org/pkg.zip"}}
+	return e
+}
+
+// upcoming is a model in preparation as the catalogue lists it, with every
+// field it requires.
+func upcoming(id string) map[string]any {
+	return map[string]any{
+		"id": id, "name": "Interval " + id, "task": "time_series",
+		"summary": "A series with its interval.",
+		"status":  "Its parameters are being fitted again and are not yet evaluated.",
+	}
+}
+
+// withUpcoming is a catalogue of format 1 with both lists.
+func withUpcoming(t *testing.T, models []any, coming ...map[string]any) []byte {
+	t.Helper()
+	raw, err := json.Marshal(map[string]any{"format": 1, "models": models, "upcoming": coming})
+	if err != nil {
+		t.Fatal(err)
+	}
+	return raw
+}
+
+func pngURI(t *testing.T) string {
+	t.Helper()
+	var b bytes.Buffer
+	if err := png.Encode(&b, image.NewRGBA(image.Rect(0, 0, 2, 2))); err != nil {
+		t.Fatal(err)
+	}
+	return "data:image/png;base64," + base64.StdEncoding.EncodeToString(b.Bytes())
+}
+
+func upcomingIDs(c analysis.ModelCatalog) []string {
+	var ids []string
+	for _, u := range c.Upcoming {
+		ids = append(ids, u.ID)
+	}
+	return ids
+}
+
+func TestACatalogueListsItsModelsInPreparationBesideItsPackages(t *testing.T) {
+	pictured := upcoming("gp-interval")
+	pictured["reads"] = []map[string]string{{"label": "Series", "value": "NDVI"}}
+	pictured["limits"] = []string{"Not evaluated on series TERRA reads."}
+	pictured["picture"] = map[string]string{"subject": "a curve", "author": "TERRA", "license": "CC BY 4.0", "source": "https://example.org"}
+	pictured["picture_uri"] = pngURI(t)
+	c, err := ParseCatalog(withUpcoming(t, []any{listed(t)}, pictured, upcoming("cloud-score")))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(c.Models) != 1 || c.Models[0].Manifest.ID != "test-rf" || c.Unsupported != 0 {
+		t.Fatalf("packages: kept %d, left out %d; want test-rf alone", len(c.Models), c.Unsupported)
+	}
+	if got := strings.Join(upcomingIDs(c), " "); got != "gp-interval cloud-score" {
+		t.Fatalf("upcoming %q, want both in the catalogue's order", got)
+	}
+	u := c.Upcoming[0]
+	if len(u.Reads) != 1 || len(u.Limits) != 1 || u.Picture == nil || u.PictureURI == "" {
+		t.Fatalf("got %+v, want what it reads, its limits and its picture", u)
+	}
+}
+
+func TestACatalogueWithoutModelsInPreparationReadsAsBefore(t *testing.T) {
+	c, err := ParseCatalog(catalogue(t, 1, listed(t)))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(c.Upcoming) != 0 || len(c.Models) != 1 || c.Unsupported != 0 {
+		t.Fatalf("got %d upcoming, %d packages, %d left out; want 0, 1, 0", len(c.Upcoming), len(c.Models), c.Unsupported)
+	}
+}
+
+func TestAModelInPreparationThatDoesNotReadIsLeftOutAndNotCounted(t *testing.T) {
+	without := func(field string) map[string]any {
+		u := upcoming("no-" + field)
+		u[field] = ""
+		return u
+	}
+	with := func(id, field string, value any) map[string]any {
+		u := upcoming(id)
+		u[field] = value
+		return u
+	}
+	notPNG := "data:image/png;base64," + base64.StdEncoding.EncodeToString([]byte("not an image"))
+	bad := []map[string]any{
+		without("name"), without("task"), without("summary"), without("status"),
+		with("Bad_Id", "id", "Bad_Id"),
+		with("unknown-task", "task", "flood_extent"),
+		with("gif", "picture_uri", "data:image/gif;base64,R0lGODlhAQABAAAAACw="),
+		with("address", "picture_uri", "https://example.org/picture.png"),
+		with("not-base64", "picture_uri", "data:image/png;base64,***"),
+		with("not-png", "picture_uri", notPNG),
+		with("too-large", "picture_uri", "data:image/png;base64,"+strings.Repeat("A", maxPictureURI)),
+	}
+	c, err := ParseCatalog(withUpcoming(t, []any{listed(t)}, append(bad, upcoming("gp-interval"))...))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := strings.Join(upcomingIDs(c), " "); got != "gp-interval" {
+		t.Fatalf("upcoming %q, want gp-interval alone", got)
+	}
+	if len(c.Models) != 1 || c.Unsupported != 0 {
+		t.Fatalf("packages: kept %d, left out %d; want 1 and 0", len(c.Models), c.Unsupported)
+	}
+}
+
+func TestAModelInPreparationWithAPublishedIdIsLeftOut(t *testing.T) {
+	good := listed(t)
+	// Published in a form this version cannot read: still published.
+	newer := listed(t)
+	newer.Manifest.ID, newer.Manifest.Family = "test-diffusion", "diffusion"
+	c, err := ParseCatalog(withUpcoming(t, []any{good, newer},
+		upcoming("test-rf"), upcoming("test-diffusion"), upcoming("gp-interval"), upcoming("gp-interval")))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := strings.Join(upcomingIDs(c), " "); got != "gp-interval" {
+		t.Fatalf("upcoming %q, want gp-interval once", got)
+	}
+	if len(c.Models) != 1 || c.Models[0].Manifest.ID != "test-rf" || c.Unsupported != 1 {
+		t.Fatalf("packages: kept %d, left out %d; want test-rf kept", len(c.Models), c.Unsupported)
 	}
 }

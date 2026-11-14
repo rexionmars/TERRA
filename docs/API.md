@@ -28,7 +28,7 @@ Source of truth: [`app.go`](../app.go), [`internal/analysis/types.go`](../intern
 | `PickModelPackage` | — | path | Native open dialog for a package zip; empty when cancelled |
 | `ImportModel` | path (zip or folder) | `ModelInfo` | Check and install a package; see ARCHITECTURE.md, Model packages |
 | `RemoveModel` | id, version | — | Uninstall one version |
-| `ModelCatalog` | — | `ModelCatalog` | The published catalogue, or the copy the build carries when it cannot be read (`origin`, `problem`) |
+| `ModelCatalog` | — | `ModelCatalog` | The published catalogue, or the copy the build carries when it cannot be read (`origin`, `problem`), with the models in preparation (`upcoming`), which cannot be installed |
 | `InstallCatalogModel` | id, version | `ModelInfo` | Download an entry of the catalogue last read, check it and install it; streams `models:download` (`ModelDownload`) |
 | `CancelModelDownload` | id | — | Stop that model's download; nothing of it stays installed |
 

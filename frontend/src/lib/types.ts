@@ -1700,9 +1700,30 @@ export interface CatalogEntry {
   sources: ModelSource[]
 }
 
+/**
+ * A model being prepared for TERRA that has no release yet, as the catalogue
+ * lists it. It has no version, digest, package or source: nothing can be
+ * installed from it.
+ */
+export interface UpcomingEntry {
+  id: string
+  name: string
+  task: string
+  summary: string
+  /** What the release still waits for, as a sentence. */
+  status: string
+  reads: ModelFact[] | null
+  limits: string[] | null
+  picture: ModelPicture | null
+  /** The card's picture as a data URI, empty without one. */
+  picture_uri: string
+}
+
 /** The catalogue as the Models screen reads it. */
 export interface ModelCatalog {
   models: CatalogEntry[] | null
+  /** The models in preparation, in the catalogue's order; none can be installed. */
+  upcoming: UpcomingEntry[] | null
   /** "online" when read just now; "built-in" when the copy this build carries is shown. */
   origin: "online" | "built-in"
   /** Why the published catalogue was not read; empty when it was. */

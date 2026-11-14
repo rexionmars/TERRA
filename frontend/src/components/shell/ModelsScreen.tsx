@@ -11,6 +11,7 @@ import {
   CaretRight,
   Check,
   CircleNotch,
+  Clock,
   DownloadSimple,
   Play,
   Trash,
@@ -34,6 +35,7 @@ import {
   compareVersions,
   downloadModel,
   ensureModelCatalog,
+  inPreparation,
   readModelCatalog,
   useModelCatalog,
 } from "@/lib/modelCatalog"
@@ -46,15 +48,10 @@ import type {
   ModelInfo,
   ModelKind,
   ModelManifest,
+  ModelPicture,
+  UpcomingEntry,
 } from "@/lib/types"
 import { cn } from "@/lib/utils"
-
-/*
-  Drawn at its own pixels, magnified without smoothing. The pictures the
-  published packages carry are class maps, and an interpolated class map shows
-  colours that belong to no class.
-*/
-const PICTURE = "shrink-0 object-cover [image-rendering:pixelated]"
 
 /** One model, by id: the newest version the catalogue lists and the newest installed. */
 interface Row {
@@ -154,7 +151,9 @@ export function ModelsScreen({
   useEffect(ensureModelCatalog, [])
 
   const rows = rowsOf(catalog, installed)
+  const upcoming = inPreparation(catalog, installed)
   const row = rows.find((r) => r.id === open) ?? null
+  const coming = row ? null : (upcoming.find((u) => u.id === open) ?? null)
 
   const importPackage = async () => {
     setAsking(false)
@@ -173,7 +172,7 @@ export function ModelsScreen({
   return (
     <div className="app-no-drag absolute inset-0 z-480 flex flex-col bg-app pt-[var(--frame-reach,0px)]">
       <header className="flex h-12 shrink-0 items-center gap-1.5 border-b border-border px-4">
-        {row ? (
+        {row || coming ? (
           <>
             <button
               type="button"
@@ -184,17 +183,20 @@ export function ModelsScreen({
             </button>
             <CaretRight className="size-3 text-muted-foreground" />
             <h1 className="text-title font-medium text-foreground">
-              {shownOf(row).manifest.name}
+              {row ? shownOf(row).manifest.name : coming?.name}
             </h1>
           </>
         ) : (
           <h1 className="text-title font-medium text-foreground">Models</h1>
         )}
         <div className="flex-1" />
-        <button type="button" onClick={() => setAsking(true)} className={btnGhost}>
-          <UploadSimple className="size-3.5" />
-          Import a package
-        </button>
+        {/* Beside a model that cannot be installed yet, it would read as its way in. */}
+        {!coming && (
+          <button type="button" onClick={() => setAsking(true)} className={btnGhost}>
+            <UploadSimple className="size-3.5" />
+            Import a package
+          </button>
+        )}
       </header>
       <div className="min-h-0 flex-1 overflow-y-auto">
         <div className="mx-auto max-w-[72rem] px-8 py-8">
@@ -208,16 +210,19 @@ export function ModelsScreen({
                 if (!row.entry) setOpen(null)
               }}
             />
+          ) : coming ? (
+            <UpcomingPage entry={coming} />
           ) : (
             <ModelList
               rows={rows}
+              upcoming={upcoming}
               catalog={catalog}
               reading={reading}
               error={error}
               loaded={loaded}
               downloads={downloads}
               current={current}
-              onOpen={(r) => setOpen(r.id)}
+              onOpen={setOpen}
               onImport={() => setAsking(true)}
             />
           )}
@@ -235,6 +240,7 @@ export function ModelsScreen({
 
 function ModelList({
   rows,
+  upcoming,
   catalog,
   reading,
   error,
@@ -245,13 +251,15 @@ function ModelList({
   onImport,
 }: {
   rows: readonly Row[]
+  upcoming: readonly UpcomingEntry[]
   catalog: ModelCatalog | null
   reading: boolean
   error: string | null
   loaded: boolean
   downloads: Readonly<Record<string, ModelDownload>>
   current: ModelKind
-  onOpen: (r: Row) => void
+  /** Open the page of the model with this id. */
+  onOpen: (id: string) => void
   onImport: () => void
 }) {
   const listed = rows.filter((r) => r.entry)
@@ -262,7 +270,7 @@ function ModelList({
         row={r}
         standing={standingOf(r, downloads)}
         current={current}
-        onOpen={() => onOpen(r)}
+        onOpen={() => onOpen(r.id)}
       />
     </li>
   )
@@ -275,6 +283,23 @@ function ModelList({
       <CatalogueNote catalog={catalog} reading={reading} error={error} />
       {listed.length > 0 && <ul className={GRID}>{listed.map(card)}</ul>}
 
+      {upcoming.length > 0 && (
+        <section className="mt-12">
+          <h3 className="text-heading font-medium text-foreground">In preparation</h3>
+          <p className="mt-1 text-label text-muted-foreground">
+            Being prepared for TERRA and not published yet, so none of these can be
+            downloaded.
+          </p>
+          <ul className={GRID}>
+            {upcoming.map((u) => (
+              <li key={u.id}>
+                <UpcomingCard entry={u} onOpen={() => onOpen(u.id)} />
+              </li>
+            ))}
+          </ul>
+        </section>
+      )}
+
       {imported.length > 0 && (
         <section className="mt-12">
           <h3 className="text-heading font-medium text-foreground">Imported</h3>
@@ -285,7 +310,7 @@ function ModelList({
         </section>
       )}
 
-      {loaded && !reading && rows.length === 0 && (
+      {loaded && !reading && rows.length === 0 && upcoming.length === 0 && (
         <div className="mt-6 max-w-prose rounded-md border border-dashed border-border p-6">
           <p className="text-read text-foreground">No model to show.</p>
           <p className="mt-2 text-label text-muted-foreground">
@@ -374,7 +399,87 @@ function CatalogueNote({
   which is where a model is downloaded and run. The pill at its foot says so
   and is not a second button, since a button inside a button is not one a
   reader can reach on its own.
+
+  A model in preparation is drawn in the same frame, so the two read as one
+  catalogue; what it lacks is said where a published model's version, facts
+  and standing would be.
 */
+function Card({
+  picture,
+  badge,
+  name,
+  version,
+  task,
+  summary,
+  line,
+  facts = false,
+  foot,
+  onOpen,
+}: {
+  picture: { uri: string; task: string; credit: ModelPicture | null }
+  /** Set on the picture's top right corner. */
+  badge?: React.ReactNode
+  name: string
+  version?: string
+  task: string
+  summary: string
+  /** The line under the summary. */
+  line: string
+  /** The line is a row of facts and figures, set in the telemetry face. */
+  facts?: boolean
+  /** The model's standing, beside the way in. */
+  foot: React.ReactNode
+  onOpen: () => void
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onOpen}
+      className="group flex h-full w-full flex-col overflow-hidden rounded-md border border-[rgb(var(--p-line)/0.45)] bg-[rgb(var(--p-ink))] text-left shadow-[0_12px_32px_rgb(0_0_0/0.35)] transition-colors hover:border-[rgb(var(--p-line-strong)/0.6)] focus-visible:ring-1 focus-visible:ring-ring focus-visible:outline-none"
+    >
+      <span className="relative block h-44 shrink-0">
+        <Picture {...picture} className="absolute inset-0 size-full" />
+        {/* The picture darkens into the card's ground, where the name sits. */}
+        <span
+          aria-hidden
+          className="absolute inset-0 bg-[linear-gradient(180deg,rgb(var(--p-ink)/0)_30%,rgb(var(--p-ink)/0.75)_70%,rgb(var(--p-ink))_100%)]"
+        />
+        {badge && (
+          <span className="absolute top-3 right-3 flex items-center gap-1 rounded-full bg-[rgb(4_6_11/0.62)] px-2 py-0.5 text-meta text-[rgb(236_232_223)] backdrop-blur-sm">
+            {badge}
+          </span>
+        )}
+      </span>
+      <span className="relative -mt-12 flex min-w-0 flex-1 flex-col gap-1 px-5 pb-4">
+        <span className="flex items-baseline gap-2">
+          <span className="font-display text-title font-semibold text-foreground">
+            {name}
+          </span>
+          {version && (
+            <span className="telemetry text-meta text-muted-foreground">{version}</span>
+          )}
+        </span>
+        <span className="text-label text-foreground/80">{taskName(task)}</span>
+        <span className="mt-2 text-label leading-relaxed text-muted-foreground">
+          {summary}
+        </span>
+        <span
+          className={cn("mt-1.5 text-meta text-muted-foreground", facts && "telemetry")}
+        >
+          {line}
+        </span>
+        <span className="mt-auto flex items-center gap-3 pt-4">
+          <span className="min-w-0 flex-1">{foot}</span>
+          <span className="flex shrink-0 items-center gap-1 rounded-full bg-[rgb(var(--p-text))] px-3.5 py-1.5 text-label font-medium text-[rgb(var(--p-ink))] transition-opacity group-hover:opacity-90">
+            View model
+            <CaretRight className="size-3" />
+          </span>
+        </span>
+      </span>
+    </button>
+  )
+}
+
 function ModelCard({
   row,
   standing,
@@ -396,54 +501,55 @@ function ModelCard({
     ...(m.requires ?? []).map((r) => `needs ${r}`),
   ].filter(Boolean)
   return (
-    <button
-      type="button"
-      onClick={onOpen}
-      className="group flex h-full w-full flex-col overflow-hidden rounded-md border border-[rgb(var(--p-line)/0.45)] bg-[rgb(var(--p-ink))] text-left shadow-[0_12px_32px_rgb(0_0_0/0.35)] transition-colors hover:border-[rgb(var(--p-line-strong)/0.6)] focus-visible:ring-1 focus-visible:ring-ring focus-visible:outline-none"
-    >
-      <span className="relative block h-44 shrink-0">
-        <Picture
-          uri={shown.picture_uri}
-          manifest={m}
-          className="absolute inset-0 size-full"
-        />
-        {/* The picture darkens into the card's ground, where the name sits. */}
-        <span
-          aria-hidden
-          className="absolute inset-0 bg-[linear-gradient(180deg,rgb(var(--p-ink)/0)_30%,rgb(var(--p-ink)/0.75)_70%,rgb(var(--p-ink))_100%)]"
-        />
-        {row.installed && (
-          <span className="absolute top-3 right-3 flex items-center gap-1 rounded-full bg-[rgb(4_6_11/0.62)] px-2 py-0.5 text-meta text-[rgb(236_232_223)] backdrop-blur-sm">
+    <Card
+      picture={{ uri: shown.picture_uri, task: m.task, credit: m.picture }}
+      badge={
+        row.installed && (
+          <>
             <Check className="size-3" />
             {m.id === current ? "In use" : "Installed"}
-          </span>
-        )}
-      </span>
-      <span className="relative -mt-12 flex min-w-0 flex-1 flex-col gap-1 px-5 pb-4">
-        <span className="flex items-baseline gap-2">
-          <span className="font-display text-title font-semibold text-foreground">
-            {m.name}
-          </span>
-          <span className="telemetry text-meta text-muted-foreground">{m.version}</span>
+          </>
+        )
+      }
+      name={m.name}
+      version={m.version}
+      task={m.task}
+      summary={m.summary}
+      line={facts.join(" · ")}
+      facts
+      foot={<StandingLine standing={standing} entry={row.entry} />}
+      onOpen={onOpen}
+    />
+  )
+}
+
+/**
+ * A model in preparation: no version, what its release waits for where the
+ * facts would be, and no download at its foot.
+ */
+function UpcomingCard({
+  entry: u,
+  onOpen,
+}: {
+  entry: UpcomingEntry
+  onOpen: () => void
+}) {
+  return (
+    <Card
+      picture={{ uri: u.picture_uri, task: u.task, credit: u.picture }}
+      badge="In preparation"
+      name={u.name}
+      task={u.task}
+      summary={u.summary}
+      line={u.status}
+      foot={
+        <span className="flex items-center gap-1.5 text-label text-muted-foreground">
+          <Clock className="size-3.5" />
+          Not published yet
         </span>
-        <span className="text-label text-foreground/80">{taskName(m.task)}</span>
-        <span className="mt-2 text-label leading-relaxed text-muted-foreground">
-          {m.summary}
-        </span>
-        <span className="telemetry mt-1.5 text-meta text-muted-foreground">
-          {facts.join(" · ")}
-        </span>
-        <span className="mt-auto flex items-center gap-3 pt-4">
-          <span className="min-w-0 flex-1">
-            <StandingLine standing={standing} entry={row.entry} />
-          </span>
-          <span className="flex shrink-0 items-center gap-1 rounded-full bg-[rgb(var(--p-text))] px-3.5 py-1.5 text-label font-medium text-[rgb(var(--p-ink))] transition-opacity group-hover:opacity-90">
-            View model
-            <CaretRight className="size-3" />
-          </span>
-        </span>
-      </span>
-    </button>
+      }
+      onOpen={onOpen}
+    />
   )
 }
 
@@ -558,7 +664,8 @@ function ModelPage({
       <div className="flex flex-wrap items-start gap-6">
         <Picture
           uri={shown.picture_uri}
-          manifest={m}
+          task={m.task}
+          credit={m.picture}
           className="size-48 rounded-md border border-border"
         />
         <div className="min-w-0 flex-1 basis-80">
@@ -690,15 +797,7 @@ function ModelPage({
             </p>
           )}
         </Section>
-        {(m.limits?.length ?? 0) > 0 && (
-          <Section title="Limits">
-            <ul className="flex list-disc flex-col gap-1.5 pl-4 text-read text-muted-foreground marker:text-muted-foreground">
-              {m.limits?.map((l) => (
-                <li key={l}>{l}</li>
-              ))}
-            </ul>
-          </Section>
-        )}
+        <Limits limits={m.limits} />
         <Section title="Package">
           <Facts
             rows={[
@@ -732,18 +831,7 @@ function ModelPage({
         </Section>
       </div>
 
-      {m.picture && (
-        <p className="mt-10 border-t border-border pt-4 text-meta text-muted-foreground">
-          Picture: {m.picture.subject}. {m.picture.author} · {m.picture.license} ·{" "}
-          <button
-            type="button"
-            onClick={() => m.picture && BrowserOpenURL(m.picture.source)}
-            className="underline-offset-2 hover:text-foreground hover:underline"
-          >
-            source
-          </button>
-        </p>
-      )}
+      <PictureCredit credit={m.picture} />
 
       {removing && (
         <ConfirmDelete
@@ -757,6 +845,82 @@ function ModelPage({
         />
       )}
     </>
+  )
+}
+
+/**
+ * A model in preparation: what it will do and what its release waits for.
+ * Nothing on the page downloads, imports or runs it, since there is nothing to
+ * install yet.
+ */
+function UpcomingPage({ entry: u }: { entry: UpcomingEntry }) {
+  return (
+    <>
+      <div className="flex flex-wrap items-start gap-6">
+        <Picture
+          uri={u.picture_uri}
+          task={u.task}
+          credit={u.picture}
+          className="size-48 rounded-md border border-border"
+        />
+        <div className="min-w-0 flex-1 basis-80">
+          <p className="eyebrow">{taskName(u.task)} · In preparation</p>
+          <h2 className="mt-1 font-display text-display font-semibold text-foreground">
+            {u.name}
+          </h2>
+          <p className="mt-2 max-w-prose text-read text-muted-foreground">
+            {u.summary}
+          </p>
+          <p className="mt-5 flex items-center gap-1.5 text-label text-muted-foreground">
+            <Clock className="size-3.5" />
+            Not published yet, so it cannot be downloaded.
+          </p>
+        </div>
+      </div>
+
+      <div className="mt-10 grid gap-x-12 gap-y-8 md:grid-cols-2">
+        <Section title="Before it is published">
+          <p className="max-w-prose text-read text-foreground">{u.status}</p>
+        </Section>
+        {(u.reads?.length ?? 0) > 0 && (
+          <Section title="What it reads">
+            <Facts rows={u.reads ?? []} />
+          </Section>
+        )}
+        <Limits limits={u.limits} />
+      </div>
+
+      <PictureCredit credit={u.picture} />
+    </>
+  )
+}
+
+function Limits({ limits }: { limits: readonly string[] | null }) {
+  if (!limits?.length) return null
+  return (
+    <Section title="Limits">
+      <ul className="flex list-disc flex-col gap-1.5 pl-4 text-read text-muted-foreground marker:text-muted-foreground">
+        {limits.map((l) => (
+          <li key={l}>{l}</li>
+        ))}
+      </ul>
+    </Section>
+  )
+}
+
+function PictureCredit({ credit }: { credit: ModelPicture | null }) {
+  if (!credit) return null
+  return (
+    <p className="mt-10 border-t border-border pt-4 text-meta text-muted-foreground">
+      Picture: {credit.subject}. {credit.author} · {credit.license} ·{" "}
+      <button
+        type="button"
+        onClick={() => BrowserOpenURL(credit.source)}
+        className="underline-offset-2 hover:text-foreground hover:underline"
+      >
+        source
+      </button>
+    </p>
   )
 }
 
@@ -796,13 +960,21 @@ function TrustDialog({
   )
 }
 
+/*
+  A land-cover picture is drawn at its own pixels, magnified without smoothing:
+  it is a class map, and an interpolated class map shows colours that belong to
+  no class. The picture of any other task, such as a curve with its band, is
+  smoothed as an image is, or its lines come out jagged.
+*/
 function Picture({
   uri,
-  manifest,
+  task,
+  credit,
   className,
 }: {
   uri: string
-  manifest: ModelManifest
+  task: string
+  credit: ModelPicture | null
   className: string
 }) {
   if (!uri) {
@@ -820,13 +992,13 @@ function Picture({
     <img
       src={uri}
       alt=""
-      title={
-        manifest.picture
-          ? `Picture: ${manifest.picture.author} · ${manifest.picture.license}`
-          : undefined
-      }
+      title={credit ? `Picture: ${credit.author} · ${credit.license}` : undefined}
       draggable={false}
-      className={cn(PICTURE, className)}
+      className={cn(
+        "shrink-0 object-cover",
+        task === LAND_COVER && "[image-rendering:pixelated]",
+        className
+      )}
     />
   )
 }

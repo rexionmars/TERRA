@@ -115,8 +115,18 @@ the package in it against the entry's digest before it appears installed.
 `TERRA_MODEL_CATALOG` points the application at another catalogue, for a mirror
 or a test.
 
+Beside `models`, the catalogue may list models in preparation under `upcoming`:
+an id, a name, a task, a summary and a `status` saying what the release waits
+for, and optionally what it reads, its limits and a picture. There is no
+version, digest or source, so nothing can be installed from one; the screen
+shows them in their own section, and an install that names one is refused as a
+model the catalogue does not list. One that does not read, or whose id a
+package already has, is left out without being counted as needing a newer
+TERRA. The format stays 1: a version that predates the key passes over it.
+
 `python3 scripts/package_models.py` builds the packages of the models in
-`model/` into `dist/models/` and writes the catalogue. The zips are
+`model/` into `dist/models/` and writes the catalogue, with the models in
+preparation from `model/upcoming/<id>/entry.json`. The zips are
 reproducible, so a package built again has the SHA-256 the catalogue gives for
 it. Publishing is by hand: a release of the models repository with the zip, a
 Zenodo record, and then the catalogue at that repository's root.
