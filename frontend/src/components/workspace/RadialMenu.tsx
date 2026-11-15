@@ -18,12 +18,11 @@
  * QUIET OVER THE BOARD. No shadow under the ring and none under the options,
  * and the accent at half strength: the ring is a moment between two actions on
  * the board, and drawn at full weight it took the eye off the card the reader
- * had right-clicked. An option is told apart by its small picture, a crop of
- * ground showing what it does, rather than by a dot in its category's colour.
- * Where one picture would stand for every option of a ring, as the mineral
- * map's plate does for its readings, each option draws an icon of its own; so
- * does each node category, whose nodes do different things that no one crop of
- * ground can say together.
+ * had right-clicked. An option is told apart by a small mark, rather than by a
+ * dot in its category's colour: a picture, a crop of ground showing what it
+ * does, where ground can show it (the compare board's readings), or an icon of
+ * what its word means where it cannot (the workflows board's categories and
+ * nodes, which are steps of a method).
  *
  * Nothing here knows about workflows. The caller gives the options and acts on
  * the one picked; an option that opens another ring is the caller's to show.

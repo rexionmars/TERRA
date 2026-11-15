@@ -1,21 +1,21 @@
 /**
- * That every option the pie menus show has its picture on disk, and a credit.
+ * That every option the compare board's pie shows has its picture on disk, and a
+ * credit.
  */
 import { existsSync } from "node:fs"
 import { resolve } from "node:path"
 import { describe, expect, it } from "vitest"
 
 import { READINGS } from "./compareBoard"
-import { NODE_KINDS } from "./compositorGraph"
-import { kindPicture, readingPicture } from "./piePictures"
+import { readingPicture } from "./piePictures"
 import type { PiePicture } from "./piePictures"
 
 const PUBLIC = resolve(__dirname, "../../public")
 
-const shown: [string, PiePicture][] = [
-  ...NODE_KINDS.map((k): [string, PiePicture] => [k.kind, kindPicture(k.kind)]),
-  ...READINGS.map((r): [string, PiePicture] => [r.kind, readingPicture(r.kind)]),
-]
+const shown: [string, PiePicture][] = READINGS.map((r): [string, PiePicture] => [
+  r.kind,
+  readingPicture(r.kind),
+])
 
 describe("pie pictures", () => {
   it("has every picture on disk", () => {
