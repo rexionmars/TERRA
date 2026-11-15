@@ -797,6 +797,22 @@
   */
   --success: #6ad895;
   /*
+    OKABE-ITO, for the coloured icons in viewIcons.tsx: the colour-blind-safe set
+    Wong gives in Nature Methods (2011), and the one the map already paints its
+    clusters in (CATEGORICAL in sidecar/terra/imagery/composite.py). Each role is
+    fixed: vermillion the first channel and a loss, green the second channel and
+    vegetation, blue the third channel, a gain and the lit frame; orange, sky and
+    green the cluster groups in the map's order.
+
+    An icon's edge clears 3:1 against the panel and the lit plate. The exact value
+    does, except blue here, which is the same hue lightened to clear the plate.
+  */
+  --oi-vermillion: #d55e00;
+  --oi-green: #009e73;
+  --oi-blue: #0080c8;
+  --oi-orange: #e69f00;
+  --oi-sky: #56b4e9;
+  /*
     THE WIRE THAT FAILED, and it is NOT --destructive.
 
     A separate token because the two have separate jobs and separate shapes.
@@ -849,6 +865,11 @@
   --destructive-foreground: rgb(var(--p-surface));
   --destructive-quiet: #a32b3b;
   --warning: #6d5900;
+  /* Okabe-Ito on a light ground: orange and sky at the same hues, darkened to
+     clear 3:1 on the panel; blue goes back to the exact value. */
+  --oi-blue: #0072b2;
+  --oi-orange: #b98000;
+  --oi-sky: #1c91d4;
   /* The same two, at the lightness a light ground needs. The bands invert with
      the theme rather than holding their value: --p-ink is the light surface
      here, so the reading on a band is LIGHT type and the band has to be dark
