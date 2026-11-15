@@ -1,6 +1,7 @@
 /*
-  The thin-line icons of the map's tool rail, the application menu and the
-  navigation rail on the window's left edge.
+  The thin-line icons of the map's tool rail, the application menu, the
+  navigation rail on the window's left edge, and the eight products (Product*),
+  which the call site tints with the product's colour.
 
   This file is their source. They keep Breeze's grammar, so they sit with the
   Breeze glyphs of icons.tsx: a 16-unit grid, the drawing inside 2..14 (1..15
@@ -50,11 +51,20 @@
     User guide            the guide, open
     Hide the labels       the rail's column, the arrow going in
     Show the labels       the rail's column, the arrow coming out
+    Classification        pixels, a gap between each, in three classes in patches
+    Surface water         three waves
+    Mineral map           a crystal and the ridge between its faces
+    Field boundaries      neighbouring fields sharing their boundaries
+    Vegetation health     a leaf, and a pulse across it
+    Overlap               a field over a protected area's dashed boundary, the overlap filled
+    Sentinel-1 radar      a radar screen, its sweep and what it found
+    Management zones      one field in zones on the diagonal, in tones low to high
 
-  Four were drawn again after failing that test: the satellite turned on its
-  diagonal read as a chain, the area's solid outline with the pencil as a price
-  tag, round concentric contours as a target, and a neural network for the
-  models as a blur.
+  Drawn again after failing that test: the satellite turned on its diagonal
+  (a chain), the area's solid outline with the pencil (a price tag), round
+  concentric contours (a target), a neural network for the models (a blur),
+  scattered pixels for a classification (a keypad), a square over a round blob
+  for an overlap (the "shapes" icon), and level bands for zones (a barrel).
 */
 import type { Icon } from "@/components/icons"
 
@@ -241,4 +251,36 @@ export const LineLabelsHide = glyph(
 
 export const LineLabelsShow = glyph(
   '<rect x="1.5" y="2.5" width="13.0" height="11.0" rx="1.5" fill="none" stroke="currentColor" stroke-width="1" stroke-linecap="round" stroke-linejoin="round"/><path d="M6 2.5 V13.5 M9 5.5 L11.5 8 L9 10.5" fill="none" stroke="currentColor" stroke-width="1" stroke-linecap="round" stroke-linejoin="round"/>'
+)
+
+export const LineProductClass = glyph(
+  '<rect x="2.15" y="2.15" width="3.6" height="3.6" rx="0.6" fill="currentColor"/><rect x="6.65" y="2.15" width="3.6" height="3.6" rx="0.6" fill="currentColor"/><rect x="11.15" y="2.15" width="3.6" height="3.6" rx="0.6" fill="currentColor" fill-opacity="0.45"/><rect x="2.15" y="6.65" width="3.6" height="3.6" rx="0.6" fill="currentColor"/><rect x="6.65" y="6.65" width="3.6" height="3.6" rx="0.6" fill="currentColor" fill-opacity="0.45"/><rect x="11.15" y="6.65" width="3.6" height="3.6" rx="0.6" fill="currentColor" fill-opacity="0.45"/><rect x="2.65" y="11.65" width="2.60" height="2.60" rx="0.5" fill="none" stroke="currentColor" stroke-width="1" stroke-linecap="round" stroke-linejoin="round" stroke-opacity="0.6"/><rect x="7.15" y="11.65" width="2.60" height="2.60" rx="0.5" fill="none" stroke="currentColor" stroke-width="1" stroke-linecap="round" stroke-linejoin="round" stroke-opacity="0.6"/><rect x="11.15" y="11.15" width="3.6" height="3.6" rx="0.6" fill="currentColor" fill-opacity="0.45"/>'
+)
+
+export const LineProductWater = glyph(
+  '<path d="M1.5 4.5 Q3.125 2.9 4.75 4.5 T8 4.5 T11.25 4.5 T14.5 4.5" fill="none" stroke="currentColor" stroke-width="1" stroke-linecap="round" stroke-linejoin="round"/><path d="M1.5 8.5 Q3.125 6.9 4.75 8.5 T8 8.5 T11.25 8.5 T14.5 8.5" fill="none" stroke="currentColor" stroke-width="1" stroke-linecap="round" stroke-linejoin="round"/><path d="M1.5 12.5 Q3.125 10.9 4.75 12.5 T8 12.5 T11.25 12.5 T14.5 12.5" fill="none" stroke="currentColor" stroke-width="1" stroke-linecap="round" stroke-linejoin="round"/>'
+)
+
+export const LineProductMineral = glyph(
+  '<path d="M8 1.5 L12 4.25 L12 11.25 L8 14.5 L4 11.25 L4 4.25 Z" fill="none" stroke="currentColor" stroke-width="1" stroke-linecap="round" stroke-linejoin="round"/><path d="M8 1.5 V14.5 M4 4.25 L8 6 L12 4.25" fill="none" stroke="currentColor" stroke-width="1" stroke-linecap="round" stroke-linejoin="round"/>'
+)
+
+export const LineProductFields = glyph(
+  '<path d="M2 4 L8 2.5 L9 8.5 L2.5 10 Z" fill="none" stroke="currentColor" stroke-width="1" stroke-linecap="round" stroke-linejoin="round"/><path d="M8 2.5 L14 4.5 L13.5 9.5 L9 8.5" fill="none" stroke="currentColor" stroke-width="1" stroke-linecap="round" stroke-linejoin="round"/><path d="M2.5 10 L3.5 14 L12.5 13.5 L13.5 9.5" fill="none" stroke="currentColor" stroke-width="1" stroke-linecap="round" stroke-linejoin="round"/>'
+)
+
+export const LineProductHealth = glyph(
+  '<defs><mask id="pr-health"><rect width="16" height="16" fill="#fff"/><path d="M1.5 9 H5 L6.5 6 L8.5 12 L10 7.5 L11 9 H14.5" fill="none" stroke="#000" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/></mask></defs><g mask="url(#pr-health)"><path d="M2.5 13.5 A8.6 8.6 0 0 1 13.5 2.5 A8.6 8.6 0 0 1 2.5 13.5 Z" fill="none" stroke="currentColor" stroke-width="1" stroke-linecap="round" stroke-linejoin="round"/></g><path d="M1.5 9 H5 L6.5 6 L8.5 12 L10 7.5 L11 9 H14.5" fill="none" stroke="currentColor" stroke-width="1" stroke-linecap="round" stroke-linejoin="round"/>'
+)
+
+export const LineProductOverlap = glyph(
+  '<defs><clipPath id="pr-field"><path d="M1.5 4 L9.5 2 L11 9.5 L2.5 11 Z"/></clipPath></defs><path d="M6.5 8 C8 6.25 10.5 6.75 12 6.25 C14 5.75 14.75 8 14.5 10 C14.25 12 15 13.75 12.75 14.5 C10.75 15 9.25 13.75 7.5 14 C5.5 14.25 5 12.5 5.25 10.75 C5.5 9.5 5.75 8.75 6.5 8 Z" clip-path="url(#pr-field)" fill="currentColor" fill-opacity="0.55"/><path d="M6.5 8 C8 6.25 10.5 6.75 12 6.25 C14 5.75 14.75 8 14.5 10 C14.25 12 15 13.75 12.75 14.5 C10.75 15 9.25 13.75 7.5 14 C5.5 14.25 5 12.5 5.25 10.75 C5.5 9.5 5.75 8.75 6.5 8 Z" fill="none" stroke="currentColor" stroke-width="1" stroke-dasharray="1.4 1.2"/><path d="M1.5 4 L9.5 2 L11 9.5 L2.5 11 Z" fill="none" stroke="currentColor" stroke-width="1" stroke-linecap="round" stroke-linejoin="round"/>'
+)
+
+export const LineProductRadar = glyph(
+  '<circle cx="8" cy="8" r="6.5" fill="none" stroke="currentColor" stroke-width="1" stroke-linecap="round" stroke-linejoin="round"/><circle cx="8" cy="8" r="3.25" fill="none" stroke="currentColor" stroke-width="1" stroke-linecap="round" stroke-linejoin="round" stroke-opacity="0.6"/><path d="M8 8 L12.18 3.02" fill="none" stroke="currentColor" stroke-width="1" stroke-linecap="round" stroke-linejoin="round"/><circle cx="8" cy="8" r="0.9" fill="currentColor"/><circle cx="5" cy="10.5" r="1.1" fill="currentColor"/>'
+)
+
+export const LineProductZones = glyph(
+  '<defs><clipPath id="pr-zones"><path d="M2 6 L6 2 L11 3.25 L14.5 2 L13.5 9 L14.25 14 L8 14.5 L2.5 13 Z"/></clipPath></defs><g clip-path="url(#pr-zones)"><path d="M0 10.5 C4 8 7 9 16 2.5 L16 0 L0 0 Z" fill="currentColor" fill-opacity="0.55"/><path d="M0 10.5 C4 8 7 9 16 2.5 L16 7.5 C9 13.5 5 12.5 0 15 Z" fill="currentColor" fill-opacity="0.22"/><path d="M0 10.5 C4 8 7 9 16 2.5 M0 15 C5 12.5 9 13.5 16 7.5" fill="none" stroke="currentColor" stroke-width="1" stroke-linecap="round" stroke-linejoin="round"/></g><path d="M2 6 L6 2 L11 3.25 L14.5 2 L13.5 9 L14.25 14 L8 14.5 L2.5 13 Z" fill="none" stroke="currentColor" stroke-width="1" stroke-linecap="round" stroke-linejoin="round"/>'
 )
