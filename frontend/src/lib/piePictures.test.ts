@@ -6,14 +6,13 @@ import { resolve } from "node:path"
 import { describe, expect, it } from "vitest"
 
 import { READINGS } from "./compareBoard"
-import { CATEGORIES, NODE_KINDS } from "./compositorGraph"
-import { categoryPicture, kindPicture, readingPicture } from "./piePictures"
+import { NODE_KINDS } from "./compositorGraph"
+import { kindPicture, readingPicture } from "./piePictures"
 import type { PiePicture } from "./piePictures"
 
 const PUBLIC = resolve(__dirname, "../../public")
 
 const shown: [string, PiePicture][] = [
-  ...CATEGORIES.map((c): [string, PiePicture] => [c.id, categoryPicture(c.id)]),
   ...NODE_KINDS.map((k): [string, PiePicture] => [k.kind, kindPicture(k.kind)]),
   ...READINGS.map((r): [string, PiePicture] => [r.kind, readingPicture(r.kind)]),
 ]
