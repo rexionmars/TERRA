@@ -1,6 +1,7 @@
 import { useState } from "react"
 
-import { CaretDown, FloppyDisk, Graph, Plus } from "@/components/icons"
+import { CaretDown, Plus } from "@/components/icons"
+import { LineSave, LineWorkflows } from "@/components/lineIcons"
 import {
   CompositorEditor,
   type CompositorGlobeOverlay,
@@ -120,7 +121,7 @@ export function WorkflowsScreen({
       )}
     >
       <header className="flex h-12 shrink-0 items-center gap-2 border-b border-border px-4">
-        <Graph aria-hidden className="size-4 text-muted-foreground" />
+        <LineWorkflows aria-hidden className="size-4 text-muted-foreground" />
         <MenuPopover
           open={menu}
           onOpenChange={setMenu}
@@ -212,7 +213,7 @@ export function WorkflowsScreen({
               }
               className={btnGhost}
             >
-              <FloppyDisk className="size-3.5" />
+              <LineSave className="size-3.5" />
               Save
             </button>
           )}

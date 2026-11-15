@@ -1,14 +1,7 @@
 import { useState } from "react"
 
-import {
-  CaretRight,
-  Check,
-  PencilSimple,
-  Polygon,
-  Trash,
-  Upload,
-  X,
-} from "@/components/icons"
+import { CaretRight, Check, PencilSimple, Polygon, X } from "@/components/icons"
+import { LineDelete, LineImportArea } from "@/components/lineIcons"
 import type { Area } from "@/lib/areas"
 import type { GeoJSONGeometry } from "@/lib/types"
 import { geometryAreaHectares } from "@/lib/geometry"
@@ -160,7 +153,7 @@ function AreaRow({
         )}
         {onDelete && (
           <IconButton label={`Delete ${area.name}`} onClick={onDelete}>
-            <Trash className="size-3.5" />
+            <LineDelete className="size-3.5" />
           </IconButton>
         )}
       </div>
@@ -258,7 +251,7 @@ export function AreasPanel({
             </div>
           )}
           <button type="button" onClick={onImport} className={cn(btnGhost, "w-full")}>
-            <Upload className="size-4" />
+            <LineImportArea className="size-4" />
             Import a .kml or GeoJSON file
           </button>
           {onPickBoundary && (

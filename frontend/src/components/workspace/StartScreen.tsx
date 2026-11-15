@@ -12,7 +12,8 @@
  * it open do what they say, and it closes behind them.
  */
 import { useEffect, useRef, useState } from "react"
-import { File, FolderOpen, Stack, type Icon } from "@/components/icons"
+import { File, type Icon } from "@/components/icons"
+import { LineAnalyses, LineWorkflows } from "@/components/lineIcons"
 
 import { GetAppVersion } from "../../../wailsjs/go/main/App"
 import { BrowserOpenURL } from "../../../wailsjs/runtime/runtime"
@@ -311,7 +312,7 @@ export function StartScreen({
             {opRow("WORKFLOW_NEW")}
             {opRow("PROJECT_OPEN")}
             <Row
-              icon={FolderOpen}
+              icon={LineAnalyses}
               label="Browse saved analyses"
               title="Every saved analysis, filed under its project"
               onSelect={act(onBrowse)}
@@ -328,7 +329,7 @@ export function StartScreen({
                 .map((s) => (
                   <Row
                     key={s.id}
-                    icon={Stack}
+                    icon={LineWorkflows}
                     label={s.name}
                     checked={s.id === openStudioId}
                     title={s.id === openStudioId ? "Already open" : `Open "${s.name}"`}

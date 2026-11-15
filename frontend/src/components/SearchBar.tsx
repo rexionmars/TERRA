@@ -1,5 +1,6 @@
 import { useState } from "react"
-import { MagnifyingGlass, CircleNotch, MapPin } from "@/components/icons"
+import { CircleNotch } from "@/components/icons"
+import { LinePoints, LineSearch } from "@/components/lineIcons"
 import { notifyError, notifyInfo } from "@/lib/notify"
 import { GeocodeSearch } from "../../wailsjs/go/main/App"
 import type { GeocodeResult } from "@/lib/types"
@@ -71,7 +72,7 @@ export function SearchBar({
           !bare && "panel rounded-md"
         )}
       >
-        <MagnifyingGlass className="size-3.5 shrink-0 text-muted-foreground" />
+        <LineSearch className="size-3.5 shrink-0 text-muted-foreground" />
         <input
           autoFocus={autoFocus}
           value={query}
@@ -102,7 +103,7 @@ export function SearchBar({
                 onClick={() => pick(r)}
                 className="flex w-full items-start gap-2 px-3 py-2 text-left text-label hover:bg-secondary"
               >
-                <MapPin className="mt-0.5 size-3 shrink-0 text-muted-foreground" />
+                <LinePoints className="mt-0.5 size-3 shrink-0 text-muted-foreground" />
                 <span className="line-clamp-2">{r.display_name}</span>
               </button>
             </li>
