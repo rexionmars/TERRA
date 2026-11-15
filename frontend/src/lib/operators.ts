@@ -21,12 +21,13 @@
  * that cannot run is explained before it is tried rather than failing after.
  */
 import { useEffect, useRef } from "react"
-import { Plus, SlidersHorizontal, type Icon } from "@/components/icons"
+import { Plus, type Icon } from "@/components/icons"
 import {
   LineAbout,
   LineFolderOpen,
   LineHome,
   LineKeymap,
+  LineManageWorkflows,
   LinePython,
   LineReveal,
   LineSave,
@@ -92,7 +93,7 @@ const DEFS = {
     label: "Manage workflows\u2026",
     description: "Rename or delete saved workflows",
     menu: "Workflows",
-    icon: SlidersHorizontal,
+    icon: LineManageWorkflows,
   },
 
   // ---- The application's menu, under the mark in the header ----------------
