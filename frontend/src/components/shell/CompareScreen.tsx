@@ -1,16 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react"
 
-import {
-  ArrowsClockwise,
-  CaretRight,
-  CornersOut,
-  Copy,
-  Minus,
-  Path,
-  Plus,
-  X,
-} from "@/components/icons"
-import { LineDelete } from "@/components/lineIcons"
+import { CaretRight, Copy, Path, Plus, X } from "@/components/icons"
+import { LineDelete, LineFold, LineSwap, LineUnfold } from "@/components/lineIcons"
 import { READING_ICONS } from "@/components/viewIcons"
 import { ConfusionMatrix } from "@/components/workspace/AgreementCharts"
 import {
@@ -568,9 +559,9 @@ export function CompareScreen({
       id: "fold",
       label: folded ? "Unfold" : "Fold",
       icon: folded ? (
-        <CornersOut className="size-3.5" />
+        <LineUnfold className="size-3.5" />
       ) : (
-        <Minus className="size-3.5" />
+        <LineFold className="size-3.5" />
       ),
     }
     const run = gridRuns.find((r) => r.id === t.id)
@@ -610,7 +601,7 @@ export function CompareScreen({
               {
                 id: "swap",
                 label: "Swap A and B",
-                icon: <ArrowsClockwise className="size-3.5" />,
+                icon: <LineSwap className="size-3.5" />,
                 blockedBy: linked ? null : "Nothing is linked into it.",
               },
             ]

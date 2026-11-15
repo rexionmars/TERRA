@@ -13,11 +13,10 @@ import {
   CircleNotch,
   Clock,
   DownloadSimple,
-  Play,
   UploadSimple,
   X,
 } from "@/components/icons"
-import { LineDelete } from "@/components/lineIcons"
+import { LineDelete, LineRun } from "@/components/lineIcons"
 import { CatalogueHero } from "@/components/shell/CatalogueHero"
 import { ConfirmDelete } from "@/components/ui/ConfirmDelete"
 import { ModalHeader, ModalShell } from "@/components/ui/ModalShell"
@@ -712,7 +711,7 @@ function ModelPage({
                   onClick={() => onRun(m.id)}
                   className={offers ? btnGhost : btnPrimaryCommit}
                 >
-                  <Play className="size-3.5" />
+                  <LineRun className="size-3.5" />
                   Run on the map
                 </button>
               )}

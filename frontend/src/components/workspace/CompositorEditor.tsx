@@ -30,16 +30,19 @@ import { useEffect, useMemo, useRef, useState } from "react"
 import {
   CaretLeft,
   CaretRight,
-  CornersOut,
   Copy,
   DownloadSimple,
   Eye,
-  Minus,
   Path,
   Plus,
   X,
 } from "@/components/icons"
-import { LineDelete, LineProductFields } from "@/components/lineIcons"
+import {
+  LineDelete,
+  LineFold,
+  LineProductFields,
+  LineUnfold,
+} from "@/components/lineIcons"
 import { NumberField } from "@/components/ui/NumberField"
 import { PHOTO_CHIP } from "@/components/ui/TabbedBanner"
 import { cn } from "@/lib/utils"
@@ -1994,9 +1997,9 @@ export function CompositorEditor({
           id: "fold",
           label: folded ? "Unfold" : "Fold",
           icon: folded ? (
-            <CornersOut className="size-3.5" />
+            <LineUnfold className="size-3.5" />
           ) : (
-            <Minus className="size-3.5" />
+            <LineFold className="size-3.5" />
           ),
         },
       ],
