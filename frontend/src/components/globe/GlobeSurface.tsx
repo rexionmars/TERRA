@@ -24,22 +24,21 @@ import "maplibre-gl/dist/maplibre-gl.css"
 
 import { useEffect, useMemo, useRef, useState } from "react"
 
+import { Globe, Warning } from "@/components/icons"
 import {
-  Broadcast,
-  Globe,
-  CompassTool,
-  MagnifyingGlass,
-  Mountains,
-  Planet,
-  RoadHorizon,
-  Path,
-  Pencil,
-  ArrowsOutCardinal,
-  SquareSplitHorizontal,
-  Trash,
-  UploadSimple,
-  Warning,
-} from "@/components/icons"
+  LineBasePhoto,
+  LineBaseStreets,
+  LineBaseTopo,
+  LineCurtain,
+  LineDelete,
+  LineDrawArea,
+  LineEditArea,
+  LineImagery,
+  LineImportArea,
+  LineRelief,
+  LineSearch,
+  LineSpread,
+} from "@/components/lineIcons"
 import {
   Map as MapLibreMap,
   Marker,
@@ -138,16 +137,16 @@ const BASE_OPTIONS: readonly {
   name: string
   icon: React.ReactNode
 }[] = [
-  { id: "imagery", name: "Imagery", icon: <Planet className="size-4" /> },
+  { id: "imagery", name: "Imagery", icon: <LineBasePhoto className="size-4" /> },
   {
     id: "street",
     name: basemapByKind("street").name,
-    icon: <RoadHorizon className="size-4" />,
+    icon: <LineBaseStreets className="size-4" />,
   },
   {
     id: "topo",
     name: basemapByKind("topo").name,
-    icon: <CompassTool className="size-4" />,
+    icon: <LineBaseTopo className="size-4" />,
   },
 ]
 
@@ -1932,7 +1931,7 @@ export function GlobeSurface({
             active={searching}
             onClick={() => setSearching((v) => !v)}
           >
-            <MagnifyingGlass className="size-4" />
+            <LineSearch className="size-4" />
           </MapButton>
           {/*
             THE STACK'S SPREAD, and only where there is a stack. A raster here
@@ -1946,7 +1945,7 @@ export function GlobeSurface({
               active={spreadOpen}
               onClick={() => setSpreadOpen((v) => !v)}
             >
-              <ArrowsOutCardinal className="size-4" />
+              <LineSpread className="size-4" />
             </MapButton>
           )}
           {/*
@@ -1960,7 +1959,7 @@ export function GlobeSurface({
               active={curtainOn}
               onClick={() => onCurtainChange(curtainOn ? null : 0.5)}
             >
-              <SquareSplitHorizontal className="size-4" />
+              <LineCurtain className="size-4" />
             </MapButton>
           )}
           {/*
@@ -1978,11 +1977,11 @@ export function GlobeSurface({
             cycling button can only name where it is going. The list names all
             three at one press each.
 
-            THE GLYPHS ARE THE THREE SUBJECTS AND NOT THREE MAPS. A planet for
-            the photograph, a road for the streets. Topographic takes the
-            drafting compass rather than the mountains it would otherwise
-            want: the relief toggle two controls down already wears those, and
-            two identical glyphs on one rail is a rail that cannot be read
+            THE GLYPHS ARE THE THREE SUBJECTS AND NOT THREE MAPS. A globe for
+            the photograph, a road for the streets, contour lines for the
+            topographic map, which is what it draws. Not the mountains it might
+            otherwise take: the relief toggle two controls down wears those,
+            and two identical glyphs on one rail is a rail that cannot be read
             without pressing it.
           */}
           <MapMenu label="Base" value={base} onChange={setBase} options={BASE_OPTIONS}>
@@ -2002,7 +2001,7 @@ export function GlobeSurface({
               active={recent}
               onClick={() => setRecent((v) => !v)}
             >
-              <Broadcast className="size-4" />
+              <LineImagery className="size-4" />
             </MapButton>
           )}
           <MapButton
@@ -2010,7 +2009,7 @@ export function GlobeSurface({
             active={relief}
             onClick={() => setRelief((r) => !r)}
           >
-            <Mountains className="size-4" />
+            <LineRelief className="size-4" />
           </MapButton>
           {canDraw && (
             <>
@@ -2019,14 +2018,14 @@ export function GlobeSurface({
                 active={mode === "draw"}
                 onClick={() => setMode((m) => (m === "draw" ? "idle" : "draw"))}
               >
-                <Pencil className="size-4" />
+                <LineDrawArea className="size-4" />
               </MapButton>
               <MapButton
                 label="Edit the area"
                 active={mode === "edit"}
                 onClick={() => setMode((m) => (m === "edit" ? "idle" : "edit"))}
               >
-                <Path className="size-4" />
+                <LineEditArea className="size-4" />
               </MapButton>
               {/*
                 BESIDE THE PENCIL, because a file is the other way an area
@@ -2038,13 +2037,13 @@ export function GlobeSurface({
                   label="Import an area from a .kml or GeoJSON file"
                   onClick={onImportPolygon}
                 >
-                  <UploadSimple className="size-4" />
+                  <LineImportArea className="size-4" />
                 </MapButton>
               )}
               {/* Withheld with nothing to delete, rather than shown doing nothing. */}
               {polygon && (
                 <MapButton label="Delete the area" onClick={onDeleteArea ?? clear}>
-                  <Trash className="size-4" />
+                  <LineDelete className="size-4" />
                 </MapButton>
               )}
             </>

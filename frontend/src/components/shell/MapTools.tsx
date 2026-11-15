@@ -1,10 +1,10 @@
 import {
-  ChartLine,
-  Crosshair,
-  Image as ImageGlyph,
-  Sparkle,
-  Stack,
-} from "@/components/icons"
+  LineCompositions,
+  LineLayers,
+  LinePoints,
+  LineProducts,
+  LineResult,
+} from "@/components/lineIcons"
 import { MapButton } from "@/components/globe/MapChrome"
 import type { ShellPanelId } from "@/components/shell/shellNavigation"
 
@@ -23,35 +23,35 @@ export function MapTools({
         active={panel === "products"}
         onClick={() => togglePanel("products")}
       >
-        <Sparkle className="size-4" />
+        <LineProducts className="size-4" />
       </MapButton>
       <MapButton
         label="Compositions"
         active={panel === "visualization"}
         onClick={() => togglePanel("visualization")}
       >
-        <ImageGlyph className="size-4" />
+        <LineCompositions className="size-4" />
       </MapButton>
       <MapButton
         label="Result"
         active={panel === "result"}
         onClick={() => togglePanel("result")}
       >
-        <ChartLine className="size-4" />
+        <LineResult className="size-4" />
       </MapButton>
       <MapButton
         label="Points"
         active={panel === "points"}
         onClick={() => togglePanel("points")}
       >
-        <Crosshair className="size-4" />
+        <LinePoints className="size-4" />
       </MapButton>
       <MapButton
         label="Layers"
         active={panel === "layers"}
         onClick={() => togglePanel("layers")}
       >
-        <Stack className="size-4" />
+        <LineLayers className="size-4" />
       </MapButton>
     </>
   )
