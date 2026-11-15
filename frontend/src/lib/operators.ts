@@ -21,13 +21,7 @@
  * that cannot run is explained before it is tried rather than failing after.
  */
 import { useEffect, useRef } from "react"
-import {
-  FloppyDisk,
-  PencilSimple,
-  Plus,
-  SlidersHorizontal,
-  type Icon,
-} from "@/components/icons"
+import { Plus, SlidersHorizontal, type Icon } from "@/components/icons"
 import {
   LineAbout,
   LineFolderOpen,
@@ -75,7 +69,7 @@ const DEFS = {
     description:
       "Save this workflow under its name, or ask for one, and the project file when the project has one",
     menu: "Workflows",
-    icon: FloppyDisk,
+    icon: LineSave,
     keys: ["Mod+S"],
     inFields: true,
   },
@@ -83,7 +77,7 @@ const DEFS = {
     label: "Save under another name\u2026",
     description: "Give the open workflow a new name",
     menu: "Workflows",
-    icon: PencilSimple,
+    icon: LineSaveAs,
     keys: ["Shift+Mod+S"],
     inFields: true,
   },

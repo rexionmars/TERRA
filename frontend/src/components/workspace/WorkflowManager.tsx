@@ -14,7 +14,8 @@
  * "delete" beside a list of analyses does not answer it.
  */
 import { useEffect, useState } from "react"
-import { Check, Stack, Pencil, Trash, X, type Icon } from "@/components/icons"
+import { Check, Pencil, Trash, X, type Icon } from "@/components/icons"
+import { LineWorkflows } from "@/components/lineIcons"
 
 import { ConfirmDelete } from "@/components/ui/ConfirmDelete"
 import { ModalShell } from "@/components/ui/ModalShell"
@@ -138,7 +139,7 @@ export function WorkflowManager({
                 className="flex items-center gap-2 border-b py-1.5 pr-0.5 pl-1 last:border-b-0"
                 style={{ borderColor: "rgb(var(--p-line) / 0.2)" }}
               >
-                <Stack
+                <LineWorkflows
                   className={cn(
                     "size-3.5 shrink-0",
                     isOpen ? "text-primary" : "text-muted-foreground"

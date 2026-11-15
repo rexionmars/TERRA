@@ -22,7 +22,8 @@
  */
 import { useEffect, useMemo, useRef, useState } from "react"
 
-import { MagnifyingGlass, Plus } from "@/components/icons"
+import { Plus } from "@/components/icons"
+import { LineSearch } from "@/components/lineIcons"
 import {
   RunPicture,
   kindOf,
@@ -167,7 +168,7 @@ export function RunList({
     */
     <div className="flex max-h-[26rem] flex-col overflow-hidden">
       <label className="mx-1 mt-1 mb-1.5 flex shrink-0 items-center gap-2 rounded-full border border-[rgb(var(--p-line)/0.45)] px-3 py-1.5">
-        <MagnifyingGlass className="size-3.5 shrink-0 text-muted-foreground" />
+        <LineSearch className="size-3.5 shrink-0 text-muted-foreground" />
         <input
           ref={search}
           autoFocus

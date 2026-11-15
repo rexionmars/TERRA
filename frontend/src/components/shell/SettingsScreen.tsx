@@ -17,15 +17,13 @@ import {
   Check,
   CircleNotch,
   Download,
-  HardDrive,
   Heart,
-  Keyboard,
   SlidersHorizontal,
   Star,
-  Terminal,
   Upload,
   User,
 } from "@/components/icons"
+import { LineKeymap, LinePython, LineStorage } from "@/components/lineIcons"
 import { ProfileSection } from "@/components/shell/ProfileSection"
 import {
   CARD,
@@ -77,7 +75,7 @@ const PAGES: readonly {
   {
     id: "data",
     label: "Data",
-    icon: HardDrive,
+    icon: LineStorage,
     group: "Account",
     summary:
       "Everything you save lives in one directory on this machine, with no server holding a second copy. This is where to see it and take it with you.",
@@ -85,7 +83,7 @@ const PAGES: readonly {
   {
     id: "system",
     label: "System",
-    icon: Terminal,
+    icon: LinePython,
     group: "Application",
     summary:
       "The Python environment the analyses run in, and the logins they read data with.",
@@ -93,7 +91,7 @@ const PAGES: readonly {
   {
     id: "keymap",
     label: "Keymap",
-    icon: Keyboard,
+    icon: LineKeymap,
     group: "Application",
     summary: "Every command, with its keys and the menu it is in.",
   },
@@ -530,7 +528,7 @@ function DataPage() {
             {storage.busy ? (
               <CircleNotch className="size-3.5 animate-spin" />
             ) : (
-              <HardDrive className="size-3.5" />
+              <LineStorage className="size-3.5" />
             )}
             {storage.report
               ? `${formatBytes(storage.report.total_bytes)} · Breakdown`

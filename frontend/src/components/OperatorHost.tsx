@@ -8,7 +8,7 @@
  * has to answer on the settings screen too, where no board exists.
  */
 import { useEffect, useMemo, useRef, useState } from "react"
-import { MagnifyingGlass } from "@/components/icons"
+import { LineSearchOperators } from "@/components/lineIcons"
 
 import { useAuth } from "@/lib/auth"
 import {
@@ -77,7 +77,7 @@ function OperatorSearch({ onClose }: { onClose: () => void }) {
       className="mt-[12vh] w-[min(34rem,calc(100vw-2rem))] self-start"
     >
       <div className="flex items-center gap-2 border-b border-hairline px-3">
-        <MagnifyingGlass className="size-3.5 shrink-0 text-muted-foreground" />
+        <LineSearchOperators className="size-3.5 shrink-0 text-muted-foreground" />
         <input
           autoFocus
           value={query}

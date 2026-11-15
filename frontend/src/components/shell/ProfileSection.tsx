@@ -4,13 +4,13 @@ import { ActivityGrid } from "@/components/ActivityGrid"
 import {
   Camera,
   CircleNotch,
-  FloppyDisk,
   FolderOpen,
   ImageSquare,
   SignOut,
   Trash,
   User,
 } from "@/components/icons"
+import { LineSave } from "@/components/lineIcons"
 import { SettingGroup, SettingRow } from "@/components/shell/settingsParts"
 import {
   BannerFigure,
@@ -297,7 +297,7 @@ export function ProfileSection({
                 disabled={busy || !name.trim() || name.trim() === storedName}
                 className={btnPrimary}
               >
-                <FloppyDisk className="size-3.5" />
+                <LineSave className="size-3.5" />
                 Save
               </button>
             </form>

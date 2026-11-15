@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react"
 
-import { Crosshair, Trash } from "@/components/icons"
+import { Trash } from "@/components/icons"
+import { LinePoints } from "@/components/lineIcons"
 import { Swatch } from "@/components/workspace/nodeParts"
 import { btnGhost } from "@/components/ui/buttons"
 import {
@@ -63,7 +64,7 @@ function PointCard({
           onClick={onPlace}
           className={cn(btnGhost, placing && "bg-selected")}
         >
-          <Crosshair className="size-3.5" />
+          <LinePoints className="size-3.5" />
           {placing ? "Press the map" : point ? "Move" : "Place"}
         </button>
         {point && (

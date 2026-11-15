@@ -5,14 +5,13 @@ import {
   Check,
   Folder,
   FolderOpen,
-  Folders,
-  MagnifyingGlass,
   PencilSimple,
   Plus,
   Trash,
   Tray,
   X,
 } from "@/components/icons"
+import { LineAnalyses, LineSearch } from "@/components/lineIcons"
 import {
   ClassBar,
   KINDS,
@@ -306,7 +305,7 @@ export function AnalysesScreen({
         </h1>
         <div className="flex-1" />
         <label className="relative flex w-80 max-w-[40%] items-center">
-          <MagnifyingGlass className="pointer-events-none absolute left-3 size-3.5 text-muted-foreground" />
+          <LineSearch className="pointer-events-none absolute left-3 size-3.5 text-muted-foreground" />
           <input
             value={query}
             onChange={(e) => setQuery(e.target.value)}
@@ -339,7 +338,7 @@ export function AnalysesScreen({
           className="flex w-60 shrink-0 flex-col overflow-y-auto border-r border-border px-3 py-5"
         >
           <ScopeRow
-            icon={Folders}
+            icon={LineAnalyses}
             label="All analyses"
             count={runs.length}
             active={scope.scope === "all"}
