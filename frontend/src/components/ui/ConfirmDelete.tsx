@@ -30,6 +30,7 @@ export function ConfirmDelete({
   title,
   subtitle,
   confirmLabel,
+  alternative,
   busy = false,
   onCancel,
   onConfirm,
@@ -41,6 +42,11 @@ export function ConfirmDelete({
   /** What the deletion takes with it, which is what the reader is weighing. */
   subtitle: string
   confirmLabel: string
+  /**
+   * An answer that deletes nothing, offered beside the deletion when the act
+   * has a lighter form: an area can leave the map and stay in the project.
+   */
+  alternative?: { label: string; onSelect: () => void }
   busy?: boolean
   onCancel: () => void
   onConfirm: () => void
@@ -72,6 +78,16 @@ export function ConfirmDelete({
         <button type="button" disabled={busy} onClick={onCancel} className={btnGhost}>
           Cancel
         </button>
+        {alternative && (
+          <button
+            type="button"
+            disabled={busy}
+            onClick={alternative.onSelect}
+            className={btnGhost}
+          >
+            {alternative.label}
+          </button>
+        )}
         <button
           type="button"
           disabled={busy}
