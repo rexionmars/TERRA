@@ -1,4 +1,15 @@
-import { CircleNotch, Eye, Trash } from "@/components/icons"
+import { CircleNotch, Eye, Trash, type Icon } from "@/components/icons"
+import {
+  SourceOneScene,
+  SourcePeriodMedian,
+  ViewBiomass,
+  ViewCanopy,
+  ViewChange,
+  ViewClusters,
+  ViewComponents,
+  ViewIndex,
+  ViewRgb,
+} from "@/components/viewIcons"
 import { LegendBody } from "@/components/globe/OverlayCallout"
 import { btnGhost, btnPrimaryCommit } from "@/components/ui/buttons"
 import {
@@ -43,6 +54,17 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
 
 const clamp = (v: number, lo: number, hi: number) =>
   Math.min(hi, Math.max(lo, Number.isFinite(v) ? v : lo))
+
+/** Each kind of view drawn as what its name means. */
+const KIND_ICON: Record<CompositeKind, Icon> = {
+  rgb: ViewRgb,
+  index: ViewIndex,
+  pca: ViewComponents,
+  clusters: ViewClusters,
+  change: ViewChange,
+  biophysical: ViewCanopy,
+  biomass: ViewBiomass,
+}
 
 /** The most groups a clustering forms: the categorical colours there are. */
 const MAX_CLUSTERS = 7
@@ -266,7 +288,11 @@ export function VisualizationPanel({
           <PanelChoices
             label="Kind of view"
             value={kind}
-            options={KINDS.map((k) => ({ id: k.id, label: k.label }))}
+            options={KINDS.map((k) => ({
+              id: k.id,
+              label: k.label,
+              icon: KIND_ICON[k.id],
+            }))}
             onChange={onKindChange}
           />
           <p className="text-label text-muted-foreground">{def.description}</p>
@@ -286,8 +312,8 @@ export function VisualizationPanel({
                 label="Drawn from"
                 value={median ? "median" : "scene"}
                 options={[
-                  { id: "scene", label: "One scene" },
-                  { id: "median", label: "Period median" },
+                  { id: "scene", label: "One scene", icon: SourceOneScene },
+                  { id: "median", label: "Period median", icon: SourcePeriodMedian },
                 ]}
                 onChange={(v) => onMedianChange(v === "median")}
               />
