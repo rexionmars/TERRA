@@ -804,12 +804,14 @@
     vegetation, blue the third channel, a gain and the lit frame; orange, sky and
     green the cluster groups in the map's order.
 
-    An icon's edge clears 3:1 against the panel and the lit plate. The exact value
-    does, except blue here, which is the same hue lightened to clear the plate.
+    An icon clears 3:1, with 0.1 to spare, on all it is drawn on: the panel, the
+    lit plate of a chosen option, and the option card of a board's pie.
+    check:contrast measures each. The exact value does, except blue here, which
+    is the same hue lightened to clear the plate.
   */
   --oi-vermillion: #d55e00;
   --oi-green: #009e73;
-  --oi-blue: #0080c8;
+  --oi-blue: #0083cc;
   --oi-orange: #e69f00;
   --oi-sky: #56b4e9;
   /*
@@ -865,11 +867,13 @@
   --destructive-foreground: rgb(var(--p-surface));
   --destructive-quiet: #a32b3b;
   --warning: #6d5900;
-  /* Okabe-Ito on a light ground: orange and sky at the same hues, darkened to
-     clear 3:1 on the panel; blue goes back to the exact value. */
+  /* Okabe-Ito on a light ground: green, orange and sky at the same hues,
+     darkened to clear 3:1 on the panel and on a pie's option card; blue goes
+     back to the exact value, and vermillion clears both as it is. */
+  --oi-green: #009a70;
   --oi-blue: #0072b2;
-  --oi-orange: #b98000;
-  --oi-sky: #1c91d4;
+  --oi-orange: #b47d00;
+  --oi-sky: #1c8fd0;
   /* The same two, at the lightness a light ground needs. The bands invert with
      the theme rather than holding their value: --p-ink is the light surface
      here, so the reading on a band is LIGHT type and the band has to be dark

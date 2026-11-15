@@ -166,6 +166,11 @@ export const TOKENS = {
     asideEdge: [71, 102, 100],
     asideInk: [211, 226, 222],
     wireFailed: [249, 88, 49],
+    oiVermillion: [213, 94, 0],
+    oiGreen: [0, 158, 115],
+    oiBlue: [0, 131, 204],
+    oiOrange: [230, 159, 0],
+    oiSky: [86, 180, 233],
   },
   light: {
     sunk: [217, 211, 209],
@@ -218,6 +223,11 @@ export const TOKENS = {
     asideEdge: [71, 102, 100],
     asideInk: [211, 226, 222],
     wireFailed: [164, 62, 38],
+    oiVermillion: [213, 94, 0],
+    oiGreen: [0, 154, 112],
+    oiBlue: [0, 114, 178],
+    oiOrange: [180, 125, 0],
+    oiSky: [28, 143, 208],
   },
 } as const satisfies Record<string, Record<string, Channels>>
 
@@ -507,6 +517,21 @@ export const RULES: readonly ContrastRule[] = [
     min: 3.0,
     why: "the warning mark on a toast, which is an amber of its own rather than whatever the accent happens to be",
   },
+  /*
+   * The Okabe-Ito colours of the icons in components/viewIcons.tsx. An icon is a
+   * graphic, so the floor is 3.0, on everything it is drawn on: the panel
+   * (surface), the lit plate of a chosen option, which is surfaceRaised at 0.92
+   * over the panel and so lies between the two, and the option card of a
+   * board's pie (nodeCard).
+   */
+  ...(["oiVermillion", "oiGreen", "oiBlue", "oiOrange", "oiSky"] as const).map(
+    (fg): ContrastRule => ({
+      fg,
+      on: ["surface", "surfaceRaised", "nodeCard"],
+      min: 3.0,
+      why: "a colour of an icon in viewIcons.tsx, on the panel, its lit plate and a pie's option card",
+    })
+  ),
 ]
 
 /**

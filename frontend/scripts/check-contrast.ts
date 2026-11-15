@@ -106,6 +106,11 @@ const CSS_HEX: Record<string, string> = {
   success: "--success",
   warning: "--warning",
   wireFailed: "--p-wire-failed",
+  oiVermillion: "--oi-vermillion",
+  oiGreen: "--oi-green",
+  oiBlue: "--oi-blue",
+  oiOrange: "--oi-orange",
+  oiSky: "--oi-sky",
 }
 
 function hexChannels(hex: string): Channels {
@@ -160,8 +165,15 @@ function channelsFromCss(theme: ThemeName): Record<string, Channels> {
   // that carries them follows the palette; the light ones are inside it.
   const lightAt = css.indexOf(':root[data-theme="light"] {\n  --destructive')
   const scope = theme === "light" ? css.slice(lightAt) : css.slice(0, lightAt)
+  //
+  // The light block declares only what changes, as the cascade lets it: a token
+  // it leaves out keeps the dark value, so that is the value read for it here
+  // (--oi-vermillion is one).
   for (const [key, name] of Object.entries(CSS_HEX)) {
-    const m = scope.match(new RegExp(`${name}:\\s*(#[0-9a-fA-F]{6})\\s*;`))
+    const declared = new RegExp(`${name}:\\s*(#[0-9a-fA-F]{6})\\s*;`)
+    const m =
+      scope.match(declared) ??
+      (theme === "light" ? css.slice(0, lightAt).match(declared) : null)
     if (!m) throw new Error(`${name} not declared for the ${theme} theme`)
     out[key] = hexChannels(m[1])
   }
