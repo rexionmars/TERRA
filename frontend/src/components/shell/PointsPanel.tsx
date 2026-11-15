@@ -1,7 +1,6 @@
 import { useEffect, useMemo, useState } from "react"
 
-import { Trash } from "@/components/icons"
-import { LinePoints } from "@/components/lineIcons"
+import { LineDelete, LinePoints } from "@/components/lineIcons"
 import { Swatch } from "@/components/workspace/nodeParts"
 import { btnGhost } from "@/components/ui/buttons"
 import {
@@ -75,7 +74,7 @@ function PointCard({
             onClick={onClear}
             className="flex size-7 shrink-0 items-center justify-center rounded-sm text-muted-foreground hover:bg-hover hover:text-foreground"
           >
-            <Trash className="size-3.5" />
+            <LineDelete className="size-3.5" />
           </button>
         )}
       </div>

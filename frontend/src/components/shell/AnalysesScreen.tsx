@@ -7,11 +7,10 @@ import {
   FolderOpen,
   PencilSimple,
   Plus,
-  Trash,
   Tray,
   X,
 } from "@/components/icons"
-import { LineAnalyses, LineSearch } from "@/components/lineIcons"
+import { LineAnalyses, LineDelete, LineSearch } from "@/components/lineIcons"
 import {
   ClassBar,
   KINDS,
@@ -447,7 +446,7 @@ export function AnalysesScreen({
                   onClick={() => setDeleting({ kind: "project", project })}
                   className={btnGhostDense}
                 >
-                  <Trash className="size-3.5" />
+                  <LineDelete className="size-3.5" />
                   Delete project
                 </button>
               </div>
@@ -588,7 +587,7 @@ export function AnalysesScreen({
           />
           <div className="my-1 border-t border-[rgb(var(--p-line)/0.22)]" />
           <MenuItem
-            icon={Trash}
+            icon={LineDelete}
             label="Delete"
             onSelect={() => {
               setDeleting({ kind: "run", run: runMenu.run })
@@ -624,7 +623,7 @@ export function AnalysesScreen({
             }}
           />
           <MenuItem
-            icon={Trash}
+            icon={LineDelete}
             label="Delete"
             onSelect={() => {
               setDeleting({ kind: "project", project: projectMenu.project })
@@ -1047,7 +1046,7 @@ function RunDetail({
             )}
           </MenuPopover>
           <button type="button" onClick={onDelete} className={btnGhost}>
-            <Trash className="size-3.5" />
+            <LineDelete className="size-3.5" />
             Delete
           </button>
         </div>

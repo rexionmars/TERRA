@@ -24,7 +24,7 @@ import "maplibre-gl/dist/maplibre-gl.css"
 
 import { useEffect, useMemo, useRef, useState } from "react"
 
-import { Globe, Warning } from "@/components/icons"
+import { Warning } from "@/components/icons"
 import {
   LineBasePhoto,
   LineBaseStreets,
@@ -2155,7 +2155,7 @@ export function GlobeSurface({
             </>
           ) : (
             <>
-              <Globe className="size-5 animate-pulse text-muted-foreground" />
+              <LineBasePhoto className="size-5 animate-pulse text-muted-foreground" />
               <p className="text-body text-muted-foreground">Opening the globe</p>
             </>
           )}

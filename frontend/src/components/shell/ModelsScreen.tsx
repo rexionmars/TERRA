@@ -14,10 +14,10 @@ import {
   Clock,
   DownloadSimple,
   Play,
-  Trash,
   UploadSimple,
   X,
 } from "@/components/icons"
+import { LineDelete } from "@/components/lineIcons"
 import { CatalogueHero } from "@/components/shell/CatalogueHero"
 import { ConfirmDelete } from "@/components/ui/ConfirmDelete"
 import { ModalHeader, ModalShell } from "@/components/ui/ModalShell"
@@ -722,7 +722,7 @@ function ModelPage({
                   onClick={() => setRemoving("ask")}
                   className={btnGhost}
                 >
-                  <Trash className="size-3.5" />
+                  <LineDelete className="size-3.5" />
                   {standing.kind === "update"
                     ? `Remove ${installed.manifest.version}`
                     : "Remove"}

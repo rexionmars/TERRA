@@ -7,10 +7,9 @@ import {
   FolderOpen,
   ImageSquare,
   SignOut,
-  Trash,
   User,
 } from "@/components/icons"
-import { LineSave } from "@/components/lineIcons"
+import { LineDelete, LineSave } from "@/components/lineIcons"
 import { SettingGroup, SettingRow } from "@/components/shell/settingsParts"
 import {
   BannerFigure,
@@ -269,7 +268,7 @@ export function ProfileSection({
                   onClick={() => void clearAvatar()}
                   className={btnGhost}
                 >
-                  <Trash className="size-3.5" />
+                  <LineDelete className="size-3.5" />
                   Remove
                 </button>
               )}

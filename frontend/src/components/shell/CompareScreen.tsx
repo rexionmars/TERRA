@@ -8,9 +8,9 @@ import {
   Minus,
   Path,
   Plus,
-  Trash,
   X,
 } from "@/components/icons"
+import { LineDelete } from "@/components/lineIcons"
 import { ConfusionMatrix } from "@/components/workspace/AgreementCharts"
 import {
   PredictionComparison,
@@ -552,7 +552,11 @@ export function CompareScreen({
             label: "Open the reading",
             icon: <CaretRight className="size-3.5" />,
           },
-          { id: "unlink", label: "Remove link", icon: <Trash className="size-3.5" /> },
+          {
+            id: "unlink",
+            label: "Remove link",
+            icon: <LineDelete className="size-3.5" />,
+          },
         ],
       }
     }
@@ -582,7 +586,7 @@ export function CompareScreen({
           {
             id: "remove",
             label: "Remove",
-            icon: <Trash className="size-3.5" />,
+            icon: <LineDelete className="size-3.5" />,
             blockedBy: run.live
               ? "The run on the map stays here while it is on the map."
               : null,
@@ -617,7 +621,7 @@ export function CompareScreen({
         {
           id: "remove",
           label: "Remove",
-          icon: <Trash className="size-3.5" />,
+          icon: <LineDelete className="size-3.5" />,
           note: "X",
         },
         fold,
@@ -753,7 +757,7 @@ export function CompareScreen({
           onClick={() => remove(r.id)}
           className="-ml-1.5 inline-flex h-7 items-center gap-1.5 self-start rounded-sm px-1.5 text-label text-muted-foreground transition-colors hover:bg-hover hover:text-foreground"
         >
-          <Trash className="size-3.5" />
+          <LineDelete className="size-3.5" />
           Remove
         </button>
       </div>
