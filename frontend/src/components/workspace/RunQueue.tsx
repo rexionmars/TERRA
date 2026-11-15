@@ -21,7 +21,6 @@
 import { createContext, useContext, useEffect, useState } from "react"
 import {
   ArrowClockwise,
-  ArrowSquareOut,
   CheckCircle,
   CircleNotch,
   Clock,
@@ -30,6 +29,7 @@ import {
   X,
   type Icon,
 } from "@/components/icons"
+import { LineFolderOpen } from "@/components/lineIcons"
 
 import {
   CancelAllJobs,
@@ -249,7 +249,7 @@ function JobRow({
         )}
         {done && onOpen && (
           <RowAction
-            icon={ArrowSquareOut}
+            icon={LineFolderOpen}
             label="Open the run on the map"
             onClick={() => onOpen(job)}
           />

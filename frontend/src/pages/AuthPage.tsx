@@ -1,5 +1,6 @@
 import { useState } from "react"
-import { SignIn, UserPlus } from "@/components/icons"
+import { UserPlus } from "@/components/icons"
+import { LineSignIn } from "@/components/lineIcons"
 import { useAuth } from "@/lib/auth"
 import { PageShell } from "@/components/ui/PageShell"
 import { btnPrimaryCommit } from "@/components/ui/buttons"
@@ -48,7 +49,7 @@ export function AuthPage() {
           <TabButton
             active={mode === "login"}
             onClick={() => setMode("login")}
-            icon={<SignIn className="h-3 w-3" />}
+            icon={<LineSignIn className="h-3 w-3" />}
           >
             Login
           </TabButton>
