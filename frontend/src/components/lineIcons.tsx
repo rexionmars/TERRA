@@ -1,5 +1,6 @@
 /*
-  The thin-line icons of the map's tool rail and the application menu.
+  The thin-line icons of the map's tool rail, the application menu and the
+  navigation rail on the window's left edge.
 
   This file is their source. They keep Breeze's grammar, so they sit with the
   Breeze glyphs of icons.tsx: a 16-unit grid, the drawing inside 2..14 (1..15
@@ -38,10 +39,22 @@
     What's new            sparkles
     Splash screen         a window with TERRA's triangular mark
     About TERRA           the information sign
+    Explore               a compass, its needle's north half filled
+    Analyses              where the analyses are kept: a folder with a chart
+    Compare               two results side by side, the arrow between them
+    Workflows             the editor's own picture: one node feeding two
+    Models                the package a model is installed from: a cube
+    Activity              the bell
+    Feedback              a speech bubble with its lines
+    Help                  a question mark in a ring
+    User guide            the guide, open
+    Hide the labels       the rail's column, the arrow going in
+    Show the labels       the rail's column, the arrow coming out
 
-  Three were drawn again after failing that test: the satellite turned on its
+  Four were drawn again after failing that test: the satellite turned on its
   diagonal read as a chain, the area's solid outline with the pencil as a price
-  tag, and round, concentric contours as a target.
+  tag, round concentric contours as a target, and a neural network for the
+  models as a blur.
 */
 import type { Icon } from "@/components/icons"
 
@@ -184,4 +197,48 @@ export const LineSplash = glyph(
 
 export const LineAbout = glyph(
   '<circle cx="8" cy="8" r="6.5" fill="none" stroke="currentColor" stroke-width="1" stroke-linecap="round" stroke-linejoin="round"/><circle cx="8" cy="5" r="0.85" fill="currentColor"/><path d="M8 7.5 V11.5" fill="none" stroke="currentColor" stroke-width="1" stroke-linecap="round" stroke-linejoin="round"/>'
+)
+
+export const LineExplore = glyph(
+  '<circle cx="8" cy="8" r="6.5" fill="none" stroke="currentColor" stroke-width="1" stroke-linecap="round" stroke-linejoin="round"/><path d="M10.9 5.1 L8.85 8.85 L7.15 7.15 Z" fill="currentColor" stroke="currentColor" stroke-width="1" stroke-linejoin="round"/><path d="M5.1 10.9 L7.15 7.15 L8.85 8.85 Z" fill="none" stroke="currentColor" stroke-width="1" stroke-linecap="round" stroke-linejoin="round"/>'
+)
+
+export const LineAnalyses = glyph(
+  '<path d="M1.5 12.5 V3.5 Q1.5 2.5 2.5 2.5 H5.75 L7.25 4 H13.5 Q14.5 4 14.5 5 V12.5 Q14.5 13.5 13.5 13.5 H2.5 Q1.5 13.5 1.5 12.5 Z" fill="none" stroke="currentColor" stroke-width="1" stroke-linecap="round" stroke-linejoin="round"/><path d="M4 11 L6.5 8.25 L8.75 9.75 L12 6.5" fill="none" stroke="currentColor" stroke-width="1" stroke-linecap="round" stroke-linejoin="round"/>'
+)
+
+export const LineCompare = glyph(
+  '<rect x="1.5" y="5.5" width="5.5" height="9.0" rx="1" fill="none" stroke="currentColor" stroke-width="1" stroke-linecap="round" stroke-linejoin="round"/><rect x="9" y="5.5" width="5.5" height="9.0" rx="1" fill="none" stroke="currentColor" stroke-width="1" stroke-linecap="round" stroke-linejoin="round"/><path d="M3.5 2.75 H12.5 M5 1.25 L3.5 2.75 L5 4.25 M11 1.25 L12.5 2.75 L11 4.25" fill="none" stroke="currentColor" stroke-width="1" stroke-linecap="round" stroke-linejoin="round"/>'
+)
+
+export const LineWorkflows = glyph(
+  '<rect x="1.5" y="6.5" width="4.0" height="3.0" rx="0.75" fill="none" stroke="currentColor" stroke-width="1" stroke-linecap="round" stroke-linejoin="round"/><rect x="10.5" y="2.5" width="4.0" height="3.0" rx="0.75" fill="none" stroke="currentColor" stroke-width="1" stroke-linecap="round" stroke-linejoin="round"/><rect x="10.5" y="10.5" width="4.0" height="3.0" rx="0.75" fill="none" stroke="currentColor" stroke-width="1" stroke-linecap="round" stroke-linejoin="round"/><path d="M5.5 8 C8 8 8 4 10.5 4 M5.5 8 C8 8 8 12 10.5 12" fill="none" stroke="currentColor" stroke-width="1" stroke-linecap="round" stroke-linejoin="round"/>'
+)
+
+export const LineModels = glyph(
+  '<path d="M8 1.75 L13.75 5 V11 L8 14.25 L2.25 11 V5 Z" fill="none" stroke="currentColor" stroke-width="1" stroke-linecap="round" stroke-linejoin="round"/><path d="M2.25 5 L8 8.25 L13.75 5 M8 8.25 V14.25" fill="none" stroke="currentColor" stroke-width="1" stroke-linecap="round" stroke-linejoin="round"/>'
+)
+
+export const LineActivity = glyph(
+  '<path d="M4 11.5 V7.5 C4 5.1 5.8 3.25 8 3.25 C10.2 3.25 12 5.1 12 7.5 V11.5 L13.5 12.5 H2.5 Z" fill="none" stroke="currentColor" stroke-width="1" stroke-linecap="round" stroke-linejoin="round"/><path d="M8 1.75 V3.25 M6.5 14.25 Q8 15.25 9.5 14.25" fill="none" stroke="currentColor" stroke-width="1" stroke-linecap="round" stroke-linejoin="round"/>'
+)
+
+export const LineFeedback = glyph(
+  '<path d="M3 2.5 H13 Q14.5 2.5 14.5 4 V9.5 Q14.5 11 13 11 H7.25 L4 13.75 V11 H3 Q1.5 11 1.5 9.5 V4 Q1.5 2.5 3 2.5 Z" fill="none" stroke="currentColor" stroke-width="1" stroke-linecap="round" stroke-linejoin="round"/><path d="M4.5 5.5 H11.5 M4.5 8 H9" fill="none" stroke="currentColor" stroke-width="1" stroke-linecap="round" stroke-linejoin="round"/>'
+)
+
+export const LineHelp = glyph(
+  '<circle cx="8" cy="8" r="6.5" fill="none" stroke="currentColor" stroke-width="1" stroke-linecap="round" stroke-linejoin="round"/><path d="M6 6.25 C6 4.9 7 4.25 8 4.25 C9.1 4.25 10 5 10 6.1 C10 7.6 8 7.75 8 9.4" fill="none" stroke="currentColor" stroke-width="1" stroke-linecap="round" stroke-linejoin="round"/><circle cx="8" cy="11.5" r="0.85" fill="currentColor"/>'
+)
+
+export const LineGuide = glyph(
+  '<path d="M8 4.5 C6.5 3.25 4 3 1.5 3.25 V13 C4 12.75 6.5 13 8 14.25 C9.5 13 12 12.75 14.5 13 V3.25 C12 3 9.5 3.25 8 4.5 Z" fill="none" stroke="currentColor" stroke-width="1" stroke-linecap="round" stroke-linejoin="round"/><path d="M8 4.5 V14.25" fill="none" stroke="currentColor" stroke-width="1" stroke-linecap="round" stroke-linejoin="round"/>'
+)
+
+export const LineLabelsHide = glyph(
+  '<rect x="1.5" y="2.5" width="13.0" height="11.0" rx="1.5" fill="none" stroke="currentColor" stroke-width="1" stroke-linecap="round" stroke-linejoin="round"/><path d="M6 2.5 V13.5 M11 5.5 L8.5 8 L11 10.5" fill="none" stroke="currentColor" stroke-width="1" stroke-linecap="round" stroke-linejoin="round"/>'
+)
+
+export const LineLabelsShow = glyph(
+  '<rect x="1.5" y="2.5" width="13.0" height="11.0" rx="1.5" fill="none" stroke="currentColor" stroke-width="1" stroke-linecap="round" stroke-linejoin="round"/><path d="M6 2.5 V13.5 M9 5.5 L11.5 8 L9 10.5" fill="none" stroke="currentColor" stroke-width="1" stroke-linecap="round" stroke-linejoin="round"/>'
 )

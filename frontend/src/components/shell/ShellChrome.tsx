@@ -2,22 +2,20 @@ import { useState } from "react"
 
 import { CreateProject } from "../../../wailsjs/go/main/App"
 import { BrowserOpenURL } from "../../../wailsjs/runtime/runtime"
+import { CaretRight, User, type Icon } from "@/components/icons"
 import {
-  Bell,
-  Book,
-  CaretRight,
-  ChatCentered,
-  Columns,
-  Compass,
-  Folders,
-  Graph,
-  Lifebuoy,
-  SidebarCollapse,
-  SidebarSimple,
-  SquaresFour,
-  User,
-  type Icon,
-} from "@/components/icons"
+  LineActivity,
+  LineAnalyses,
+  LineCompare,
+  LineExplore,
+  LineFeedback,
+  LineGuide,
+  LineHelp,
+  LineLabelsHide,
+  LineLabelsShow,
+  LineModels,
+  LineWorkflows,
+} from "@/components/lineIcons"
 import {
   OperatorMenuItem,
   MenuItem,
@@ -504,28 +502,28 @@ export function ShellRail({
           )}
         >
           <RailButton
-            icon={Compass}
+            icon={LineExplore}
             label="Explore"
             open={open}
             active={place === "explore"}
             onClick={onExplore}
           />
           <RailButton
-            icon={Folders}
+            icon={LineAnalyses}
             label="Analyses"
             open={open}
             active={place === "analyses"}
             onClick={onAnalyses}
           />
           <RailButton
-            icon={Columns}
+            icon={LineCompare}
             label="Compare"
             open={open}
             active={place === "compare"}
             onClick={onCompare}
           />
           <RailButton
-            icon={Graph}
+            icon={LineWorkflows}
             label="Workflows"
             open={open}
             active={place === "workflows"}
@@ -536,7 +534,7 @@ export function ShellRail({
             Models screen is a classifier.
           */}
           <RailButton
-            icon={SquaresFour}
+            icon={LineModels}
             label="Models"
             title="Models: the trained classifiers"
             open={open}
@@ -545,7 +543,7 @@ export function ShellRail({
           />
           <div className="flex-1" />
           <RailButton
-            icon={Bell}
+            icon={LineActivity}
             label="Activity"
             open={open}
             active={place === "activity"}
@@ -553,19 +551,19 @@ export function ShellRail({
             onClick={onActivity}
           />
           <RailButton
-            icon={ChatCentered}
+            icon={LineFeedback}
             label="Feedback"
             open={open}
             onClick={link("/issues")}
           />
           <RailButton
-            icon={Lifebuoy}
+            icon={LineHelp}
             label="Help"
             open={open}
             onClick={link("/blob/main/docs/TROUBLESHOOTING.md")}
           />
           <RailButton
-            icon={Book}
+            icon={LineGuide}
             label="User guide"
             open={open}
             onClick={link("/blob/main/docs/USER_GUIDE.md")}
@@ -577,7 +575,7 @@ export function ShellRail({
             under the pointer for the press that closes it.
           */}
           <RailButton
-            icon={open ? SidebarCollapse : SidebarSimple}
+            icon={open ? LineLabelsHide : LineLabelsShow}
             label={open ? "Hide the labels" : "Show the labels"}
             open={open}
             onClick={onToggle}
