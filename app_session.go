@@ -73,8 +73,9 @@ func (a *App) CurrentUser() *store.User {
 	return a.currentUser
 }
 
-// UpdateProfile updates the display name.
-func (a *App) UpdateProfile(displayName string) (*store.User, error) {
+// changeUser applies a change to the signed-in user's record, and keeps the
+// session's copy as the store returns it.
+func (a *App) changeUser(change func(st *store.Store, userID string) (*store.User, error)) (*store.User, error) {
 	st, err := a.requireStore()
 	if err != nil {
 		return nil, err
@@ -85,7 +86,7 @@ func (a *App) UpdateProfile(displayName string) (*store.User, error) {
 	if u == nil {
 		return nil, store.ErrUnauthorized
 	}
-	updated, err := st.UpdateProfile(u.ID, displayName)
+	updated, err := change(st, u.ID)
 	if err != nil {
 		return nil, mapStoreErr(err)
 	}
@@ -93,50 +94,37 @@ func (a *App) UpdateProfile(displayName string) (*store.User, error) {
 	a.currentUser = updated
 	a.mu.Unlock()
 	return updated, nil
+}
+
+// UpdateProfile updates the display name.
+func (a *App) UpdateProfile(displayName string) (*store.User, error) {
+	return a.changeUser(func(st *store.Store, id string) (*store.User, error) {
+		return st.UpdateProfile(id, displayName)
+	})
+}
+
+// setPicture and clearPicture bind one picture of the account; see
+// internal/store/pictures.go.
+func (a *App) setPicture(p store.Picture, dataURI string) (*store.User, error) {
+	return a.changeUser(func(st *store.Store, id string) (*store.User, error) {
+		return st.SetPicture(id, p, dataURI)
+	})
+}
+
+func (a *App) clearPicture(p store.Picture) (*store.User, error) {
+	return a.changeUser(func(st *store.Store, id string) (*store.User, error) {
+		return st.ClearPicture(id, p)
+	})
 }
 
 // SetAvatar saves a profile photo from a browser data URI (data:image/...;base64,...).
 func (a *App) SetAvatar(dataURI string) (*store.User, error) {
-	st, err := a.requireStore()
-	if err != nil {
-		return nil, err
-	}
-	a.mu.RLock()
-	u := a.currentUser
-	a.mu.RUnlock()
-	if u == nil {
-		return nil, store.ErrUnauthorized
-	}
-	updated, err := st.SetAvatarFromDataURI(u.ID, dataURI)
-	if err != nil {
-		return nil, mapStoreErr(err)
-	}
-	a.mu.Lock()
-	a.currentUser = updated
-	a.mu.Unlock()
-	return updated, nil
+	return a.setPicture(store.PictureAvatar, dataURI)
 }
 
 // ClearAvatar removes the current user's profile photo.
 func (a *App) ClearAvatar() (*store.User, error) {
-	st, err := a.requireStore()
-	if err != nil {
-		return nil, err
-	}
-	a.mu.RLock()
-	u := a.currentUser
-	a.mu.RUnlock()
-	if u == nil {
-		return nil, store.ErrUnauthorized
-	}
-	updated, err := st.ClearAvatar(u.ID)
-	if err != nil {
-		return nil, mapStoreErr(err)
-	}
-	a.mu.Lock()
-	a.currentUser = updated
-	a.mu.Unlock()
-	return updated, nil
+	return a.clearPicture(store.PictureAvatar)
 }
 
 // GetPreferences returns preferences for the logged-in user (or local guest).
