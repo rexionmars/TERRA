@@ -17,7 +17,7 @@
  * the header is one colour edge to edge.
  */
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react"
-import { ArrowsOut, CaretDown, CaretRight, TreeStructure } from "@/components/icons"
+import { CaretDown, CaretRight, CornersOut, TreeStructure } from "@/components/icons"
 import { cn } from "@/lib/utils"
 
 export type Place = { x: number; y: number }
@@ -872,7 +872,7 @@ export function SocketCanvas({
           "focus-visible:ring-1 focus-visible:ring-ring focus-visible:outline-none"
         )}
       >
-        <ArrowsOut className="size-3.5" />
+        <CornersOut className="size-3.5" />
       </button>
     </div>
   )

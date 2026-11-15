@@ -19,7 +19,7 @@ import {
   Download,
   Heart,
   Star,
-  Upload,
+  UploadSimple,
   User,
 } from "@/components/icons"
 import {
@@ -631,7 +631,7 @@ function DataPage() {
               {restore.busy ? (
                 <CircleNotch className="size-3.5 animate-spin" />
               ) : (
-                <Upload className="size-3.5" />
+                <UploadSimple className="size-3.5" />
               )}
               Choose a backup
             </button>

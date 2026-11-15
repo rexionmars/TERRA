@@ -8,7 +8,7 @@
  * step of the compositor's undo rather than one per letter.
  */
 import { useEffect, useState } from "react"
-import { FilePdf } from "@/components/icons"
+import { DownloadSimple } from "@/components/icons"
 
 import { Choice } from "./nodeCard"
 import { ActionButton, Figure, Note } from "./nodeParts"
@@ -165,7 +165,7 @@ export function PdfReportCard({
       )}
       <ActionButton
         label={busy ? "Laying out" : "Export PDF"}
-        icon={<FilePdf className="size-3.5" />}
+        icon={<DownloadSimple className="size-3.5" />}
         busy={busy}
         disabled={busy || !products.length}
         onClick={onExport}
