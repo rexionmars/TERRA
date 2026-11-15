@@ -105,6 +105,10 @@ const CATEGORY: Record<NodeCategory, Theme> = {
   that product's plate; the rest of a category show the category's picture,
   or a closer crop of it, so the options of one ring tell apart where the
   picture can say something different.
+
+  Where it cannot, the ring shows icons instead: the mineral map's readings
+  draw theirs (MINERAL_READING_ICONS in components/viewIcons.tsx), and their
+  pictures here are what kindPicture still answers for them.
 */
 const KIND: Record<NodeKind, Theme> = {
   run: "classes",

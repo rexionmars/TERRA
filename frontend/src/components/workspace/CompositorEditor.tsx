@@ -159,6 +159,19 @@ import {
 } from "@/lib/fieldSets"
 import { notifyInfo } from "@/lib/notify"
 import { categoryPicture, kindPicture } from "@/lib/piePictures"
+import { MINERAL_READING_ICONS } from "@/components/viewIcons"
+
+/**
+ * A kind's mark on the pie: its icon where it has one, its picture otherwise.
+ * The mineral map's nine readings share one plate, so on their ring a picture
+ * told none of them apart; each draws what it reads instead.
+ */
+function kindMark(kind: NodeKind): Pick<RadialItem, "picture" | "icon"> {
+  const KindIcon = MINERAL_READING_ICONS[kind]
+  return KindIcon
+    ? { icon: <KindIcon className="size-5" /> }
+    : { picture: kindPicture(kind) }
+}
 
 /** How wide each kind is drawn: settings at the run graph's width, readings wider. */
 const WIDTH: Record<NodeKind, number> = {
@@ -1891,7 +1904,7 @@ export function CompositorEditor({
         id: only ? only.kind : c,
         // A category of one is that one node: picking it adds it.
         label: only ? only.label : label,
-        picture: only ? kindPicture(only.kind) : categoryPicture(c),
+        ...(only ? kindMark(only.kind) : { picture: categoryPicture(c) }),
         opens: !only,
         blockedBy: only ? kindRefusal(only.kind, target) : null,
       }
@@ -1911,7 +1924,7 @@ export function CompositorEditor({
         items: NODE_KINDS.filter((k) => k.category === c).map((k) => ({
           id: k.kind,
           label: k.label,
-          picture: kindPicture(k.kind),
+          ...kindMark(k.kind),
           blockedBy: kindRefusal(k.kind, t),
         })),
       }

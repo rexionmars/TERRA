@@ -20,6 +20,8 @@
  * the board, and drawn at full weight it took the eye off the card the reader
  * had right-clicked. An option is told apart by its small picture, a crop of
  * ground showing what it does, rather than by a dot in its category's colour.
+ * Where one picture would stand for every option of a ring, as the mineral
+ * map's plate does for its readings, each option draws an icon of its own.
  *
  * Nothing here knows about workflows. The caller gives the options and acts on
  * the one picked; an option that opens another ring is the caller's to show.
@@ -37,7 +39,7 @@ export interface RadialItem {
   picture?: { path: string; credit: string }
   /** A mark in a category's colour, before the label, where there is no picture. */
   colour?: string
-  /** An icon before the label, where there is no colour to show. */
+  /** An icon before the label, where there is no picture or colour to show. */
   icon?: React.ReactNode
   /** The key that does the same outside the menu, after the label. */
   note?: string
@@ -358,9 +360,14 @@ export function RadialMenu({
               />
             ) : item.icon ? (
               // In a slot the size of a picture, so labels start in one place.
+              // Dimmed and drained when blocked, as a picture is: an icon in
+              // colour beside a muted label would still read as available.
               <span
                 aria-hidden
-                className="grid size-6 shrink-0 place-items-center text-muted-foreground"
+                className={cn(
+                  "grid size-6 shrink-0 place-items-center text-muted-foreground",
+                  off && "opacity-40 grayscale"
+                )}
               >
                 {item.icon}
               </span>
