@@ -1,15 +1,15 @@
 import { useEffect, useState } from "react"
 
 import {
-  Broadcast,
-  Diamond,
-  Plant,
-  Polygon,
-  SquareSplitHorizontal,
-  SquaresFour,
-  Stack,
-  Waves,
-} from "@/components/icons"
+  LineProductClass,
+  LineProductFields,
+  LineProductHealth,
+  LineProductMineral,
+  LineProductOverlap,
+  LineProductRadar,
+  LineProductWater,
+  LineProductZones,
+} from "@/components/lineIcons"
 import { RunOverlayURL } from "../../../wailsjs/go/main/App"
 import { runAreaName } from "@/lib/aoiLabel"
 import {
@@ -30,23 +30,53 @@ import { cn } from "@/lib/utils"
   picture of its output.
 */
 export const KINDS = [
-  { id: "class", label: "Classification", token: "--p-kind-class", icon: SquaresFour },
-  { id: "water", label: "Surface water", token: "--p-kind-water", icon: Waves },
-  { id: "mineral", label: "Mineral map", token: "--p-kind-mineral", icon: Diamond },
-  { id: "fields", label: "Field boundaries", token: "--p-kind-fields", icon: Polygon },
-  { id: "health", label: "Vegetation health", token: "--p-kind-health", icon: Plant },
+  {
+    id: "class",
+    label: "Classification",
+    token: "--p-kind-class",
+    icon: LineProductClass,
+  },
+  {
+    id: "water",
+    label: "Surface water",
+    token: "--p-kind-water",
+    icon: LineProductWater,
+  },
+  {
+    id: "mineral",
+    label: "Mineral map",
+    token: "--p-kind-mineral",
+    icon: LineProductMineral,
+  },
+  {
+    id: "fields",
+    label: "Field boundaries",
+    token: "--p-kind-fields",
+    icon: LineProductFields,
+  },
+  {
+    id: "health",
+    label: "Vegetation health",
+    token: "--p-kind-health",
+    icon: LineProductHealth,
+  },
   {
     id: "overlap",
     label: "Socio-environmental overlap",
     token: "--p-kind-overlap",
-    icon: Stack,
+    icon: LineProductOverlap,
   },
-  { id: "radar", label: "Sentinel-1 radar", token: "--p-kind-radar", icon: Broadcast },
+  {
+    id: "radar",
+    label: "Sentinel-1 radar",
+    token: "--p-kind-radar",
+    icon: LineProductRadar,
+  },
   {
     id: "zones",
     label: "Management zones",
     token: "--p-kind-zones",
-    icon: SquareSplitHorizontal,
+    icon: LineProductZones,
   },
 ] as const
 
