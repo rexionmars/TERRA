@@ -27,6 +27,7 @@ import {
 import { WindowControls } from "@/components/TitleBar"
 import { btnGhostDense } from "@/components/ui/buttons"
 import type { AppSurfaces } from "@/lib/appSurfaces"
+import { OPERATORS, type OperatorId } from "@/lib/operators"
 import type { Area } from "@/lib/areas"
 import { useAuth } from "@/lib/auth"
 import { APP_MENU, REPO_URL } from "@/lib/brand"
@@ -215,8 +216,14 @@ export function ShellPath({
   const open = (m: "project" | "area" | "options") => (next: boolean) =>
     setMenu(next ? m : null)
   const roots = areas.filter((a) => !a.parent_id)
-  const appItem = (i: AppSurfaces["items"][keyof AppSurfaces["items"]]) => (
+  // The application's surfaces wear the icon of the operator that opens each,
+  // so the row reads the same here as in the operator search.
+  const appItem = (
+    i: AppSurfaces["items"][keyof AppSurfaces["items"]],
+    op: OperatorId
+  ) => (
     <MenuItem
+      icon={OPERATORS[op].icon}
       label={i.label}
       disabled={i.disabled}
       onSelect={() => {
@@ -301,11 +308,11 @@ export function ShellPath({
         <OperatorMenuItem id="KEYMAP" onDone={() => setMenu(null)} />
         <OperatorMenuItem id="START" onDone={() => setMenu(null)} />
         <MenuRule />
-        {appItem(app.items.environment)}
-        {appItem(app.items.storage)}
-        {appItem(app.items.releaseNotes)}
-        {appItem(app.items.splash)}
-        {appItem(app.items.about)}
+        {appItem(app.items.environment, "ENVIRONMENT")}
+        {appItem(app.items.storage, "STORAGE")}
+        {appItem(app.items.releaseNotes, "RELEASE_NOTES")}
+        {appItem(app.items.splash, "SPLASH")}
+        {appItem(app.items.about, "ABOUT")}
       </MenuPopover>
       <CaretRight className="size-3 shrink-0 text-muted-foreground" />
       <Crumb
