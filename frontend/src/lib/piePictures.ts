@@ -1,6 +1,10 @@
 /**
- * The small picture beside each option of the boards' pie menus: what the option
+ * The small picture beside an option of the boards' pie menus: what the option
  * does, shown on ground seen from orbit.
+ *
+ * Two rings draw icons instead (components/viewIcons.tsx): Add, whose node
+ * categories each hold nodes that do different things, so no one crop of ground
+ * says what a category is; and Mineral, whose readings shared one plate.
  *
  * EVERY PICTURE IS ONE TERRA ALREADY CREDITS, cropped, or with the operation the
  * option stands for applied to it: the majority filter run on a MapBiomas class
@@ -14,7 +18,7 @@
  * CC BY asks; the pie shows it on the option's title, as a plate does.
  */
 import type { ReadingKind } from "@/lib/compareBoard"
-import type { NodeCategory, NodeKind } from "@/lib/compositorGraph"
+import type { NodeKind } from "@/lib/compositorGraph"
 import { SCENES } from "@/lib/orbitScenes"
 import { PRODUCT_PICTURES, pictureCredit } from "@/lib/productPictures"
 
@@ -89,17 +93,6 @@ const PICTURES = {
 
 type Theme = keyof typeof PICTURES
 
-/** A category's picture, on the ring that lists the categories. */
-const CATEGORY: Record<NodeCategory, Theme> = {
-  input: "classes",
-  filter: "filter",
-  mask: "mask",
-  color: "mix",
-  analysis: "ndvi",
-  mineral: "mineral",
-  output: "pivots",
-}
-
 /*
   A node's picture, on its category's ring. A node that reads a product shows
   that product's plate; the rest of a category show the category's picture,
@@ -154,6 +147,5 @@ const READING: Record<ReadingKind, Theme> = {
   tables: "fields",
 }
 
-export const categoryPicture = (c: NodeCategory): PiePicture => PICTURES[CATEGORY[c]]
 export const kindPicture = (k: NodeKind): PiePicture => PICTURES[KIND[k]]
 export const readingPicture = (r: ReadingKind): PiePicture => PICTURES[READING[r]]

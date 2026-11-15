@@ -158,8 +158,8 @@ import {
   type FieldSet,
 } from "@/lib/fieldSets"
 import { notifyInfo } from "@/lib/notify"
-import { categoryPicture, kindPicture } from "@/lib/piePictures"
-import { MINERAL_READING_ICONS } from "@/components/viewIcons"
+import { kindPicture } from "@/lib/piePictures"
+import { CATEGORY_ICONS, MINERAL_READING_ICONS } from "@/components/viewIcons"
 
 /**
  * A kind's mark on the pie: its icon where it has one, its picture otherwise.
@@ -1900,11 +1900,12 @@ export function CompositorEditor({
       const kinds = NODE_KINDS.filter((k) => k.category === c)
       const only = kinds.length === 1 ? kinds[0] : undefined
       const label = CATEGORIES.find((x) => x.id === c)?.label ?? c
+      const CategoryIcon = CATEGORY_ICONS[c]
       return {
         id: only ? only.kind : c,
         // A category of one is that one node: picking it adds it.
         label: only ? only.label : label,
-        ...(only ? kindMark(only.kind) : { picture: categoryPicture(c) }),
+        icon: <CategoryIcon className="size-5" />,
         opens: !only,
         blockedBy: only ? kindRefusal(only.kind, target) : null,
       }

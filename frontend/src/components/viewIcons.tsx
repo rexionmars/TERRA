@@ -1,7 +1,7 @@
 /*
   The icons that carry colour: the composition panel's choices (the kinds of
-  view and the scene they are drawn from) and the mineral map's readings on the
-  pie's Mineral ring.
+  view and the scene they are drawn from), and on the boards' pie the node
+  categories of the Add ring and the mineral map's readings on its Mineral ring.
 
   This file is their source. Each icon draws what its word means, and was kept
   only when it read as that word at 20 px with no label beside it:
@@ -28,6 +28,14 @@
     Confidence      the normal curve, its middle band shaded
     Against EMIT    a confusion matrix, its diagonal lit: agreement cell by cell
 
+    Analysis        a magnifier over bars: examining the numbers
+    Mineral         one crystal, its two faces in two blues
+    Output          a tray with an arrow leaving it: what leaves the board
+    Mix             two plates in perspective, one laid over the other
+    Mask            a tile darkened but for the shape it keeps
+    Run             play, in a ring
+    Filter          a funnel, pixels of three classes going in
+
   A change keeps to the rules they were built on: a 20-unit grid with a margin
   of 2; neutral strokes of 1.5 with round caps and joins; one corner radius, 2
   on frames and 1 on small parts; colour only as flat fills, never outlined;
@@ -41,7 +49,7 @@
   where that is not assured.
 */
 import type { Icon } from "@/components/icons"
-import type { NodeKind } from "@/lib/compositorGraph"
+import type { NodeCategory, NodeKind } from "@/lib/compositorGraph"
 
 /*
   20 units, the grid they are drawn on. The body is set as markup, as in
@@ -148,4 +156,43 @@ export const MINERAL_READING_ICONS: Partial<Record<NodeKind, Icon>> = {
   mineralAcid: MineralAcid,
   mineralConfidence: MineralConfidence,
   mineralAgreement: MineralAgreement,
+}
+
+export const CategoryRun = glyph(
+  '<circle cx="10" cy="10" r="7.25" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/><path d="M8 7.645 A0.9 0.9 0 0 1 9.385 6.886 L13.066 9.242 A0.9 0.9 0 0 1 13.066 10.758 L9.385 13.114 A0.9 0.9 0 0 1 8 12.355 Z" style="fill:var(--oi-orange, #E69F00)"/>'
+)
+
+export const CategoryOutput = glyph(
+  '<path d="M2.75 10.5 V15.25 Q2.75 17.25 4.75 17.25 H15.25 Q17.25 17.25 17.25 15.25 V10.5" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/><path d="M7.5 12.5 L15.5 4.5" fill="none" stroke-width="2" stroke-linecap="round" style="stroke:var(--oi-blue, #0072B2)"/><path d="M16.441 2.874 A0.6 0.6 0 0 1 17.126 3.559 L16.43 8.08 A0.6 0.6 0 0 1 15.413 8.413 L11.587 4.587 A0.6 0.6 0 0 1 11.92 3.57 Z" style="fill:var(--oi-blue, #0072B2)"/>'
+)
+
+export const CategoryFilter = glyph(
+  '<path d="M4.523 8.891 A0.8 0.8 0 0 1 5.063 7.5 L14.937 7.5 A0.8 0.8 0 0 1 15.477 8.891 L11.511 12.512 A0.8 0.8 0 0 0 11.25 13.103 L11.25 16.45 A0.8 0.8 0 0 1 10.45 17.25 L9.55 17.25 A0.8 0.8 0 0 1 8.75 16.45 L8.75 13.103 A0.8 0.8 0 0 0 8.489 12.512 Z" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/><rect x="4.75" y="2.5" width="2.6" height="2.6" rx="0.6" style="fill:var(--oi-orange, #E69F00)"/><rect x="8.75" y="3.5" width="2.6" height="2.6" rx="0.6" style="fill:var(--oi-sky, #56B4E9)"/><rect x="12.75" y="2.25" width="2.6" height="2.6" rx="0.6" style="fill:var(--oi-green, #009E73)"/>'
+)
+
+export const CategoryMask = glyph(
+  '<defs><mask id="ad-mask"><rect width="20" height="20" fill="#fff"/><path d="M5.559 7.833 A1.2 1.2 0 0 1 6.26 6.655 L10.194 4.866 A1.2 1.2 0 0 1 11.588 5.161 L14.499 8.437 A1.2 1.2 0 0 1 14.71 9.696 L12.861 14.133 A1.2 1.2 0 0 1 11.571 14.857 L6.946 14.146 A1.2 1.2 0 0 1 5.932 13.045 Z" fill="#000" stroke="#000" stroke-width="2"/></mask></defs><path d="M2.75 4.75 A2 2 0 0 1 4.75 2.75 L15.25 2.75 A2 2 0 0 1 17.25 4.75 L17.25 15.25 A2 2 0 0 1 15.25 17.25 L4.75 17.25 A2 2 0 0 1 2.75 15.25 Z" mask="url(#ad-mask)" fill="currentColor" fill-opacity="0.28"/><path d="M5.559 7.833 A1.2 1.2 0 0 1 6.26 6.655 L10.194 4.866 A1.2 1.2 0 0 1 11.588 5.161 L14.499 8.437 A1.2 1.2 0 0 1 14.71 9.696 L12.861 14.133 A1.2 1.2 0 0 1 11.571 14.857 L6.946 14.146 A1.2 1.2 0 0 1 5.932 13.045 Z" style="fill:var(--oi-green, #009E73)"/><path d="M2.75 4.75 A2 2 0 0 1 4.75 2.75 L15.25 2.75 A2 2 0 0 1 17.25 4.75 L17.25 15.25 A2 2 0 0 1 15.25 17.25 L4.75 17.25 A2 2 0 0 1 2.75 15.25 Z" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>'
+)
+
+export const CategoryMix = glyph(
+  '<path d="M9.507 8.779 A1 1 0 0 1 10.493 8.779 L15.965 11.88 A1 1 0 0 1 15.965 13.62 L10.493 16.721 A1 1 0 0 1 9.507 16.721 L4.035 13.62 A1 1 0 0 1 4.035 11.88 Z" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/><path d="M9.556 4.601 A0.9 0.9 0 0 1 10.444 4.601 L14.618 6.967 A0.9 0.9 0 0 1 14.618 8.533 L10.444 10.899 A0.9 0.9 0 0 1 9.556 10.899 L5.382 8.533 A0.9 0.9 0 0 1 5.382 6.967 Z" style="fill:var(--oi-green, #009E73)"/>'
+)
+
+export const CategoryAnalysis = glyph(
+  '<defs><clipPath id="ad-lens"><circle cx="8.75" cy="8.75" r="5.0"/></clipPath></defs><g clip-path="url(#ad-lens)"><rect x="4.5" y="9" width="2.1" height="3.25" rx="0.5" style="fill:var(--oi-sky, #56B4E9)"/><rect x="7.5" y="6" width="2.1" height="6.25" rx="0.5" style="fill:var(--oi-sky, #56B4E9)"/><rect x="10.5" y="7.75" width="2.1" height="4.5" rx="0.5" style="fill:var(--oi-sky, #56B4E9)"/></g><circle cx="8.75" cy="8.75" r="5.6" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/><path d="M13.11 13.11 L17 17" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"/>'
+)
+
+export const CategoryMineral = glyph(
+  '<defs><clipPath id="ad-cry"><path d="M9.482 3.07 A0.7 0.7 0 0 1 10.518 3.07 L13.818 6.7 A0.7 0.7 0 0 1 14 7.171 L14 14.336 A0.7 0.7 0 0 1 13.701 14.909 L10.401 17.219 A0.7 0.7 0 0 1 9.599 17.219 L6.299 14.909 A0.7 0.7 0 0 1 6 14.336 L6 7.171 A0.7 0.7 0 0 1 6.182 6.7 Z"/></clipPath></defs><g clip-path="url(#ad-cry)"><rect x="0" y="0" width="10" height="20" style="fill:var(--oi-sky, #56B4E9)"/><rect x="10" y="0" width="10" height="20" style="fill:var(--oi-blue, #0072B2)"/></g>'
+)
+
+/** Each node category, on the pie's Add ring. Run and Mix are categories of one node. */
+export const CATEGORY_ICONS: Record<NodeCategory, Icon> = {
+  input: CategoryRun,
+  output: CategoryOutput,
+  filter: CategoryFilter,
+  mask: CategoryMask,
+  color: CategoryMix,
+  analysis: CategoryAnalysis,
+  mineral: CategoryMineral,
 }

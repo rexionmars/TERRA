@@ -21,7 +21,9 @@
  * had right-clicked. An option is told apart by its small picture, a crop of
  * ground showing what it does, rather than by a dot in its category's colour.
  * Where one picture would stand for every option of a ring, as the mineral
- * map's plate does for its readings, each option draws an icon of its own.
+ * map's plate does for its readings, each option draws an icon of its own; so
+ * does each node category, whose nodes do different things that no one crop of
+ * ground can say together.
  *
  * Nothing here knows about workflows. The caller gives the options and acts on
  * the one picked; an option that opens another ring is the caller's to show.
