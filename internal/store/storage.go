@@ -114,7 +114,7 @@ func (s *Store) InspectStorage() (*StorageReport, error) {
 	}{
 		{"runs", "Analyses", "the overlays and rasters saved with each analysis"},
 		{"projects", "Projects", "compositions and exports saved under a project"},
-		{"avatars", "Profile photos", "the picture on your account"},
+		{"avatars", "Profile pictures", "the photo, the cover and the badge on your account"},
 	}
 	for _, b := range buckets {
 		bytes, files := dirSize(filepath.Join(s.dataDir, b.dir))

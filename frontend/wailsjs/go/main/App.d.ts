@@ -45,6 +45,10 @@ export function ChooseBackupArchive():Promise<store.RestorePreview>;
 
 export function ClearAvatar():Promise<store.User>;
 
+export function ClearBadge():Promise<store.User>;
+
+export function ClearCover():Promise<store.User>;
+
 export function ClearJobs():Promise<void>;
 
 export function CreateArea(arg1:string,arg2:string,arg3:string):Promise<store.Area>;
@@ -177,7 +181,11 @@ export function SaveStudio(arg1:store.Studio):Promise<store.Studio>;
 
 export function SetAvatar(arg1:string):Promise<store.User>;
 
+export function SetBadge(arg1:string):Promise<store.User>;
+
 export function SetBoardDirty(arg1:boolean):Promise<void>;
+
+export function SetCover(arg1:string):Promise<store.User>;
 
 export function SetEarthdataToken(arg1:string):Promise<main.EarthdataStatus>;
 

@@ -10,6 +10,8 @@ import {
 import { notifySuccess } from "@/lib/notify"
 import {
   ClearAvatar,
+  ClearBadge,
+  ClearCover,
   CurrentUser,
   GetPreferences,
   ListProjects,
@@ -19,6 +21,8 @@ import {
   Register,
   SavePreferences,
   SetAvatar,
+  SetBadge,
+  SetCover,
   UpdateProfile,
 } from "../../wailsjs/go/main/App"
 import type { InferenceRun, Preferences, Project, User } from "@/lib/types"
@@ -45,6 +49,21 @@ export type AppScreen = "map" | "auth"
  */
 export type SettingsPage = "profile" | "appearance" | "data" | "system" | "keymap"
 
+/**
+ * A picture the account carries: the photo at the foot of the rail, the cover
+ * of the profile's banner, the badge of the reader's institution above the name.
+ */
+export type AccountPicture = "photo" | "cover" | "badge"
+
+const PICTURE_CALLS: Record<
+  AccountPicture,
+  { set: (dataURI: string) => Promise<User>; clear: () => Promise<User>; name: string }
+> = {
+  photo: { set: SetAvatar, clear: ClearAvatar, name: "Photo" },
+  cover: { set: SetCover, clear: ClearCover, name: "Cover" },
+  badge: { set: SetBadge, clear: ClearBadge, name: "Badge" },
+}
+
 interface AuthContextValue {
   user: User | null
   prefs: Preferences | null
@@ -68,8 +87,8 @@ interface AuthContextValue {
   register: (email: string, password: string, displayName: string) => Promise<void>
   logout: () => Promise<void>
   updateProfile: (displayName: string) => Promise<void>
-  setAvatar: (dataURI: string) => Promise<void>
-  clearAvatar: () => Promise<void>
+  setPicture: (picture: AccountPicture, dataURI: string) => Promise<void>
+  clearPicture: (picture: AccountPicture) => Promise<void>
   savePrefs: (prefs: Preferences, opts?: { silent?: boolean }) => Promise<void>
   refreshRuns: () => Promise<void>
   refreshProjects: () => Promise<void>
@@ -186,16 +205,16 @@ export function AuthProvider({
     notifySuccess("Profile updated.")
   }, [])
 
-  const setAvatar = useCallback(async (dataURI: string) => {
-    const u = await SetAvatar(dataURI)
-    setUser(u)
-    notifySuccess("Photo updated.")
+  const setPicture = useCallback(async (picture: AccountPicture, dataURI: string) => {
+    const call = PICTURE_CALLS[picture]
+    setUser(await call.set(dataURI))
+    notifySuccess(`${call.name} updated.`)
   }, [])
 
-  const clearAvatar = useCallback(async () => {
-    const u = await ClearAvatar()
-    setUser(u)
-    notifySuccess("Photo removed.")
+  const clearPicture = useCallback(async (picture: AccountPicture) => {
+    const call = PICTURE_CALLS[picture]
+    setUser(await call.clear())
+    notifySuccess(`${call.name} removed.`)
   }, [])
 
   /*
@@ -295,8 +314,8 @@ export function AuthProvider({
       register,
       logout,
       updateProfile,
-      setAvatar,
-      clearAvatar,
+      setPicture,
+      clearPicture,
       savePrefs,
       refreshRuns,
       refreshProjects,
@@ -317,8 +336,8 @@ export function AuthProvider({
       register,
       logout,
       updateProfile,
-      setAvatar,
-      clearAvatar,
+      setPicture,
+      clearPicture,
       savePrefs,
       refreshRuns,
       refreshProjects,

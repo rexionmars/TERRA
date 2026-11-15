@@ -1,7 +1,14 @@
-import { useEffect, useRef, useState } from "react"
+import { useEffect, useRef, useState, type ReactNode } from "react"
 
 import { ActivityGrid } from "@/components/ActivityGrid"
-import { Camera, CircleNotch, ImageSquare, User } from "@/components/icons"
+import {
+  Camera,
+  CircleNotch,
+  ImageSquare,
+  Plus,
+  UploadSimple,
+  User,
+} from "@/components/icons"
 import {
   LineDelete,
   LineFolderOpen,
@@ -17,9 +24,16 @@ import {
 } from "@/components/ui/TabbedBanner"
 import { btnGhost, btnPrimary } from "@/components/ui/buttons"
 import { displayRunLabel } from "@/lib/aoiLabel"
-import { useAuth } from "@/lib/auth"
+import { useAuth, type AccountPicture } from "@/lib/auth"
 import { notifyError } from "@/lib/notify"
-import { SCENES } from "@/lib/orbitScenes"
+import { SCENES, type Scene } from "@/lib/orbitScenes"
+import {
+  BADGE_FIT,
+  COVER_FIT,
+  readAsDataURL,
+  readPicture,
+  type PictureFit,
+} from "@/lib/pictureFile"
 import { mergePreferenceExtras, parsePreferenceExtras } from "@/lib/preferenceExtras"
 import { runRowLine } from "@/lib/runSummary"
 import type { InferenceRun } from "@/lib/types"
@@ -30,15 +44,33 @@ const MAX_AVATAR_BYTES = 2_000_000
 /** The cover before one is chosen: the Cerrado, which the catalogue shows last. */
 const DEFAULT_COVER = SCENES.length - 1
 
+/** The cover preference that picks the reader's own picture over the scenes. */
+const UPLOADED_COVER = "upload"
+
+/** A cover: one of the scenes, or the picture the reader uploaded. */
+type Cover = { scene: Scene } | { uri: string }
+
+/** How each picture is fitted before it is sent, and what a failure is called. */
+const FITTED: Record<"cover" | "badge", { fit: PictureFit; failure: string }> = {
+  cover: { fit: COVER_FIT, failure: "The cover could not be set" },
+  badge: { fit: BADGE_FIT, failure: "The badge could not be set" },
+}
+
 /** How many of the latest analyses the profile lists. */
 const RECENT = 5
 
 /*
   WHO IS SIGNED IN, SET ON THE GROUND THEY READ: a banner on one of the scenes
-  of lib/orbitScenes.ts, with the photo and the name on the page's ground where
-  it rises into the banner (TabbedBanner), as the catalogue's title is. The
-  reader picks the scene with "Change cover", and it is kept in the
-  preferences, so the banner is theirs rather than one the screen chose.
+  of lib/orbitScenes.ts, or on a picture of the reader's own, with the photo and
+  the name on the page's ground where it rises into the banner (TabbedBanner),
+  as the catalogue's title is. "Change cover" steps through the uploaded
+  picture and the scenes, and the choice is kept in the preferences, so the
+  banner is theirs rather than one the screen chose.
+
+  The badge of the reader's institution sits above the name, where the eyebrow
+  is when there is none. It is drawn on a light plate, because institutions
+  publish their logos for white paper: a dark wordmark on a transparent ground
+  would vanish into the dark theme's page.
 
   Under it, what the account is and holds; then the settings of the identity,
   the year's activity and the latest analyses, each in a card.
@@ -59,16 +91,20 @@ export function ProfileSection({
     prefs,
     savePrefs,
     updateProfile,
-    setAvatar,
-    clearAvatar,
+    setPicture,
+    clearPicture,
     refreshRuns,
     logout,
   } = useAuth()
   const [name, setName] = useState("")
-  const [busy, setBusy] = useState(false)
+  /** What is being saved: the name or one of the pictures. */
+  const [working, setWorking] = useState<AccountPicture | "name" | null>(null)
+  const busy = working !== null
   /** The cover just chosen, shown before the preferences come back with it. */
   const [chosenCover, setChosenCover] = useState<string | null>(null)
-  const fileRef = useRef<HTMLInputElement>(null)
+  const photoInput = useRef<HTMLInputElement>(null)
+  const coverInput = useRef<HTMLInputElement>(null)
+  const badgeInput = useRef<HTMLInputElement>(null)
 
   /*
     The stored name SEEDS the field, and replaces what is in it only when the
@@ -88,33 +124,44 @@ export function ProfileSection({
 
   if (!user) return null
 
-  const coverPath =
+  const covers: Cover[] = [
+    ...(user.cover_uri ? [{ uri: user.cover_uri }] : []),
+    ...SCENES.map((scene) => ({ scene })),
+  ]
+  const coverChoice =
     chosenCover ?? parsePreferenceExtras(prefs?.extras_json).profile_cover
-  const coverIndex = SCENES.findIndex((s) => s.path === coverPath)
-  const cover = SCENES[coverIndex >= 0 ? coverIndex : DEFAULT_COVER]
+  const coverIndex = covers.findIndex((c) =>
+    "uri" in c ? coverChoice === UPLOADED_COVER : c.scene.path === coverChoice
+  )
+  const cover: Cover =
+    coverIndex >= 0 ? covers[coverIndex] : { scene: SCENES[DEFAULT_COVER] }
 
-  const nextCover = () => {
-    const next = SCENES[(SCENES.indexOf(cover) + 1) % SCENES.length]
-    setChosenCover(next.path)
+  const keepCover = (choice: string) => {
+    setChosenCover(choice)
     if (!prefs) return
     void savePrefs(
       {
         ...prefs,
         extras_json: mergePreferenceExtras(prefs.extras_json, {
-          profile_cover: next.path,
+          profile_cover: choice,
         }),
       },
       { silent: true }
     ).catch((e: unknown) => notifyError("The cover could not be kept", e))
   }
 
+  const nextCover = () => {
+    const next = covers[(Math.max(coverIndex, 0) + 1) % covers.length]
+    keepCover("uri" in next ? UPLOADED_COVER : next.scene.path)
+  }
+
   const saveName = async () => {
     if (!name.trim()) return
-    setBusy(true)
+    setWorking("name")
     try {
       await updateProfile(name.trim())
     } finally {
-      setBusy(false)
+      setWorking(null)
     }
   }
 
@@ -129,13 +176,44 @@ export function ProfileSection({
         notifyError("The photo is too large", "A profile photo can be up to 2 MB.")
         return
       }
-      setBusy(true)
-      await setAvatar(await readAsDataURL(file))
+      setWorking("photo")
+      await setPicture("photo", await readAsDataURL(file))
     } catch (e) {
       notifyError("The photo could not be set", e)
     } finally {
-      setBusy(false)
-      if (fileRef.current) fileRef.current.value = ""
+      setWorking(null)
+      if (photoInput.current) photoInput.current.value = ""
+    }
+  }
+
+  /* A cover or a badge is fitted to where it is drawn first (lib/pictureFile.ts). */
+  const onPickFitted = async (picture: "cover" | "badge", file: File | null) => {
+    if (!file) return
+    const { fit, failure } = FITTED[picture]
+    setWorking(picture)
+    try {
+      await setPicture(picture, await readPicture(file, fit))
+      if (picture === "cover") keepCover(UPLOADED_COVER)
+    } catch (e) {
+      notifyError(failure, e)
+    } finally {
+      setWorking(null)
+      const input = picture === "cover" ? coverInput.current : badgeInput.current
+      if (input) input.value = ""
+    }
+  }
+
+  const removePicture = async (picture: AccountPicture) => {
+    setWorking(picture)
+    try {
+      await clearPicture(picture)
+      if (picture === "cover" && "uri" in cover) {
+        keepCover(SCENES[DEFAULT_COVER].path)
+      }
+    } catch (e) {
+      notifyError(`The ${picture} could not be removed`, e)
+    } finally {
+      setWorking(null)
     }
   }
 
@@ -148,11 +226,25 @@ export function ProfileSection({
   return (
     <>
       <input
-        ref={fileRef}
+        ref={photoInput}
         type="file"
         accept="image/png,image/jpeg,image/webp,image/gif"
         className="hidden"
         onChange={(e) => void onPickPhoto(e.target.files?.[0] ?? null)}
+      />
+      <input
+        ref={coverInput}
+        type="file"
+        accept={COVER_FIT.accept.join(",")}
+        className="hidden"
+        onChange={(e) => void onPickFitted("cover", e.target.files?.[0] ?? null)}
+      />
+      <input
+        ref={badgeInput}
+        type="file"
+        accept={BADGE_FIT.accept.join(",")}
+        className="hidden"
+        onChange={(e) => void onPickFitted("badge", e.target.files?.[0] ?? null)}
       />
       <section aria-labelledby="profile-name">
         <TabbedBanner
@@ -161,14 +253,14 @@ export function ProfileSection({
               <button
                 type="button"
                 disabled={busy}
-                onClick={() => fileRef.current?.click()}
+                onClick={() => photoInput.current?.click()}
                 title="Change the photo"
                 aria-label="Change the photo"
                 className="group relative size-18 shrink-0 overflow-hidden rounded-md focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
               >
                 <Portrait uri={user.avatar_uri} name={user.display_name} />
                 <span className="absolute inset-0 grid place-items-center bg-[rgb(4_6_11/0.55)] text-[rgb(236_232_223)] opacity-0 transition-opacity group-hover:opacity-100 group-focus-visible:opacity-100">
-                  {busy ? (
+                  {working === "photo" ? (
                     <CircleNotch className="size-5 animate-spin" />
                   ) : (
                     <Camera className="size-5" />
@@ -176,7 +268,48 @@ export function ProfileSection({
                 </span>
               </button>
               <div className="min-w-0 pb-0.5">
-                <p className="eyebrow">Profile</p>
+                {user.badge_uri ? (
+                  <button
+                    type="button"
+                    disabled={busy}
+                    onClick={() => badgeInput.current?.click()}
+                    title="Change the badge of your institution"
+                    aria-label="Change the badge of your institution"
+                    className="group relative mb-1.5 block overflow-hidden rounded-sm bg-white px-2 py-1 ring-1 ring-border focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
+                  >
+                    <img
+                      src={user.badge_uri}
+                      alt="Badge of your institution"
+                      draggable={false}
+                      className="h-8 w-auto max-w-[14rem] object-contain"
+                    />
+                    <span className="absolute inset-0 grid place-items-center bg-[rgb(4_6_11/0.55)] text-[rgb(236_232_223)] opacity-0 transition-opacity group-hover:opacity-100 group-focus-visible:opacity-100">
+                      {working === "badge" ? (
+                        <CircleNotch className="size-4 animate-spin" />
+                      ) : (
+                        <UploadSimple className="size-4" />
+                      )}
+                    </span>
+                  </button>
+                ) : (
+                  <div className="flex items-center gap-3">
+                    <p className="eyebrow">Profile</p>
+                    <button
+                      type="button"
+                      disabled={busy}
+                      onClick={() => badgeInput.current?.click()}
+                      title="Set the logo of your university, laboratory or company above your name"
+                      className="inline-flex items-center gap-1 rounded-sm text-meta text-muted-foreground transition-colors hover:text-foreground focus-visible:ring-1 focus-visible:ring-ring focus-visible:outline-none"
+                    >
+                      {working === "badge" ? (
+                        <CircleNotch className="size-3 animate-spin" />
+                      ) : (
+                        <Plus className="size-3" />
+                      )}
+                      Institution badge
+                    </button>
+                  </div>
+                )}
                 <h2
                   id="profile-name"
                   className="mt-1 max-w-[30rem] truncate font-display text-hero font-semibold text-foreground"
@@ -190,30 +323,55 @@ export function ProfileSection({
             </div>
           }
         >
-          <img
-            key={cover.path}
-            src={cover.path}
-            alt=""
-            draggable={false}
-            decoding="async"
-            className="absolute inset-0 size-full object-cover"
-            style={{ objectPosition: cover.focus }}
-          />
-          <div className="absolute top-3 right-3 left-3 flex justify-end">
-            <SceneCredit scene={cover} />
+          {"uri" in cover ? (
+            <img
+              src={cover.uri}
+              alt=""
+              draggable={false}
+              decoding="async"
+              className="absolute inset-0 size-full object-cover"
+            />
+          ) : (
+            <>
+              <img
+                key={cover.scene.path}
+                src={cover.scene.path}
+                alt=""
+                draggable={false}
+                decoding="async"
+                className="absolute inset-0 size-full object-cover"
+                style={{ objectPosition: cover.scene.focus }}
+              />
+              <div className="absolute top-3 right-3 left-3 flex justify-end">
+                <SceneCredit scene={cover.scene} />
+              </div>
+            </>
+          )}
+          <div className="absolute right-3 bottom-3 flex items-center gap-2">
+            <button
+              type="button"
+              disabled={busy}
+              onClick={() => coverInput.current?.click()}
+              title={`A picture of your own, ${COVER_FIT.acceptLabel}. Change cover steps through it and the scenes`}
+              className={cn(PHOTO_CHIP, COVER_CHIP)}
+            >
+              {working === "cover" ? (
+                <CircleNotch className="size-3.5 animate-spin" />
+              ) : (
+                <UploadSimple className="size-3.5" />
+              )}
+              Upload cover
+            </button>
+            <button
+              type="button"
+              onClick={nextCover}
+              title={`The cover is one of ${covers.length} pictures; this shows the next`}
+              className={cn(PHOTO_CHIP, COVER_CHIP)}
+            >
+              <ImageSquare className="size-3.5" />
+              Change cover
+            </button>
           </div>
-          <button
-            type="button"
-            onClick={nextCover}
-            title={`The cover is one of ${SCENES.length} scenes; this shows the next`}
-            className={cn(
-              PHOTO_CHIP,
-              "absolute right-3 bottom-3 flex items-center gap-1.5 px-3 py-1 text-label transition-colors hover:bg-[rgb(4_6_11/0.8)] focus-visible:ring-1 focus-visible:ring-ring focus-visible:outline-none"
-            )}
-          >
-            <ImageSquare className="size-3.5" />
-            Change cover
-          </button>
         </TabbedBanner>
 
         <div className="mt-3 flex flex-wrap items-end justify-between gap-x-12 gap-y-4">
@@ -249,28 +407,37 @@ export function ProfileSection({
             title="Photo"
             description="Shown at the foot of the rail. PNG, JPEG or WebP, up to 2 MB."
           >
-            <div className="flex items-center gap-2">
-              <button
-                type="button"
-                disabled={busy}
-                onClick={() => fileRef.current?.click()}
-                className={btnGhost}
-              >
-                <Camera className="size-3.5" />
-                {user.avatar_uri ? "Replace" : "Upload"}
-              </button>
-              {user.avatar_uri && (
-                <button
-                  type="button"
-                  disabled={busy}
-                  onClick={() => void clearAvatar()}
-                  className={btnGhost}
-                >
-                  <LineDelete className="size-3.5" />
-                  Remove
-                </button>
-              )}
-            </div>
+            <PictureButtons
+              has={Boolean(user.avatar_uri)}
+              busy={busy}
+              icon={<Camera className="size-3.5" />}
+              onPick={() => photoInput.current?.click()}
+              onRemove={() => void removePicture("photo")}
+            />
+          </SettingRow>
+          <SettingRow
+            title="Cover"
+            description={`The picture on the banner, in place of the scenes. ${COVER_FIT.acceptLabel}; a larger one is fitted to ${COVER_FIT.box.width} by ${COVER_FIT.box.height} px.`}
+          >
+            <PictureButtons
+              has={Boolean(user.cover_uri)}
+              busy={busy}
+              icon={<UploadSimple className="size-3.5" />}
+              onPick={() => coverInput.current?.click()}
+              onRemove={() => void removePicture("cover")}
+            />
+          </SettingRow>
+          <SettingRow
+            title="Institution badge"
+            description={`The logo of your university, laboratory or company, above your name. ${BADGE_FIT.acceptLabel}, drawn on a light plate.`}
+          >
+            <PictureButtons
+              has={Boolean(user.badge_uri)}
+              busy={busy}
+              icon={<UploadSimple className="size-3.5" />}
+              onPick={() => badgeInput.current?.click()}
+              onRemove={() => void removePicture("badge")}
+            />
           </SettingRow>
           <SettingRow
             title="Display name"
@@ -350,6 +517,40 @@ export function ProfileSection({
   )
 }
 
+/** A chip over the banner's picture, beside the others at its foot. */
+const COVER_CHIP =
+  "flex items-center gap-1.5 px-3 py-1 text-label transition-colors hover:bg-[rgb(4_6_11/0.8)] focus-visible:ring-1 focus-visible:ring-ring focus-visible:outline-none disabled:opacity-60"
+
+/** Upload, or Replace once there is one, and Remove: the controls of one picture. */
+function PictureButtons({
+  has,
+  busy,
+  icon,
+  onPick,
+  onRemove,
+}: {
+  has: boolean
+  busy: boolean
+  icon: ReactNode
+  onPick: () => void
+  onRemove: () => void
+}) {
+  return (
+    <div className="flex items-center gap-2">
+      <button type="button" disabled={busy} onClick={onPick} className={btnGhost}>
+        {icon}
+        {has ? "Replace" : "Upload"}
+      </button>
+      {has && (
+        <button type="button" disabled={busy} onClick={onRemove} className={btnGhost}>
+          <LineDelete className="size-3.5" />
+          Remove
+        </button>
+      )}
+    </div>
+  )
+}
+
 /** The photo, or the initials on a raised ground when there is none. */
 function Portrait({ uri, name }: { uri?: string; name: string }) {
   if (uri) {
@@ -366,13 +567,4 @@ function Portrait({ uri, name }: { uri?: string; name: string }) {
       {initials || <User className="size-7 text-muted-foreground" />}
     </span>
   )
-}
-
-function readAsDataURL(file: File): Promise<string> {
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader()
-    reader.onload = () => resolve(String(reader.result))
-    reader.onerror = () => reject(reader.error)
-    reader.readAsDataURL(file)
-  })
 }

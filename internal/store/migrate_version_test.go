@@ -68,7 +68,7 @@ func hasColumn(t *testing.T, s *Store, table, column string) bool {
 // here rather than derived from the schema string, so that a column dropped
 // from migrate fails this test instead of agreeing with itself.
 var expectedColumns = map[string][]string{
-	"users":            {"id", "email", "display_name", "password_hash", "avatar_path", "created_at", "updated_at"},
+	"users":            {"id", "email", "display_name", "password_hash", "avatar_path", "cover_path", "badge_path", "created_at", "updated_at"},
 	"sessions":         {"token", "user_id", "expires_at"},
 	"preferences":      {"user_id", "default_model", "overlay_opacity", "theme", "extras_json"},
 	"inference_runs":   {"id", "user_id", "created_at", "model_kind", "period_start", "period_end", "polygon_geojson", "status", "summary_json", "overlay_relpath", "n_dates", "result_json", "assets_relpath", "label", "project_id", "kind", "area_id"},
