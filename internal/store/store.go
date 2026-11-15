@@ -32,10 +32,15 @@ type User struct {
 	ID          string `json:"id"`
 	Email       string `json:"email"`
 	DisplayName string `json:"display_name"`
-	// The photo (pictures.go): its path relative to the data directory, and
-	// the file as a data URI for the WebView.
+	// The pictures the account carries (pictures.go). Each path is relative
+	// to the data directory, and each URI is that file as a data URI for the
+	// WebView.
 	AvatarPath string `json:"avatar_path,omitempty"`
 	AvatarURI  string `json:"avatar_uri,omitempty"`
+	CoverPath  string `json:"cover_path,omitempty"`
+	CoverURI   string `json:"cover_uri,omitempty"`
+	BadgePath  string `json:"badge_path,omitempty"`
+	BadgeURI   string `json:"badge_uri,omitempty"`
 	CreatedAt  string `json:"created_at"`
 	UpdatedAt  string `json:"updated_at"`
 }
@@ -330,7 +335,7 @@ below it. The number says how far migrate has taken a database; it does not by
 itself say which columns a table has, and addColumns explains why those two are
 not the same question here.
 */
-const schemaVersion = 6
+const schemaVersion = 7
 
 // userVersion reads the version SQLite keeps in the database header.
 func (s *Store) userVersion() (int, error) {
@@ -897,6 +902,18 @@ CREATE INDEX IF NOT EXISTS idx_runs_project_created ON inference_runs(project_id
 		}
 	}
 	/*
+		The cover and the institution's badge an account carries beside its
+		photo. See pictures.go.
+	*/
+	if at < 7 {
+		if err := s.addColumns([]columnAdd{
+			{"users", "cover_path", `ALTER TABLE users ADD COLUMN cover_path TEXT`},
+			{"users", "badge_path", `ALTER TABLE users ADD COLUMN badge_path TEXT`},
+		}); err != nil {
+			return fmt.Errorf("migrate profile pictures: %w", err)
+		}
+	}
+	/*
 		THE COLUMNS THIS BUILD HAS REMOVED. Not gated on the version, and that
 		is the point.
 
@@ -1094,9 +1111,13 @@ func (s *Store) Login(email, password string) (*User, string, error) {
 		hash string
 	)
 	err := s.db.QueryRow(
-		`SELECT id, email, display_name, COALESCE(avatar_path,''), password_hash, created_at, updated_at
+		`SELECT id, email, display_name,
+		        COALESCE(avatar_path,''), COALESCE(cover_path,''), COALESCE(badge_path,''),
+		        password_hash, created_at, updated_at
 		 FROM users WHERE email = ?`, email,
-	).Scan(&u.ID, &u.Email, &u.DisplayName, &u.AvatarPath, &hash, &u.CreatedAt, &u.UpdatedAt)
+	).Scan(&u.ID, &u.Email, &u.DisplayName,
+		&u.AvatarPath, &u.CoverPath, &u.BadgePath,
+		&hash, &u.CreatedAt, &u.UpdatedAt)
 	if errors.Is(err, sql.ErrNoRows) {
 		return nil, "", ErrInvalidCreds
 	}
@@ -1162,10 +1183,14 @@ func (s *Store) UserFromSession(token string) (*User, error) {
 		expires string
 	)
 	err := s.db.QueryRow(
-		`SELECT u.id, u.email, u.display_name, COALESCE(u.avatar_path,''), u.created_at, u.updated_at, s.expires_at
+		`SELECT u.id, u.email, u.display_name,
+		        COALESCE(u.avatar_path,''), COALESCE(u.cover_path,''), COALESCE(u.badge_path,''),
+		        u.created_at, u.updated_at, s.expires_at
 		 FROM sessions s JOIN users u ON u.id = s.user_id
 		 WHERE s.token = ?`, token,
-	).Scan(&u.ID, &u.Email, &u.DisplayName, &u.AvatarPath, &u.CreatedAt, &u.UpdatedAt, &expires)
+	).Scan(&u.ID, &u.Email, &u.DisplayName,
+		&u.AvatarPath, &u.CoverPath, &u.BadgePath,
+		&u.CreatedAt, &u.UpdatedAt, &expires)
 	if errors.Is(err, sql.ErrNoRows) {
 		return nil, ErrUnauthorized
 	}
@@ -1196,7 +1221,7 @@ func (s *Store) RestoreSession() (*User, string, error) {
 	return u, token, nil
 }
 
-// UpdateProfile updates the display name only (the photo via SetPicture).
+// UpdateProfile updates the display name only (the pictures via SetPicture).
 func (s *Store) UpdateProfile(userID, displayName string) (*User, error) {
 	displayName = strings.TrimSpace(displayName)
 	if userID == "" || displayName == "" {
@@ -1223,9 +1248,13 @@ func nullIfEmpty(s string) any {
 func (s *Store) GetUser(id string) (*User, error) {
 	var u User
 	err := s.db.QueryRow(
-		`SELECT id, email, display_name, COALESCE(avatar_path,''), created_at, updated_at
+		`SELECT id, email, display_name,
+		        COALESCE(avatar_path,''), COALESCE(cover_path,''), COALESCE(badge_path,''),
+		        created_at, updated_at
 		 FROM users WHERE id = ?`, id,
-	).Scan(&u.ID, &u.Email, &u.DisplayName, &u.AvatarPath, &u.CreatedAt, &u.UpdatedAt)
+	).Scan(&u.ID, &u.Email, &u.DisplayName,
+		&u.AvatarPath, &u.CoverPath, &u.BadgePath,
+		&u.CreatedAt, &u.UpdatedAt)
 	if errors.Is(err, sql.ErrNoRows) {
 		return nil, ErrNotFound
 	}

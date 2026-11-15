@@ -632,6 +632,10 @@ export interface User {
   display_name: string
   avatar_path?: string
   avatar_uri?: string
+  cover_path?: string
+  cover_uri?: string
+  badge_path?: string
+  badge_uri?: string
   created_at: string
   updated_at: string
 }

@@ -4712,6 +4712,10 @@ export namespace store {
 	    display_name: string;
 	    avatar_path?: string;
 	    avatar_uri?: string;
+	    cover_path?: string;
+	    cover_uri?: string;
+	    badge_path?: string;
+	    badge_uri?: string;
 	    created_at: string;
 	    updated_at: string;
 	
@@ -4726,6 +4730,10 @@ export namespace store {
 	        this.display_name = source["display_name"];
 	        this.avatar_path = source["avatar_path"];
 	        this.avatar_uri = source["avatar_uri"];
+	        this.cover_path = source["cover_path"];
+	        this.cover_uri = source["cover_uri"];
+	        this.badge_path = source["badge_path"];
+	        this.badge_uri = source["badge_uri"];
 	        this.created_at = source["created_at"];
 	        this.updated_at = source["updated_at"];
 	    }

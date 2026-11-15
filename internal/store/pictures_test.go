@@ -5,6 +5,7 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 )
 
@@ -94,5 +95,109 @@ func TestARefusedPhotoLeavesTheOldOne(t *testing.T) {
 	}
 	if got.AvatarURI != small {
 		t.Errorf("the photo before the refused ones is gone")
+	}
+}
+
+// The photo, the cover and the badge are three files, and taking one away
+// leaves the other two: the photo's pattern, <id>.*, must not reach
+// <id>-cover.jpg.
+func TestRemovingOnePictureLeavesTheOthers(t *testing.T) {
+	s := openStoreIn(t, t.TempDir())
+	u := registerPictureUser(t, s)
+
+	png := []byte("\x89PNG\r\n\x1a\nphoto")
+	jpeg := []byte("\xff\xd8\xff cover")
+	svg := []byte(`<svg xmlns="http://www.w3.org/2000/svg"/>`)
+	for _, step := range []struct {
+		p   Picture
+		uri string
+	}{
+		{PictureAvatar, pictureDataURI("image/png", png)},
+		{PictureCover, pictureDataURI("image/jpeg", jpeg)},
+		{PictureBadge, pictureDataURI("image/svg+xml", svg)},
+	} {
+		if _, err := s.SetPicture(u.ID, step.p, step.uri); err != nil {
+			t.Fatalf("set the %s: %v", step.p, err)
+		}
+	}
+
+	got, err := s.GetUser(u.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got.AvatarURI != pictureDataURI("image/png", png) {
+		t.Errorf("photo URI is %.40q", got.AvatarURI)
+	}
+	if got.CoverURI != pictureDataURI("image/jpeg", jpeg) {
+		t.Errorf("cover URI is %.40q", got.CoverURI)
+	}
+	if got.BadgeURI != pictureDataURI("image/svg+xml", svg) {
+		t.Errorf("badge URI is %.40q", got.BadgeURI)
+	}
+	if n := len(pictureFiles(t, s)); n != 3 {
+		t.Fatalf("%d picture files after setting three, want 3", n)
+	}
+
+	after, err := s.ClearPicture(u.ID, PictureAvatar)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if after.AvatarURI != "" || after.AvatarPath != "" {
+		t.Errorf("the photo is still there: path %q", after.AvatarPath)
+	}
+	if after.CoverURI == "" || after.BadgeURI == "" {
+		t.Errorf("removing the photo took the cover or the badge with it")
+	}
+	files := pictureFiles(t, s)
+	if len(files) != 2 {
+		t.Fatalf("files after removing the photo: %v, want the cover and the badge", files)
+	}
+	for _, f := range files {
+		if !strings.HasPrefix(f, u.ID+"-") {
+			t.Errorf("%s is left, and is not the cover or the badge", f)
+		}
+	}
+}
+
+// A new cover replaces the old one even when it comes in another format, so
+// the directory never holds two covers for one user.
+func TestANewCoverReplacesTheOldOneInAnotherFormat(t *testing.T) {
+	s := openStoreIn(t, t.TempDir())
+	u := registerPictureUser(t, s)
+
+	if _, err := s.SetPicture(u.ID, PictureCover, pictureDataURI("image/png", []byte("first"))); err != nil {
+		t.Fatal(err)
+	}
+	got, err := s.SetPicture(u.ID, PictureCover, pictureDataURI("image/jpeg", []byte("second")))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if want := filepath.Join(pictureDir, u.ID+"-cover.jpg"); got.CoverPath != want {
+		t.Errorf("cover path %q, want %q", got.CoverPath, want)
+	}
+	if files := pictureFiles(t, s); len(files) != 1 {
+		t.Errorf("files after replacing the cover: %v, want one", files)
+	}
+}
+
+// A badge may be an SVG, since that is how many institutions publish their
+// logo. A photo or a cover may not, and neither may anything that is not an
+// image.
+func TestOnlyTheBadgeAcceptsAnSVG(t *testing.T) {
+	s := openStoreIn(t, t.TempDir())
+	u := registerPictureUser(t, s)
+	svg := pictureDataURI("image/svg+xml", []byte(`<svg xmlns="http://www.w3.org/2000/svg"/>`))
+
+	if _, err := s.SetPicture(u.ID, PictureBadge, svg); err != nil {
+		t.Errorf("badge as SVG refused: %v", err)
+	}
+	for _, p := range []Picture{PictureAvatar, PictureCover} {
+		if _, err := s.SetPicture(u.ID, p, svg); !errors.Is(err, ErrInvalidInput) {
+			t.Errorf("%s as SVG: err %v, want ErrInvalidInput", p, err)
+		}
+	}
+	text := pictureDataURI("text/plain", []byte("not a picture"))
+	if _, err := s.SetPicture(u.ID, PictureBadge, text); !errors.Is(err, ErrInvalidInput) {
+		t.Errorf("badge as text: err %v, want ErrInvalidInput", err)
 	}
 }

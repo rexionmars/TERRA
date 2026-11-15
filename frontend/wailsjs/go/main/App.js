@@ -78,6 +78,14 @@ export function ClearAvatar() {
   return window['go']['main']['App']['ClearAvatar']();
 }
 
+export function ClearBadge() {
+  return window['go']['main']['App']['ClearBadge']();
+}
+
+export function ClearCover() {
+  return window['go']['main']['App']['ClearCover']();
+}
+
 export function ClearJobs() {
   return window['go']['main']['App']['ClearJobs']();
 }
@@ -342,8 +350,16 @@ export function SetAvatar(arg1) {
   return window['go']['main']['App']['SetAvatar'](arg1);
 }
 
+export function SetBadge(arg1) {
+  return window['go']['main']['App']['SetBadge'](arg1);
+}
+
 export function SetBoardDirty(arg1) {
   return window['go']['main']['App']['SetBoardDirty'](arg1);
+}
+
+export function SetCover(arg1) {
+  return window['go']['main']['App']['SetCover'](arg1);
 }
 
 export function SetEarthdataToken(arg1) {

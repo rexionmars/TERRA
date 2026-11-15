@@ -127,6 +127,28 @@ func (a *App) ClearAvatar() (*store.User, error) {
 	return a.clearPicture(store.PictureAvatar)
 }
 
+// SetCover saves the picture on the profile's banner, from a browser data URI.
+func (a *App) SetCover(dataURI string) (*store.User, error) {
+	return a.setPicture(store.PictureCover, dataURI)
+}
+
+// ClearCover removes the picture on the profile's banner, which goes back to
+// the scenes.
+func (a *App) ClearCover() (*store.User, error) {
+	return a.clearPicture(store.PictureCover)
+}
+
+// SetBadge saves the badge of the user's institution, from a browser data URI.
+// It may be an SVG.
+func (a *App) SetBadge(dataURI string) (*store.User, error) {
+	return a.setPicture(store.PictureBadge, dataURI)
+}
+
+// ClearBadge removes the badge of the user's institution.
+func (a *App) ClearBadge() (*store.User, error) {
+	return a.clearPicture(store.PictureBadge)
+}
+
 // GetPreferences returns preferences for the logged-in user (or local guest).
 func (a *App) GetPreferences() (*store.Preferences, error) {
 	st, err := a.requireStore()
