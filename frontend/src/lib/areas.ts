@@ -84,6 +84,31 @@ export function isField(a: Pick<Area, "parent_id">): boolean {
 }
 
 /**
+ * The areas the map draws: the area in use, the area it is a field of, the
+ * fields of that area, and the selection the next jobs are queued over.
+ *
+ * Not the project's whole catalogue. "No area" means the map is empty, and a
+ * project that has worked many grounds would otherwise cover it in outlines
+ * nobody chose in this session: a real one holds 14 areas and 670 fields. The
+ * Areas panel and the path in the frame list the rest. The family is kept
+ * whole, rather than the area in use alone, so that pressing one field leaves
+ * its neighbours on the map to be pressed next.
+ */
+export function areasOnMap(
+  areas: readonly Area[],
+  activeId: string | null | undefined,
+  selectedIds: readonly string[] = []
+): Area[] {
+  const active = activeId ? areas.find((a) => a.id === activeId) : undefined
+  const root = active ? active.parent_id || active.id : null
+  const selected = new Set(selectedIds)
+  return areas.filter(
+    (a) =>
+      (root !== null && (a.id === root || a.parent_id === root)) || selected.has(a.id)
+  )
+}
+
+/**
  * A selection of areas extended by a shift-press, a box or a "select its
  * fields": the areas a job is queued over (lib/jobs.ts).
  *
