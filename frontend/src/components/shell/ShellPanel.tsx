@@ -1,4 +1,4 @@
-import { CaretLeft, CaretRight, X } from "@/components/icons"
+import { CaretLeft, CaretRight, X, type Icon } from "@/components/icons"
 import { cn } from "@/lib/utils"
 
 export interface Crumb {
@@ -167,7 +167,14 @@ export function PanelSection({
   )
 }
 
-/** A choice between a few named values, where a menu would hide all but one. */
+/**
+ * A choice between a few named values, where a menu would hide all but one.
+ *
+ * An option may carry an icon. Its neutral parts follow the text, except on the
+ * chosen option, where the label takes the accent and the icon stays in the
+ * foreground: an orange frame around the icon's own colours would read as part
+ * of the drawing.
+ */
 export function PanelChoices<T extends string | number>({
   label,
   value,
@@ -176,7 +183,13 @@ export function PanelChoices<T extends string | number>({
 }: {
   label: string
   value: T
-  options: readonly { id: T; label: string; title?: string; disabled?: boolean }[]
+  options: readonly {
+    id: T
+    label: string
+    title?: string
+    disabled?: boolean
+    icon?: Icon
+  }[]
   onChange: (id: T) => void
 }) {
   return (
@@ -192,13 +205,16 @@ export function PanelChoices<T extends string | number>({
             disabled={o.disabled}
             onClick={() => onChange(o.id)}
             className={cn(
-              "rounded-sm px-2 py-1 text-label transition-colors disabled:cursor-not-allowed disabled:opacity-40",
+              "inline-flex items-center gap-1.5 rounded-sm px-2 py-1 text-label transition-colors disabled:cursor-not-allowed disabled:opacity-40",
               // The tool column's lit button, in the accent's text colour.
               chosen
                 ? "bg-[rgb(var(--p-surface-raised)/0.92)] text-accent-quiet"
                 : "text-muted-foreground hover:bg-hover hover:text-foreground"
             )}
           >
+            {o.icon && (
+              <o.icon className={cn("size-5 shrink-0", chosen && "text-foreground")} />
+            )}
             {o.label}
           </button>
         )
