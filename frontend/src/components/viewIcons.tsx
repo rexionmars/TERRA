@@ -1,7 +1,7 @@
 /*
   The icons that carry colour: the composition panel's choices (the kinds of
-  view and the scene they are drawn from), and on the boards' pie the node
-  categories of the Add ring and the mineral map's readings on its Mineral ring.
+  view and the scene they are drawn from), and on the workflows board's pie the
+  node categories of the Add ring and every node on its category's ring.
 
   This file is their source. Each icon draws what its word means, and was kept
   only when it read as that word at 20 px with no label beside it:
@@ -35,6 +35,28 @@
     Mask            a tile darkened but for the shape it keeps
     Run             play, in a ring
     Filter          a funnel, pixels of three classes going in
+
+    Class areas     a bar per class, in the class's colour
+    Season dates    a calendar, the season's curve marked at rise, peak and fall
+    Health          a leaf, and a pulse across it
+    Field table     a table, its header lit
+    Zones           one field in three zones, low to high
+    Radar series    a radar screen and its sweep
+    Overlap         a field over a protected area, where they meet in alarm
+    Majority filter a 3 x 3 window, its centre taking the class most hold
+    Sieve           a sieve: the large patch stays, the specks fall through
+    Opening/closing a patch's lobes and, dashed, the smooth hull the operations
+                    leave
+    Field filter    the Filter funnel, a field going in
+    Select classes  a legend: swatches for the classes kept, an empty one left out
+    Viewer          an eye
+    Globe           the globe, an area drawn on it
+    Make fields     a field with a plus badge
+    Save fields     a page with a field on it, and the save badge
+    PDF report      a page with its title band and lines of text
+    Save GeoTIFF    a page with the mineral crystal, and the save badge
+    Change and Mask are drawn as their word is above; Run and Mix as their
+    category.
 
   A change keeps to the rules they were built on: a 20-unit grid with a margin
   of 2; neutral strokes of 1.5 with round caps and joins; one corner radius, 2
@@ -145,19 +167,6 @@ export const MineralAgreement = glyph(
   '<rect x="2.75" y="2.75" width="3.25" height="3.25" rx="0.6" style="fill:var(--oi-blue, #0072B2)"/><rect x="6.5" y="2.75" width="3.25" height="3.25" rx="0.6" fill="currentColor" fill-opacity="0.55"/><rect x="10.25" y="2.75" width="3.25" height="3.25" rx="0.6" fill="currentColor" fill-opacity="0.18"/><rect x="14" y="2.75" width="3.25" height="3.25" rx="0.6" fill="currentColor" fill-opacity="0.18"/><rect x="2.75" y="6.5" width="3.25" height="3.25" rx="0.6" fill="currentColor" fill-opacity="0.18"/><rect x="6.5" y="6.5" width="3.25" height="3.25" rx="0.6" style="fill:var(--oi-blue, #0072B2)"/><rect x="10.25" y="6.5" width="3.25" height="3.25" rx="0.6" fill="currentColor" fill-opacity="0.18"/><rect x="14" y="6.5" width="3.25" height="3.25" rx="0.6" fill="currentColor" fill-opacity="0.18"/><rect x="2.75" y="10.25" width="3.25" height="3.25" rx="0.6" fill="currentColor" fill-opacity="0.18"/><rect x="6.5" y="10.25" width="3.25" height="3.25" rx="0.6" fill="currentColor" fill-opacity="0.18"/><rect x="10.25" y="10.25" width="3.25" height="3.25" rx="0.6" style="fill:var(--oi-blue, #0072B2)"/><rect x="14" y="10.25" width="3.25" height="3.25" rx="0.6" fill="currentColor" fill-opacity="0.55"/><rect x="2.75" y="14" width="3.25" height="3.25" rx="0.6" fill="currentColor" fill-opacity="0.18"/><rect x="6.5" y="14" width="3.25" height="3.25" rx="0.6" fill="currentColor" fill-opacity="0.18"/><rect x="10.25" y="14" width="3.25" height="3.25" rx="0.6" fill="currentColor" fill-opacity="0.18"/><rect x="14" y="14" width="3.25" height="3.25" rx="0.6" style="fill:var(--oi-blue, #0072B2)"/>'
 )
 
-/** The mineral map's readings, each on its own option of the pie's Mineral ring. */
-export const MINERAL_READING_ICONS: Partial<Record<NodeKind, Icon>> = {
-  mineralCoverage: MineralCoverage,
-  mineralClasses: MineralClasses,
-  mineralReferences: MineralReferences,
-  mineralPasses: MineralPasses,
-  mineralCover: MineralCover,
-  mineralPositions: MineralPositions,
-  mineralAcid: MineralAcid,
-  mineralConfidence: MineralConfidence,
-  mineralAgreement: MineralAgreement,
-}
-
 export const CategoryRun = glyph(
   '<circle cx="10" cy="10" r="7.25" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/><path d="M8 7.645 A0.9 0.9 0 0 1 9.385 6.886 L13.066 9.242 A0.9 0.9 0 0 1 13.066 10.758 L9.385 13.114 A0.9 0.9 0 0 1 8 12.355 Z" style="fill:var(--oi-orange, #E69F00)"/>'
 )
@@ -195,4 +204,114 @@ export const CATEGORY_ICONS: Record<NodeCategory, Icon> = {
   color: CategoryMix,
   analysis: CategoryAnalysis,
   mineral: CategoryMineral,
+}
+
+export const KindAreas = glyph(
+  '<path d="M3 3 V17" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" fill="none"/><rect x="4.5" y="4" width="12.5" height="2.75" rx="0.8" style="fill:var(--oi-orange, #E69F00)"/><rect x="4.5" y="8.75" width="9" height="2.75" rx="0.8" style="fill:var(--oi-sky, #56B4E9)"/><rect x="4.5" y="13.5" width="5.5" height="2.75" rx="0.8" style="fill:var(--oi-green, #009E73)"/>'
+)
+
+export const KindSeasonDates = glyph(
+  '<path d="M2.75 6.25 A2 2 0 0 1 4.75 4.25 L15.25 4.25 A2 2 0 0 1 17.25 6.25 L17.25 15.25 A2 2 0 0 1 15.25 17.25 L4.75 17.25 A2 2 0 0 1 2.75 15.25 Z" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/><path d="M6.5 2.75 V5.75 M13.5 2.75 V5.75" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/><path d="M2.75 7.75 H17.25" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/><path d="M4.75 15.25 C7 15.25 7.75 9.75 10 9.75 C12.5 9.75 13 15.25 15.25 15.25" fill="none" stroke-width="1.5" stroke-linecap="round" style="stroke:var(--oi-green, #009E73)"/><circle cx="6.9" cy="12.5" r="1.15" fill="currentColor"/><circle cx="10" cy="9.75" r="1.15" fill="currentColor"/><circle cx="13.1" cy="12.5" r="1.15" fill="currentColor"/>'
+)
+
+export const KindHealth = glyph(
+  '<defs><mask id="kd-health"><rect width="20" height="20" fill="#fff"/><path d="M2.5 11 H6.25 L7.75 7.75 L9.75 14 L11.5 9.25 L12.75 11 H17.5" fill="none" stroke="#000" stroke-width="3.6" stroke-linecap="round" stroke-linejoin="round"/></mask></defs><g mask="url(#kd-health)"><path d="M4 16.25 A9.6 9.6 0 0 1 16.25 4 A9.6 9.6 0 0 1 4 16.25 Z" style="fill:var(--oi-green, #009E73)"/></g><path d="M2.5 11 H6.25 L7.75 7.75 L9.75 14 L11.5 9.25 L12.75 11 H17.5" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>'
+)
+
+export const KindFieldTable = glyph(
+  '<defs><clipPath id="kd-table"><path d="M2.75 5.5 A2 2 0 0 1 4.75 3.5 L15.25 3.5 A2 2 0 0 1 17.25 5.5 L17.25 14.5 A2 2 0 0 1 15.25 16.5 L4.75 16.5 A2 2 0 0 1 2.75 14.5 Z"/></clipPath></defs><rect x="0" y="0" width="20" height="7.25" clip-path="url(#kd-table)" style="fill:var(--oi-blue, #0072B2)"/><path d="M2.75 10.5 H17.25 M2.75 13.5 H17.25 M7.75 7.25 V16.5" fill="none" stroke="currentColor" stroke-opacity="0.5" stroke-width="1" stroke-linecap="round"/><path d="M2.75 5.5 A2 2 0 0 1 4.75 3.5 L15.25 3.5 A2 2 0 0 1 17.25 5.5 L17.25 14.5 A2 2 0 0 1 15.25 16.5 L4.75 16.5 A2 2 0 0 1 2.75 14.5 Z" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>'
+)
+
+export const KindZones = glyph(
+  '<defs><clipPath id="kd-zones"><path d="M3.076 7.757 A1.4 1.4 0 0 1 3.594 6.525 L7.37 3.504 A1.4 1.4 0 0 1 8.752 3.292 L12.066 4.581 A1.4 1.4 0 0 0 12.948 4.625 L14.957 4.067 A1.4 1.4 0 0 1 16.72 5.601 L16.029 10.781 A1.4 1.4 0 0 0 16.039 11.217 L16.719 14.957 A1.4 1.4 0 0 1 15.435 16.604 L9.839 16.977 A1.4 1.4 0 0 1 9.188 16.864 L4.503 14.827 A1.4 1.4 0 0 1 3.668 13.683 Z"/></clipPath></defs><g clip-path="url(#kd-zones)"><defs><mask id="kd-zcut"><rect width="20" height="20" fill="#fff"/><path d="M0 9.5 C5 8 8 12 20 7.5 M0 14.5 C6 12.5 10 16 20 12" fill="none" stroke="#000" stroke-width="1.1"/></mask></defs><g mask="url(#kd-zcut)"><path d="M0 9.5 C5 8 8 12 20 7.5 L20 0 L0 0 Z" style="fill:var(--oi-green, #009E73)"/><path d="M0 9.5 C5 8 8 12 20 7.5 L20 12 C10 16 6 12.5 0 14.5 Z" style="fill:var(--oi-orange, #E69F00)"/><path d="M0 14.5 C6 12.5 10 16 20 12 L20 20 L0 20 Z" style="fill:var(--oi-vermillion, #D55E00)"/></g></g><path d="M3.076 7.757 A1.4 1.4 0 0 1 3.594 6.525 L7.37 3.504 A1.4 1.4 0 0 1 8.752 3.292 L12.066 4.581 A1.4 1.4 0 0 0 12.948 4.625 L14.957 4.067 A1.4 1.4 0 0 1 16.72 5.601 L16.029 10.781 A1.4 1.4 0 0 0 16.039 11.217 L16.719 14.957 A1.4 1.4 0 0 1 15.435 16.604 L9.839 16.977 A1.4 1.4 0 0 1 9.188 16.864 L4.503 14.827 A1.4 1.4 0 0 1 3.668 13.683 Z" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>'
+)
+
+export const KindRadar = glyph(
+  '<path d="M10 10 L10 3.5 A6.5 6.5 0 0 1 15.629 6.75 Z" style="fill:var(--oi-green, #009E73)"/><circle cx="10" cy="10" r="3.75" fill="none" stroke="currentColor" stroke-opacity="0.5" stroke-width="1" stroke-linecap="round"/><circle cx="10" cy="10" r="7.25" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/><circle cx="10" cy="10" r="1.1" fill="currentColor"/><circle cx="6.25" cy="12.75" r="1.2" style="fill:var(--oi-green, #009E73)"/>'
+)
+
+export const KindOverlap = glyph(
+  '<defs><clipPath id="kd-field"><path d="M2.887 5.167 A1.2 1.2 0 0 1 3.914 3.838 L10.536 2.919 A1.2 1.2 0 0 1 11.893 3.967 L12.613 10.083 A1.2 1.2 0 0 1 11.586 11.412 L4.964 12.331 A1.2 1.2 0 0 1 3.607 11.283 Z"/></clipPath></defs><path d="M9.5 8.25 C12 6.75 15.5 7 17 9.5 C18 11.5 17 13.5 17.25 15 C17.5 17 14.5 17.75 12.25 17 C10.25 16.5 8 17.25 7.25 15.25 C6.5 13.25 7.5 9.5 9.5 8.25 Z" style="fill:var(--oi-green, #009E73)"/><path d="M9.5 8.25 C12 6.75 15.5 7 17 9.5 C18 11.5 17 13.5 17.25 15 C17.5 17 14.5 17.75 12.25 17 C10.25 16.5 8 17.25 7.25 15.25 C6.5 13.25 7.5 9.5 9.5 8.25 Z" clip-path="url(#kd-field)" style="fill:var(--oi-vermillion, #D55E00)"/><path d="M2.887 5.167 A1.2 1.2 0 0 1 3.914 3.838 L10.536 2.919 A1.2 1.2 0 0 1 11.893 3.967 L12.613 10.083 A1.2 1.2 0 0 1 11.586 11.412 L4.964 12.331 A1.2 1.2 0 0 1 3.607 11.283 Z" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>'
+)
+
+export const KindMajority = glyph(
+  '<rect x="3.125" y="3.125" width="3.5" height="3.5" rx="0.8" style="fill:var(--oi-green, #009E73)"/><rect x="7.875" y="3.125" width="3.5" height="3.5" rx="0.8" style="fill:var(--oi-green, #009E73)"/><rect x="12.625" y="3.125" width="3.5" height="3.5" rx="0.8" style="fill:var(--oi-orange, #E69F00)"/><rect x="3.125" y="7.875" width="3.5" height="3.5" rx="0.8" style="fill:var(--oi-green, #009E73)"/><rect x="7.875" y="7.875" width="3.5" height="3.5" rx="0.8" style="fill:var(--oi-green, #009E73)"/><rect x="12.625" y="7.875" width="3.5" height="3.5" rx="0.8" style="fill:var(--oi-green, #009E73)"/><rect x="3.125" y="12.625" width="3.5" height="3.5" rx="0.8" style="fill:var(--oi-orange, #E69F00)"/><rect x="7.875" y="12.625" width="3.5" height="3.5" rx="0.8" style="fill:var(--oi-green, #009E73)"/><rect x="12.625" y="12.625" width="3.5" height="3.5" rx="0.8" style="fill:var(--oi-green, #009E73)"/><path d="M6.775 8.375 A1.6 1.6 0 0 1 8.375 6.775 L10.875 6.775 A1.6 1.6 0 0 1 12.475 8.375 L12.475 10.875 A1.6 1.6 0 0 1 10.875 12.475 L8.375 12.475 A1.6 1.6 0 0 1 6.775 10.875 Z" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>'
+)
+
+export const KindSieve = glyph(
+  '<defs><clipPath id="kd-bowl"><path d="M3 7.5 H15 C15 11.5 12.5 13.75 9 13.75 C5.5 13.75 3 11.5 3 7.5 Z"/></clipPath></defs><path d="M5.5 7 V14.5 M7.5 7 V14.5 M9.5 7 V14.5 M11.5 7 V14.5 M13.5 7 V14.5 M2 10.25 H16 M2 12.25 H16" clip-path="url(#kd-bowl)" fill="none" stroke="currentColor" stroke-opacity="0.5" stroke-width="1" stroke-linecap="round"/><path d="M3 7.5 H15 C15 11.5 12.5 13.75 9 13.75 C5.5 13.75 3 11.5 3 7.5 Z" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/><path d="M15 7.5 L17.75 5" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/><ellipse cx="9" cy="5.6" rx="3.4" ry="2.1" style="fill:var(--oi-green, #009E73)"/><circle cx="7" cy="16.25" r="1.1" style="fill:var(--oi-orange, #E69F00)"/><circle cx="10.75" cy="17.5" r="0.9" style="fill:var(--oi-orange, #E69F00)"/>'
+)
+
+export const KindMorphology = glyph(
+  '<g style="fill:var(--oi-green, #009E73)"><circle cx="7.25" cy="7.5" r="3.0"/><circle cx="12.5" cy="8.25" r="2.8"/><circle cx="9.75" cy="12.5" r="3.1"/></g><path d="M2.95 7.5 L2.96 7.2 L2.992 6.902 L3.044 6.606 L3.117 6.315 L3.209 6.029 L3.322 5.751 L3.453 5.481 L3.603 5.221 L3.771 4.973 L3.956 4.736 L4.157 4.513 L4.373 4.304 L4.603 4.112 L4.845 3.935 L5.1 3.776 L5.365 3.635 L5.639 3.513 L5.921 3.41 L6.21 3.328 L6.503 3.265 L6.801 3.224 L7.1 3.203 L7.4 3.203 L7.699 3.224 L7.997 3.265 L13.212 4.212 L13.492 4.272 L13.767 4.351 L14.036 4.449 L14.297 4.565 L14.55 4.699 L14.793 4.851 L15.024 5.019 L15.243 5.203 L15.449 5.402 L15.641 5.615 L15.817 5.84 L15.977 6.077 L16.12 6.325 L16.246 6.582 L16.353 6.848 L16.441 7.12 L16.51 7.398 L16.56 7.679 L16.59 7.964 L16.6 8.25 L16.59 8.536 L16.56 8.821 L16.51 9.102 L16.441 9.38 L16.353 9.652 L16.246 9.918 L16.12 10.175 L13.635 14.566 L13.481 14.832 L13.31 15.086 L13.121 15.328 L12.915 15.556 L12.694 15.77 L12.459 15.967 L12.21 16.148 L11.95 16.311 L11.679 16.455 L11.398 16.58 L11.11 16.685 L10.814 16.769 L10.514 16.833 L10.21 16.876 L9.904 16.897 L9.596 16.897 L9.29 16.876 L8.986 16.833 L8.686 16.769 L8.39 16.685 L8.102 16.58 L7.821 16.455 L7.55 16.311 L7.29 16.148 L7.041 15.967 L6.806 15.77 L6.585 15.556 L6.379 15.328 L6.19 15.086 L6.019 14.832 L5.865 14.566 L5.73 14.29 L3.322 9.249 L3.209 8.971 L3.117 8.685 L3.044 8.394 L2.992 8.098 L2.96 7.8 Z" fill="none" stroke="currentColor" stroke-width="1.2" stroke-dasharray="1.3 1.2" stroke-linejoin="round"/>'
+)
+
+export const KindFieldFilter = glyph(
+  '<path d="M4.715 9.917 A0.8 0.8 0 0 1 5.225 8.5 L14.775 8.5 A0.8 0.8 0 0 1 15.285 9.917 L11.54 13.01 A0.8 0.8 0 0 0 11.25 13.627 L11.25 16.45 A0.8 0.8 0 0 1 10.45 17.25 L9.55 17.25 A0.8 0.8 0 0 1 8.75 16.45 L8.75 13.627 A0.8 0.8 0 0 0 8.46 13.01 Z" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/><path d="M5.866 4.105 A0.7 0.7 0 0 1 6.423 3.135 L11.071 2.554 A0.7 0.7 0 0 1 11.74 2.86 L13.333 5.249 A0.7 0.7 0 0 1 12.8 6.336 L7.497 6.715 A0.7 0.7 0 0 1 6.804 6.292 Z" style="fill:var(--oi-green, #009E73)"/>'
+)
+
+export const KindSelect = glyph(
+  '<rect x="2.75" y="2.25" width="3.5" height="3.5" rx="0.8" style="fill:var(--oi-orange, #E69F00)"/><path d="M9 4.0 H17.25" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/><rect x="3.25" y="7.75" width="2.5" height="2.5" rx="0.6" fill="none" stroke="currentColor" stroke-opacity="0.5" stroke-width="1" stroke-linecap="round"/><path d="M9 9.0 H17.25" fill="none" stroke="currentColor" stroke-opacity="0.5" stroke-width="1" stroke-linecap="round"/><rect x="2.75" y="12.25" width="3.5" height="3.5" rx="0.8" style="fill:var(--oi-green, #009E73)"/><path d="M9 14.0 H17.25" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>'
+)
+
+export const KindViewer = glyph(
+  '<path d="M2.25 10 C4.5 5.75 7 4.5 10 4.5 C13 4.5 15.5 5.75 17.75 10 C15.5 14.25 13 15.5 10 15.5 C7 15.5 4.5 14.25 2.25 10 Z" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/><defs><mask id="kd-eye"><rect width="20" height="20" fill="#fff"/><circle cx="10" cy="10" r="1.2" fill="#000"/></mask></defs><g mask="url(#kd-eye)"><circle cx="10" cy="10" r="3.1" style="fill:var(--oi-blue, #0072B2)"/></g>'
+)
+
+export const KindGlobe = glyph(
+  '<path d="M3.25 10 H16.75" fill="none" stroke="currentColor" stroke-opacity="0.5" stroke-width="1" stroke-linecap="round"/><ellipse cx="10" cy="10" rx="3.1" ry="6.95" fill="none" stroke="currentColor" stroke-opacity="0.5" stroke-width="1" stroke-linecap="round"/><path d="M10.652 5.784 A0.7 0.7 0 0 1 11.516 5.192 L14.102 5.838 A0.7 0.7 0 0 1 14.619 6.654 L14.137 9.064 A0.7 0.7 0 0 1 13.314 9.613 L10.888 9.128 A0.7 0.7 0 0 1 10.331 8.354 Z" style="fill:var(--oi-orange, #E69F00)"/><circle cx="10" cy="10" r="7.25" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>'
+)
+
+export const KindAdoptFields = glyph(
+  '<defs><mask id="kd-make"><rect width="20" height="20" fill="#fff"/><circle cx="14.75" cy="14.75" r="4.6" fill="#000"/></mask></defs><g mask="url(#kd-make)"><path d="M2.856 7.1 A1.5 1.5 0 0 1 3.769 5.573 L9.547 3.15 A1.5 1.5 0 0 1 11.213 3.499 L14.724 7.185 A1.5 1.5 0 0 1 14.935 8.973 L11.576 14.758 A1.5 1.5 0 0 1 9.892 15.455 L4.506 14.018 A1.5 1.5 0 0 1 3.4 12.713 Z" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></g><defs><mask id="kd-badge-plus"><rect width="20" height="20" fill="#fff"/><path d="M14.75 13.05 V16.45 M13.05 14.75 H16.45" stroke="#000" stroke-width="1.3" stroke-linecap="round"/></mask></defs><g mask="url(#kd-badge-plus)"><circle cx="14.75" cy="14.75" r="3.5" style="fill:var(--oi-green, #009E73)"/></g>'
+)
+
+export const KindSaveFields = glyph(
+  '<defs><mask id="kd-savef"><rect width="20" height="20" fill="#fff"/><circle cx="14.75" cy="14.75" r="4.6" fill="#000"/></mask></defs><g mask="url(#kd-savef)"><path d="M5 2.75 H11.5 L15.5 6.75 V15.25 Q15.5 17.25 13.5 17.25 H5 Q3 17.25 3 15.25 V4.75 Q3 2.75 5 2.75 Z" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/><path d="M11.25 2.75 V5.25 Q11.25 7 13 7 H15.5" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/><path d="M5.542 10.165 A0.9 0.9 0 0 1 6.124 9.266 L8.902 8.224 A0.9 0.9 0 0 1 9.909 8.491 L11.493 10.392 A0.9 0.9 0 0 1 11.461 11.58 L9.144 14.075 A0.9 0.9 0 0 1 8.2 14.317 L6.326 13.692 A0.9 0.9 0 0 1 5.712 12.894 Z" style="fill:var(--oi-green, #009E73)"/></g><defs><mask id="kd-badge-kd-savef"><rect width="20" height="20" fill="#fff"/><path d="M14.75 12.95 V16.15 M13.25 14.65 L14.75 16.25 L16.25 14.65" fill="none" stroke="#000" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"/></mask></defs><g mask="url(#kd-badge-kd-savef)"><circle cx="14.75" cy="14.75" r="3.5" fill="currentColor"/></g>'
+)
+
+export const KindPdfReport = glyph(
+  '<path d="M5 2.75 H11.5 L15.5 6.75 V15.25 Q15.5 17.25 13.5 17.25 H5 Q3 17.25 3 15.25 V4.75 Q3 2.75 5 2.75 Z" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/><path d="M11.25 2.75 V5.25 Q11.25 7 13 7 H15.5" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/><rect x="5.25" y="8.5" width="8" height="2.25" rx="0.6" style="fill:var(--oi-vermillion, #D55E00)"/><path d="M5.75 13.25 H12.75 M5.75 15.25 H10.5" fill="none" stroke="currentColor" stroke-opacity="0.5" stroke-width="1" stroke-linecap="round"/><path d="M5.75 5.25 H9" fill="none" stroke="currentColor" stroke-opacity="0.5" stroke-width="1" stroke-linecap="round"/>'
+)
+
+export const KindMineralSave = glyph(
+  '<defs><mask id="kd-savem"><rect width="20" height="20" fill="#fff"/><circle cx="14.75" cy="14.75" r="4.6" fill="#000"/></mask></defs><g mask="url(#kd-savem)"><path d="M5 2.75 H11.5 L15.5 6.75 V15.25 Q15.5 17.25 13.5 17.25 H5 Q3 17.25 3 15.25 V4.75 Q3 2.75 5 2.75 Z" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/><path d="M11.25 2.75 V5.25 Q11.25 7 13 7 H15.5" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/><defs><clipPath id="kd-cry"><path d="M7.88 7.907 A0.5 0.5 0 0 1 8.62 7.907 L10.42 9.887 A0.5 0.5 0 0 1 10.55 10.223 L10.55 13.88 A0.5 0.5 0 0 1 10.337 14.289 L8.537 15.549 A0.5 0.5 0 0 1 7.963 15.549 L6.163 14.289 A0.5 0.5 0 0 1 5.95 13.88 L5.95 10.223 A0.5 0.5 0 0 1 6.08 9.887 Z"/></clipPath></defs><g clip-path="url(#kd-cry)"><rect x="0" y="0" width="8.25" height="20" style="fill:var(--oi-sky, #56B4E9)"/><rect x="8.25" y="0" width="12" height="20" style="fill:var(--oi-blue, #0072B2)"/></g></g><defs><mask id="kd-badge-kd-savem"><rect width="20" height="20" fill="#fff"/><path d="M14.75 12.95 V16.15 M13.25 14.65 L14.75 16.25 L16.25 14.65" fill="none" stroke="#000" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"/></mask></defs><g mask="url(#kd-badge-kd-savem)"><circle cx="14.75" cy="14.75" r="3.5" fill="currentColor"/></g>'
+)
+
+/**
+ * Every node kind, on its category's ring. Change and Mask are drawn as their
+ * word is elsewhere; Run and Mix, categories of one node, as their category.
+ */
+export const KIND_ICONS: Record<NodeKind, Icon> = {
+  areas: KindAreas,
+  seasonDates: KindSeasonDates,
+  health: KindHealth,
+  fieldTable: KindFieldTable,
+  zones: KindZones,
+  radar: KindRadar,
+  overlap: KindOverlap,
+  majority: KindMajority,
+  sieve: KindSieve,
+  morphology: KindMorphology,
+  fieldFilter: KindFieldFilter,
+  select: KindSelect,
+  viewer: KindViewer,
+  globe: KindGlobe,
+  adoptFields: KindAdoptFields,
+  saveFields: KindSaveFields,
+  pdfReport: KindPdfReport,
+  mineralSave: KindMineralSave,
+  run: CategoryRun,
+  mask: CategoryMask,
+  mix: CategoryMix,
+  change: ViewChange,
+  mineralCoverage: MineralCoverage,
+  mineralClasses: MineralClasses,
+  mineralReferences: MineralReferences,
+  mineralPasses: MineralPasses,
+  mineralCover: MineralCover,
+  mineralPositions: MineralPositions,
+  mineralAcid: MineralAcid,
+  mineralConfidence: MineralConfidence,
+  mineralAgreement: MineralAgreement,
 }
