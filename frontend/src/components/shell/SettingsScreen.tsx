@@ -18,12 +18,16 @@ import {
   CircleNotch,
   Download,
   Heart,
-  SlidersHorizontal,
   Star,
   Upload,
   User,
 } from "@/components/icons"
-import { LineKeymap, LinePython, LineStorage } from "@/components/lineIcons"
+import {
+  LineAppearance,
+  LineKeymap,
+  LinePython,
+  LineStorage,
+} from "@/components/lineIcons"
 import { ProfileSection } from "@/components/shell/ProfileSection"
 import {
   CARD,
@@ -68,7 +72,7 @@ const PAGES: readonly {
   {
     id: "appearance",
     label: "Appearance",
-    icon: SlidersHorizontal,
+    icon: LineAppearance,
     group: "Account",
     summary: "How TERRA looks, and what it shows when it starts.",
   },

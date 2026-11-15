@@ -1,7 +1,8 @@
 /*
   The thin-line icons of the map's tool rail, the application menu, the
-  navigation rail on the window's left edge, and the eight products (Product*),
-  which the call site tints with the product's colour.
+  navigation rail on the window's left edge, the eight products (Product*),
+  which the call site tints with the product's colour, and Settings' Appearance
+  and the Workflows menu's Manage, which shared one glyph before.
 
   This file is their source. They keep Breeze's grammar, so they sit with the
   Breeze glyphs of icons.tsx: a 16-unit grid, the drawing inside 2..14 (1..15
@@ -59,12 +60,15 @@
     Overlap               a field over a protected area's dashed boundary, the overlap filled
     Sentinel-1 radar      a radar screen, its sweep and what it found
     Management zones      one field in zones on the diagonal, in tones low to high
+    Appearance            light and dark: the disc half filled
+    Manage workflows      the saved workflows listed, each row marked with a node
 
   Drawn again after failing that test: the satellite turned on its diagonal
   (a chain), the area's solid outline with the pencil (a price tag), round
   concentric contours (a target), a neural network for the models (a blur),
   scattered pixels for a classification (a keypad), a square over a round blob
-  for an overlap (the "shapes" icon), and level bands for zones (a barrel).
+  for an overlap (the "shapes" icon), level bands for zones (a barrel), and a
+  link of two nodes on each row of the workflows list (a row of spectacles).
 */
 import type { Icon } from "@/components/icons"
 
@@ -283,4 +287,12 @@ export const LineProductRadar = glyph(
 
 export const LineProductZones = glyph(
   '<defs><clipPath id="pr-zones"><path d="M2 6 L6 2 L11 3.25 L14.5 2 L13.5 9 L14.25 14 L8 14.5 L2.5 13 Z"/></clipPath></defs><g clip-path="url(#pr-zones)"><path d="M0 10.5 C4 8 7 9 16 2.5 L16 0 L0 0 Z" fill="currentColor" fill-opacity="0.55"/><path d="M0 10.5 C4 8 7 9 16 2.5 L16 7.5 C9 13.5 5 12.5 0 15 Z" fill="currentColor" fill-opacity="0.22"/><path d="M0 10.5 C4 8 7 9 16 2.5 M0 15 C5 12.5 9 13.5 16 7.5" fill="none" stroke="currentColor" stroke-width="1" stroke-linecap="round" stroke-linejoin="round"/></g><path d="M2 6 L6 2 L11 3.25 L14.5 2 L13.5 9 L14.25 14 L8 14.5 L2.5 13 Z" fill="none" stroke="currentColor" stroke-width="1" stroke-linecap="round" stroke-linejoin="round"/>'
+)
+
+export const LineAppearance = glyph(
+  '<circle cx="8" cy="8" r="6.5" fill="none" stroke="currentColor" stroke-width="1" stroke-linecap="round" stroke-linejoin="round"/><path d="M8 1.5 A6.5 6.5 0 0 1 8 14.5 Z" fill="currentColor"/>'
+)
+
+export const LineManageWorkflows = glyph(
+  '<rect x="1.5" y="2" width="3" height="3" rx="0.75" fill="none" stroke="currentColor" stroke-width="1" stroke-linecap="round" stroke-linejoin="round"/><path d="M7.5 3.5 H14.5" fill="none" stroke="currentColor" stroke-width="1" stroke-linecap="round" stroke-linejoin="round"/><rect x="1.5" y="6.5" width="3" height="3" rx="0.75" fill="none" stroke="currentColor" stroke-width="1" stroke-linecap="round" stroke-linejoin="round"/><path d="M7.5 8 H14.5" fill="none" stroke="currentColor" stroke-width="1" stroke-linecap="round" stroke-linejoin="round"/><rect x="1.5" y="11" width="3" height="3" rx="0.75" fill="none" stroke="currentColor" stroke-width="1" stroke-linecap="round" stroke-linejoin="round"/><path d="M7.5 12.5 H14.5" fill="none" stroke="currentColor" stroke-width="1" stroke-linecap="round" stroke-linejoin="round"/>'
 )
