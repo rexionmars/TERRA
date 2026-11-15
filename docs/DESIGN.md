@@ -270,6 +270,54 @@ Each carries the focus ring and one shared `disabled` convention.
 
 ---
 
+## Icons
+
+Three files, each for a kind of icon:
+
+| File | Holds | Made by |
+| --- | --- | --- |
+| [`components/icons.tsx`](../frontend/src/components/icons.tsx) | Breeze's glyphs for the generic controls: close, the carets, check, plus, the spinner, copy, export | `scripts/build-icons.ts`, from `vendor/breeze-icons`. Generated, never edited |
+| [`components/lineIcons.tsx`](../frontend/src/components/lineIcons.tsx) | Thin-line icons where a word of TERRA's own is drawn: the map's tool rail, the application menu, the navigation rail, the products; and the words Breeze draws as something else: delete, swap, fold and unfold, run, the research pack, the legend, signing in and out | The file is the source |
+| [`components/viewIcons.tsx`](../frontend/src/components/viewIcons.tsx) | Icons in colour, where the colour is what they mean: the composition panel's choices and every option of the boards' pies | The file is the source |
+
+**One word, one picture.** A word is drawn the same way wherever it appears:
+delete is `LineDelete` in every panel. One picture never stands for two words.
+An icon draws what its word means to the reader. It is kept only if it reads as
+that word at the size it is shown, with no label beside it.
+
+**The line set keeps Breeze's grammar**, so it can sit beside Breeze: a 16-unit
+grid, one-unit strokes on half units (whole pixels at 1x), `currentColor`, and
+round caps and joins.
+
+**The colour set** is drawn on a 20-unit grid with a margin of 2. Neutral parts
+are 1.5-unit strokes in `currentColor`. The corner radius is 2 (1 on small
+parts). Colour comes only as flat fills. The header of `viewIcons.tsx` states
+what each icon draws.
+
+### The icon colours
+
+The icon colours are Okabe-Ito (Wong, *Nature Methods*, 2011). This is the
+colour-blind-safe set the map already paints its clusters in. Each colour is
+declared once per theme in `index.css`:
+
+| Token | Dark | Light | Role |
+| --- | --- | --- | --- |
+| `--oi-vermillion` | `#D55E00` | `#D55E00` | the first channel; a loss |
+| `--oi-green` | `#009E73` | `#009A70` | the second channel; vegetation |
+| `--oi-blue` | `#0083CC` | `#0072B2` | the third channel; a gain; the source of a reading |
+| `--oi-orange` | `#E69F00` | `#B47D00` | a cluster; the target of a reading |
+| `--oi-sky` | `#56B4E9` | `#1C8FD0` | a cluster |
+
+The icons appear on three surfaces: the panel, the lit plate of a chosen option,
+and the option card of a board's pie. Each colour clears 3:1 on all three, with
+0.1 to spare, and `check:contrast` measures every pair. Where the exact
+Okabe-Ito value falls short, the token keeps its hue and changes only its
+lightness. A token is set in an element's `style` rather than in its `fill`
+attribute, because not every rendering engine is sure to resolve `var()` in an
+attribute.
+
+---
+
 ## The cascade hazard
 
 **Component classes in `index.css` are unlayered.** `.panel`, `.field-input`,
@@ -298,6 +346,7 @@ site.
 ```
 cd frontend && npx tsc --noEmit
 cd frontend && npm run check:contrast
+cd frontend && npm run check:icons
 cd frontend && npm run build
 go build ./... && go test ./...
 cd sidecar && python -m pytest tests -q
