@@ -12,7 +12,8 @@
  * having if it is believed, so it reports what it can see.
  */
 import { useMemo, useState } from "react"
-import { CircleNotch, ArrowsClockwise, Trash } from "@/components/icons"
+import { CircleNotch, ArrowsClockwise } from "@/components/icons"
+import { LineDelete } from "@/components/lineIcons"
 import { ModalShell, ModalHeader } from "@/components/ui/ModalShell"
 import { btnGhost } from "@/components/ui/buttons"
 import { cn } from "@/lib/utils"
@@ -210,7 +211,7 @@ function Overview({
               {busy ? (
                 <CircleNotch className="size-3.5 animate-spin" />
               ) : (
-                <Trash className="size-3.5" />
+                <LineDelete className="size-3.5" />
               )}
               Clear them
             </button>

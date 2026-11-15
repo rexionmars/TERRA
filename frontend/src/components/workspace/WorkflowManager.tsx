@@ -14,8 +14,8 @@
  * "delete" beside a list of analyses does not answer it.
  */
 import { useEffect, useState } from "react"
-import { Check, Pencil, Trash, X, type Icon } from "@/components/icons"
-import { LineWorkflows } from "@/components/lineIcons"
+import { Check, Pencil, X, type Icon } from "@/components/icons"
+import { LineDelete, LineWorkflows } from "@/components/lineIcons"
 
 import { ConfirmDelete } from "@/components/ui/ConfirmDelete"
 import { ModalShell } from "@/components/ui/ModalShell"
@@ -187,7 +187,7 @@ export function WorkflowManager({
                   />
                 )}
                 <RowButton
-                  icon={Trash}
+                  icon={LineDelete}
                   label={`Delete ${b.name}`}
                   danger
                   onClick={() => setPendingDelete(b)}

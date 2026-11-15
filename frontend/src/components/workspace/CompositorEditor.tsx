@@ -37,10 +37,9 @@ import {
   Minus,
   Path,
   Plus,
-  Polygon,
-  Trash,
   X,
 } from "@/components/icons"
+import { LineDelete, LineProductFields } from "@/components/lineIcons"
 import { NumberField } from "@/components/ui/NumberField"
 import { PHOTO_CHIP } from "@/components/ui/TabbedBanner"
 import { cn } from "@/lib/utils"
@@ -1940,7 +1939,7 @@ export function CompositorEditor({
           {
             id: "unlink",
             label: "Remove link",
-            icon: <Trash className="size-3.5" />,
+            icon: <LineDelete className="size-3.5" />,
             note: "X",
           },
         ],
@@ -1980,7 +1979,7 @@ export function CompositorEditor({
         {
           id: "remove",
           label: "Remove",
-          icon: <Trash className="size-3.5" />,
+          icon: <LineDelete className="size-3.5" />,
           note: "X",
         },
         {
@@ -2692,7 +2691,7 @@ export function CompositorEditor({
               <div className="flex gap-1">
                 <ActionButton
                   label="Replace"
-                  icon={<Polygon className="size-3.5" />}
+                  icon={<LineProductFields className="size-3.5" />}
                   onClick={() => void go(true)}
                 />
                 <Choice
@@ -2709,7 +2708,7 @@ export function CompositorEditor({
             <Figure label="Into" value={target.name} />
             <ActionButton
               label={`Make ${INT.format(n)} fields`}
-              icon={<Polygon className="size-3.5" />}
+              icon={<LineProductFields className="size-3.5" />}
               busy={state === "busy"}
               disabled={!n}
               onClick={() =>

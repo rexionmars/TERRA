@@ -8,7 +8,8 @@
  */
 import { useEffect, useMemo, useState } from "react"
 
-import { DownloadSimple, Polygon } from "@/components/icons"
+import { DownloadSimple } from "@/components/icons"
+import { LineProductFields } from "@/components/lineIcons"
 import { HealthReading } from "@/components/workspace/fieldNodes"
 import * as Mineral from "@/components/workspace/mineralNodes"
 import { Figure, Note } from "@/components/workspace/nodeParts"
@@ -296,7 +297,7 @@ export function FieldsResult({
                 }
                 className={cn(btnGhost, "self-start")}
               >
-                <Polygon className="size-3.5" />
+                <LineProductFields className="size-3.5" />
                 Make {kept.length} fields
               </button>
             </>

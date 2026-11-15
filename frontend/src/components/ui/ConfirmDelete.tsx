@@ -21,7 +21,7 @@
  * beside it, so a second destructive act does not become a third way of asking.
  */
 import { useEffect } from "react"
-import { Trash } from "@/components/icons"
+import { LineDelete } from "@/components/lineIcons"
 import { ModalHeader, ModalShell } from "@/components/ui/ModalShell"
 import { btnGhost } from "@/components/ui/buttons"
 
@@ -78,7 +78,7 @@ export function ConfirmDelete({
           onClick={onConfirm}
           className="flex h-8 items-center gap-1.5 rounded-sm bg-destructive px-3 text-body font-semibold text-destructive-foreground disabled:opacity-50"
         >
-          <Trash className="h-3 w-3" />
+          <LineDelete className="h-3 w-3" />
           {busy ? "Deleting…" : confirmLabel}
         </button>
       </div>

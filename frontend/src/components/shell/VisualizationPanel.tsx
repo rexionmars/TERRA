@@ -1,4 +1,5 @@
-import { CircleNotch, Eye, Trash, type Icon } from "@/components/icons"
+import { CircleNotch, Eye, type Icon } from "@/components/icons"
+import { LineDelete } from "@/components/lineIcons"
 import {
   SourceOneScene,
   SourcePeriodMedian,
@@ -669,7 +670,7 @@ export function VisualizationPanel({
                         title="Take off the list"
                         className="flex size-6 shrink-0 items-center justify-center rounded-sm text-muted-foreground hover:bg-hover hover:text-foreground"
                       >
-                        <Trash className="size-3.5" />
+                        <LineDelete className="size-3.5" />
                       </button>
                     </div>
                   </li>
