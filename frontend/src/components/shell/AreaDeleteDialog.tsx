@@ -5,6 +5,9 @@
  * ask the same question and name the same losses. DeleteArea removes the runs
  * of the area and their rasters, and its fields with theirs, which cannot be
  * taken back, so the dialog says how many go with it.
+ *
+ * The bin also offers to take the area off the map and keep it, because that
+ * is often what a reader pressing it wants: the map empty, the work kept.
  */
 import { useState } from "react"
 
@@ -12,16 +15,31 @@ import { ConfirmDelete } from "@/components/ui/ConfirmDelete"
 import type { Area } from "@/lib/areas"
 import { notifyError, notifySuccess } from "@/lib/notify"
 
-function deletionNote(area: Area, areas: readonly Area[]): string {
+/** What deleting the area takes with it, or "" when it takes nothing. */
+function losses(area: Area, areas: readonly Area[]): string {
   const fields = areas.filter((a) => a.parent_id === area.id)
   const runs = area.run_count + fields.reduce((n, f) => n + f.run_count, 0)
-  const parts = [
+  return [
     runs > 0 && `${runs} ${runs === 1 ? "run" : "runs"} and their rasters`,
     fields.length > 0 && `${fields.length} ${fields.length === 1 ? "field" : "fields"}`,
-  ].filter(Boolean)
-  return parts.length
-    ? `This also deletes ${parts.join(" and ")}. It cannot be undone.`
+  ]
+    .filter(Boolean)
+    .join(" and ")
+}
+
+function deletionNote(area: Area, areas: readonly Area[]): string {
+  const lost = losses(area, areas)
+  return lost
+    ? `This also deletes ${lost}. It cannot be undone.`
     : "It holds no runs. This cannot be undone."
+}
+
+/** The note when there are two answers, naming each by its button. */
+function choiceNote(area: Area, areas: readonly Area[]): string {
+  const lost = losses(area, areas)
+  return lost
+    ? `Remove from map keeps it in the project. Delete area also deletes ${lost}, and cannot be undone.`
+    : "Remove from map keeps it in the project. Delete area cannot be undone."
 }
 
 export function AreaDeleteDialog({
@@ -29,6 +47,7 @@ export function AreaDeleteDialog({
   areas,
   onDelete,
   onDeleted,
+  onRemoveFromMap,
   onClose,
 }: {
   area: Area
@@ -38,6 +57,11 @@ export function AreaDeleteDialog({
   onDelete: (id: string) => void | Promise<void>
   /** Once the area is gone, before the dialog closes. */
   onDeleted?: () => void
+  /**
+   * Takes the area off the map and keeps it in the project. Given, the dialog
+   * offers it beside the deletion; absent, it only asks about deleting.
+   */
+  onRemoveFromMap?: () => void
   onClose: () => void
 }) {
   const [busy, setBusy] = useState(false)
@@ -58,10 +82,15 @@ export function AreaDeleteDialog({
 
   return (
     <ConfirmDelete
-      eyebrow="DELETE AREA"
+      eyebrow={onRemoveFromMap ? "REMOVE OR DELETE AREA" : "DELETE AREA"}
       title={area.name}
-      subtitle={deletionNote(area, areas)}
+      subtitle={onRemoveFromMap ? choiceNote(area, areas) : deletionNote(area, areas)}
       confirmLabel="Delete area"
+      alternative={
+        onRemoveFromMap
+          ? { label: "Remove from map", onSelect: onRemoveFromMap }
+          : undefined
+      }
       busy={busy}
       onCancel={onClose}
       onConfirm={() => void confirm()}

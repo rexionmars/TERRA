@@ -367,7 +367,7 @@ export function GlobeSurface({
   polygon = null,
   onPolygonDrawn,
   onImportPolygon,
-  onDeleteArea,
+  onRemoveArea,
   initialView = null,
   onViewChange,
   overlays = [],
@@ -441,13 +441,14 @@ export function GlobeSurface({
    */
   onImportPolygon?: () => void
   /**
-   * Deletes the area in hand, asking first; the caller owns the question,
-   * since what the deletion takes with it is the project's to say.
+   * The bin, pressed over a saved area. The caller asks whether to take the
+   * area off the map or delete it, since what the deletion takes with it is
+   * the project's to say.
    *
-   * The bin calls this when it is given. Without it -- a shape that is not a
-   * saved area -- the bin clears the drawing, which is all there is to delete.
+   * Without it -- a shape that is not a saved area -- the bin clears the
+   * drawing, which is all there is to remove.
    */
-  onDeleteArea?: () => void
+  onRemoveArea?: () => void
   /**
    * Where to open, when the session remembers.
    *
@@ -2040,9 +2041,12 @@ export function GlobeSurface({
                   <LineImportArea className="size-4" />
                 </MapButton>
               )}
-              {/* Withheld with nothing to delete, rather than shown doing nothing. */}
+              {/* Withheld with nothing to remove, rather than shown doing nothing. */}
               {polygon && (
-                <MapButton label="Delete the area" onClick={onDeleteArea ?? clear}>
+                <MapButton
+                  label={onRemoveArea ? "Remove or delete the area" : "Remove the area"}
+                  onClick={onRemoveArea ?? clear}
+                >
                   <LineDelete className="size-4" />
                 </MapButton>
               )}

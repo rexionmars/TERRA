@@ -629,7 +629,7 @@ export function MapShell(props: MapShellProps) {
                 if (entries.length) setOverlayMenu({ at, entries })
               }}
               onImportPolygon={props.onImportPolygon}
-              onDeleteArea={
+              onRemoveArea={
                 activeArea && props.onDeleteArea
                   ? () => setDeletingArea(activeArea)
                   : undefined
@@ -883,9 +883,9 @@ export function MapShell(props: MapShellProps) {
           )}
 
           {/*
-            The map's bin, asking as the Areas panel asks. Clearing afterwards
-            drops what was made over the area, as the bin did when it only
-            cleared.
+            The map's bin, asking as the Areas panel asks, with one more answer:
+            the area can leave the map and stay in the project. Either way the
+            area is cleared, which drops what was made over it.
           */}
           {deletingArea && props.onDeleteArea && (
             <AreaDeleteDialog
@@ -893,6 +893,10 @@ export function MapShell(props: MapShellProps) {
               areas={areas}
               onDelete={props.onDeleteArea}
               onDeleted={props.onClearArea}
+              onRemoveFromMap={() => {
+                props.onClearArea()
+                setDeletingArea(null)
+              }}
               onClose={() => setDeletingArea(null)}
             />
           )}
