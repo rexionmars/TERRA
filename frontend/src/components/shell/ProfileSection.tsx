@@ -1,15 +1,13 @@
 import { useEffect, useRef, useState } from "react"
 
 import { ActivityGrid } from "@/components/ActivityGrid"
+import { Camera, CircleNotch, ImageSquare, User } from "@/components/icons"
 import {
-  Camera,
-  CircleNotch,
-  FolderOpen,
-  ImageSquare,
-  SignOut,
-  User,
-} from "@/components/icons"
-import { LineDelete, LineSave } from "@/components/lineIcons"
+  LineDelete,
+  LineFolderOpen,
+  LineSave,
+  LineSignOut,
+} from "@/components/lineIcons"
 import { SettingGroup, SettingRow } from "@/components/shell/settingsParts"
 import {
   BannerFigure,
@@ -238,7 +236,7 @@ export function ProfileSection({
               title="Saved runs and projects stay on this machine and are here when you sign back in"
               className={btnGhost}
             >
-              <SignOut className="size-3.5" />
+              <LineSignOut className="size-3.5" />
               Sign out
             </button>
           </div>
@@ -340,7 +338,7 @@ export function ProfileSection({
                   onClick={() => onOpenRun(r)}
                   className={btnGhost}
                 >
-                  <FolderOpen className="size-3.5" />
+                  <LineFolderOpen className="size-3.5" />
                   Open
                 </button>
               </SettingRow>

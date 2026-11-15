@@ -7,7 +7,8 @@
  * same ground. Where there is more than one, each gets its own group, top of
  * the stack first, rather than the menu guessing which one was meant.
  */
-import { CornersOut, MapTrifold as MapIcon, Note } from "@/components/icons"
+import { CornersOut, EyeSlash } from "@/components/icons"
+import { LineLegend } from "@/components/lineIcons"
 
 import { ContextMenu, MenuGroup, MenuItem } from "@/components/workspace/MenuPopover"
 
@@ -47,7 +48,7 @@ function Entries({
   return (
     <>
       <MenuItem
-        icon={Note}
+        icon={LineLegend}
         label={
           entry.legendOnMap
             ? "Hide the legend on the map"
@@ -76,7 +77,7 @@ function Entries({
         }}
       />
       <MenuItem
-        icon={MapIcon}
+        icon={EyeSlash}
         label="Take off the globe"
         title="The map stops drawing it; Layers still lists it"
         onSelect={() => {

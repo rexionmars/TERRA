@@ -4,13 +4,17 @@ import {
   CaretRight,
   Check,
   Folder,
-  FolderOpen,
   PencilSimple,
   Plus,
   Tray,
   X,
 } from "@/components/icons"
-import { LineAnalyses, LineDelete, LineSearch } from "@/components/lineIcons"
+import {
+  LineAnalyses,
+  LineDelete,
+  LineFolderOpen,
+  LineSearch,
+} from "@/components/lineIcons"
 import {
   ClassBar,
   KINDS,
@@ -1001,7 +1005,7 @@ function RunDetail({
           onClick={onOpen}
           className={cn(btnPrimary, "w-full")}
         >
-          <FolderOpen className="size-3.5" />
+          <LineFolderOpen className="size-3.5" />
           {run.overlay_relpath ? "Open on the map" : "Open its reading"}
         </button>
         <div className="flex gap-2">

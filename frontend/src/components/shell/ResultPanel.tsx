@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react"
 
-import { Package } from "@/components/icons"
+import { LinePack } from "@/components/lineIcons"
 import { ResearchPackModal } from "@/components/ResearchPackModal"
 import {
   ClassAccuracyChart,
@@ -381,7 +381,7 @@ export function ResultPanel({
               className={cn(btnGhost, "self-start")}
               title="The run's tables and figures with their provenance, for a paper or a review"
             >
-              <Package className="size-3.5" />
+              <LinePack className="size-3.5" />
               Research pack
             </button>
           )}

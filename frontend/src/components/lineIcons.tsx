@@ -4,7 +4,10 @@
   which the call site tints with the product's colour, Settings' Appearance and
   the Workflows menu's Manage, and the controls whose Breeze glyph said
   something else: swap (refresh arrows), fold and unfold (minus and zoom to
-  fit), and run, which the pie draws in a ring.
+  fit), and run, which the pie draws in a ring; and the words of TERRA's own
+  screens Breeze drew as something else: the research pack (a box, which the
+  Models cube already is), the legend (sticky notes), and signing in (switch
+  user), drawn as a pair with signing out.
 
   This file is their source. They keep Breeze's grammar, so they sit with the
   Breeze glyphs of icons.tsx: a 16-unit grid, the drawing inside 2..14 (1..15
@@ -68,6 +71,10 @@
     Fold                  two chevrons closing on the middle
     Unfold                the two chevrons opening away from it
     Run                   play, in a ring: the pie's Run, in line
+    Research pack         a page zipped: the run's tables and figures in one archive
+    Legend on the map     a legend in its box, each swatch in its own tone
+    Login                 an arrow entering the door's frame
+    Sign out              the arrow leaving it
 
   Drawn again after failing that test: the satellite turned on its diagonal
   (a chain), the area's solid outline with the pencil (a price tag), round
@@ -75,7 +82,8 @@
   scattered pixels for a classification (a keypad), a square over a round blob
   for an overlap (the "shapes" icon), level bands for zones (a barrel), and a
   link of two nodes on each row of the workflows list (a row of spectacles),
-  and a node card folding into its header (an eject sign).
+  a node card folding into its header (an eject sign), and the research pack's
+  papers going into a box (a printer).
 */
 import type { Icon } from "@/components/icons"
 
@@ -318,4 +326,20 @@ export const LineUnfold = glyph(
 
 export const LineRun = glyph(
   '<circle cx="8" cy="8" r="6.5" fill="none" stroke="currentColor" stroke-width="1" stroke-linecap="round" stroke-linejoin="round"/><path d="M6.5 5.25 L11 8 L6.5 10.75 Z" fill="currentColor" stroke="currentColor" stroke-width="1" stroke-linejoin="round"/>'
+)
+
+export const LinePack = glyph(
+  '<path d="M9.5 1.5 H4.5 Q3.5 1.5 3.5 2.5 V13.5 Q3.5 14.5 4.5 14.5 H11.5 Q12.5 14.5 12.5 13.5 V4.5 Z" fill="none" stroke="currentColor" stroke-width="1" stroke-linecap="round" stroke-linejoin="round"/><path d="M9.5 1.5 V3.5 Q9.5 4.5 10.5 4.5 H12.5" fill="none" stroke="currentColor" stroke-width="1" stroke-linecap="round" stroke-linejoin="round"/><path d="M8 3.5 H9" fill="none" stroke="currentColor" stroke-width="1" stroke-linecap="round" stroke-linejoin="round"/><path d="M7 5.0 H8" fill="none" stroke="currentColor" stroke-width="1" stroke-linecap="round" stroke-linejoin="round"/><path d="M8 6.5 H9" fill="none" stroke="currentColor" stroke-width="1" stroke-linecap="round" stroke-linejoin="round"/><path d="M7 8.0 H8" fill="none" stroke="currentColor" stroke-width="1" stroke-linecap="round" stroke-linejoin="round"/><path d="M8 9.5 H9" fill="none" stroke="currentColor" stroke-width="1" stroke-linecap="round" stroke-linejoin="round"/><rect x="6.5" y="10.5" width="3.0" height="2.5" rx="0.75" fill="none" stroke="currentColor" stroke-width="1" stroke-linecap="round" stroke-linejoin="round"/>'
+)
+
+export const LineLegend = glyph(
+  '<rect x="1.5" y="1.5" width="13.0" height="13.0" rx="1.5" fill="none" stroke="currentColor" stroke-width="1" stroke-linecap="round" stroke-linejoin="round"/><rect x="3.5" y="3.5" width="2" height="2" rx="0.4" fill="currentColor" fill-opacity="1"/><path d="M7.5 4.5 H12.5" fill="none" stroke="currentColor" stroke-width="1" stroke-linecap="round" stroke-linejoin="round"/><rect x="3.5" y="7" width="2" height="2" rx="0.4" fill="currentColor" fill-opacity="0.55"/><path d="M7.5 8 H12.5" fill="none" stroke="currentColor" stroke-width="1" stroke-linecap="round" stroke-linejoin="round"/><rect x="3.5" y="10.5" width="2" height="2" rx="0.4" fill="currentColor" fill-opacity="0.25"/><path d="M7.5 11.5 H12.5" fill="none" stroke="currentColor" stroke-width="1" stroke-linecap="round" stroke-linejoin="round"/>'
+)
+
+export const LineSignIn = glyph(
+  '<path d="M9.5 2.5 H12.5 Q13.5 2.5 13.5 3.5 V12.5 Q13.5 13.5 12.5 13.5 H9.5" fill="none" stroke="currentColor" stroke-width="1" stroke-linecap="round" stroke-linejoin="round"/><path d="M2.5 8 H10.5 M8 5.5 L10.5 8 L8 10.5" fill="none" stroke="currentColor" stroke-width="1" stroke-linecap="round" stroke-linejoin="round"/>'
+)
+
+export const LineSignOut = glyph(
+  '<path d="M6.5 2.5 H3.5 Q2.5 2.5 2.5 3.5 V12.5 Q2.5 13.5 3.5 13.5 H6.5" fill="none" stroke="currentColor" stroke-width="1" stroke-linecap="round" stroke-linejoin="round"/><path d="M5.5 8 H13.5 M11 5.5 L13.5 8 L11 10.5" fill="none" stroke="currentColor" stroke-width="1" stroke-linecap="round" stroke-linejoin="round"/>'
 )

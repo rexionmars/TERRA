@@ -3,7 +3,7 @@ import {
   BracketsCurly,
   Download,
   MapTrifold as MapIcon,
-  Shapes,
+  Polygon,
   Table,
   X,
 } from "@/components/icons"
@@ -62,7 +62,7 @@ function parseGeometry(raw?: string): GeoJSONGeometry | null {
 
 function iconFor(kind: EntryKind) {
   if (kind === "manifest") return <BracketsCurly className="h-3.5 w-3.5 shrink-0" />
-  if (kind === "aoi") return <Shapes className="h-3.5 w-3.5 shrink-0" />
+  if (kind === "aoi") return <Polygon className="h-3.5 w-3.5 shrink-0" />
   if (kind === "raster") return <MapIcon className="h-3.5 w-3.5 shrink-0" />
   return <Table className="h-3.5 w-3.5 shrink-0" />
 }
