@@ -1,8 +1,10 @@
 /*
   The thin-line icons of the map's tool rail, the application menu, the
   navigation rail on the window's left edge, the eight products (Product*),
-  which the call site tints with the product's colour, and Settings' Appearance
-  and the Workflows menu's Manage, which shared one glyph before.
+  which the call site tints with the product's colour, Settings' Appearance and
+  the Workflows menu's Manage, and the controls whose Breeze glyph said
+  something else: swap (refresh arrows), fold and unfold (minus and zoom to
+  fit), and run, which the pie draws in a ring.
 
   This file is their source. They keep Breeze's grammar, so they sit with the
   Breeze glyphs of icons.tsx: a 16-unit grid, the drawing inside 2..14 (1..15
@@ -62,13 +64,18 @@
     Management zones      one field in zones on the diagonal, in tones low to high
     Appearance            light and dark: the disc half filled
     Manage workflows      the saved workflows listed, each row marked with a node
+    Swap A and B          two arrows going opposite ways
+    Fold                  two chevrons closing on the middle
+    Unfold                the two chevrons opening away from it
+    Run                   play, in a ring: the pie's Run, in line
 
   Drawn again after failing that test: the satellite turned on its diagonal
   (a chain), the area's solid outline with the pencil (a price tag), round
   concentric contours (a target), a neural network for the models (a blur),
   scattered pixels for a classification (a keypad), a square over a round blob
   for an overlap (the "shapes" icon), level bands for zones (a barrel), and a
-  link of two nodes on each row of the workflows list (a row of spectacles).
+  link of two nodes on each row of the workflows list (a row of spectacles),
+  and a node card folding into its header (an eject sign).
 */
 import type { Icon } from "@/components/icons"
 
@@ -295,4 +302,20 @@ export const LineAppearance = glyph(
 
 export const LineManageWorkflows = glyph(
   '<rect x="1.5" y="2" width="3" height="3" rx="0.75" fill="none" stroke="currentColor" stroke-width="1" stroke-linecap="round" stroke-linejoin="round"/><path d="M7.5 3.5 H14.5" fill="none" stroke="currentColor" stroke-width="1" stroke-linecap="round" stroke-linejoin="round"/><rect x="1.5" y="6.5" width="3" height="3" rx="0.75" fill="none" stroke="currentColor" stroke-width="1" stroke-linecap="round" stroke-linejoin="round"/><path d="M7.5 8 H14.5" fill="none" stroke="currentColor" stroke-width="1" stroke-linecap="round" stroke-linejoin="round"/><rect x="1.5" y="11" width="3" height="3" rx="0.75" fill="none" stroke="currentColor" stroke-width="1" stroke-linecap="round" stroke-linejoin="round"/><path d="M7.5 12.5 H14.5" fill="none" stroke="currentColor" stroke-width="1" stroke-linecap="round" stroke-linejoin="round"/>'
+)
+
+export const LineSwap = glyph(
+  '<path d="M2.5 4.5 H13.5 M11 2 L13.5 4.5 L11 7" fill="none" stroke="currentColor" stroke-width="1" stroke-linecap="round" stroke-linejoin="round"/><path d="M13.5 11.5 H2.5 M5 9 L2.5 11.5 L5 14" fill="none" stroke="currentColor" stroke-width="1" stroke-linecap="round" stroke-linejoin="round"/>'
+)
+
+export const LineFold = glyph(
+  '<path d="M4.5 2.5 L8 6 L11.5 2.5 M4.5 13.5 L8 10 L11.5 13.5" fill="none" stroke="currentColor" stroke-width="1" stroke-linecap="round" stroke-linejoin="round"/>'
+)
+
+export const LineUnfold = glyph(
+  '<path d="M4.5 6 L8 2.5 L11.5 6 M4.5 10 L8 13.5 L11.5 10" fill="none" stroke="currentColor" stroke-width="1" stroke-linecap="round" stroke-linejoin="round"/>'
+)
+
+export const LineRun = glyph(
+  '<circle cx="8" cy="8" r="6.5" fill="none" stroke="currentColor" stroke-width="1" stroke-linecap="round" stroke-linejoin="round"/><path d="M6.5 5.25 L11 8 L6.5 10.75 Z" fill="currentColor" stroke="currentColor" stroke-width="1" stroke-linejoin="round"/>'
 )

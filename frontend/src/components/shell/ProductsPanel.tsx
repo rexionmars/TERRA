@@ -1,5 +1,6 @@
 import { BrowserOpenURL } from "../../../wailsjs/runtime/runtime"
-import { CaretRight, CircleNotch, Play } from "@/components/icons"
+import { CaretRight, CircleNotch } from "@/components/icons"
+import { LineRun } from "@/components/lineIcons"
 import { MethodPanel } from "@/components/workspace/MethodPanel"
 import { RunQueue } from "@/components/workspace/RunQueue"
 import { btnGhost, btnPrimaryCommit } from "@/components/ui/buttons"
@@ -243,7 +244,7 @@ export function ProductsPanel({
             onClick={run.onRun}
             className={cn(btnPrimaryCommit, "w-full")}
           >
-            <Play className="size-3.5" />
+            <LineRun className="size-3.5" />
             {run.label}
           </button>
           <div className="flex items-center gap-2">
