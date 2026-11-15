@@ -1,6 +1,14 @@
-import { Suspense, lazy, useEffect, useMemo, useRef, useState } from "react"
+import {
+  Suspense,
+  lazy,
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react"
 import { toGlobeArea, type GlobeArea } from "@/components/globe/globeArea"
-import { ActivityPanel } from "@/components/shell/ActivityPanel"
+import { ActivityDialog } from "@/components/shell/ActivityDialog"
 import { useMapLayers, useRunAssets } from "@/components/shell/mapLayerState"
 import { MapTools } from "@/components/shell/MapTools"
 import { ModelsScreen } from "@/components/shell/ModelsScreen"
@@ -203,12 +211,19 @@ export function MapShell(props: MapShellProps) {
   /** The map's card, which the frame's corner pieces are drawn against. */
   const card = useRef<HTMLElement>(null)
   /*
-    How many reports had been read when the activity panel was last open, so the
-    rail can say there is something new. A count and not a flag: the log only
-    grows while a session lasts, and clearing it leaves nothing to announce.
+    How many reports had been read when the activity dialog was last open, so
+    the rail can say there is something new. A count and not a flag: the log
+    only grows while a session lasts, and clearing it leaves nothing to
+    announce.
   */
   const reports = useReports()
   const [seenReports, setSeenReports] = useState(0)
+  /*
+    A dialog rather than one of the map's panels, so it opens over whichever
+    destination is showing and leaves it where it was when it closes.
+  */
+  const [activityOpen, setActivityOpen] = useState(false)
+  const closeActivity = useCallback(() => setActivityOpen(false), [])
   const [product, setProduct] = useState<ProductId | null>(null)
   const [frame, setFrame] = useState<{ key: number; bounds: Bounds } | null>(null)
   const [spreadM, setSpreadM] = useState(0)
@@ -508,8 +523,8 @@ export function MapShell(props: MapShellProps) {
         : 80
 
   useEffect(() => {
-    if (panel === "activity") setSeenReports(reports.length)
-  }, [panel, reports.length])
+    if (activityOpen) setSeenReports(reports.length)
+  }, [activityOpen, reports.length])
 
   return (
     <div className="absolute inset-0 flex flex-col bg-app">
@@ -541,16 +556,15 @@ export function MapShell(props: MapShellProps) {
       <div className="flex min-h-0 min-w-0 flex-1">
         <ShellRail
           place={
-            destination === "analyses"
-              ? "analyses"
-              : destination === "compare" ||
+            activityOpen
+              ? "activity"
+              : destination === "analyses" ||
+                  destination === "compare" ||
                   destination === "workflows" ||
                   destination === "models" ||
                   destination === "settings"
                 ? destination
-                : panel === "activity"
-                  ? "activity"
-                  : "explore"
+                : "explore"
           }
           open={railOpen}
           onToggle={() => {
@@ -560,16 +574,13 @@ export function MapShell(props: MapShellProps) {
           unseen={reports.length > seenReports}
           onExplore={() => {
             setDestination("explore")
-            setPanel((p) => (p === "areas" || p === "activity" ? null : p))
+            setPanel((p) => (p === "areas" ? null : p))
           }}
           onAnalyses={goAnalyses}
           onCompare={goCompare}
           onWorkflows={goWorkflows}
           onModels={goModels}
-          onActivity={() => {
-            setDestination("explore")
-            togglePanel("activity")
-          }}
+          onActivity={() => setActivityOpen((open) => !open)}
         />
         {/*
           The card: inset by the frame's edge at the top, the right and the
@@ -802,7 +813,7 @@ export function MapShell(props: MapShellProps) {
               onClose={() => setPanel(null)}
             />
           )}
-          {panel === "activity" && <ActivityPanel onClose={() => setPanel(null)} />}
+          {activityOpen && <ActivityDialog onClose={closeActivity} />}
 
           <GlobeOverlayMenu
             target={overlayMenu}
