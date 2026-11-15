@@ -33,7 +33,7 @@ import {
 } from "@/components/workspace/GlobeOverlayMenu"
 import { RunOnMapContext } from "@/components/workspace/RunQueue"
 import { AnalysesScreen } from "@/components/shell/AnalysesScreen"
-import type { Area } from "@/lib/areas"
+import { areasOnMap, type Area } from "@/lib/areas"
 import { useAppSurfaces } from "@/lib/appSurfaces"
 import { useAuth } from "@/lib/auth"
 import { geometryBounds } from "@/lib/geometry"
@@ -401,15 +401,17 @@ export function MapShell(props: MapShellProps) {
     }
   }
 
+  // The area in use and its fields, and the selection; see areasOnMap.
   const globeAreas = useMemo<GlobeArea[]>(() => {
-    const selected = new Set(props.selectedAreaIds ?? [])
-    return areas
+    const selectedIds = props.selectedAreaIds ?? []
+    const selected = new Set(selectedIds)
+    return areasOnMap(areas, props.activeAreaId, selectedIds)
       .map((a) => {
         const g = toGlobeArea(`aoi:${a.id}`, a.name, a.geometry, !!a.parent_id)
         return g && selected.has(a.id) ? { ...g, selected: true } : g
       })
       .filter((a): a is GlobeArea => a !== null)
-  }, [areas, props.selectedAreaIds])
+  }, [areas, props.activeAreaId, props.selectedAreaIds])
 
   // A delineation's polygons while they are only proposed.
   const fieldDrafts = useMemo<GeoJSON.FeatureCollection | null>(() => {

@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest"
 
-import { extendSelection, type Area } from "@/lib/areas"
+import { areasOnMap, extendSelection, type Area } from "@/lib/areas"
 import {
   countJobs,
   isJobKind,
@@ -159,5 +159,38 @@ describe("the selection a job is queued over", () => {
       extendSelection(["gone", "f1"], ["f2", "missing"], areas, null, "add")
     ).toEqual(["f1", "f2"])
     expect(extendSelection(["gone"], ["missing"], areas, null, "toggle")).toEqual([])
+  })
+})
+
+describe("the areas the map draws", () => {
+  const areas = [
+    area("aoi"),
+    area("f1", "aoi"),
+    area("f2", "aoi"),
+    area("other"),
+    area("g1", "other"),
+  ]
+  const ids = (list: readonly Area[]) => list.map((a) => a.id)
+
+  it("draws nothing with no area in use and nothing selected", () => {
+    expect(areasOnMap(areas, undefined)).toEqual([])
+    expect(areasOnMap(areas, null, [])).toEqual([])
+  })
+
+  it("draws the area in use with its fields, and no other area", () => {
+    expect(ids(areasOnMap(areas, "aoi"))).toEqual(["aoi", "f1", "f2"])
+  })
+
+  it("draws a field's area and its neighbours when the field is in use", () => {
+    expect(ids(areasOnMap(areas, "f2"))).toEqual(["aoi", "f1", "f2"])
+  })
+
+  it("draws the selection with no area in use", () => {
+    expect(ids(areasOnMap(areas, undefined, ["g1"]))).toEqual(["g1"])
+    expect(ids(areasOnMap(areas, "aoi", ["g1"]))).toEqual(["aoi", "f1", "f2", "g1"])
+  })
+
+  it("draws nothing for an id that is not an area", () => {
+    expect(areasOnMap(areas, "gone")).toEqual([])
   })
 })
