@@ -18,6 +18,7 @@ import {
 } from "@/components/icons"
 import { LineDelete, LineRun } from "@/components/lineIcons"
 import { CatalogueHero } from "@/components/shell/CatalogueHero"
+import { FeaturedStudies } from "@/components/shell/FeaturedStudies"
 import { ConfirmDelete } from "@/components/ui/ConfirmDelete"
 import { ModalHeader, ModalShell } from "@/components/ui/ModalShell"
 import { btnGhost, btnPrimaryCommit } from "@/components/ui/buttons"
@@ -281,6 +282,8 @@ function ModelList({
       />
       <CatalogueNote catalog={catalog} reading={reading} error={error} />
       {listed.length > 0 && <ul className={GRID}>{listed.map(card)}</ul>}
+
+      <FeaturedStudies />
 
       {upcoming.length > 0 && (
         <section className="mt-12">
