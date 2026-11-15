@@ -11,6 +11,7 @@ import {
   X,
 } from "@/components/icons"
 import { LineDelete } from "@/components/lineIcons"
+import { READING_ICONS } from "@/components/viewIcons"
 import { ConfusionMatrix } from "@/components/workspace/AgreementCharts"
 import {
   PredictionComparison,
@@ -71,7 +72,6 @@ import {
 import { comparePairTables, formatGroundWidth, groundWidthM } from "@/lib/compareGrid"
 import { predictionSource } from "@/lib/mapLayers"
 import { notifyError, notifyInfo, notifySuccess } from "@/lib/notify"
-import { readingPicture } from "@/lib/piePictures"
 import { loadedRunAssets, type RunAsset } from "@/lib/runAssets"
 import { datesByMonth } from "@/lib/runSummary"
 import { PHOTO_CHIP } from "@/components/ui/TabbedBanner"
@@ -517,12 +517,15 @@ export function CompareScreen({
     setPie({ at, held, target, ring: "root" })
   }
 
-  const readingItem = (kind: ReadingKind): RadialItem => ({
-    id: kind,
-    label: readingDef(kind).label,
-    picture: readingPicture(kind),
-    note: shapeNote(kind),
-  })
+  const readingItem = (kind: ReadingKind): RadialItem => {
+    const ReadingIcon = READING_ICONS[kind]
+    return {
+      id: kind,
+      label: readingDef(kind).label,
+      icon: <ReadingIcon className="size-5" />,
+      note: shapeNote(kind),
+    }
+  }
 
   /** The title and the options of the ring showing. */
   const pieRing = (p: ComparePie): { title: string; items: RadialItem[] } => {

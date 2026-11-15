@@ -1,7 +1,8 @@
 /*
   The icons that carry colour: the composition panel's choices (the kinds of
-  view and the scene they are drawn from), and on the workflows board's pie the
-  node categories of the Add ring and every node on its category's ring.
+  view and the scene they are drawn from); on the workflows board's pie the node
+  categories of the Add ring and every node on its category's ring; and on the
+  compare board's pie the readings.
 
   This file is their source. Each icon draws what its word means, and was kept
   only when it read as that word at 20 px with no label beside it:
@@ -55,8 +56,18 @@
     Save fields     a page with a field on it, and the save badge
     PDF report      a page with its title band and lines of text
     Save GeoTIFF    a page with the mineral crystal, and the save badge
+
+    Domain shift    one run's distribution and another's, moved along the
+                    axis, the arrow from peak to peak
+    Cohort          the reading's own figure: a point per target, divergence
+                    along and agreement up, the source at the top of the axis
+    Spectra         reflectance over wavelength, a curve per class: vegetation
+                    with its red edge, soil, water
+    Separability    two groups of alike points and the dashed boundary between
     Change and Mask are drawn as their word is above; Run and Mix as their
-    category.
+    category; Differences as Change (delta is "difference"), Library as
+    References, Tables as Field table. Where a reading pairs a source with a
+    target, the source is blue and the target orange.
 
   A change keeps to the rules they were built on: a 20-unit grid with a margin
   of 2; neutral strokes of 1.5 with round caps and joins; one corner radius, 2
@@ -72,6 +83,7 @@
 */
 import type { Icon } from "@/components/icons"
 import type { NodeCategory, NodeKind } from "@/lib/compositorGraph"
+import type { ReadingKind } from "@/lib/compareBoard"
 
 /*
   20 units, the grid they are drawn on. The body is set as markup, as in
@@ -314,4 +326,34 @@ export const KIND_ICONS: Record<NodeKind, Icon> = {
   mineralAcid: MineralAcid,
   mineralConfidence: MineralConfidence,
   mineralAgreement: MineralAgreement,
+}
+
+export const ReadingShift = glyph(
+  '<path d="M2.75 14.781 L2.953 14.494 L3.156 14.162 L3.359 13.782 L3.562 13.353 L3.766 12.878 L3.969 12.359 L4.172 11.802 L4.375 11.214 L4.578 10.607 L4.781 9.992 L4.984 9.382 L5.188 8.794 L5.391 8.242 L5.594 7.743 L5.797 7.312 L6 6.962 L6.203 6.705 L6.406 6.549 L6.609 6.5 L6.812 6.559 L7.016 6.725 L7.219 6.991 L7.422 7.348 L7.625 7.787 L7.828 8.291 L8.031 8.847 L8.234 9.438 L8.438 10.048 L8.641 10.664 L8.844 11.27 L9.047 11.854 L9.25 12.408 L9.453 12.923 L9.656 13.395 L9.859 13.819 L10.062 14.195 L10.266 14.523 L10.469 14.805 L10.672 15.044 L10.875 15.244 L11.078 15.409 L11.281 15.543 L11.484 15.651 L11.688 15.736 L11.891 15.803 L12.094 15.855 L12.297 15.894 L12.5 15.923" fill="none" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" style="stroke:var(--oi-blue, #0072B2)"/><path d="M7.5 15.923 L7.703 15.894 L7.906 15.855 L8.109 15.803 L8.312 15.736 L8.516 15.651 L8.719 15.543 L8.922 15.409 L9.125 15.244 L9.328 15.044 L9.531 14.805 L9.734 14.523 L9.938 14.195 L10.141 13.819 L10.344 13.395 L10.547 12.923 L10.75 12.408 L10.953 11.854 L11.156 11.27 L11.359 10.664 L11.562 10.048 L11.766 9.438 L11.969 8.847 L12.172 8.291 L12.375 7.787 L12.578 7.348 L12.781 6.991 L12.984 6.725 L13.188 6.559 L13.391 6.5 L13.594 6.549 L13.797 6.705 L14 6.962 L14.203 7.312 L14.406 7.743 L14.609 8.242 L14.812 8.794 L15.016 9.382 L15.219 9.992 L15.422 10.607 L15.625 11.214 L15.828 11.802 L16.031 12.359 L16.234 12.878 L16.438 13.353 L16.641 13.782 L16.844 14.162 L17.047 14.494 L17.25 14.781" fill="none" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" style="stroke:var(--oi-orange, #E69F00)"/><path d="M2.75 16.75 H17.25" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/><path d="M7.75 3.25 H12.25 M10.75 1.75 L12.25 3.25 L10.75 4.75" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>'
+)
+
+export const ReadingCohort = glyph(
+  '<path d="M2.75 2.75 V17.25 H17.25" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/><circle cx="5.75" cy="5.25" r="2" style="fill:var(--oi-blue, #0072B2)"/><circle cx="8.25" cy="7.0" r="1.6" style="fill:var(--oi-orange, #E69F00)"/><circle cx="10.75" cy="10.25" r="1.6" style="fill:var(--oi-orange, #E69F00)"/><circle cx="13.75" cy="9.25" r="1.6" style="fill:var(--oi-orange, #E69F00)"/><circle cx="15.0" cy="13.25" r="1.6" style="fill:var(--oi-orange, #E69F00)"/>'
+)
+
+export const ReadingSpectra = glyph(
+  '<path d="M2.75 2.75 V17.25 H17.25" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/><path d="M5 11.79 L7.938 10.556 L10.875 9.322 L13.812 8.089 L16.75 6.855" fill="none" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" style="stroke:var(--oi-orange, #E69F00)"/><path d="M5 13.335 L7.938 13.834 L10.875 14.334 L13.812 14.833 L16.75 15.332" fill="none" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" style="stroke:var(--oi-blue, #0072B2)"/><path d="M5 12.919 L5.245 12.741 L5.49 12.556 L5.734 12.411 L5.979 12.349 L6.224 12.392 L6.469 12.524 L6.714 12.704 L6.958 12.882 L7.203 13.023 L7.448 13.114 L7.693 13.157 L7.938 13.159 L8.182 13.127 L8.427 13.056 L8.672 12.933 L8.917 12.734 L9.161 12.419 L9.406 11.942 L9.651 11.258 L9.896 10.35 L10.141 9.265 L10.385 8.114 L10.63 7.043 L10.875 6.159 L11.12 5.498 L11.365 5.04 L11.609 4.74 L11.854 4.55 L12.099 4.432 L12.344 4.359 L12.589 4.316 L12.833 4.289 L13.078 4.274 L13.323 4.264 L13.568 4.258 L13.812 4.255 L14.057 4.253 L14.302 4.252 L14.547 4.251 L14.792 4.251 L15.036 4.25 L15.281 4.25 L15.526 4.25 L15.771 4.25 L16.016 4.25 L16.26 4.25 L16.505 4.25 L16.75 4.25" fill="none" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" style="stroke:var(--oi-green, #009E73)"/>'
+)
+
+export const ReadingSeparability = glyph(
+  '<circle cx="5.25" cy="10.3" r="1.85" style="fill:var(--oi-orange, #E69F00)"/><circle cx="7.155" cy="13.6" r="1.85" style="fill:var(--oi-orange, #E69F00)"/><circle cx="3.345" cy="13.6" r="1.85" style="fill:var(--oi-orange, #E69F00)"/><circle cx="14.75" cy="5.3" r="1.85" style="fill:var(--oi-sky, #56B4E9)"/><circle cx="16.655" cy="8.6" r="1.85" style="fill:var(--oi-sky, #56B4E9)"/><circle cx="12.845" cy="8.6" r="1.85" style="fill:var(--oi-sky, #56B4E9)"/><path d="M5.25 3.5 L14.75 16.5" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-dasharray="2 2.6"/>'
+)
+
+/**
+ * Every reading on the compare board's pie. Differences, Library and Tables
+ * are drawn as their word is elsewhere.
+ */
+export const READING_ICONS: Record<ReadingKind, Icon> = {
+  differences: ViewChange,
+  shift: ReadingShift,
+  cohort: ReadingCohort,
+  spectra: ReadingSpectra,
+  separability: ReadingSeparability,
+  library: MineralReferences,
+  tables: KindFieldTable,
 }

@@ -18,11 +18,10 @@
  * QUIET OVER THE BOARD. No shadow under the ring and none under the options,
  * and the accent at half strength: the ring is a moment between two actions on
  * the board, and drawn at full weight it took the eye off the card the reader
- * had right-clicked. An option is told apart by a small mark, rather than by a
- * dot in its category's colour: a picture, a crop of ground showing what it
- * does, where ground can show it (the compare board's readings), or an icon of
- * what its word means where it cannot (the workflows board's categories and
- * nodes, which are steps of a method).
+ * had right-clicked. An option is told apart by an icon of what its word means
+ * (components/viewIcons.tsx), rather than by a dot in its category's colour or
+ * a picture of ground: the options are steps of a method and readings of a
+ * result, and a crop of ground does not tell those apart.
  *
  * Nothing here knows about workflows. The caller gives the options and acts on
  * the one picked; an option that opens another ring is the caller's to show.
@@ -36,11 +35,9 @@ import { cn } from "@/lib/utils"
 export interface RadialItem {
   id: string
   label: string
-  /** A small round picture of what it does, before the label, with its credit. */
-  picture?: { path: string; credit: string }
-  /** A mark in a category's colour, before the label, where there is no picture. */
+  /** A mark in a category's colour, before the label, where there is no icon. */
   colour?: string
-  /** An icon before the label, where there is no picture or colour to show. */
+  /** An icon of what it does, before the label. */
   icon?: React.ReactNode
   /** The key that does the same outside the menu, after the label. */
   note?: string
@@ -316,16 +313,13 @@ export function RadialMenu({
             type="button"
             role="menuitem"
             aria-disabled={off || undefined}
-            title={
-              item.blockedBy ??
-              (item.picture ? `${item.label}\n${item.picture.credit}` : item.label)
-            }
+            title={item.blockedBy ?? item.label}
             onClick={() => choose(i)}
             onPointerEnter={() => setHot(i)}
             onFocus={() => setHot(i)}
             className={cn(
               "node-card radial-pop absolute flex h-8 max-w-[13rem] items-center gap-2 rounded-full pr-3 text-label whitespace-nowrap",
-              item.picture || item.icon ? "pl-1" : "pl-3",
+              item.icon ? "pl-1" : "pl-3",
               "focus-visible:outline-none",
               off ? "cursor-not-allowed text-muted-foreground" : "text-foreground"
             )}
@@ -340,17 +334,7 @@ export function RadialMenu({
               } as React.CSSProperties
             }
           >
-            {item.picture ? (
-              <img
-                src={item.picture.path}
-                alt=""
-                draggable={false}
-                className={cn(
-                  "size-6 shrink-0 rounded-full object-cover",
-                  off && "opacity-40 grayscale"
-                )}
-              />
-            ) : item.colour ? (
+            {item.colour ? (
               <span
                 aria-hidden
                 className={cn("size-2 shrink-0 rounded-full", off && "opacity-40")}
@@ -360,9 +344,9 @@ export function RadialMenu({
                 }}
               />
             ) : item.icon ? (
-              // In a slot the size of a picture, so labels start in one place.
-              // Dimmed and drained when blocked, as a picture is: an icon in
-              // colour beside a muted label would still read as available.
+              // In a slot of one size, so labels start in one place. Dimmed
+              // and drained when blocked: an icon in colour beside a muted
+              // label would still read as available.
               <span
                 aria-hidden
                 className={cn(
