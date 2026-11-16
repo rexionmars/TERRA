@@ -8,13 +8,16 @@ import { resolve } from "node:path"
 import { describe, expect, it } from "vitest"
 
 import { BOARD_TOOLS, isProductId } from "./mapTools"
-import { PRODUCT_PICTURES, pictureCredit } from "./productPictures"
+import { PRODUCT_PICTURES, isPictured, pictureCredit } from "./productPictures"
 
 const PUBLIC = resolve(__dirname, "../../public")
 const CREDIT_ONLY = new Set(["Public domain", "CC BY 2.0", "CC BY 4.0"])
 
 describe("PRODUCT_PICTURES", () => {
-  const listed = BOARD_TOOLS.map((t) => t.id).filter(isProductId)
+  // The trajectory's plate is its installed model's picture, not one of these.
+  const listed = BOARD_TOOLS.map((t) => t.id)
+    .filter(isProductId)
+    .filter(isPictured)
 
   it("has a picture for every listed product, on disk", () => {
     for (const id of listed) {

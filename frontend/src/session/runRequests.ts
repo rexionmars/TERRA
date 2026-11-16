@@ -16,6 +16,7 @@ import type {
   OverlapRequest,
   PredictRequest,
   RadarRequest,
+  TrajectoryRequest,
   WaterIndex,
   WaterRequest,
   ZonesRequest,
@@ -148,6 +149,23 @@ export const zonesRequest = (g: RunGround, c: RequestContext): ZonesRequest => (
   end: c.end,
   max_cloud: c.maxCloud,
   earlier_seasons: 0,
+  label: g.label,
+  run_label: makeRunLabel(g.label),
+  area_id: g.areaId,
+  project_id: c.projectId || undefined,
+})
+
+// Every Sentinel-2 scene of the period: the model judges each pixel, not the scene's cloud.
+export const trajectoryRequest = (
+  g: RunGround,
+  c: RequestContext,
+  model: { id: string; version: string }
+): TrajectoryRequest => ({
+  polygon_geojson: g.polygon,
+  start: c.start,
+  end: c.end,
+  model_id: model.id,
+  model_version: model.version,
   label: g.label,
   run_label: makeRunLabel(g.label),
   area_id: g.areaId,

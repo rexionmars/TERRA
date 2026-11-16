@@ -65,6 +65,8 @@
     Overlap               a field over a protected area's dashed boundary, the overlap filled
     Sentinel-1 radar      a radar screen, its sweep and what it found
     Management zones      one field in zones on the diagonal, in tones low to high
+    NDVI trajectory       a season's curve through the dates seen, its interval a
+                          ribbon around it, wider where no date was seen
     Appearance            light and dark: the disc half filled
     Manage workflows      the saved workflows listed, each row marked with a node
     Swap A and B          two arrows going opposite ways
@@ -302,6 +304,10 @@ export const LineProductRadar = glyph(
 
 export const LineProductZones = glyph(
   '<defs><clipPath id="pr-zones"><path d="M2 6 L6 2 L11 3.25 L14.5 2 L13.5 9 L14.25 14 L8 14.5 L2.5 13 Z"/></clipPath></defs><g clip-path="url(#pr-zones)"><path d="M0 10.5 C4 8 7 9 16 2.5 L16 0 L0 0 Z" fill="currentColor" fill-opacity="0.55"/><path d="M0 10.5 C4 8 7 9 16 2.5 L16 7.5 C9 13.5 5 12.5 0 15 Z" fill="currentColor" fill-opacity="0.22"/><path d="M0 10.5 C4 8 7 9 16 2.5 M0 15 C5 12.5 9 13.5 16 7.5" fill="none" stroke="currentColor" stroke-width="1" stroke-linecap="round" stroke-linejoin="round"/></g><path d="M2 6 L6 2 L11 3.25 L14.5 2 L13.5 9 L14.25 14 L8 14.5 L2.5 13 Z" fill="none" stroke="currentColor" stroke-width="1" stroke-linecap="round" stroke-linejoin="round"/>'
+)
+
+export const LineProductTrajectory = glyph(
+  '<path d="M1.50,10.14 2.00,9.99 2.50,9.78 3.00,9.48 3.50,9.06 4.00,8.50 4.50,7.84 5.00,7.10 5.50,6.36 6.00,5.68 6.50,5.08 7.00,4.52 7.50,3.92 8.00,3.26 8.50,2.71 9.00,2.54 9.50,2.90 10.00,3.72 10.50,4.76 11.00,5.90 11.50,7.04 12.00,8.09 12.50,8.93 13.00,9.52 13.50,9.90 14.00,10.12 14.50,10.25 L14.50,12.65 14.00,12.52 13.50,12.30 13.00,11.92 12.50,11.34 12.00,10.52 11.50,9.58 11.00,8.74 10.50,8.24 10.00,8.16 9.50,8.30 9.00,8.34 8.50,8.11 8.00,7.70 7.50,7.40 7.00,7.36 6.50,7.62 6.00,8.12 5.50,8.77 5.00,9.50 4.50,10.24 4.00,10.90 3.50,11.46 3.00,11.88 2.50,12.18 2.00,12.39 1.50,12.54 Z" fill="currentColor" fill-opacity="0.35" stroke="none"/><polyline points="1.50,11.34 2.00,11.19 2.50,10.98 3.00,10.68 3.50,10.26 4.00,9.70 4.50,9.04 5.00,8.30 5.50,7.56 6.00,6.90 6.50,6.35 7.00,5.94 7.50,5.66 8.00,5.48 8.50,5.41 9.00,5.44 9.50,5.60 10.00,5.94 10.50,6.50 11.00,7.32 11.50,8.31 12.00,9.30 12.50,10.13 13.00,10.72 13.50,11.10 14.00,11.32 14.50,11.45" fill="none" stroke="currentColor" stroke-width="1" stroke-linecap="round" stroke-linejoin="round"/><circle cx="2.30" cy="11.08" r="0.95" fill="currentColor"/><circle cx="4.20" cy="9.45" r="0.95" fill="currentColor"/><circle cx="6.10" cy="6.78" r="0.95" fill="currentColor"/><circle cx="12.60" cy="10.27" r="0.95" fill="currentColor"/><circle cx="14.20" cy="11.38" r="0.95" fill="currentColor"/><polyline points="1.50,10.14 2.00,9.99 2.50,9.78 3.00,9.48 3.50,9.06 4.00,8.50 4.50,7.84 5.00,7.10 5.50,6.36 6.00,5.68 6.50,5.08 7.00,4.52 7.50,3.92 8.00,3.26 8.50,2.71 9.00,2.54 9.50,2.90 10.00,3.72 10.50,4.76 11.00,5.90 11.50,7.04 12.00,8.09 12.50,8.93 13.00,9.52 13.50,9.90 14.00,10.12 14.50,10.25" fill="none" stroke="currentColor" stroke-width="1" stroke-linecap="round" stroke-linejoin="round" stroke-opacity="0.55" stroke-width="0.75"/><polyline points="1.50,12.54 2.00,12.39 2.50,12.18 3.00,11.88 3.50,11.46 4.00,10.90 4.50,10.24 5.00,9.50 5.50,8.77 6.00,8.12 6.50,7.62 7.00,7.36 7.50,7.40 8.00,7.70 8.50,8.11 9.00,8.34 9.50,8.30 10.00,8.16 10.50,8.24 11.00,8.74 11.50,9.58 12.00,10.52 12.50,11.34 13.00,11.92 13.50,12.30 14.00,12.52 14.50,12.65" fill="none" stroke="currentColor" stroke-width="1" stroke-linecap="round" stroke-linejoin="round" stroke-opacity="0.55" stroke-width="0.75"/>'
 )
 
 export const LineAppearance = glyph(

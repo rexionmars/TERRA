@@ -25,6 +25,8 @@ export function AnalyzeOverlap(arg1:analysis.OverlapRequest):Promise<analysis.Ov
 
 export function AnalyzeRadar(arg1:analysis.RadarRequest):Promise<analysis.RadarAnalysis>;
 
+export function AnalyzeTrajectory(arg1:analysis.TrajectoryRequest):Promise<analysis.TrajectoryAnalysis>;
+
 export function AnalyzeWater(arg1:analysis.WaterRequest):Promise<analysis.WaterAnalysis>;
 
 export function AnalyzeZones(arg1:analysis.ZonesRequest):Promise<analysis.ZonesAnalysis>;

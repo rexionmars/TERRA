@@ -130,6 +130,10 @@ const (
 	// Management zones: a field divided into three to five zones from several
 	// seasons of NDVI, every partition kept with its polygons.
 	RunKindZones = "zones"
+	// The NDVI trajectory: a daily series with its interval from an installed
+	// time-series model. A series and no raster, bound to no other kind's
+	// struct, and the model is a package of its own task.
+	RunKindTrajectory = "trajectory"
 )
 
 // Project groups AOI, analyses, and overlay assets for an agronomist workflow.

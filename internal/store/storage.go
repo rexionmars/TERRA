@@ -218,6 +218,8 @@ func kindLabel(kind string) string {
 		return "Sentinel-1 radar"
 	case RunKindZones:
 		return "Management zones"
+	case RunKindTrajectory:
+		return "NDVI trajectory"
 	default:
 		return kind
 	}

@@ -83,8 +83,8 @@ role, with its SHA-256 and size, and states what the model is.
 |-------|---------|
 | `format` | The manifest's version, `1` |
 | `id`, `version` | `id` is what a run records as `model_kind`; lower case, digits, `.`, `_`, `-` |
-| `family` | How the sidecar runs it: `feature_rf`, `sequence_transformer` or `embedding_rf` |
-| `task` | What it does: `land_cover`, `time_series` or `observation_quality`; each family does one task, and the three above do `land_cover` |
+| `family` | How the sidecar runs it: `feature_rf`, `sequence_transformer`, `embedding_rf` or `gp_series` |
+| `task` | What it does: `land_cover`, `time_series` or `observation_quality`; each family does one task: the first three `land_cover`, `gp_series` `time_series` |
 | `files` | Role to `{name, sha256, size}`; the task and the roles of each family are `FAMILIES` in `sidecar/terra/models.py` |
 | `classes` | MapBiomas codes it emits; required for `land_cover`, absent or empty for every other task |
 | `modes`, `requires`, `variants` | The classify modes it supports, optional Python packages, embedding heads |
@@ -100,7 +100,9 @@ package may hold pickles; a package of any other task holds JSON and NPZ, and
 the sidecar reads an NPZ with `allow_pickle=False`. A package brings weights
 only: a new architecture is a new family in `terra/models.py` and the code that
 runs it, and a new model of a known family is a manifest and its files.
-Classification lists and resolves `land_cover` packages only.
+Classification lists and resolves `land_cover` packages only, and the NDVI
+trajectory `time_series` packages of the `gp_series` family
+(`sidecar/terra/trajectory`); neither product is offered without its model.
 
 The Models screen lists the **catalogue**, `catalog.json` in the models
 repository, [rexionmars/TERRA-models](https://github.com/rexionmars/TERRA-models),

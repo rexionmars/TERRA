@@ -21,6 +21,17 @@
  */
 import type { ProductId } from "@/lib/mapTools"
 
+/*
+  The NDVI trajectory has no picture here. It is offered only with a model
+  installed, and its plate is that model's own picture, with the credit its
+  package gives (ProductsPanel).
+*/
+export type PicturedProduct = Exclude<ProductId, "trajectory">
+
+export function isPictured(id: ProductId): id is PicturedProduct {
+  return id !== "trajectory"
+}
+
 export interface ProductPicture {
   path: string
   /** What the crop shows and where, for whoever has to replace it. */
@@ -33,7 +44,7 @@ export interface ProductPicture {
   source: string
 }
 
-export const PRODUCT_PICTURES: Record<ProductId, ProductPicture> = {
+export const PRODUCT_PICTURES: Record<PicturedProduct, ProductPicture> = {
   classify: {
     path: "/terra-products/classify.webp",
     // The 2024 frame, x 65.8-84.2 %, y 52.2-80.9 % of 600x383.
@@ -140,6 +151,8 @@ export const PRODUCT_PICTURES: Record<ProductId, ProductPicture> = {
 }
 
 /** The credit line: author and licence, then the notice when there is one. */
-export function pictureCredit(p: ProductPicture): string {
+export function pictureCredit(
+  p: Pick<ProductPicture, "author" | "license" | "notice">
+): string {
   return [`Picture: ${p.author}`, p.license, p.notice].filter(Boolean).join(" · ")
 }

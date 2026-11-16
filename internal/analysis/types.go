@@ -597,6 +597,9 @@ type PredictResult struct {
 	Radar *RadarAnalysis `json:"radar,omitempty"`
 	// A field's management zones, every partition, reopened from the store.
 	Zones *ZonesAnalysis `json:"zones,omitempty"`
+	// An area's NDVI trajectory from a time-series model, reopened from the
+	// store.
+	Trajectory *TrajectoryAnalysis `json:"trajectory,omitempty"`
 	// Compact spectral / NDVI fingerprint cached at classify time for
 	// domain-shift diagnostics against another run. Absent on older runs and
 	// on water-only results.

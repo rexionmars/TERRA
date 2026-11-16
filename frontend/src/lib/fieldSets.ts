@@ -41,6 +41,7 @@ export function runKindProduct(runKind: string): string {
   if (runKind === "overlap") return "Socio-environmental overlap"
   if (runKind === "radar") return "Sentinel-1 radar"
   if (runKind === "zones") return "Management zones"
+  if (runKind === "trajectory") return "NDVI trajectory"
   return "Classification"
 }
 

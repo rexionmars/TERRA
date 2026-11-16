@@ -9,6 +9,7 @@ import {
   classifiers,
   installedModel,
   modelName,
+  trajectoryModel,
   useInstalledModels,
 } from "@/lib/installedModels"
 import { isJobKind } from "@/lib/jobs"
@@ -21,7 +22,7 @@ import {
 import { methodBrief } from "@/lib/methodBrief"
 import { MAX_DRAWS, MAX_PASSES } from "@/lib/mineral"
 import { PRODUCT_NOTES } from "@/lib/productNotes"
-import { PRODUCT_PICTURES, pictureCredit } from "@/lib/productPictures"
+import { PRODUCT_PICTURES, isPictured, pictureCredit } from "@/lib/productPictures"
 import { productOffered, productRun, type ProductRunProps } from "@/lib/productRun"
 import type { RunLogEntry } from "@/lib/runLog"
 import type { ModelKind, WaterIndex } from "@/lib/types"
@@ -69,22 +70,62 @@ const LISTED = BOARD_TOOLS.filter((t): t is BoardTool & { id: ProductId } =>
   isProductId(t.id)
 )
 
+/** A product's picture, the credit owed for it, and where the original is. */
+interface PlatePicture {
+  src: string
+  credit: string
+  source: string
+  /** How the picture shown was made from the original. */
+  made: string
+}
+
 /*
   A crop of a published picture of the kind of result the product returns; see
-  productPictures.ts. Without alt text, because the label beside it names the
-  product. The edge keeps a dark picture from running into the panel.
+  productPictures.ts. The NDVI trajectory is run by a model the reader
+  installs, and its plate is the picture that model's package carries, with
+  the credit the package gives.
+*/
+function platePicture(product: ProductId): PlatePicture | null {
+  if (isPictured(product)) {
+    const p = PRODUCT_PICTURES[product]
+    return {
+      src: p.path,
+      credit: pictureCredit(p),
+      source: p.source,
+      made: "Cropped and resized from the original on Wikimedia Commons",
+    }
+  }
+  const model = trajectoryModel()
+  const credit = model?.manifest.picture
+  if (!model?.picture_uri) return null
+  return {
+    src: model.picture_uri,
+    credit: credit ? pictureCredit(credit) : model.manifest.name,
+    source: credit?.source ?? "",
+    made: `The picture ${model.manifest.name} ${model.manifest.version} carries in its package`,
+  }
+}
+
+/*
+  Without alt text, because the label beside it names the product. The edge
+  keeps a dark picture from running into the panel.
 */
 function Plate({ product }: { product: ProductId }) {
-  const picture = PRODUCT_PICTURES[product]
+  const picture = platePicture(product)
+  const frame =
+    "size-11 shrink-0 rounded-sm outline-1 -outline-offset-1 outline-[rgb(var(--p-line)/0.28)]"
+  if (!picture) {
+    return <span aria-hidden className={cn(frame, "bg-[rgb(var(--p-control))]")} />
+  }
   return (
     <img
-      src={picture.path}
+      src={picture.src}
       alt=""
-      title={pictureCredit(picture)}
+      title={picture.credit}
       width={44}
       height={44}
       draggable={false}
-      className="size-11 shrink-0 rounded-sm object-cover outline-1 -outline-offset-1 outline-[rgb(var(--p-line)/0.28)]"
+      className={cn(frame, "object-cover")}
     />
   )
 }
@@ -170,6 +211,8 @@ export function ProductsPanel({
   onProductChange: (t: ProductId | null) => void
   onClose: () => void
 }) {
+  // Read here so the list and the page follow a model installed or removed.
+  useInstalledModels()
   if (!product) {
     return (
       <ShellPanel crumbs={[{ label: "Products" }]} onClose={onClose}>
@@ -201,7 +244,8 @@ export function ProductsPanel({
 
   const tool = BOARD_TOOLS.find((t) => t.id === product)
   const note = PRODUCT_NOTES[product]
-  const picture = PRODUCT_PICTURES[product]
+  const picture = platePicture(product)
+  const seriesModel = trajectoryModel()?.manifest
   const run = productRun(product, p)
   const usesPeriod = product !== "overlap"
   const usesCloud = product === "classify" || product === "water"
@@ -283,14 +327,17 @@ export function ProductsPanel({
           <div className="flex min-w-0 flex-col gap-1">
             <p className="text-read text-muted-foreground">{note.hint}</p>
             {/* The credit the picture's licence asks for, next to the picture. */}
-            <button
-              type="button"
-              className="cursor-pointer self-start text-left text-meta text-muted-foreground hover:underline focus-visible:ring-1 focus-visible:ring-ring focus-visible:outline-none"
-              title="Cropped and resized from the original on Wikimedia Commons"
-              onClick={() => BrowserOpenURL(picture.source)}
-            >
-              {pictureCredit(picture)}
-            </button>
+            {picture && (
+              <button
+                type="button"
+                disabled={!picture.source}
+                className="cursor-pointer self-start text-left text-meta text-muted-foreground hover:underline focus-visible:ring-1 focus-visible:ring-ring focus-visible:outline-none disabled:cursor-default disabled:no-underline"
+                title={picture.made}
+                onClick={() => BrowserOpenURL(picture.source)}
+              >
+                {picture.credit}
+              </button>
+            )}
           </div>
         </div>
 
@@ -388,6 +435,16 @@ export function ProductsPanel({
               </Field>
             )}
           </>
+        )}
+
+        {product === "trajectory" && (
+          <Field label="Model">
+            <span className="text-read text-foreground">
+              {seriesModel
+                ? `${seriesModel.name} · ${seriesModel.version}`
+                : "No time-series model is installed."}
+            </span>
+          </Field>
         )}
 
         {product === "water" && (

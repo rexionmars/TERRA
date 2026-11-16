@@ -54,6 +54,11 @@ export const PRODUCT_NOTES: Record<BoardToolId, ProductNote> = {
     limit:
       "The canopy-loss thresholds are not calibrated against harvest records. Paved ground, radar shadow and smooth bare soil can read as open water.",
   },
+  trajectory: {
+    hint: "Daily NDVI with its 95\u00a0% interval, fitted to the Sentinel-2 series by an installed time-series model.",
+    limit:
+      "The interval widens where clear dates are far apart, and is scaled for the regions the model was calibrated on; elsewhere it takes one global scale. Dates the model set aside are drawn as crosses, and a few are real highs of the rise or the peak. A harvest shows as a decline spread over weeks, not as a step.",
+  },
   zones: {
     hint: "Zones where a field grew alike over several seasons, from per-season NDVI.",
     limit:

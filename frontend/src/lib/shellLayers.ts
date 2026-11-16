@@ -17,6 +17,7 @@ import type {
   HealthAnalysis,
   OverlapAnalysis,
   RadarAnalysis,
+  TrajectoryAnalysis,
   ZonesAnalysis,
 } from "@/lib/types"
 
@@ -28,6 +29,7 @@ export interface JobReading {
   overlap?: OverlapAnalysis | null
   radar?: RadarAnalysis | null
   zones?: ZonesAnalysis | null
+  trajectory?: TrajectoryAnalysis | null
 }
 
 /**
@@ -93,9 +95,10 @@ export function jobReadingOf(
     overlap?: OverlapAnalysis | null
     radar?: RadarAnalysis | null
     zones?: ZonesAnalysis | null
+    trajectory?: TrajectoryAnalysis | null
   } | null
 ): JobReading | null {
-  if (!r || !(r.health || r.overlap || r.radar || r.zones)) return null
+  if (!r || !(r.health || r.overlap || r.radar || r.zones || r.trajectory)) return null
   return {
     runId,
     label,
@@ -103,5 +106,6 @@ export function jobReadingOf(
     overlap: r.overlap,
     radar: r.radar,
     zones: r.zones,
+    trajectory: r.trajectory,
   }
 }

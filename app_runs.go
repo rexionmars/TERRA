@@ -609,6 +609,11 @@ func (a *App) LoadAnalysis(runID string) (*analysis.PredictResult, error) {
 		return &analysis.PredictResult{Zones: loadZonesRun(run, assetsDir), RunID: run.ID}, nil
 	}
 
+	// The NDVI trajectory: a series and nothing on disk. See loadTrajectoryRun.
+	if run.Kind == store.RunKindTrajectory {
+		return &analysis.PredictResult{Trajectory: loadTrajectoryRun(run), RunID: run.ID}, nil
+	}
+
 	var res analysis.PredictResult
 	if run.ResultJSON != "" && run.ResultJSON != "{}" {
 		_ = json.Unmarshal([]byte(run.ResultJSON), &res)

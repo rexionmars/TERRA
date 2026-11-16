@@ -19,6 +19,7 @@ import type {
   OverlapRequest,
   PredictRequest,
   RadarRequest,
+  TrajectoryRequest,
   WaterRequest,
   ZonesRequest,
 } from "@/lib/types"
@@ -37,6 +38,7 @@ export const JOB_KINDS = [
   "overlap",
   "radar",
   "zones",
+  "trajectory",
 ] as const
 export type JobKind = (typeof JOB_KINDS)[number]
 
@@ -87,6 +89,7 @@ export interface JobSpec {
   overlap?: OverlapRequest
   radar?: RadarRequest
   zones?: ZonesRequest
+  trajectory?: TrajectoryRequest
 }
 
 /** A job's list entry replaced by a newer copy of itself; others untouched. */

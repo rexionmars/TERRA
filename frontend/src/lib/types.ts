@@ -419,6 +419,8 @@ export interface PredictResult {
   radar?: RadarAnalysis | null
   /** A field's management zones, every partition, reopened from the store. */
   zones?: ZonesAnalysis | null
+  /** An area's NDVI trajectory from a time-series model, reopened from the store. */
+  trajectory?: TrajectoryAnalysis | null
   /**
    * Compact spectral / NDVI fingerprint cached at classify time for
    * domain-shift diagnostics. Absent on older runs and non-classify products.
@@ -1212,6 +1214,69 @@ export interface ZonesAnalysis {
   min_zone_ha: number
   suggested_k: number
   partitions: ZonesPartition[]
+  run_id?: string
+}
+
+/*
+  The NDVI trajectory: an area's Sentinel-2 series through an installed
+  time-series model of the gp_series family. Mirrors
+  internal/analysis/types_trajectory.go, which carries the method note: the
+  interval widens where clear dates are far apart, and its scale is the
+  region's the model was calibrated on, or the global one elsewhere.
+*/
+
+export interface TrajectoryRequest {
+  polygon_geojson: GeoJSONGeometry | null
+  start: string
+  end: string
+  /** The installed time-series package to run. */
+  model_id: string
+  /** One of its versions; the newest installed when absent. */
+  model_version?: string
+  label?: string
+  run_label?: string
+  area_id?: string
+  project_id?: string
+}
+
+/** One acquisition the model used, one per date. */
+export interface TrajectoryObservation {
+  date: string
+  ndvi: number
+  /** Share of the area's cells clear, with data and finite, 0-1. */
+  clear_fraction: number
+  /** False where the model set it aside as disagreeing with the dates around it. */
+  kept: boolean
+}
+
+/** The package that ran, down to its files. */
+export interface TrajectoryModel {
+  id: string
+  version: string
+  name: string
+  digest: string
+}
+
+export interface TrajectoryAnalysis {
+  /** One per day, from the first to the last kept acquisition. */
+  dates: string[]
+  ndvi: number[]
+  lower: number[]
+  upper: number[]
+  /** The interval's coverage, 0-1. */
+  level: number
+  observations: TrajectoryObservation[]
+  scenes_found: number
+  scenes_read: number
+  /** The share of the area a date had to see clearly to count, 0-1. */
+  min_clear_fraction: number
+  /** The calibrated region holding the area; empty elsewhere and near a border. */
+  region: string
+  /** The region whose interval scale was used, or "global". */
+  scale: string
+  /** The factor the model chose for the period of its seasonal term. */
+  multiplier: number
+  model: TrajectoryModel
   run_id?: string
 }
 
