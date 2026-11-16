@@ -105,8 +105,16 @@ func main() {
 			*/
 			Middleware: app.runOverlayMiddleware,
 		},
-		OnStartup:  app.startup,
-		OnDomReady: app.domReady,
+		/*
+			A file dropped on the window reaches the page as its path, which a
+			page alone is never given: the Models screen installs a package
+			dropped on its import dialog, and only an element that declares
+			--wails-drop-target receives one. The webview's own drop stays on,
+			so the boards' drags between their cards keep working.
+		*/
+		DragAndDrop: &options.DragAndDrop{EnableFileDrop: true},
+		OnStartup:   app.startup,
+		OnDomReady:  app.domReady,
 		// Asks before a close would discard an unsaved board or cancel queued
 		// analyses; see app_studios.go.
 		OnBeforeClose: app.beforeClose,
