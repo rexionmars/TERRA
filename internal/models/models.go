@@ -59,12 +59,16 @@ const (
 // whose models emit MapBiomas classes, and the one Classification runs.
 const LandCover = "land_cover"
 
+// TimeSeries is the task of a model that fits a trajectory to an area's
+// series with its interval: the one the NDVI trajectory runs.
+const TimeSeries = "time_series"
+
 // tasks are what a model can do; TASKS in terra/models.py is the authority,
 // and the two change together. A model of any task but land cover estimates a
 // quantity and lists no classes.
 var tasks = map[string]bool{
 	LandCover:             true,
-	"time_series":         true,
+	TimeSeries:            true,
 	"observation_quality": true,
 }
 
@@ -84,6 +88,7 @@ var families = map[string]family{
 	"feature_rf":           {LandCover, []string{"model", "scaler", "label_encoder", "feature_names"}},
 	"sequence_transformer": {LandCover, []string{"checkpoint"}},
 	"embedding_rf":         {LandCover, []string{"label_encoder"}},
+	"gp_series":            {TimeSeries, []string{"parameters"}},
 }
 
 var (

@@ -401,3 +401,80 @@ func TestThePackagesThisRepositoryBuildsStillPass(t *testing.T) {
 		}
 	}
 }
+
+// gp_series 0.1.0 as published, kept with the sidecar's tests; both sides must
+// give it the digest terra_signal_spectrum recorded for it.
+const (
+	gpSeriesPackage = "../../sidecar/tests/data/gp_series/package"
+	gpSeriesDigest  = "2055cc9e731cc3d9714e0f7544b45152ad0cbe6b9ae897e38bc1e2a68810a132"
+)
+
+func TestAGPSeriesPackageOfOneParametersFileIsATimeSeriesModel(t *testing.T) {
+	dir := t.TempDir()
+	data := []byte(`{"format": 1}`)
+	if err := os.WriteFile(filepath.Join(dir, "parameters.json"), data, 0o644); err != nil {
+		t.Fatal(err)
+	}
+	sum := sha256.Sum256(data)
+	writeManifest(t, dir, analysis.ModelManifest{
+		Format: 1, ID: "gp-test", Version: "1.0.0", Name: "GP test", Family: "gp_series", Task: TimeSeries,
+		Files: map[string]analysis.ModelFile{
+			"parameters": {Name: "parameters.json", SHA256: hex.EncodeToString(sum[:]), Size: int64(len(data))},
+		},
+	})
+	p, err := Load(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := p.Verify(); err != nil {
+		t.Fatal(err)
+	}
+	m := p.Manifest
+	m.Files = map[string]analysis.ModelFile{}
+	writeManifest(t, dir, m)
+	if _, err := Load(dir); err == nil || !strings.Contains(err.Error(), "parameters") {
+		t.Fatalf("got %v, want a gp_series package without its parameters refused", err)
+	}
+}
+
+func TestThePublishedGPSeriesPackageLoadsAndVerifiesWithItsDigest(t *testing.T) {
+	p, err := Load(gpSeriesPackage)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := p.Verify(); err != nil {
+		t.Fatal(err)
+	}
+	m := p.Manifest
+	if m.ID != "gp_series" || m.Version != "0.1.0" || m.Family != "gp_series" || m.Task != TimeSeries {
+		t.Fatalf("manifest = %s %s %s %s", m.ID, m.Version, m.Family, m.Task)
+	}
+	if got := p.Digest(); got != gpSeriesDigest {
+		t.Fatalf("digest = %s, want %s", got, gpSeriesDigest)
+	}
+}
+
+// The classification resolves land cover and the NDVI trajectory resolves time
+// series (app_analysis.go, app_trajectory.go): neither takes the other's model.
+func TestAGPSeriesModelAndALandCoverModelResolveOnlyForTheirOwnTask(t *testing.T) {
+	root := t.TempDir()
+	if _, err := Import(root, gpSeriesPackage); err != nil {
+		t.Fatal(err)
+	}
+	rf := t.TempDir()
+	writePackage(t, rf, "1.0.0")
+	if _, err := Import(root, rf); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := Resolve(root, LandCover, "gp_series", ""); err == nil ||
+		!strings.Contains(err.Error(), "Gaussian Process is a model for time series, and this run needs one for land cover") {
+		t.Fatalf("classification resolved the gp_series model: %v", err)
+	}
+	if _, err := Resolve(root, TimeSeries, "test-rf", ""); err == nil ||
+		!strings.Contains(err.Error(), "a model for land cover, and this run needs one for time series") {
+		t.Fatalf("the trajectory resolved a land-cover model: %v", err)
+	}
+	if p, err := Resolve(root, TimeSeries, "gp_series", ""); err != nil || p.Digest() != gpSeriesDigest {
+		t.Fatalf("got %v %v, want the gp_series package for its own task", p, err)
+	}
+}

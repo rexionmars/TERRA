@@ -49,7 +49,8 @@ MANIFEST = 'model.json'
 # a time series with its interval or the quality of an observation, and lists
 # none.
 LAND_COVER = 'land_cover'
-TASKS = (LAND_COVER, 'time_series', 'observation_quality')
+TIME_SERIES = 'time_series'
+TASKS = (LAND_COVER, TIME_SERIES, 'observation_quality')
 
 # The files a model of a task other than land cover may hold.
 PLAIN_SUFFIXES = ('.json', '.npz')
@@ -67,11 +68,13 @@ class Family:
 
 # Each family the sidecar runs. An embedding head has one model and scaler per
 # variant (pixel or patch), named model_<variant> and scaler_<variant>, beside
-# the shared label encoder. internal/models mirrors this table.
+# the shared label encoder. A gp_series model is one JSON file of numbers,
+# which terra.trajectory reads. internal/models mirrors this table.
 FAMILIES: dict[str, Family] = {
     'feature_rf': Family(LAND_COVER, ('model', 'scaler', 'label_encoder', 'feature_names')),
     'sequence_transformer': Family(LAND_COVER, ('checkpoint',)),
     'embedding_rf': Family(LAND_COVER, ('label_encoder',)),
+    'gp_series': Family(TIME_SERIES, ('parameters',)),
 }
 
 # Lower case, digits, dot, dash and underscore: an id is a directory name on
