@@ -168,7 +168,12 @@ export function MapShell(props: MapShellProps) {
     },
     ABOUT: { run: app.items.about.onSelect },
   })
-  const pageRef = useRef<HTMLDivElement>(null)
+  /*
+    The Analyses page, as state rather than a ref: it is the host its menus
+    portal into, and a ref read during render is still null on the render that
+    mounts it, so no menu there opened until something else redrew the shell.
+  */
+  const [analysesPage, setAnalysesPage] = useState<HTMLDivElement | null>(null)
 
   const nav = useShellNavigation()
   // The installed models, read once the shell is up; the Models screen reads
@@ -989,7 +994,7 @@ export function MapShell(props: MapShellProps) {
           {/* Mounted once visited, so returning finds the folder the reader left open. */}
           {analysesOpened && (
             <div
-              ref={pageRef}
+              ref={setAnalysesPage}
               className={cn(
                 "app-no-drag absolute inset-0 z-480 flex-col bg-app pt-[var(--frame-reach,0px)]",
                 destination === "analyses" ? "flex" : "hidden"
@@ -997,7 +1002,7 @@ export function MapShell(props: MapShellProps) {
             >
               <div className="min-h-0 flex-1">
                 <AnalysesScreen
-                  surface={pageRef.current}
+                  surface={analysesPage}
                   activeProjectId={props.activeProjectId ?? null}
                   onActivateProject={props.onActivateProject}
                   onOpenRun={(run) => void openRun(run)}
