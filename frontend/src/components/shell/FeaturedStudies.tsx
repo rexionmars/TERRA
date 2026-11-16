@@ -1,7 +1,6 @@
 import { useEffect, useRef, useState } from "react"
 
-import { BrowserOpenURL } from "../../../wailsjs/runtime/runtime"
-import { CaretLeft, CaretRight, Clock } from "@/components/icons"
+import { CaretLeft, CaretRight } from "@/components/icons"
 import { STUDIES, type Study } from "@/lib/featuredStudies"
 
 /*
@@ -119,8 +118,12 @@ export function FeaturedStudies() {
 
 /**
  * A study: its patch beside where it looks, its name, its aim, what it reads
- * and where it stands, with the credit its patch owes at the foot. Nothing on
- * it opens a page, since a study has none in TERRA.
+ * and how it is held. Nothing on it opens a page, since a study has none in
+ * TERRA.
+ *
+ * The credit the patch's data owes under CC BY 4.0 is the patch's tooltip
+ * rather than a line on the card: the licence asks for it wherever the patch
+ * is shown, and lets it be given in a manner reasonable for the medium.
  */
 function StudyCard({ study: s }: { study: Study }) {
   return (
@@ -129,6 +132,7 @@ function StudyCard({ study: s }: { study: Study }) {
         <img
           src={s.patch}
           alt=""
+          title={`${s.credit.text} · ${s.credit.source}`}
           draggable={false}
           decoding="async"
           className="size-36 shrink-0 object-contain"
@@ -144,22 +148,9 @@ function StudyCard({ study: s }: { study: Study }) {
           <p className="mt-1.5 text-meta text-muted-foreground">
             Reads {s.reads.join(" · ")}
           </p>
-          <p className="mt-3 flex items-start gap-1.5 text-label text-foreground">
-            <Clock className="mt-0.5 size-3.5 shrink-0 text-muted-foreground" />
-            {s.stage}
-          </p>
+          <p className="mt-3 text-label text-foreground">{s.status}</p>
         </div>
       </div>
-      <p className="border-t border-border px-5 py-2.5 text-meta text-muted-foreground">
-        {s.credit.text} ·{" "}
-        <button
-          type="button"
-          onClick={() => BrowserOpenURL(s.credit.source)}
-          className="underline-offset-2 hover:text-foreground hover:underline"
-        >
-          source
-        </button>
-      </p>
     </article>
   )
 }
