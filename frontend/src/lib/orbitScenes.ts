@@ -1,8 +1,7 @@
 /**
- * Ground seen from orbit: the scenes the interface's banners are set on, and
- * where each came from. The Models catalogue turns through them
- * (components/shell/CatalogueHero.tsx), and a profile takes one as its cover
- * (components/shell/ProfileSection.tsx).
+ * Ground seen from orbit: the scenes a profile takes as its cover
+ * (components/shell/ProfileSection.tsx), and where each came from. The Models
+ * catalogue's banner has its own, in lib/catalogueScenes.ts.
  */
 
 /** A scene a banner shows, and where it came from. */

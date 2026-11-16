@@ -7,7 +7,7 @@ import {
   SceneCredit,
   TabbedBanner,
 } from "@/components/ui/TabbedBanner"
-import { SCENES } from "@/lib/orbitScenes"
+import { CATALOGUE_SCENES as SCENES } from "@/lib/catalogueScenes"
 import { cn } from "@/lib/utils"
 
 /** How long a scene stays before the next, in seconds. */
@@ -21,16 +21,21 @@ const prefersStill = () =>
   window.matchMedia?.("(prefers-reduced-motion: reduce)").matches === true
 
 /*
-  The scenes of lib/orbitScenes.ts, turning under a title the page's ground
+  The scenes of lib/catalogueScenes.ts, turning under a title the page's ground
   holds (TabbedBanner), so they turn without touching it.
 
-  THE SCENES TURN ON A CLOCK THE READER CAN SEE: the bar in the shown scene's
-  dot fills over DWELL_S, and the scene turns when it is full, on the bar's
-  animationend, so pausing the bar pauses the turn and there is no second timer
-  to keep in step with it. The bar stops while the pointer is over the picture,
-  and for good once a control there takes keyboard focus or the pause button is
-  pressed, until play is pressed; under prefers-reduced-motion it starts
-  stopped, and the scenes change without the cross-fade.
+  THE SCENES TURN ON A CLOCK: the bar in the shown scene's dot fills over
+  DWELL_S, and the scene turns when it is full, on the bar's animationend, so
+  pausing the bar pauses the turn and there is no second timer to keep in step
+  with it. The bar stops while the pointer is over the picture, and for good
+  once a control there takes keyboard focus or the pause button is pressed,
+  until play is pressed; under prefers-reduced-motion it starts stopped, and
+  the scenes change without the cross-fade.
+
+  THE CONTROLS SHOW ONLY WHILE THE POINTER IS OVER THE BANNER, so the picture
+  is left whole the rest of the time, or while one of them holds keyboard
+  focus, so a reader who tabs to them sees where they are. The credit is not
+  hidden with them: the pictures' licences ask for it wherever they are shown.
 */
 export function CatalogueHero({
   published,
@@ -62,9 +67,10 @@ export function CatalogueHero({
             </h2>
           </>
         }
+        className="group"
         role="group"
         aria-roledescription="carousel"
-        aria-label="Scenes from orbit"
+        aria-label="Scenes of illegal mining"
         onPointerEnter={() => setHovered(true)}
         onPointerLeave={() => setHovered(false)}
         onFocus={(e) => {
@@ -94,7 +100,7 @@ export function CatalogueHero({
         <div
           className={cn(
             PHOTO_CHIP,
-            "absolute right-3 bottom-3 flex items-center p-0.5"
+            "absolute right-3 bottom-3 flex items-center p-0.5 opacity-0 transition-opacity duration-200 group-hover:opacity-100 focus-within:opacity-100 motion-reduce:transition-none"
           )}
         >
           <button
