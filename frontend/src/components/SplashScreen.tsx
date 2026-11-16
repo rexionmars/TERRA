@@ -9,7 +9,8 @@ type BootState = "booting" | "ready" | "failed"
 const STATE_LABEL: Record<BootState, string> = {
   booting: "Booting",
   ready: "Ready",
-  failed: "Sidecar failed",
+  // In the reader's words; the notice the application opens with names the sidecar.
+  failed: "Analyses unavailable",
 }
 
 function asBootState(s: string): BootState {
@@ -50,11 +51,12 @@ type SplashScreenProps = {
 /**
  * Compact boot UI for the small splash window, before the main shell.
  *
- * A photograph of the ground across the window, with the lockup and the boot
- * state over its sky and a base at the foot: a bar with the boot log's last
- * line and the version, and a tab rising from it with the wordmark. The styles
- * are in splash.css, shared with the copy index.html paints first, and this
- * renders the same markup so the handoff between the two does not show.
+ * A photograph of the ground across the window, with the lockup over its top
+ * and a base at the foot: a bar with the boot log's last line on the left and
+ * the boot's state and the version on the right, and a tab rising from it with
+ * the wordmark. The styles are in splash.css, shared with the copy index.html
+ * paints first, and this renders the same markup so the handoff between the
+ * two does not show.
  */
 export function SplashScreen({ exiting = false, live = true }: SplashScreenProps) {
   const [logs, setLogs] = useState<string[]>(["booting…"])
@@ -120,7 +122,12 @@ export function SplashScreen({ exiting = false, live = true }: SplashScreenProps
     }
   }, [live])
 
-  const statusLine = logs[logs.length - 1] ?? "booting…"
+  /*
+    The boot's last line. Not the opening "booting…", which only repeats the
+    state the bar already shows.
+  */
+  const last = logs[logs.length - 1]
+  const statusLine = last && last !== "booting…" ? last : null
 
   return (
     <div
@@ -138,16 +145,6 @@ export function SplashScreen({ exiting = false, live = true }: SplashScreenProps
         <div className="splash__scrim" />
       </div>
 
-      <div className="splash__bar">
-        <span className="splash__spacer" />
-        {live && (
-          <span className="splash__state">
-            <span className={`splash__dot splash__dot--${state}`} aria-hidden />
-            {STATE_LABEL[state]}
-          </span>
-        )}
-      </div>
-
       <div className="splash__lockup">
         <img className="splash__mark" src="/terra-logo.png" alt="" />
         <p className="splash__tagline">{BRAND_TAGLINE}</p>
@@ -156,7 +153,7 @@ export function SplashScreen({ exiting = false, live = true }: SplashScreenProps
       <div className="splash__base">
         <div className="splash__tab" />
         <div className="splash__foot app-no-drag">
-          {live && (
+          {live && statusLine && (
             <p className="splash__log" title={statusLine}>
               {statusLine}
             </p>
@@ -165,11 +162,17 @@ export function SplashScreen({ exiting = false, live = true }: SplashScreenProps
             <span className="splash__credit">
               Photo: {BRAND_PHOTO.author} · {BRAND_PHOTO.license}
             </span>
+            {live && (
+              <span className="splash__state">
+                <span className={`splash__dot splash__dot--${state}`} aria-hidden />
+                {STATE_LABEL[state]}
+              </span>
+            )}
             {/*
               The version alone. The release's code name used to follow it;
               the splash carries no name over the picture but the wordmark.
             */}
-            {version && <span>v{version}</span>}
+            {version && <span className="splash__version">v{version}</span>}
           </p>
         </div>
         <img
