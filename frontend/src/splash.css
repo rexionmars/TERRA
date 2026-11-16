@@ -38,8 +38,8 @@
   --sp-gutter: clamp(12px, 2vw, 28px);
   --sp-label: clamp(9px, 0.75vw, 11px);
   /*
-    The status band is as tall as the window's title bar, so that the traffic
-    lights sit on its centre line; see .splash__bar.
+    The title band is as tall as the window's title bar, so that the traffic
+    lights sit on its centre line; see .splash__lockup.
   */
   --sp-bar: 32px;
   /*
@@ -145,15 +145,14 @@
   }
 }
 /*
-  Darker at the top, for the lockup and the status set on the sky, and clear
-  from a third of the way down, so the people and the ground are shown as they
-  were taken.
+  Darker at the top, for the lockup set on the sky, and clear from a third of
+  the way down, so the people and the ground are shown as they were taken.
 
   MEASURED on the pre-bundle copy at 420x280 and at 1440x900 with the
   entrance finished: the brightest pixel of the scene under each line, with
   the type made transparent, against that line's own colour. Tagline 5.58 and
-  5.28, status 6.71 and 8.51. The boot line, the version and the credit are
-  on the void bar, and the wordmark on the void tab.
+  5.28. The boot line, the state, the version and the credit are on the void
+  bar, and the wordmark on the void tab.
 */
 .splash__scrim {
   position: absolute;
@@ -167,38 +166,17 @@
 }
 
 /*
-  The status band, at the height of the title bar it shares.
-
-  The window keeps macOS's traffic lights over its content (TitleBarHidden in
-  main.go), centred 16px down and ending 69px in. The band is 32px tall so
-  that they sit on its centre line, and it starts its content 13px clear of
-  them.
-  It carries no rule and no ground of its own: the sky runs up behind the
-  lights.
+  The boot's state, in the bar at the foot, on the right before the version:
+  one place says it once, and the top is left to the lockup.
 */
-.splash__bar {
-  position: absolute;
-  top: 0;
-  right: 0;
-  left: 0;
-  display: flex;
-  align-items: center;
-  height: var(--sp-bar);
-  padding: 0 16px 0 82px;
-  font-size: var(--sp-label);
-  letter-spacing: 0.12em;
-  line-height: 1;
-  text-transform: uppercase;
-  white-space: nowrap;
-}
-.splash__spacer {
-  flex: 1;
-}
 .splash__state {
   display: inline-flex;
+  flex: none;
   align-items: center;
   gap: 7px;
   color: rgb(var(--sp-bone));
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
 }
 .splash__dot {
   width: 6px;
@@ -235,10 +213,13 @@
   The website header's lockup: the mark without its lettering, since the name
   is on the tab below and the tagline beside it.
 
-  In the boot window it sits in the status band, right of the traffic lights:
-  below the band the people in the photograph begin at once, and a lockup set
-  there crossed the head of the child on the left. In the full window it is
-  set large under the band, as one word to a line.
+  In the boot window it sits in the title band, right of the traffic lights,
+  which leaves the photograph below it whole. The window keeps macOS's lights
+  over its content (TitleBarHidden in main.go), centred 16px down and ending
+  69px in; the band is 32px tall so that they sit on its centre line, and the
+  lockup starts 13px clear of them. The band has no rule and no ground of its
+  own: the photograph runs up behind the lights. In the full window the lockup
+  is set large under the band, as one word to a line.
 */
 .splash__lockup {
   position: absolute;
@@ -276,10 +257,10 @@
   the tab as one outline and gives the construction; it is used as a mask here
   so the start screen can paint the same shape in the panel's colour.
 
-  The bar carries the boot line on the left and the version on the right, so
-  the frame that holds the name also says what the application is doing. The
-  boot line stops short of the wordmark, and an ellipsis takes what does not
-  fit.
+  The bar carries the boot's last line on the left and its state and the
+  version on the right, so the frame that holds the name also says what the
+  application is doing. The line stops short of the wordmark, and an ellipsis
+  takes what does not fit.
 */
 .splash__base {
   position: absolute;
@@ -348,8 +329,13 @@
   margin: 0 0 0 auto;
   white-space: nowrap;
 }
-/* There is no room for the credit beside the tab at 420 px; the start screen gives it. */
-.splash__credit {
+/*
+  Not in the boot window, whose bar keeps its right half for the state, which
+  as "Analyses unavailable" takes most of it. The licence asks for no credit,
+  and the full window and the start screen give both.
+*/
+.splash__credit,
+.splash__version {
   display: none;
 }
 /*
@@ -376,7 +362,7 @@
 
 /*
   The full window, which the application menu opens this in: the lockup leaves
-  the status band and is set large under it, and the credit has room in the bar.
+  the title band and is set large under it, and the credit has room in the bar.
 */
 @media (min-height: 400px) {
   .splash__scrim {
@@ -405,6 +391,9 @@
   .splash__credit {
     display: inline;
     color: rgb(var(--sp-dust) / 0.8);
+  }
+  .splash__version {
+    display: inline;
   }
 }
 
