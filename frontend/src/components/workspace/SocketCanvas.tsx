@@ -18,7 +18,14 @@
  */
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react"
 import { CaretDown, CaretRight, CornersOut, TreeStructure } from "@/components/icons"
+import { MenuPopover } from "@/components/workspace/MenuPopover"
 import { cn } from "@/lib/utils"
+import {
+  DEFAULT_WIRE_SHAPE,
+  WIRE_SHAPES,
+  wirePath,
+  type WireShape,
+} from "@/lib/wirePath"
 
 export type Place = { x: number; y: number }
 
@@ -101,16 +108,13 @@ interface View {
 
 const clamp = (v: number, lo: number, hi: number) => Math.min(hi, Math.max(lo, v))
 
-/** A wire from (x1, y1) to (x2, y2), leaving and arriving level. */
-function wirePath(x1: number, y1: number, x2: number, y2: number): string {
-  const reach = clamp(Math.abs(x2 - x1) * 0.5, 30, 160)
-  return `M ${x1} ${y1} C ${x1 + reach} ${y1}, ${x2 - reach} ${y2}, ${x2} ${y2}`
-}
-
 /** What names a link: the input it lands on, since an input takes one link. */
 export const linkKey = (to: string, toSocket: string) => `${to}\u0000${toSocket}`
 
-/** Room left around the graph in the wire layer, so a curve's bulge is never clipped. */
+/**
+ * Room left around the graph in the wire layer, so a curve's bulge or the
+ * detour of a wire into an input behind its output is never clipped.
+ */
 const WIRE_PAD = 240
 
 function outputSocketY(node: SocketNode, index: number, folded: boolean): number {
@@ -179,6 +183,8 @@ export function SocketCanvas({
   apiRef,
   onArrange,
   onContext,
+  wireShape = DEFAULT_WIRE_SHAPE,
+  onWireShape,
   className,
 }: {
   nodes: readonly SocketNode[]
@@ -224,9 +230,24 @@ export function SocketCanvas({
     at: { x: number; y: number },
     held: boolean
   ) => void
+  /** How the wires are drawn: see lib/wirePath.ts. */
+  wireShape?: WireShape
+  /** The reader chose another shape; without it the field offers no choice. */
+  onWireShape?: (shape: WireShape) => void
   className?: string
 }) {
   const hostRef = useRef<HTMLDivElement | null>(null)
+  /*
+    The host again, as state, for the one reader that needs it in render: the
+    wire menu portals into it. A ref read in render is null on the render that
+    mounts the field, and the menu would hold that null until the field redrew.
+    The callback is stable, so it runs on mount and unmount only.
+  */
+  const [host, setHost] = useState<HTMLDivElement | null>(null)
+  const attachHost = useCallback((el: HTMLDivElement | null) => {
+    hostRef.current = el
+    setHost(el)
+  }, [])
   const [view, setView] = useState<View>({ x: FIT_PAD, y: FIT_PAD, z: 1 })
   const viewRef = useRef(view)
   viewRef.current = view
@@ -573,7 +594,7 @@ export function SocketCanvas({
 
   return (
     <div
-      ref={hostRef}
+      ref={attachHost}
       onPointerDown={beginPan}
       onPointerMove={onPointerMove}
       onPointerUp={endDrag}
@@ -638,6 +659,7 @@ export function SocketCanvas({
               if (j < 0) return null
               const p = outputPoint(a, l.fromSocket)
               const d = wirePath(
+                wireShape,
                 p.x,
                 p.y,
                 b.place.x,
@@ -700,6 +722,7 @@ export function SocketCanvas({
             {pulling && byId.get(pulling.from) && (
               <path
                 d={wirePath(
+                  wireShape,
                   outputPoint(byId.get(pulling.from)!, pulling.fromSocket).x,
                   outputPoint(byId.get(pulling.from)!, pulling.fromSocket).y,
                   pulling.x,
@@ -844,36 +867,137 @@ export function SocketCanvas({
         })}
       </div>
 
-      {onArrange && (
+      {/* The field's own controls, in its bottom right corner, the last one
+          framing the nodes. */}
+      <div className="absolute right-2 bottom-2 flex gap-1">
+        {onWireShape && (
+          <WireShapeMenu shape={wireShape} onShape={onWireShape} surface={host} />
+        )}
+        {onArrange && (
+          <button
+            type="button"
+            onClick={onArrange}
+            title="Arrange the nodes by their links"
+            aria-label="Arrange the nodes by their links"
+            className={CORNER_BUTTON}
+          >
+            <TreeStructure className="size-3.5" />
+          </button>
+        )}
         <button
           type="button"
-          onClick={onArrange}
-          title="Arrange the nodes by their links"
-          aria-label="Arrange the nodes by their links"
-          className={cn(
-            "absolute right-10 bottom-2 flex size-7 items-center justify-center rounded-sm",
-            "bg-selected text-muted-foreground transition-colors hover:bg-hover hover:text-foreground",
-            "focus-visible:ring-1 focus-visible:ring-ring focus-visible:outline-none"
-          )}
+          onClick={() => {
+            touched.current = false
+            fit()
+          }}
+          title="Frame every node (Home)"
+          className={CORNER_BUTTON}
         >
-          <TreeStructure className="size-3.5" />
+          <CornersOut className="size-3.5" />
+        </button>
+      </div>
+    </div>
+  )
+}
+
+const CORNER_BUTTON = cn(
+  "flex size-7 items-center justify-center rounded-sm",
+  "bg-selected text-muted-foreground transition-colors hover:bg-hover hover:text-foreground",
+  "focus-visible:ring-1 focus-visible:ring-ring focus-visible:outline-none"
+)
+
+/*
+  THE WIRE SHAPES, EACH DRAWN AS WHAT IT IS: two sockets and the wire between
+  them, in the shape it names, so the menu reads without its labels and the
+  button shows the shape in use.
+*/
+const WIRE_GLYPH: Record<WireShape, string> = {
+  curved: "M2.5 4 C8 4, 8 12, 13.5 12",
+  straight: "M2.5 4 L13.5 12",
+  square: "M2.5 4 H8 V12 H13.5",
+  rounded: "M2.5 4 H5 Q8 4 8 7 V9 Q8 12 11 12 H13.5",
+}
+
+function WireGlyph({ shape, className }: { shape: WireShape; className?: string }) {
+  return (
+    <svg viewBox="0 0 16 16" fill="none" aria-hidden className={className}>
+      <path
+        d={WIRE_GLYPH[shape]}
+        stroke="currentColor"
+        strokeWidth={1.4}
+        strokeLinecap="round"
+        strokeLinejoin={shape === "square" ? "miter" : "round"}
+      />
+      <circle cx={2.5} cy={4} r={1.8} fill="currentColor" />
+      <circle cx={13.5} cy={12} r={1.8} fill="currentColor" />
+    </svg>
+  )
+}
+
+/**
+ * The button that shows the wire shape in use and opens the four.
+ *
+ * The menu is portalled into the field and opens upward from the corner.
+ */
+function WireShapeMenu({
+  shape,
+  onShape,
+  surface,
+}: {
+  shape: WireShape
+  onShape: (shape: WireShape) => void
+  surface: HTMLElement | null
+}) {
+  const [open, setOpen] = useState(false)
+  const name = WIRE_SHAPES.find((s) => s.id === shape)?.label ?? shape
+  return (
+    <MenuPopover
+      open={open}
+      onOpenChange={setOpen}
+      surface={surface}
+      align="end"
+      widthRem={12}
+      trigger={(t) => (
+        <button
+          type="button"
+          ref={t.ref}
+          onClick={t.onClick}
+          aria-expanded={t["aria-expanded"]}
+          aria-haspopup={t["aria-haspopup"]}
+          title={`Wires: ${name.toLowerCase()}`}
+          aria-label={`Wire shape: ${name}`}
+          className={cn(CORNER_BUTTON, open && "bg-hover text-foreground")}
+        >
+          <WireGlyph shape={shape} className="size-3.5" />
         </button>
       )}
-      <button
-        type="button"
-        onClick={() => {
-          touched.current = false
-          fit()
-        }}
-        title="Frame every node (Home)"
-        className={cn(
-          "absolute right-2 bottom-2 flex size-7 items-center justify-center rounded-sm",
-          "bg-selected text-muted-foreground transition-colors hover:bg-hover hover:text-foreground",
-          "focus-visible:ring-1 focus-visible:ring-ring focus-visible:outline-none"
-        )}
-      >
-        <CornersOut className="size-3.5" />
-      </button>
-    </div>
+    >
+      <p className="px-2 pt-1 pb-1 text-meta text-muted-foreground">Wires</p>
+      {WIRE_SHAPES.map((s) => (
+        <button
+          key={s.id}
+          type="button"
+          role="menuitemradio"
+          aria-checked={s.id === shape}
+          onClick={() => {
+            onShape(s.id)
+            setOpen(false)
+          }}
+          className="flex w-full items-center gap-2 rounded-sm px-2 py-1.5 text-left text-body text-foreground outline-none hover:bg-hover focus-visible:bg-hover"
+        >
+          <WireGlyph
+            shape={s.id}
+            className={cn(
+              "size-4 shrink-0",
+              s.id === shape ? "text-foreground" : "text-muted-foreground"
+            )}
+          />
+          <span className="min-w-0 flex-1 truncate">{s.label}</span>
+          {s.id === shape && (
+            <span className="size-1.5 shrink-0 rounded-xs bg-accent" aria-hidden />
+          )}
+        </button>
+      ))}
+    </MenuPopover>
   )
 }

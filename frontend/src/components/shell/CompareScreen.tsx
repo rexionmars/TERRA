@@ -68,6 +68,7 @@ import { datesByMonth } from "@/lib/runSummary"
 import { PHOTO_CHIP } from "@/components/ui/TabbedBanner"
 import type { InferenceRun } from "@/lib/types"
 import { cn } from "@/lib/utils"
+import { useWireShape } from "@/session/wireShape"
 import { PanelChoices, PanelHeading } from "@/components/shell/ShellPanel"
 import { titled } from "@/components/workspace/readingParts"
 
@@ -432,6 +433,7 @@ export function CompareScreen({
     if (selected === id) setSelected(null)
   }
   const runIds = gridRuns.map((r) => r.id)
+  const [wireShape, setWireShape] = useWireShape()
   const doArrange = () => {
     setBoard((b) => arrange(b, runIds, heights, present))
     requestAnimationFrame(() => api.current?.fit())
@@ -1061,6 +1063,8 @@ export function CompareScreen({
               apiRef={api}
               onArrange={doArrange}
               onContext={openPie}
+              wireShape={wireShape}
+              onWireShape={setWireShape}
             />
           )}
         </div>
