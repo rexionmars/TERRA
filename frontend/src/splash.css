@@ -15,7 +15,7 @@
   ground, bone type, and one signal colour that is never used for data. They
   are fixed rather than read from the theme on purpose: the picture is a
   photograph whatever the theme, and the light theme's tokens would put dark
-  type on the darkened sky and on the void bar.
+  type on the darkened photograph and on the void bar.
 
   The mono face is the application's telemetry face and Inter its text face,
   both loaded by index.html. A face fetched for a screen that is up for three
@@ -63,10 +63,7 @@
   font-family: var(--sp-mono);
   -webkit-font-smoothing: antialiased;
   opacity: 1;
-  transform: scale(1);
-  transition:
-    opacity 480ms ease,
-    transform 480ms ease;
+  transition: opacity 480ms ease;
 }
 /* Declared here rather than left to Tailwind's preflight, which is in index.css. */
 .splash,
@@ -75,10 +72,12 @@
 .splash *::after {
   box-sizing: border-box;
 }
-/* App.tsx waits this long before revealing the main window. */
+/*
+  App.tsx waits this long before revealing the main window. The photograph
+  closes in as the splash fades; see .splash__photo.
+*/
 .splash--exit {
   opacity: 0;
-  transform: scale(0.96);
   pointer-events: none;
 }
 
@@ -108,8 +107,8 @@
   twice.
 
   Timed against the splash, which is held for three seconds plus the fade --
-  see minSplash in app.go. The entrance is over by 3.2 s and most of it by
-  1 s, so the boot window shows it whole.
+  see minSplash in app.go. The lockup and the base are in by 1.5 s, so the
+  boot window shows them whole; the photograph keeps moving until it goes.
 */
 .splash__scene {
   position: absolute;
@@ -121,6 +120,13 @@
 /*
   Pinned to its top edge, so a window wider than the photograph's 3:2 crops the
   ground under the base rather than the sky the lockup is set on.
+
+  THE PHOTOGRAPH CLOSES IN ON THE BOY IN THE MIDDLE for as long as the splash
+  is up: it fades in over 0.9 s while it grows by 12 % over 8 s, eased so that
+  most of the push is seen in the three seconds the splash is held and it is
+  still moving when it goes. It grows from a point on him, 47.5 % across and,
+  at the boot window's 3:2, 55 % down, so he holds his place as the puddle and
+  the children around him come closer.
 */
 .splash__photo {
   position: absolute;
@@ -129,38 +135,48 @@
   height: 100%;
   object-fit: cover;
   object-position: 50% 0%;
-  animation: splash-settle 3.2s cubic-bezier(0.16, 1, 0.3, 1)
-    calc(0s - var(--sp-elapsed)) both;
+  transform-origin: 47.5% 55%;
+  transition: scale 480ms cubic-bezier(0.55, 0, 1, 0.45);
+  animation:
+    splash-fade 0.9s ease-out calc(0s - var(--sp-elapsed)) both,
+    splash-push 8s cubic-bezier(0.25, 0.45, 0.4, 1) calc(0s - var(--sp-elapsed)) both;
 }
-@keyframes splash-settle {
+@keyframes splash-push {
   from {
-    opacity: 0;
-    transform: scale(1.05);
-  }
-  22% {
-    opacity: 1;
+    transform: scale(1);
   }
   to {
-    transform: scale(1);
+    transform: scale(1.12);
   }
 }
 /*
+  THE EXIT CARRIES THE PUSH ON: as the splash fades, the photograph closes in
+  faster, 8 % more in the 480 ms the fade takes, so leaving the splash reads as
+  stepping into the ground it shows. It is the scale property, which composes
+  with the push's transform rather than replacing it.
+*/
+.splash--exit .splash__photo {
+  scale: 1.08;
+}
+/*
   Darker at the top, for the lockup set on the sky, and clear from a third of
-  the way down, so the people and the ground are shown as they were taken.
+  the way down, so the children and the ground are shown as they were taken.
 
-  MEASURED on the pre-bundle copy at 420x280 and at 1440x900 with the
-  entrance finished: the brightest pixel of the scene under each line, with
-  the type made transparent, against that line's own colour. Tagline 5.58 and
-  5.28. The boot line, the state, the version and the credit are on the void
-  bar, and the wordmark on the void tab.
+  MEASURED on the pre-bundle copy at 420x280 and at 1440x900, at 1.5, 3 and
+  8 s into the push, since the photograph moves under the type: the brightest
+  pixel of the scene under the tagline, with the type made transparent,
+  against the tagline's own colour, the lowest of the three. 5.89 and 6.39.
+  The boot line, the state, the version and the credit are on the void bar,
+  and the wordmark on the void tab.
 */
 .splash__scrim {
   position: absolute;
   inset: 0;
   background: linear-gradient(
     180deg,
-    rgb(var(--sp-void) / 0.74) 0%,
-    rgb(var(--sp-void) / 0.4) 18%,
+    rgb(var(--sp-void) / 0.8) 0%,
+    rgb(var(--sp-void) / 0.66) 10%,
+    rgb(var(--sp-void) / 0.3) 22%,
     rgb(var(--sp-void) / 0) 36%
   );
 }
@@ -365,13 +381,29 @@
   the title band and is set large under it, and the credit has room in the bar.
 */
 @media (min-height: 400px) {
+  /*
+    Darker again behind the lockup, set large here over the bright sky, and
+    only there: a band dark enough for the tagline would reach the children
+    below it.
+  */
   .splash__scrim {
-    background: linear-gradient(
-      180deg,
-      rgb(var(--sp-void) / 0.66) 0%,
-      rgb(var(--sp-void) / 0.52) 15%,
-      rgb(var(--sp-void) / 0) 34%
-    );
+    background:
+      radial-gradient(
+        ellipse 32% 30% at 12% 16%,
+        rgb(var(--sp-void) / 0.42) 0%,
+        rgb(var(--sp-void) / 0.3) 45%,
+        rgb(var(--sp-void) / 0) 100%
+      ),
+      linear-gradient(
+        180deg,
+        rgb(var(--sp-void) / 0.66) 0%,
+        rgb(var(--sp-void) / 0.52) 15%,
+        rgb(var(--sp-void) / 0) 34%
+      );
+  }
+  /* The boy in the full window, whose 16:10 crops the photograph's foot. */
+  .splash__photo {
+    transform-origin: 47.5% 59%;
   }
   .splash__lockup {
     top: max(64px, calc(var(--sp-unit) * 76));
@@ -429,10 +461,10 @@
   .splash__lockup {
     animation-name: splash-fade;
   }
-  .splash,
-  .splash--exit {
-    transition: opacity 480ms ease;
-    transform: none;
+  .splash__photo,
+  .splash--exit .splash__photo {
+    scale: none;
+    transition: none;
   }
   #splash {
     transition: none;

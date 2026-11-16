@@ -68,21 +68,25 @@ export const REPO_URL = "https://github.com/rexionmars/TERRA"
  * The photograph the splash and the start screen are set on: the ground the
  * application observes, seen from where people stand on it.
  *
- * Peter Godfrey's "Two children filling a container at a rural water tap", on
- * Pexels. The Pexels licence asks for no credit and allows use in an
- * application; it forbids showing identifiable people in a bad light and
- * implying that the people in a picture endorse a product. So the picture
- * carries no claim, no quote and no caption that speaks for them, and it is
- * credited anyway, by name and with a way to the source.
+ * Ahmed Akacha's photograph of children playing in a rain puddle among the
+ * tents of a camp in Idlib, Syria, on Pexels. The Pexels licence asks for no
+ * credit and allows use in an application; it forbids showing identifiable
+ * people in a bad light and implying that the people in a picture endorse a
+ * product. So the picture carries no claim, no quote and no caption that
+ * speaks for them, and it is credited anyway, by name and with a way to the
+ * source.
  *
- * The files are resized from the 6016x4015 original with Lanczos and passed
+ * The files are resized from the 5472x3648 original with Lanczos and passed
  * through cwebp -q 82, as docs/RELEASING.md encodes the stills:
- * terra-splash-water-tap.webp at 2400 px wide and its 840 px copy for the
- * boot window, and terra-start-water-tap.webp, cropped at full width from
- * y 650 to 3177 to the start card's 500:210 and resized to 1600x672.
+ * terra-splash-puddle.webp at 2880 px wide, the full window's width at twice
+ * its density, so the splash's push-in does not soften it much, and its
+ * 840 px copy for the 420x280 boot window; and terra-start-puddle.webp,
+ * cropped at full width from y 300 to 2598 to the start card's 500:210 and
+ * resized to 1600x672, which sets the children's heads just under the card's
+ * darkened top, where the lockup is set.
  */
 export const BRAND_PHOTO = {
-  author: "Peter Godfrey",
+  author: "Ahmed Akacha",
   license: "Pexels",
-  source: "https://www.pexels.com/photo/13613219/",
+  source: "https://www.pexels.com/photo/10629417/",
 }

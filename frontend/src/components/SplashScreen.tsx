@@ -33,7 +33,7 @@ function preBundleElapsed(): number {
 }
 
 type SplashScreenProps = {
-  /** When true, fade/scale out before the main window opens. */
+  /** When true, fade out, the photograph pushing on, before the main window opens. */
   exiting?: boolean
   /**
    * Whether this is the real boot.
@@ -137,9 +137,9 @@ export function SplashScreen({ exiting = false, live = true }: SplashScreenProps
       <div className="splash__scene" aria-hidden>
         <img
           className="splash__photo"
-          srcSet="/terra-splash-water-tap-840.webp 840w, /terra-splash-water-tap.webp 2400w"
+          srcSet="/terra-splash-puddle-840.webp 840w, /terra-splash-puddle.webp 2880w"
           sizes="100vw"
-          src="/terra-splash-water-tap.webp"
+          src="/terra-splash-puddle.webp"
           alt=""
         />
         <div className="splash__scrim" />
