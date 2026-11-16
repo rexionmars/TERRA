@@ -207,3 +207,37 @@ def test_the_packages_this_repository_builds_still_load(tmp_path, source):
         entry.update(sha256='0' * 64, size=0)
     (tmp_path / 'model.json').write_text(json.dumps(raw))
     assert models.load(tmp_path).task == 'land_cover'
+
+
+# gp_series 0.1.0 as published in terra_signal_spectrum (models/gp_series/package),
+# copied here byte for byte with the digest both validators gave it there.
+GP_SERIES = Path(__file__).resolve().parent / 'data' / 'gp_series' / 'package'
+GP_SERIES_DIGEST = '2055cc9e731cc3d9714e0f7544b45152ad0cbe6b9ae897e38bc1e2a68810a132'
+
+
+def test_a_gp_series_package_of_one_parameters_file_is_a_time_series_model(tmp_path):
+    pkg = models.load(_package(tmp_path, family='gp_series', files={'parameters': b'{}'},
+                               suffix='.json', task='time_series', classes=None))
+    models.verify(pkg)
+    assert (pkg.family, pkg.task, pkg.classes) == ('gp_series', models.TIME_SERIES, ())
+
+
+def test_a_gp_series_package_without_its_parameters_is_refused(tmp_path):
+    _package(tmp_path, family='gp_series', files={'weights': b'{}'}, suffix='.json',
+             task='time_series', classes=None)
+    with pytest.raises(models.PackageError, match='lacks the parameters'):
+        models.load(tmp_path)
+
+
+def test_a_gp_series_package_cannot_claim_to_classify_land_cover(tmp_path):
+    _package(tmp_path, family='gp_series', files={'parameters': b'{}'}, suffix='.json')
+    with pytest.raises(models.PackageError, match='does time_series and not land_cover'):
+        models.load(tmp_path)
+
+
+def test_the_published_gp_series_package_loads_and_verifies_with_its_digest():
+    pkg = models.load(GP_SERIES)
+    models.verify(pkg)
+    assert (pkg.id, pkg.version, pkg.family, pkg.task) == (
+        'gp_series', '0.1.0', 'gp_series', 'time_series')
+    assert pkg.digest == GP_SERIES_DIGEST
