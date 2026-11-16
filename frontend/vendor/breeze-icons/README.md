@@ -19,13 +19,13 @@ Copied from the `icons/` tree of KDE's `breeze-icons` repository at commit
   containing the elements" that the clarification in that file asks for.
 - File contents are unmodified.
 
-Only the 128 files the generator's table names are taken, out of roughly
+Only the 44 files the generator's table names are taken, out of roughly
 eleven thousand. Each keeps its upstream path, `icons/<context>/<size>/<name>.svg`.
 
 ## Aliases are stored as copies
 
-Upstream reaches many names through symbolic links: `download` is a link to
-`edit-download`, `search` to `edit-find`. 30 of the files here are such names.
+Upstream reaches many names through symbolic links: `download`, for one, is a
+link to `edit-download`. 12 of the files here are such names.
 They are stored as regular files under the name the table asks for, holding the
 bytes of the link's target, so that the table reads as what was chosen and the
 tree works on a filesystem or an archive that does not keep links.
@@ -38,7 +38,7 @@ occasional `rect` or `g`. Colour is not literal in most of them: a path asks for
 -- that an embedded stylesheet resolves to a colour of the desktop's scheme.
 
 The generator drops that stylesheet and the classes, so every glyph paints in
-the colour of the text it sits in. Six files also carry a literal colour; what
+the colour of the text it sits in. Four files also carry a literal colour; what
 each becomes is written in the generator's `RECOLOUR` table, and a literal it
 has not been told about is an error.
 
