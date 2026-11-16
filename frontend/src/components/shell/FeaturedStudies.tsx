@@ -4,8 +4,8 @@ import { CaretLeft, CaretRight } from "@/components/icons"
 import { STUDIES, type Study } from "@/lib/featuredStudies"
 
 /*
-  A slide is as wide as a column of the model grid above it, so a study card
-  lines up under a model card. The grid's columns are at least 26rem with a
+  A slide is as wide as a column of the model grid below it, so a study card
+  lines up over a model card. The grid's columns are at least 26rem with a
   1rem gap, so it holds two from 53rem and one below; a third would need 80rem,
   more than the page's 68rem of content. The row is the container measured.
 */
