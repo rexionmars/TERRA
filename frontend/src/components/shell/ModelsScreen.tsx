@@ -1,11 +1,15 @@
-import { useEffect, useState } from "react"
+import { useEffect, useRef, useState } from "react"
 
 import {
   ImportModel,
   PickModelPackage,
   RemoveModel,
 } from "../../../wailsjs/go/main/App"
-import { BrowserOpenURL } from "../../../wailsjs/runtime/runtime"
+import {
+  BrowserOpenURL,
+  OnFileDrop,
+  OnFileDropOff,
+} from "../../../wailsjs/runtime/runtime"
 import {
   ArrowsClockwise,
   CaretRight,
@@ -23,6 +27,7 @@ import { ConfirmDelete } from "@/components/ui/ConfirmDelete"
 import { ModalHeader, ModalShell } from "@/components/ui/ModalShell"
 import { btnGhost, btnPrimaryCommit } from "@/components/ui/buttons"
 import { MAPBIOMAS_CLASS_LEGEND } from "@/lib/classPalette"
+import { droppedPackage } from "@/lib/packageDrop"
 import {
   fileSize,
   LAND_COVER,
@@ -155,10 +160,11 @@ export function ModelsScreen({
   const row = rows.find((r) => r.id === open) ?? null
   const coming = row ? null : (upcoming.find((u) => u.id === open) ?? null)
 
-  const importPackage = async () => {
+  // A package chosen in the file dialog or dropped on the trust dialog.
+  const importPackage = async (dropped?: string) => {
     setAsking(false)
     try {
-      const path = await PickModelPackage()
+      const path = dropped ?? (await PickModelPackage())
       if (!path) return
       const info = (await ImportModel(path)) as unknown as ModelInfo
       await refreshModels()
@@ -232,6 +238,7 @@ export function ModelsScreen({
         <TrustDialog
           onCancel={() => setAsking(false)}
           onConfirm={() => void importPackage()}
+          onDrop={(path) => void importPackage(path)}
         />
       )}
     </div>
@@ -927,17 +934,40 @@ function PictureCredit({ credit }: { credit: ModelPicture | null }) {
 }
 
 /**
- * Said before the file is chosen, not after: a package's weights are pickles,
- * and loading one runs whatever it says. The digests in its manifest pin it to
- * what it was when installed; they say nothing of who made it.
+ * Said before the file is chosen, not after: a land-cover package's weights
+ * are pickles, and loading one runs whatever it says. The digests in its
+ * manifest pin it to what it was when installed; they say nothing of who made
+ * it.
+ *
+ * A package dropped on the dialog is taken as chosen: it is dropped where this
+ * warning is read. Only the drop area takes one (--wails-drop-target, main.go),
+ * so a file let go elsewhere on the window installs nothing.
  */
 function TrustDialog({
   onCancel,
   onConfirm,
+  onDrop,
 }: {
   onCancel: () => void
   onConfirm: () => void
+  onDrop: (path: string) => void
 }) {
+  // Registered once while the dialog is open; the handler is read through a
+  // ref, so a render does not take the listener down in the middle of a drag.
+  const dropped = useRef(onDrop)
+  dropped.current = onDrop
+  useEffect(() => {
+    OnFileDrop((_x, _y, paths) => {
+      const drop = droppedPackage(paths)
+      if (!drop) return
+      if ("refusal" in drop) {
+        notifyError("The model could not be installed", drop.refusal)
+      } else {
+        dropped.current(drop.path)
+      }
+    }, true)
+    return () => OnFileDropOff()
+  }, [])
   return (
     <ModalShell
       onDismiss={onCancel}
@@ -948,8 +978,16 @@ function TrustDialog({
         eyebrow="IMPORT A MODEL"
         titleId="trust-title"
         title="Only from a source you trust"
-        subtitle="A model's files are loaded with Python's pickle, which can run code on this machine. TERRA checks that a package's files match its manifest, before installing and before every run, but it cannot tell who made them. Import a package you trained, or one from someone you trust."
+        subtitle="A land-cover model's files are loaded with Python's pickle, which can run code on this machine; a model of any other task holds only JSON and NPZ, read without running anything. TERRA checks that a package's files match its manifest, before installing and before every run, but it cannot tell who made them. Import a package you trained, or one from someone you trust."
       />
+      <div className="px-4 pb-4">
+        <div
+          style={{ "--wails-drop-target": "drop" } as React.CSSProperties}
+          className="rounded-md border border-dashed border-border px-4 py-6 text-center text-label text-muted-foreground transition-colors [&.wails-drop-target-active]:border-primary [&.wails-drop-target-active]:text-foreground"
+        >
+          Or drop the package here: its .zip, or its folder.
+        </div>
+      </div>
       <div className="flex shrink-0 justify-end gap-2 border-t border-border px-4 py-3">
         <button type="button" onClick={onCancel} className={btnGhost}>
           Cancel
