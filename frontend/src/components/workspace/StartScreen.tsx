@@ -40,10 +40,10 @@ const RECENT_SHOWN = 5
   the licence's terms and how the file was produced.
 */
 const START_PICTURE = {
-  path: "/terra-start-water-tap.webp",
+  path: "/terra-start-puddle.webp",
   subject:
-    "two children at a concrete water tap in a dry field, filling a yellow " +
-    "jerrycan, under a blue sky with hills behind",
+    "children playing in a rain puddle among tents, under a grey sky with a " +
+    "rocky hill behind",
 }
 
 /*
@@ -218,8 +218,8 @@ export function StartScreen({
       >
         {/*
           The picture at the card's width, under the void scrim, with the
-          lockup, the version and the credit over its sky and the tab at its
-          foot. The picture and its type stay dark in either theme, as the
+          lockup, the version and the credit over the sky at its top and the
+          tab at its foot. The picture and its type stay dark in either theme, as the
           splash does; the tab takes the panel's colour.
 
           Not clipped, so the wordmark can run down past the picture's foot
@@ -235,12 +235,11 @@ export function StartScreen({
           />
           {/*
             Dark at the top for the lines set on the sky, and clear from the
-            middle down, so the people and the ground are shown as they were
+            middle down, so the children and the ground are shown as they were
             taken. Measured at the card's size, against the brightest pixel
-            under each line, in the line's own colour: the tagline 6.49, the
-            version 7.21, the credit 5.42. The credit read 4.55 at 80% bone, so
-            it is set at the version's 92%. The wordmark is on the tab, in the
-            panel's own text colour.
+            under each line, in the line's own colour: the tagline 4.73, the
+            version 9.94, the credit 5.71 at the version's 92% bone (4.78 at
+            80%). The wordmark is on the tab, in the panel's own text colour.
           */}
           <div
             className="absolute inset-0"
