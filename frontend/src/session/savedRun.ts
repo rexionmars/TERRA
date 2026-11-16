@@ -6,6 +6,7 @@ import type { Area } from "@/lib/areas"
 import { useAuth } from "@/lib/auth"
 import { notifyError, notifySuccess } from "@/lib/notify"
 import { parsePreferenceExtras } from "@/lib/preferenceExtras"
+import { runKindLabel } from "@/lib/runSummary"
 import type {
   FieldsAnalysis,
   GeoJSONGeometry,
@@ -122,7 +123,12 @@ export function useSavedRunLoader({
         setResult(isClassification ? res : null)
         setCurrentRunId(run.id)
         setShowPredictionOverlay(true)
-        if (isModelKind(run.model_kind)) setModelKind(run.model_kind)
+        // Only a classification's model_kind names a classifier: a radar run's
+        // names its collection and a trajectory run's a time-series model,
+        // and either set here made the next classification run with it.
+        if (runKindLabel(run.kind) === "class" && isModelKind(run.model_kind)) {
+          setModelKind(run.model_kind)
+        }
         const extras = parsePreferenceExtras(prefs?.extras_json)
         // The ground the run was measured on names it, where the project's own
         // AOI label used to. A run of a ground in another project resolves to
