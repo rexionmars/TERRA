@@ -1,6 +1,6 @@
 {
   "format": 1,
-  "version": "1.0.0",
+  "version": "1.0.1",
   "task": "land_cover",
   "classes": [
     3,
@@ -73,10 +73,10 @@
     "source": "Melo, Magalhães, Kolodziej and Kuhn, Automatic Land Cover Classification with Sentinel-2 and MapBiomas Time Series, SBrT 2026"
   },
   "picture": {
-    "author": "Parzeus, from MapBiomas Collection 10",
-    "license": "CC BY 4.0",
-    "source": "https://commons.wikimedia.org/wiki/File:Brazil_-_Paran%C3%A1_land_use_change_1985-2024_-_MapBiomas.gif",
-    "subject": "western Paraná in the MapBiomas Collection 10 map for 2024, with Iguaçu National Park: farming in cream, forest in green, towns in red. Not this model's output"
+    "author": "João Leonardi, in TERRA",
+    "license": "MIT; imagery © Esri",
+    "source": "https://www.arcgis.com/home/item.html?id=10df2279f9684e4a9f6a7f08febac2a9",
+    "subject": "this model's classification of an area in Mato Grosso, outside the western Paraná it was fitted for, drawn in TERRA over Esri World Imagery"
   },
   "files": {
     "model": {

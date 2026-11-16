@@ -47,11 +47,12 @@ import (
 const (
 	catalogFormat = 1
 	// maxCatalog bounds what is read of a catalogue: each entry inlines a
-	// picture of a few tens of kilobytes, and a few hundred entries fit.
+	// picture of about a hundred kilobytes, and over a hundred entries fit.
 	maxCatalog = 16 << 20
 	// maxPictureURI bounds the picture of a model in preparation, as a data
-	// URI: about eight times the pictures published today (some 34 kB), so
-	// that sixty-four of them still fit in maxCatalog.
+	// URI: about twice the pictures published today (some 125 kB, a capture
+	// of the model's output 1280 pixels wide), so that sixty-four of them
+	// still fit in maxCatalog.
 	maxPictureURI = 256 << 10
 	// progressEvery is how often a download reports, so the interface is told
 	// often enough to move a bar and not so often that it is flooded.
