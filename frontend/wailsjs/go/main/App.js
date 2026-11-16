@@ -38,6 +38,10 @@ export function AnalyzeRadar(arg1) {
   return window['go']['main']['App']['AnalyzeRadar'](arg1);
 }
 
+export function AnalyzeTrajectory(arg1) {
+  return window['go']['main']['App']['AnalyzeTrajectory'](arg1);
+}
+
 export function AnalyzeWater(arg1) {
   return window['go']['main']['App']['AnalyzeWater'](arg1);
 }

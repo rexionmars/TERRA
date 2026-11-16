@@ -11,7 +11,12 @@
  * knowing what a product asks for.
  */
 import { MIN_PERIOD_DAYS, fieldWindows } from "@/lib/fields"
-import { installedModel, modelName, modelsLoaded } from "@/lib/installedModels"
+import {
+  installedModel,
+  modelName,
+  modelsLoaded,
+  trajectoryModel,
+} from "@/lib/installedModels"
 import { isJobKind, type JobKind } from "@/lib/jobs"
 import type { BoardToolId } from "@/lib/mapTools"
 
@@ -79,6 +84,9 @@ export function productOffered(tool: BoardToolId, p: ProductRunProps): boolean {
     case "radar":
     case "zones":
       return !!p.onQueueJobs
+    // A model the reader installs runs it; without one there is nothing to run.
+    case "trajectory":
+      return !!p.onQueueJobs && !!trajectoryModel()
     default:
       return true
   }
@@ -163,6 +171,8 @@ export function productRun(tool: BoardToolId, p: ProductRunProps): ProductRun {
       return job("radar", "Queue radar run")
     case "zones":
       return job("zones", "Queue zones run")
+    case "trajectory":
+      return job("trajectory", "Queue trajectory run")
     default:
       return {
         running: p.running,

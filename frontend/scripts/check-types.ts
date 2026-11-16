@@ -60,6 +60,7 @@ const GO_FILES = [
   "types_models.go",
   "types_radar.go",
   "types_zones.go",
+  "types_trajectory.go",
 ]
 const TS = join(here, "..", "src", "lib", "types.ts")
 

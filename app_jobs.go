@@ -20,13 +20,14 @@ import (
 // area to make its fields, and the queue exists for the fields once they are
 // made.
 const (
-	JobClassify = "classify"
-	JobWater    = "water"
-	JobMineral  = "mineral"
-	JobHealth   = "health"
-	JobOverlap  = "overlap"
-	JobRadar    = "radar"
-	JobZones    = "zones"
+	JobClassify   = "classify"
+	JobWater      = "water"
+	JobMineral    = "mineral"
+	JobHealth     = "health"
+	JobOverlap    = "overlap"
+	JobRadar      = "radar"
+	JobZones      = "zones"
+	JobTrajectory = "trajectory"
 )
 
 /*
@@ -42,14 +43,15 @@ type JobSpec struct {
 	Kind string `json:"kind"`
 	// AreaName is what the job list calls the area; the request's AreaID is
 	// which one it is.
-	AreaName string                   `json:"area_name"`
-	Classify *analysis.PredictRequest `json:"classify,omitempty"`
-	Water    *analysis.WaterRequest   `json:"water,omitempty"`
-	Mineral  *analysis.MineralRequest `json:"mineral,omitempty"`
-	Health   *analysis.HealthRequest  `json:"health,omitempty"`
-	Overlap  *analysis.OverlapRequest `json:"overlap,omitempty"`
-	Radar    *analysis.RadarRequest   `json:"radar,omitempty"`
-	Zones    *analysis.ZonesRequest   `json:"zones,omitempty"`
+	AreaName   string                      `json:"area_name"`
+	Classify   *analysis.PredictRequest    `json:"classify,omitempty"`
+	Water      *analysis.WaterRequest      `json:"water,omitempty"`
+	Mineral    *analysis.MineralRequest    `json:"mineral,omitempty"`
+	Health     *analysis.HealthRequest     `json:"health,omitempty"`
+	Overlap    *analysis.OverlapRequest    `json:"overlap,omitempty"`
+	Radar      *analysis.RadarRequest      `json:"radar,omitempty"`
+	Zones      *analysis.ZonesRequest      `json:"zones,omitempty"`
+	Trajectory *analysis.TrajectoryRequest `json:"trajectory,omitempty"`
 }
 
 // startJobs creates the queue, announcing its changes to the interface.
@@ -270,6 +272,21 @@ func (a *App) jobWork(spec JobSpec) (string, jobs.Work, error) {
 		}
 		return req.AreaID, func(ctx context.Context, report func(int, string)) (string, error) {
 			res, err := a.analyzeZones(analysis.WithProgress(ctx, relay(report)), *req)
+			if err != nil {
+				return "", err
+			}
+			return res.RunID, nil
+		}, nil
+	case JobTrajectory:
+		req := spec.Trajectory
+		if req == nil {
+			return "", nil, errors.New("an NDVI trajectory job carries no request")
+		}
+		if err := jobGround(req.PolygonGeoJSON, req.AreaID); err != nil {
+			return "", nil, err
+		}
+		return req.AreaID, func(ctx context.Context, report func(int, string)) (string, error) {
+			res, err := a.analyzeTrajectory(analysis.WithProgress(ctx, relay(report)), *req)
 			if err != nil {
 				return "", err
 			}

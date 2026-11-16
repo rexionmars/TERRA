@@ -176,6 +176,11 @@
     boundaries (h 110), whose fields it divides, and 20 to the season (h 60).
   */
   --p-kind-zones: 188 152 91;
+  /*
+    The NDVI trajectory, at L 0.699 and C 0.09, at h 308: 38 degrees to the
+    overlap (h 270) and 37 to the mineral map (h 345), the nearest two.
+  */
+  --p-kind-trajectory: 174 143 202;
 
   /*
     THE FOLDER, AS STUDIO ICONS DRAWS IT.
@@ -556,6 +561,7 @@
   --p-kind-overlap: 93 111 166;
   --p-kind-radar: 46 123 156;
   --p-kind-zones: 141 107 45;
+  --p-kind-trajectory: 128 99 154;
 
   /* The folder a step deeper than the dark block's, so the tan still holds a
      shape against paper; the seam and the glyph follow it down. */

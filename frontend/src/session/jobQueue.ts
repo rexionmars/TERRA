@@ -1,4 +1,5 @@
 import type { Area } from "@/lib/areas"
+import { trajectoryModel } from "@/lib/installedModels"
 import type { JobKind, JobSpec } from "@/lib/jobs"
 import type { MineralRunOptions } from "@/lib/mineral"
 import { notifyError, notifySuccess } from "@/lib/notify"
@@ -10,6 +11,7 @@ import {
   overlapRequest,
   predictRequest,
   radarRequest,
+  trajectoryRequest,
   waterRequest,
   zonesRequest,
   type RequestContext,
@@ -65,6 +67,12 @@ export function useJobQueue({
       notifyError("Set the acquisition period.")
       return
     }
+    // The model is chosen when the runs are queued, so every area runs the same one.
+    const model = trajectoryModel()?.manifest
+    if (kind === "trajectory" && !model) {
+      notifyError("No time-series model is installed. Get one from Models.")
+      return
+    }
     if (kind === "mineral") {
       try {
         const status = await GetEarthdataStatus()
@@ -93,11 +101,17 @@ export function useJobQueue({
                 ? { kind, area_name: a.name, radar: radarRequest(g, context) }
                 : kind === "zones"
                   ? { kind, area_name: a.name, zones: zonesRequest(g, context) }
-                  : {
-                      kind,
-                      area_name: a.name,
-                      mineral: mineralRequest(g, context, mineralOptions),
-                    }
+                  : kind === "trajectory" && model
+                    ? {
+                        kind,
+                        area_name: a.name,
+                        trajectory: trajectoryRequest(g, context, model),
+                      }
+                    : {
+                        kind,
+                        area_name: a.name,
+                        mineral: mineralRequest(g, context, mineralOptions),
+                      }
     })
     try {
       const queued = await QueueJobs(specs as never)

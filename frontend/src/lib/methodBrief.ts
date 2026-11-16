@@ -20,7 +20,7 @@
  * so the panel reports THIS run: the dates the reader set, the cloud ceiling
  * they chose, and the cadence that follows from the toggle beside them.
  */
-import { installedModel, modelName } from "@/lib/installedModels"
+import { installedModel, modelName, trajectoryModel } from "@/lib/installedModels"
 import type { BoardToolId } from "@/lib/mapTools"
 import type { ModelFact, ModelKind } from "@/lib/types"
 import { fieldWindows, MIN_PERIOD_DAYS } from "@/lib/fields"
@@ -489,6 +489,45 @@ function zonesBrief(i: MethodInputs): MethodBrief {
   }
 }
 
+function trajectoryBrief(i: MethodInputs): MethodBrief {
+  const m = trajectoryModel()?.manifest
+  return {
+    subtitle:
+      "A daily NDVI and its interval, fitted to the Sentinel-2 series by a time-series model",
+    source: "sidecar/terra/trajectory",
+    sections: [
+      {
+        title: "Acquisition",
+        lines: [
+          "Sentinel-2 L2A through the Planetary Computer STAC catalogue",
+          `every scene from ${i.start || "the start"} to ${i.end || "the end"}, whatever its cloud cover: the scene classification judges each pixel`,
+          "no data, saturated, cloud shadow, cloud and thin cirrus pixels left out",
+          "B02, B03, B04 and B08 as reflectance, the BOA offset added; NDVI and EVI per pixel",
+          "per acquisition, the median of each over the area's clear pixels",
+        ],
+      },
+      m
+        ? {
+            title: "Model",
+            lines: [`${m.name} ${m.version}`, ...(m.method ?? []).map(fact)],
+          }
+        : {
+            title: "Model",
+            lines: ["no time-series model is installed"],
+            note: "Install one from Models: what it reads and how it works come with its package.",
+          },
+      {
+        title: "Interval",
+        lines: [
+          "the scale of the region the area lies in, where the model was calibrated on it",
+          "the model's global scale elsewhere, and within 2 km of a state border",
+        ],
+        note: "The interval widens where clear dates are far apart: there the trajectory is what the model carries across the gap, not what a satellite saw.",
+      },
+    ],
+  }
+}
+
 /**
  * The brief for what the band is currently set to run.
  *
@@ -516,5 +555,7 @@ export function methodBrief(i: MethodInputs): MethodBrief {
       return radarBrief(i)
     case "zones":
       return zonesBrief(i)
+    case "trajectory":
+      return trajectoryBrief(i)
   }
 }

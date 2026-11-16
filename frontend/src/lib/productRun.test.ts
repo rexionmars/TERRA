@@ -1,4 +1,7 @@
-import { describe, expect, it, vi } from "vitest"
+import { afterEach, describe, expect, it, vi } from "vitest"
+
+import { setInstalledModels } from "./installedModels"
+import type { ModelInfo } from "./types"
 import {
   activeRuns,
   productOffered,
@@ -88,6 +91,36 @@ describe("productRun", () => {
     expect(productOffered("mineral", props({ onRunMinerals: undefined }))).toBe(false)
     expect(productOffered("health", props({ onQueueJobs: undefined }))).toBe(false)
     expect(productOffered("classify", props({ onQueueJobs: undefined }))).toBe(true)
+  })
+})
+
+describe("the NDVI trajectory", () => {
+  const installed = (id: string, family: string, task: string) =>
+    ({ manifest: { id, version: "0.1.0", family, task } }) as unknown as ModelInfo
+  afterEach(() => setInstalledModels([]))
+
+  it("is not offered without a time-series model installed", () => {
+    setInstalledModels([])
+    expect(productOffered("trajectory", props())).toBe(false)
+    setInstalledModels([installed("spectral", "feature_rf", "land_cover")])
+    expect(productOffered("trajectory", props())).toBe(false)
+  })
+
+  it("is not offered for a time-series model of a family it does not run", () => {
+    setInstalledModels([installed("events", "series_events", "time_series")])
+    expect(productOffered("trajectory", props())).toBe(false)
+  })
+
+  it("is offered once a gp_series model is installed, and runs as a job", () => {
+    setInstalledModels([installed("gp_series", "gp_series", "time_series")])
+    expect(productOffered("trajectory", props())).toBe(true)
+    expect(productOffered("trajectory", props({ onQueueJobs: undefined }))).toBe(false)
+    const onQueueJobs = vi.fn()
+    const run = productRun("trajectory", props({ onQueueJobs }))
+    expect(run.label).toBe("Queue trajectory run")
+    expect(productRun("trajectory", props({ end: "" })).blocked).toMatch(/both dates/)
+    run.onRun()
+    expect(onQueueJobs).toHaveBeenCalledWith("trajectory")
   })
 })
 

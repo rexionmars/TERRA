@@ -231,6 +231,27 @@ describe("modelDisplayName", () => {
 describe("runRowLine", () => {
   const period = { period_start: "2024-01-01", period_end: "2024-03-31" }
 
+  it("gives a trajectory run the dates its model kept and the scale of its interval", () => {
+    const summary = (scale: string) =>
+      `{"trajectory_n_observations":48,"trajectory_n_kept":38,"trajectory_scale":"${scale}"}`
+    expect(
+      runRowLine({
+        kind: "trajectory",
+        model_kind: "gp_series",
+        ...period,
+        summary: summary("MT"),
+      })
+    ).toBe("NDVI trajectory · 38 of 48 dates kept · Mato Grosso scale")
+    expect(
+      runRowLine({
+        kind: "trajectory",
+        model_kind: "gp_series",
+        ...period,
+        summary: summary("global"),
+      })
+    ).toBe("NDVI trajectory · 38 of 48 dates kept · global scale")
+  })
+
   it("gives a water run its index and its observed acquisition extent", () => {
     expect(
       runRowLine({

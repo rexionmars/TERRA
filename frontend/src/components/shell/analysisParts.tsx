@@ -7,6 +7,7 @@ import {
   LineProductMineral,
   LineProductOverlap,
   LineProductRadar,
+  LineProductTrajectory,
   LineProductWater,
   LineProductZones,
 } from "@/components/lineIcons"
@@ -77,6 +78,12 @@ export const KINDS = [
     label: "Management zones",
     token: "--p-kind-zones",
     icon: LineProductZones,
+  },
+  {
+    id: "trajectory",
+    label: "NDVI trajectory",
+    token: "--p-kind-trajectory",
+    icon: LineProductTrajectory,
   },
 ] as const
 

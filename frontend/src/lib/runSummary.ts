@@ -7,6 +7,7 @@
  * TEXT and rows written by older versions omit keys.
  */
 import { installedModel } from "@/lib/installedModels"
+import { regionName } from "@/lib/trajectory"
 
 export interface RunClassStat {
   class_id: number
@@ -223,6 +224,23 @@ export function runRowLine(run: {
         .filter(Boolean)
         .join(" · ")
     }
+    case "trajectory": {
+      // How many dates the model kept, and the scale of its interval.
+      const j = runSummaryObject(run.summary)
+      const n =
+        typeof j.trajectory_n_observations === "number"
+          ? j.trajectory_n_observations
+          : null
+      const kept = typeof j.trajectory_n_kept === "number" ? j.trajectory_n_kept : null
+      const scale = typeof j.trajectory_scale === "string" ? j.trajectory_scale : ""
+      return [
+        "NDVI trajectory",
+        n != null && kept != null ? `${kept} of ${n} dates kept` : "",
+        scale ? `${regionName(scale)} scale` : "",
+      ]
+        .filter(Boolean)
+        .join(" · ")
+    }
     case "mineral":
       /*
         The observed area beside the AOI, for the reason the summary carries
@@ -267,6 +285,7 @@ export function runKindLabel(kind?: string): string {
   if (kind === "overlap") return "overlap"
   if (kind === "radar") return "radar"
   if (kind === "zones") return "zones"
+  if (kind === "trajectory") return "trajectory"
   return "class"
 }
 

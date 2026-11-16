@@ -15,6 +15,7 @@ export type BoardToolId =
   | "overlap"
   | "radar"
   | "zones"
+  | "trajectory"
 
 /**
  * A product the Products panel lists: every tool but compositions, which are a way
@@ -37,6 +38,7 @@ export const BOARD_TOOLS: readonly BoardTool[] = [
   { id: "mineral", label: "Mineral map" },
   { id: "fields", label: "Field boundaries" },
   { id: "health", label: "Vegetation health" },
+  { id: "trajectory", label: "NDVI trajectory" },
   { id: "overlap", label: "Socio-environmental overlap" },
   { id: "radar", label: "Sentinel-1 radar" },
   { id: "zones", label: "Management zones" },

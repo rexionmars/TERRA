@@ -31,6 +31,7 @@ import {
   MineralResult,
   OverlapResult,
   RadarResult,
+  TrajectoryResult,
   ZonesResult,
 } from "@/components/shell/ProductReadings"
 import {
@@ -184,7 +185,15 @@ function WaterResult({ water }: { water: WaterAnalysis }) {
 
 /** A product a reading can be of. */
 export type ResultProduct =
-  "classify" | "water" | "mineral" | "fields" | "health" | "overlap" | "radar" | "zones"
+  | "classify"
+  | "water"
+  | "mineral"
+  | "fields"
+  | "health"
+  | "overlap"
+  | "radar"
+  | "zones"
+  | "trajectory"
 
 const PRODUCT_LABEL: Record<ResultProduct, string> = {
   classify: "Classification",
@@ -195,6 +204,7 @@ const PRODUCT_LABEL: Record<ResultProduct, string> = {
   overlap: "Registers",
   radar: "Radar",
   zones: "Zones",
+  trajectory: "Trajectory",
 }
 
 /**
@@ -283,6 +293,7 @@ export function ResultPanel({
     ...(job?.overlap ? (["overlap"] as const) : []),
     ...(job?.radar ? (["radar"] as const) : []),
     ...(job?.zones ? (["zones"] as const) : []),
+    ...(job?.trajectory ? (["trajectory"] as const) : []),
     ...(fields ? (["fields"] as const) : []),
     ...(mineral ? (["mineral"] as const) : []),
     ...(water ? (["water"] as const) : []),
@@ -402,6 +413,9 @@ export function ResultPanel({
           {product === "radar" && job?.radar && <RadarResult report={job.radar} />}
           {product === "zones" && job?.zones && (
             <ZonesResult report={job.zones} name={job.label} onPick={onPickZones} />
+          )}
+          {product === "trajectory" && job?.trajectory && (
+            <TrajectoryResult report={job.trajectory} />
           )}
           {remove}
         </div>

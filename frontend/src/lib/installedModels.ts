@@ -88,6 +88,30 @@ export function classifiers(models: readonly ModelInfo[]): ModelInfo[] {
   )
 }
 
+/** The task of a model that fits a trajectory to a series, which the NDVI trajectory runs. */
+export const TIME_SERIES = "time_series"
+/** The one time-series family the NDVI trajectory runs (terra/trajectory). */
+const TRAJECTORY_FAMILY = "gp_series"
+
+/**
+ * The installed models the NDVI trajectory can run, one per id, its newest
+ * version. Another time-series family reads another series, and the sidecar
+ * refuses it for this product by name.
+ */
+export function trajectoryModels(models: readonly ModelInfo[]): ModelInfo[] {
+  return models.filter(
+    (m, i) =>
+      m.manifest.task === TIME_SERIES &&
+      m.manifest.family === TRAJECTORY_FAMILY &&
+      models.findIndex((x) => x.manifest.id === m.manifest.id) === i
+  )
+}
+
+/** The model a trajectory run uses: the first installed, at its newest version. */
+export function trajectoryModel(): ModelInfo | undefined {
+  return trajectoryModels(snapshot.models)[0]
+}
+
 const EARLIER: Record<string, string> = {
   spectral: "Random Forest",
   temporal_transformer: "Temporal Transformer",

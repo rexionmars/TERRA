@@ -3033,6 +3033,98 @@ export namespace analysis {
 		    return a;
 		}
 	}
+	export class TrajectoryModel {
+	    id: string;
+	    version: string;
+	    name: string;
+	    digest: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new TrajectoryModel(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.id = source["id"];
+	        this.version = source["version"];
+	        this.name = source["name"];
+	        this.digest = source["digest"];
+	    }
+	}
+	export class TrajectoryObservation {
+	    date: string;
+	    ndvi: number;
+	    clear_fraction: number;
+	    kept: boolean;
+	
+	    static createFrom(source: any = {}) {
+	        return new TrajectoryObservation(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.date = source["date"];
+	        this.ndvi = source["ndvi"];
+	        this.clear_fraction = source["clear_fraction"];
+	        this.kept = source["kept"];
+	    }
+	}
+	export class TrajectoryAnalysis {
+	    dates: string[];
+	    ndvi: number[];
+	    lower: number[];
+	    upper: number[];
+	    level: number;
+	    observations: TrajectoryObservation[];
+	    scenes_found: number;
+	    scenes_read: number;
+	    min_clear_fraction: number;
+	    region: string;
+	    scale: string;
+	    multiplier: number;
+	    model: TrajectoryModel;
+	    run_id?: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new TrajectoryAnalysis(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.dates = source["dates"];
+	        this.ndvi = source["ndvi"];
+	        this.lower = source["lower"];
+	        this.upper = source["upper"];
+	        this.level = source["level"];
+	        this.observations = this.convertValues(source["observations"], TrajectoryObservation);
+	        this.scenes_found = source["scenes_found"];
+	        this.scenes_read = source["scenes_read"];
+	        this.min_clear_fraction = source["min_clear_fraction"];
+	        this.region = source["region"];
+	        this.scale = source["scale"];
+	        this.multiplier = source["multiplier"];
+	        this.model = this.convertValues(source["model"], TrajectoryModel);
+	        this.run_id = source["run_id"];
+	    }
+	
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
+	}
 	export class Zone {
 	    zone: number;
 	    area_ha: number;
@@ -3464,6 +3556,7 @@ export namespace analysis {
 	    overlap?: OverlapAnalysis;
 	    radar?: RadarAnalysis;
 	    zones?: ZonesAnalysis;
+	    trajectory?: TrajectoryAnalysis;
 	    domain_fingerprint?: DomainFingerprint;
 	    model?: ModelRef;
 	
@@ -3503,6 +3596,7 @@ export namespace analysis {
 	        this.overlap = this.convertValues(source["overlap"], OverlapAnalysis);
 	        this.radar = this.convertValues(source["radar"], RadarAnalysis);
 	        this.zones = this.convertValues(source["zones"], ZonesAnalysis);
+	        this.trajectory = this.convertValues(source["trajectory"], TrajectoryAnalysis);
 	        this.domain_fingerprint = this.convertValues(source["domain_fingerprint"], DomainFingerprint);
 	        this.model = this.convertValues(source["model"], ModelRef);
 	    }
@@ -3588,6 +3682,55 @@ export namespace analysis {
 	    }
 	}
 	
+	
+	
+	
+	export class TrajectoryRequest {
+	    polygon_geojson?: GeoJSONGeometry;
+	    start: string;
+	    end: string;
+	    model_id: string;
+	    model_version?: string;
+	    label?: string;
+	    run_label?: string;
+	    area_id?: string;
+	    project_id?: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new TrajectoryRequest(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.polygon_geojson = this.convertValues(source["polygon_geojson"], GeoJSONGeometry);
+	        this.start = source["start"];
+	        this.end = source["end"];
+	        this.model_id = source["model_id"];
+	        this.model_version = source["model_version"];
+	        this.label = source["label"];
+	        this.run_label = source["run_label"];
+	        this.area_id = source["area_id"];
+	        this.project_id = source["project_id"];
+	    }
+	
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
+	}
 	
 	
 	
@@ -3846,6 +3989,7 @@ export namespace main {
 	    overlap?: analysis.OverlapRequest;
 	    radar?: analysis.RadarRequest;
 	    zones?: analysis.ZonesRequest;
+	    trajectory?: analysis.TrajectoryRequest;
 	
 	    static createFrom(source: any = {}) {
 	        return new JobSpec(source);
@@ -3862,6 +4006,7 @@ export namespace main {
 	        this.overlap = this.convertValues(source["overlap"], analysis.OverlapRequest);
 	        this.radar = this.convertValues(source["radar"], analysis.RadarRequest);
 	        this.zones = this.convertValues(source["zones"], analysis.ZonesRequest);
+	        this.trajectory = this.convertValues(source["trajectory"], analysis.TrajectoryRequest);
 	    }
 	
 		convertValues(a: any, classs: any, asMap: boolean = false): any {

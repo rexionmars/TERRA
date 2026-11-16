@@ -39,6 +39,7 @@ ACTIONS: dict[str, str] = {
     'vegetation_health': 'terra.health.actions:health',
     'socioenvironmental_overlap': 'terra.overlap.actions:overlap',
     'radar_series': 'terra.radar.actions:radar',
+    'series_trajectory': 'terra.trajectory.actions:trajectory',
     'management_zones': 'terra.zones.actions:zones',
     'pdf_report': 'terra.report.actions:pdf_report',
     'biomass_map': 'terra.biomass.actions:biomass_map',

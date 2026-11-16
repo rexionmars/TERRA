@@ -15,6 +15,7 @@ import * as Mineral from "@/components/workspace/mineralNodes"
 import { Figure, Note } from "@/components/workspace/nodeParts"
 import { OverlapReading } from "@/components/workspace/overlapNodes"
 import { RadarReading } from "@/components/workspace/radarNodes"
+import { TrajectoryChart, TrajectoryKey } from "@/components/shell/TrajectoryChart"
 import { ZonesReading } from "@/components/workspace/zonesNodes"
 import { btnGhost } from "@/components/ui/buttons"
 import type { Area } from "@/lib/areas"
@@ -22,14 +23,18 @@ import { filterFields, type FieldsValue } from "@/lib/compositorEval"
 import { parseFields, sceneDate } from "@/lib/fields"
 import type { MineralBand, MineralGroupId } from "@/lib/compositorGraph"
 import { notifyExportFail, notifyExportOk } from "@/lib/notify"
+import { installedModel } from "@/lib/installedModels"
 import { PRODUCT_NOTES } from "@/lib/productNotes"
 import { formatHectares } from "@/lib/runSummary"
+import { shortDate } from "@/lib/season"
+import { ndviText, scaleWords, trajectoryFigures } from "@/lib/trajectory"
 import type {
   FieldsAnalysis,
   HealthAnalysis,
   MineralAnalysis,
   OverlapAnalysis,
   RadarAnalysis,
+  TrajectoryAnalysis,
   ZonesAnalysis,
 } from "@/lib/types"
 import { cn } from "@/lib/utils"
@@ -354,6 +359,69 @@ export function RadarResult({ report }: { report: RadarAnalysis }) {
     <div className="flex flex-col gap-3">
       <RadarReading report={report} />
       <PanelLimit>{PRODUCT_NOTES.radar.limit}</PanelLimit>
+    </div>
+  )
+}
+
+/**
+ * An NDVI trajectory: the chart, the model that drew it and the scale of its
+ * interval, and the limits of that model where its package is still installed
+ * at the version that ran.
+ */
+export function TrajectoryResult({ report }: { report: TrajectoryAnalysis }) {
+  const f = trajectoryFigures(report)
+  const installed = installedModel(report.model.id)
+  const limits =
+    installed?.manifest.version === report.model.version
+      ? (installed.manifest.limits ?? [])
+      : []
+  const read =
+    report.scenes_read < report.scenes_found
+      ? `${report.scenes_read} of ${report.scenes_found} read`
+      : `${report.scenes_found}`
+  return (
+    <div className="flex flex-col gap-3">
+      <TrajectoryChart report={report} />
+      <TrajectoryKey level={report.level} />
+      <div className="flex flex-col gap-1">
+        <Figure label="Model" value={`${report.model.name} ${report.model.version}`} />
+        <Figure label="Interval scale" value={scaleWords(report)} />
+        <Figure
+          label="Dates"
+          value={`${f.used} clear, ${f.kept} used, ${f.setAside} set aside`}
+        />
+        <Figure label="Acquisitions searched" value={read} />
+        {f.last && (
+          <Figure
+            label={`NDVI on ${shortDate(f.last.date)}`}
+            value={`${ndviText(f.last.ndvi)} (${ndviText(f.last.lower)} to ${ndviText(f.last.upper)})`}
+          />
+        )}
+        {f.widest && (
+          <Figure
+            label="Widest interval"
+            value={`${ndviText(f.widest.width)} on ${shortDate(f.widest.date)}`}
+          />
+        )}
+        <Figure label="Package" value={report.model.digest.slice(0, 12)} />
+      </div>
+      <Note>
+        A date counts where at least {Math.round(100 * report.min_clear_fraction)}
+        {"\u00a0"}% of the area is seen clearly; of two orbits on one date the clearer
+        is used.
+      </Note>
+      {limits.length > 0 && (
+        <PanelSection title="Limits of this model">
+          <ul className="flex list-disc flex-col gap-1 pl-4">
+            {limits.map((l) => (
+              <li key={l}>
+                <Note>{l}</Note>
+              </li>
+            ))}
+          </ul>
+        </PanelSection>
+      )}
+      <PanelLimit>{PRODUCT_NOTES.trajectory.limit}</PanelLimit>
     </div>
   )
 }
