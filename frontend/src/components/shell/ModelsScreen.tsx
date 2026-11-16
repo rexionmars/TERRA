@@ -290,6 +290,20 @@ function ModelList({
       <CatalogueNote catalog={catalog} reading={reading} error={error} />
       {listed.length > 0 && <ul className={GRID}>{listed.map(card)}</ul>}
 
+      {/*
+        The models that can run go first, the published and then the imported;
+        the studies and the models not yet published come after them.
+      */}
+      {imported.length > 0 && (
+        <section className="mt-12">
+          <h3 className="text-heading font-medium text-foreground">Imported</h3>
+          <p className="mt-1 text-label text-muted-foreground">
+            Installed from a file, not from the catalogue.
+          </p>
+          <ul className={GRID}>{imported.map(card)}</ul>
+        </section>
+      )}
+
       <FeaturedStudies />
 
       {upcoming.length > 0 && (
@@ -306,16 +320,6 @@ function ModelList({
               </li>
             ))}
           </ul>
-        </section>
-      )}
-
-      {imported.length > 0 && (
-        <section className="mt-12">
-          <h3 className="text-heading font-medium text-foreground">Imported</h3>
-          <p className="mt-1 text-label text-muted-foreground">
-            Installed from a file, not from the catalogue.
-          </p>
-          <ul className={GRID}>{imported.map(card)}</ul>
         </section>
       )}
 
