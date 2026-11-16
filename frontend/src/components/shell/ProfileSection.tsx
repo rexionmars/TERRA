@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type ReactNode } from "react"
+import { useEffect, useRef, useState } from "react"
 
 import { ActivityGrid } from "@/components/ActivityGrid"
 import {
@@ -8,6 +8,7 @@ import {
   Plus,
   UploadSimple,
   User,
+  X,
 } from "@/components/icons"
 import {
   LineDelete,
@@ -23,6 +24,7 @@ import {
   TabbedBanner,
 } from "@/components/ui/TabbedBanner"
 import { btnGhost, btnPrimary } from "@/components/ui/buttons"
+import { MenuGroup, MenuItem, MenuPopover } from "@/components/workspace/MenuPopover"
 import { displayRunLabel } from "@/lib/aoiLabel"
 import { useAuth, type AccountPicture } from "@/lib/auth"
 import { notifyError } from "@/lib/notify"
@@ -63,9 +65,15 @@ const RECENT = 5
   WHO IS SIGNED IN, SET ON THE GROUND THEY READ: a banner on one of the scenes
   of lib/orbitScenes.ts, or on a picture of the reader's own, with the photo and
   the name on the page's ground where it rises into the banner (TabbedBanner),
-  as the catalogue's title is. "Change cover" steps through the uploaded
-  picture and the scenes, and the choice is kept in the preferences, so the
-  banner is theirs rather than one the screen chose.
+  as the catalogue's title is. The cover is chosen from one button on the
+  banner, shown while the pointer is over it: the reader's own picture or one
+  of the scenes, and the choice is kept in the preferences, so the banner is
+  theirs rather than one the screen chose.
+
+  EACH PICTURE IS CHANGED WHERE IT IS SEEN. Pressing the photo or the badge
+  picks a new one, and a cross at its corner, shown on hover, takes it away;
+  the cover's menu uploads and removes the reader's own. Settings has no rows
+  for them, which only repeated what the pictures already do.
 
   The badge of the reader's institution sits above the name, where the eyebrow
   is when there is none. It is drawn on a light plate, because institutions
@@ -148,11 +156,6 @@ export function ProfileSection({
       },
       { silent: true }
     ).catch((e: unknown) => notifyError("The cover could not be kept", e))
-  }
-
-  const nextCover = () => {
-    const next = covers[(Math.max(coverIndex, 0) + 1) % covers.length]
-    keepCover("uri" in next ? UPLOADED_COVER : next.scene.path)
   }
 
   const saveName = async () => {
@@ -248,49 +251,68 @@ export function ProfileSection({
       />
       <section aria-labelledby="profile-name">
         <TabbedBanner
+          className="group/banner"
           held={
             <div className="flex items-end gap-4">
-              <button
-                type="button"
-                disabled={busy}
-                onClick={() => photoInput.current?.click()}
-                title="Change the photo"
-                aria-label="Change the photo"
-                className="group relative size-18 shrink-0 overflow-hidden rounded-md focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
-              >
-                <Portrait uri={user.avatar_uri} name={user.display_name} />
-                <span className="absolute inset-0 grid place-items-center bg-[rgb(4_6_11/0.55)] text-[rgb(236_232_223)] opacity-0 transition-opacity group-hover:opacity-100 group-focus-visible:opacity-100">
-                  {working === "photo" ? (
-                    <CircleNotch className="size-5 animate-spin" />
-                  ) : (
-                    <Camera className="size-5" />
-                  )}
-                </span>
-              </button>
+              <div className="group/photo relative shrink-0">
+                <button
+                  type="button"
+                  disabled={busy}
+                  onClick={() => photoInput.current?.click()}
+                  title="Change the photo: PNG, JPEG or WebP, up to 2 MB. It is also shown at the foot of the rail"
+                  aria-label="Change the photo"
+                  className="group relative block size-18 overflow-hidden rounded-md focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
+                >
+                  <Portrait uri={user.avatar_uri} name={user.display_name} />
+                  <span className="absolute inset-0 grid place-items-center bg-[rgb(4_6_11/0.55)] text-[rgb(236_232_223)] opacity-0 transition-opacity group-hover:opacity-100 group-focus-visible:opacity-100">
+                    {working === "photo" ? (
+                      <CircleNotch className="size-5 animate-spin" />
+                    ) : (
+                      <Camera className="size-5" />
+                    )}
+                  </span>
+                </button>
+                {user.avatar_uri && (
+                  <RemoveCross
+                    label="Remove the photo"
+                    busy={busy}
+                    reveal="group-hover/photo:opacity-100"
+                    onRemove={() => void removePicture("photo")}
+                  />
+                )}
+              </div>
               <div className="min-w-0 pb-0.5">
                 {user.badge_uri ? (
-                  <button
-                    type="button"
-                    disabled={busy}
-                    onClick={() => badgeInput.current?.click()}
-                    title="Change the badge of your institution"
-                    aria-label="Change the badge of your institution"
-                    className="group relative mb-1.5 block overflow-hidden rounded-sm bg-white px-2 py-1 ring-1 ring-border focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
-                  >
-                    <img
-                      src={user.badge_uri}
-                      alt="Badge of your institution"
-                      draggable={false}
-                      className="h-8 w-auto max-w-[14rem] object-contain"
+                  <div className="group/badge relative mb-1.5 w-fit">
+                    <button
+                      type="button"
+                      disabled={busy}
+                      onClick={() => badgeInput.current?.click()}
+                      title={`Change the badge of your institution: ${BADGE_FIT.acceptLabel}, drawn on a light plate`}
+                      aria-label="Change the badge of your institution"
+                      className="group relative block overflow-hidden rounded-sm bg-white px-2 py-1 ring-1 ring-border focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
+                    >
+                      <img
+                        src={user.badge_uri}
+                        alt="Badge of your institution"
+                        draggable={false}
+                        className="h-8 w-auto max-w-[14rem] object-contain"
+                      />
+                      <span className="absolute inset-0 grid place-items-center bg-[rgb(4_6_11/0.55)] text-[rgb(236_232_223)] opacity-0 transition-opacity group-hover:opacity-100 group-focus-visible:opacity-100">
+                        {working === "badge" ? (
+                          <CircleNotch className="size-4 animate-spin" />
+                        ) : (
+                          <UploadSimple className="size-4" />
+                        )}
+                      </span>
+                    </button>
+                    <RemoveCross
+                      label="Remove the badge"
+                      busy={busy}
+                      reveal="group-hover/badge:opacity-100"
+                      onRemove={() => void removePicture("badge")}
                     />
-                    <span className="absolute inset-0 grid place-items-center bg-[rgb(4_6_11/0.55)] text-[rgb(236_232_223)] opacity-0 transition-opacity group-hover:opacity-100 group-focus-visible:opacity-100">
-                      {working === "badge" ? (
-                        <CircleNotch className="size-4 animate-spin" />
-                      ) : (
-                        <UploadSimple className="size-4" />
-                      )}
-                    </span>
-                  </button>
+                  </div>
                 ) : (
                   <div className="flex items-center gap-3">
                     <p className="eyebrow">Profile</p>
@@ -298,7 +320,7 @@ export function ProfileSection({
                       type="button"
                       disabled={busy}
                       onClick={() => badgeInput.current?.click()}
-                      title="Set the logo of your university, laboratory or company above your name"
+                      title={`Set the logo of your university, laboratory or company above your name: ${BADGE_FIT.acceptLabel}`}
                       className="inline-flex items-center gap-1 rounded-sm text-meta text-muted-foreground transition-colors hover:text-foreground focus-visible:ring-1 focus-visible:ring-ring focus-visible:outline-none"
                     >
                       {working === "badge" ? (
@@ -347,30 +369,16 @@ export function ProfileSection({
               </div>
             </>
           )}
-          <div className="absolute right-3 bottom-3 flex items-center gap-2">
-            <button
-              type="button"
-              disabled={busy}
-              onClick={() => coverInput.current?.click()}
-              title={`A picture of your own, ${COVER_FIT.acceptLabel}. Change cover steps through it and the scenes`}
-              className={cn(PHOTO_CHIP, COVER_CHIP)}
-            >
-              {working === "cover" ? (
-                <CircleNotch className="size-3.5 animate-spin" />
-              ) : (
-                <UploadSimple className="size-3.5" />
-              )}
-              Upload cover
-            </button>
-            <button
-              type="button"
-              onClick={nextCover}
-              title={`The cover is one of ${covers.length} pictures; this shows the next`}
-              className={cn(PHOTO_CHIP, COVER_CHIP)}
-            >
-              <ImageSquare className="size-3.5" />
-              Change cover
-            </button>
+          <div className="absolute right-3 bottom-3">
+            <CoverMenu
+              own={Boolean(user.cover_uri)}
+              current={"uri" in cover ? UPLOADED_COVER : cover.scene.path}
+              busy={busy}
+              uploading={working === "cover"}
+              onChoose={keepCover}
+              onUpload={() => coverInput.current?.click()}
+              onRemove={() => void removePicture("cover")}
+            />
           </div>
         </TabbedBanner>
 
@@ -403,42 +411,6 @@ export function ProfileSection({
 
       <div className="mt-10">
         <SettingGroup title="Identity">
-          <SettingRow
-            title="Photo"
-            description="Shown at the foot of the rail. PNG, JPEG or WebP, up to 2 MB."
-          >
-            <PictureButtons
-              has={Boolean(user.avatar_uri)}
-              busy={busy}
-              icon={<Camera className="size-3.5" />}
-              onPick={() => photoInput.current?.click()}
-              onRemove={() => void removePicture("photo")}
-            />
-          </SettingRow>
-          <SettingRow
-            title="Cover"
-            description={`The picture on the banner, in place of the scenes. ${COVER_FIT.acceptLabel}; a larger one is fitted to ${COVER_FIT.box.width} by ${COVER_FIT.box.height} px.`}
-          >
-            <PictureButtons
-              has={Boolean(user.cover_uri)}
-              busy={busy}
-              icon={<UploadSimple className="size-3.5" />}
-              onPick={() => coverInput.current?.click()}
-              onRemove={() => void removePicture("cover")}
-            />
-          </SettingRow>
-          <SettingRow
-            title="Institution badge"
-            description={`The logo of your university, laboratory or company, above your name. ${BADGE_FIT.acceptLabel}, drawn on a light plate.`}
-          >
-            <PictureButtons
-              has={Boolean(user.badge_uri)}
-              busy={busy}
-              icon={<UploadSimple className="size-3.5" />}
-              onPick={() => badgeInput.current?.click()}
-              onRemove={() => void removePicture("badge")}
-            />
-          </SettingRow>
           <SettingRow
             title="Display name"
             description="The name in the rail and in the header of each analysis."
@@ -517,37 +489,140 @@ export function ProfileSection({
   )
 }
 
-/** A chip over the banner's picture, beside the others at its foot. */
+/** A chip over the banner's picture, at its foot. */
 const COVER_CHIP =
-  "flex items-center gap-1.5 px-3 py-1 text-label transition-colors hover:bg-[rgb(4_6_11/0.8)] focus-visible:ring-1 focus-visible:ring-ring focus-visible:outline-none disabled:opacity-60"
+  "flex items-center gap-1.5 px-3 py-1 text-label transition-[background-color,opacity] hover:bg-[rgb(4_6_11/0.8)] focus-visible:ring-1 focus-visible:ring-ring focus-visible:outline-none disabled:opacity-60"
 
-/** Upload, or Replace once there is one, and Remove: the controls of one picture. */
-function PictureButtons({
-  has,
+/**
+ * The banner's one control: the cover, chosen from the reader's own picture
+ * and the scenes, with the upload and the removal of their own beside them.
+ *
+ * Hidden until the pointer is over the banner, so the picture is whole the
+ * rest of the time; shown as well while it has the keyboard's focus, while its
+ * menu is open, and while a cover is being uploaded.
+ */
+function CoverMenu({
+  own,
+  current,
   busy,
-  icon,
-  onPick,
+  uploading,
+  onChoose,
+  onUpload,
   onRemove,
 }: {
-  has: boolean
+  /** The reader has uploaded a picture of their own. */
+  own: boolean
+  /** UPLOADED_COVER, or the path of the scene shown. */
+  current: string
   busy: boolean
-  icon: ReactNode
-  onPick: () => void
+  uploading: boolean
+  onChoose: (choice: string) => void
+  onUpload: () => void
+  onRemove: () => void
+}) {
+  const [open, setOpen] = useState(false)
+  const close = (then: () => void) => () => {
+    setOpen(false)
+    then()
+  }
+  return (
+    <MenuPopover
+      open={open}
+      onOpenChange={setOpen}
+      surface={document.body}
+      align="end"
+      widthRem={17}
+      trigger={(t) => (
+        <button
+          type="button"
+          ref={t.ref}
+          onClick={t.onClick}
+          aria-expanded={t["aria-expanded"]}
+          aria-haspopup={t["aria-haspopup"]}
+          disabled={busy && !uploading}
+          className={cn(
+            PHOTO_CHIP,
+            COVER_CHIP,
+            "opacity-0 group-hover/banner:opacity-100 focus-visible:opacity-100",
+            (open || uploading) && "opacity-100"
+          )}
+        >
+          {uploading ? (
+            <CircleNotch className="size-3.5 animate-spin" />
+          ) : (
+            <ImageSquare className="size-3.5" />
+          )}
+          Change cover
+        </button>
+      )}
+    >
+      <MenuGroup label="Cover">
+        {own && (
+          <MenuItem
+            label="Your picture"
+            checked={current === UPLOADED_COVER}
+            onSelect={close(() => onChoose(UPLOADED_COVER))}
+          />
+        )}
+        {SCENES.map((scene) => (
+          <MenuItem
+            key={scene.path}
+            label={scene.place}
+            checked={current === scene.path}
+            onSelect={close(() => onChoose(scene.path))}
+          />
+        ))}
+      </MenuGroup>
+      <div className="my-1 border-t border-[rgb(var(--p-line)/0.22)]" />
+      <MenuItem
+        icon={UploadSimple}
+        label={own ? "Replace your picture…" : "Upload a picture…"}
+        title={`${COVER_FIT.acceptLabel}; a larger one is fitted to ${COVER_FIT.box.width} by ${COVER_FIT.box.height} px`}
+        disabled={busy}
+        onSelect={close(onUpload)}
+      />
+      {own && (
+        <MenuItem
+          icon={LineDelete}
+          label="Remove your picture"
+          disabled={busy}
+          onSelect={close(onRemove)}
+        />
+      )}
+    </MenuPopover>
+  )
+}
+
+/**
+ * The cross at a picture's top right corner that takes the picture away,
+ * shown with its group's hover and with its own focus.
+ */
+function RemoveCross({
+  label,
+  busy,
+  reveal,
+  onRemove,
+}: {
+  label: string
+  busy: boolean
+  /** The group-hover class that shows it, for Tailwind to see written out. */
+  reveal: string
   onRemove: () => void
 }) {
   return (
-    <div className="flex items-center gap-2">
-      <button type="button" disabled={busy} onClick={onPick} className={btnGhost}>
-        {icon}
-        {has ? "Replace" : "Upload"}
-      </button>
-      {has && (
-        <button type="button" disabled={busy} onClick={onRemove} className={btnGhost}>
-          <LineDelete className="size-3.5" />
-          Remove
-        </button>
+    <button
+      type="button"
+      disabled={busy}
+      onClick={onRemove}
+      title={label}
+      aria-label={label}
+      className={cn(
+        "absolute -top-2 -right-2 grid size-5 place-items-center rounded-full border border-[rgb(var(--p-line)/0.6)] bg-[rgb(var(--p-ink))] text-muted-foreground opacity-0 transition-opacity hover:text-foreground focus-visible:opacity-100 focus-visible:ring-1 focus-visible:ring-ring focus-visible:outline-none",
+        reveal
       )}
-    </div>
+    >
+      <X className="size-3" />
+    </button>
   )
 }
 
