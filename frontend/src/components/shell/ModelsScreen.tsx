@@ -288,7 +288,6 @@ function ModelList({
         installed={rows.filter((r) => r.installed).length}
       />
       <CatalogueNote catalog={catalog} reading={reading} error={error} />
-      {listed.length > 0 && <ul className={GRID}>{listed.map(card)}</ul>}
 
       {/*
         The models that can run go first, the published and then the imported;
@@ -305,6 +304,17 @@ function ModelList({
       )}
 
       <FeaturedStudies />
+
+      {/* Under the studies, so they need a heading of their own to read apart. */}
+      {listed.length > 0 && (
+        <section className="mt-12">
+          <h3 className="text-heading font-medium text-foreground">Published</h3>
+          <p className="mt-1 text-label text-muted-foreground">
+            In the catalogue, ready to download and run on the map.
+          </p>
+          <ul className={GRID}>{listed.map(card)}</ul>
+        </section>
+      )}
 
       {upcoming.length > 0 && (
         <section className="mt-12">
