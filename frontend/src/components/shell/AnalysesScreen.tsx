@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react"
+import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 
 import {
   CaretRight,
@@ -15,16 +15,15 @@ import {
   LineFolderOpen,
   LineSearch,
 } from "@/components/lineIcons"
+import { AnalysisFilters } from "@/components/shell/AnalysisFilters"
 import {
   ClassBar,
-  KINDS,
   RunCard,
   RunPicture,
   clockTime,
   kindOf,
   runTitle,
   tint,
-  type KindId,
 } from "@/components/shell/analysisParts"
 import { ConfirmDelete } from "@/components/ui/ConfirmDelete"
 import { btnGhost, btnGhostDense, btnIcon, btnPrimary } from "@/components/ui/buttons"
@@ -38,13 +37,13 @@ import {
 } from "../../../wailsjs/go/main/App"
 import { useAuth } from "@/lib/auth"
 import { notifyError, notifySuccess } from "@/lib/notify"
-import { groupRuns, type RunBlock } from "@/lib/runBatches"
+import { groupRuns, localDay, type RunBlock } from "@/lib/runBatches"
+import { NO_FILTER, facetRuns, isFiltered, type RunFilter } from "@/lib/runFilters"
 import {
   classifiedAreaHa,
   formatHectares,
   modelDisplayName,
   parseRunSummary,
-  runKindLabel,
   runRowLine,
 } from "@/lib/runSummary"
 import type { InferenceRun, Project } from "@/lib/types"
@@ -71,6 +70,11 @@ const GRID =
   out as they came. A run is named for the area it was made over, with the
   product and what it found under the name, so a batch of twenty-three fields
   reads as twenty-three fields and not as twenty-three timestamps.
+
+  ABOVE THE LOG ARE ITS FILTERS: the product, the model of a classification,
+  the day it was saved and the area (AnalysisFilters.tsx, lib/runFilters.ts).
+  They hold across projects, as the search does, and a choice absent from the
+  project in view chooses nothing there.
 
   ONE PRESS SELECTS, and the analysis is shown in a column at the right with
   what it found and what can be done with it. Two presses open it on the map,
@@ -102,7 +106,7 @@ export function AnalysesScreen({
   const { runs, projects, refreshRuns, refreshProjects } = useAuth()
 
   const [scope, setScope] = useState<Scope>({ scope: "all" })
-  const [product, setProduct] = useState<KindId | null>(null)
+  const [filter, setFilter] = useState<RunFilter>(NO_FILTER)
   const [query, setQuery] = useState("")
   const [selected, setSelected] = useState<string | null>(null)
   const [runMenu, setRunMenu] = useState<{
@@ -149,26 +153,9 @@ export function AnalysesScreen({
     [runs, scope]
   )
 
-  /* The products present where the reader stands, in the table's order. */
-  const products = useMemo(() => {
-    const n = new Map<string, number>()
-    for (const r of inScope) {
-      const k = runKindLabel(r.kind)
-      n.set(k, (n.get(k) ?? 0) + 1)
-    }
-    return KINDS.filter((k) => n.has(k.id)).map((k) => ({
-      kind: k,
-      count: n.get(k.id)!,
-    }))
-  }, [inScope])
-  /* A product chosen in another project, and absent from this one, chooses none. */
-  const shownProduct =
-    product && products.some((p) => p.kind.id === product) ? product : null
-
-  const items = useMemo(() => {
-    const q = query.trim().toLowerCase()
-    return inScope.filter((r) => {
-      if (shownProduct && runKindLabel(r.kind) !== shownProduct) return false
+  const search = useCallback(
+    (r: InferenceRun) => {
+      const q = query.trim().toLowerCase()
       if (!q) return true
       return [
         r.label ?? "",
@@ -177,8 +164,21 @@ export function AnalysesScreen({
         kindOf(r).label,
         scope.scope === "all" && r.project_id ? (names.get(r.project_id) ?? "") : "",
       ].some((t) => t.toLowerCase().includes(q))
-    })
-  }, [inScope, shownProduct, query, scope, names])
+    },
+    [query, scope, names]
+  )
+
+  /*
+    Today as a day rather than an instant, so the counts are taken again when
+    the day changes and not on every render.
+  */
+  const today = localDay(new Date().toISOString())
+  const facets = useMemo(
+    () => facetRuns(inScope, filter, parseDay(today), search),
+    [inScope, filter, today, search]
+  )
+  const items = facets.shown
+  const filtered = isFiltered(facets.filter)
 
   const days = useMemo(() => groupRuns(items), [items])
   const selectedRun = selected ? items.find((r) => r.id === selected) : undefined
@@ -192,7 +192,7 @@ export function AnalysesScreen({
   const scroller = useRef<HTMLDivElement>(null)
   useEffect(() => {
     scroller.current?.scrollTo({ top: 0 })
-  }, [scope, shownProduct])
+  }, [scope, facets.filter])
 
   const go = (next: Scope) => {
     setScope(next)
@@ -419,6 +419,9 @@ export function AnalysesScreen({
               {inScope.length === 0
                 ? "Nothing is filed here yet."
                 : `${inScope.length} ${inScope.length === 1 ? "analysis" : "analyses"}, the latest on ${longDay(latest)}.`}
+              {items.length !== inScope.length &&
+                items.length > 0 &&
+                ` ${items.length} shown.`}
               {project &&
                 (project.id === activeProjectId
                   ? " New runs are filed here."
@@ -456,34 +459,8 @@ export function AnalysesScreen({
               </div>
             )}
 
-            {products.length > 1 && (
-              <div
-                role="radiogroup"
-                aria-label="Product"
-                className="mt-6 flex flex-wrap gap-1.5"
-              >
-                <Pill
-                  on={shownProduct === null}
-                  label="All products"
-                  count={inScope.length}
-                  onSelect={() => setProduct(null)}
-                />
-                {products.map(({ kind, count }) => (
-                  <Pill
-                    key={kind.id}
-                    on={shownProduct === kind.id}
-                    label={kind.label}
-                    count={count}
-                    icon={
-                      <kind.icon
-                        className="size-3.5"
-                        style={{ color: tint(kind.token) }}
-                      />
-                    }
-                    onSelect={() => setProduct(kind.id)}
-                  />
-                ))}
-              </div>
+            {inScope.length > 0 && (
+              <AnalysisFilters facets={facets} surface={surface} onChange={setFilter} />
             )}
 
             {items.length === 0 ? (
@@ -495,18 +472,36 @@ export function AnalysesScreen({
                       ? scope.scope === "project"
                         ? "A run is filed in the project that takes new runs when it is made. Any analysis can be moved here from its menu, or with Move to beside it."
                         : "Nothing here."
-                      : "Nothing here matches the search."
+                      : query.trim() && filtered
+                        ? "Nothing here matches both the search and the filters."
+                        : filtered
+                          ? "Nothing here matches the filters."
+                          : "Nothing here matches the search."
                 }
                 action={
-                  query ? (
-                    <button
-                      type="button"
-                      onClick={() => setQuery("")}
-                      className={btnGhostDense}
-                    >
-                      <X className="size-3.5" />
-                      Clear the search
-                    </button>
+                  query || filtered ? (
+                    <div className="flex flex-wrap gap-2">
+                      {filtered && (
+                        <button
+                          type="button"
+                          onClick={() => setFilter(NO_FILTER)}
+                          className={btnGhostDense}
+                        >
+                          <X className="size-3.5" />
+                          Clear the filters
+                        </button>
+                      )}
+                      {query && (
+                        <button
+                          type="button"
+                          onClick={() => setQuery("")}
+                          className={btnGhostDense}
+                        >
+                          <X className="size-3.5" />
+                          Clear the search
+                        </button>
+                      )}
+                    </div>
                   ) : null
                 }
               />
@@ -743,39 +738,6 @@ function NameField({
       placeholder={label}
       className="field-input my-0.5 text-read focus-visible:ring-1 focus-visible:ring-ring"
     />
-  )
-}
-
-function Pill({
-  on,
-  label,
-  count,
-  icon,
-  onSelect,
-}: {
-  on: boolean
-  label: string
-  count: number
-  icon?: React.ReactNode
-  onSelect: () => void
-}) {
-  return (
-    <button
-      type="button"
-      role="radio"
-      aria-checked={on}
-      onClick={onSelect}
-      className={cn(
-        "inline-flex h-7 items-center gap-1.5 rounded-full border px-3 text-label transition-colors focus-visible:ring-1 focus-visible:ring-ring focus-visible:outline-none",
-        on
-          ? "border-[rgb(var(--p-line-strong)/0.7)] bg-[rgb(var(--p-surface-raised))] text-foreground"
-          : "border-[rgb(var(--p-line)/0.45)] text-muted-foreground hover:bg-hover hover:text-foreground"
-      )}
-    >
-      {icon}
-      {label}
-      <span className="telemetry text-meta text-muted-foreground">{count}</span>
-    </button>
   )
 }
 
