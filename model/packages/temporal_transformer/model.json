@@ -1,6 +1,6 @@
 {
   "format": 1,
-  "version": "1.0.0",
+  "version": "1.0.1",
   "task": "land_cover",
   "classes": [
     3,
@@ -61,10 +61,10 @@
   ],
   "evaluation": null,
   "picture": {
-    "author": "Parzeus, from MapBiomas Collection 10",
-    "license": "CC BY 4.0",
-    "source": "https://commons.wikimedia.org/wiki/File:Brazil_-_Paran%C3%A1_land_use_change_1985-2024_-_MapBiomas.gif",
-    "subject": "eastern Paraná in the MapBiomas Collection 10 map for 2024, with Curitiba and the Atlantic Forest: farming in cream, forest in green, towns in red. Not this model's output"
+    "author": "João Leonardi, in TERRA",
+    "license": "MIT; imagery © Esri",
+    "source": "https://www.arcgis.com/home/item.html?id=10df2279f9684e4a9f6a7f08febac2a9",
+    "subject": "this model's classification of one field, drawn in TERRA with the field boundaries around it, over Esri World Imagery"
   },
   "files": {
     "checkpoint": {

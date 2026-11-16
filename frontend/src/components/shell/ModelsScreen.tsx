@@ -1005,10 +1005,14 @@ function TrustDialog({
 }
 
 /*
-  A land-cover picture is drawn at its own pixels, magnified without smoothing:
-  it is a class map, and an interpolated class map shows colours that belong to
-  no class. The picture of any other task, such as a curve with its band, is
-  smoothed as an image is, or its lines come out jagged.
+  A land-cover picture that is magnified is drawn at its own pixels, without
+  smoothing: it is a class map a few hundred pixels across, and an interpolated
+  class map shows colours that belong to no class. One that is shown smaller
+  than it is, such as a capture of the model's output on the map, is smoothed
+  as an image is, since a reduction without smoothing drops whole rows and cuts
+  thin lines. So is the picture of any other task, such as a curve with its
+  band, or its lines come out jagged. Whether it is magnified is measured once
+  the picture has loaded, against the box it fills.
 */
 function Picture({
   uri,
@@ -1021,6 +1025,7 @@ function Picture({
   credit: ModelPicture | null
   className: string
 }) {
+  const [magnified, setMagnified] = useState<string | null>(null)
   if (!uri) {
     return (
       <span
@@ -1038,9 +1043,19 @@ function Picture({
       alt=""
       title={credit ? `Picture: ${credit.author} · ${credit.license}` : undefined}
       draggable={false}
+      onLoad={(e) => {
+        const img = e.currentTarget
+        // object-cover scales by the larger of the two ratios.
+        const scale =
+          Math.max(
+            img.clientWidth / img.naturalWidth,
+            img.clientHeight / img.naturalHeight
+          ) * window.devicePixelRatio
+        setMagnified(scale > 1 ? uri : null)
+      }}
       className={cn(
         "shrink-0 object-cover",
-        task === LAND_COVER && "[image-rendering:pixelated]",
+        task === LAND_COVER && magnified === uri && "[image-rendering:pixelated]",
         className
       )}
     />
