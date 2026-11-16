@@ -160,6 +160,7 @@ import {
   type FieldSet,
 } from "@/lib/fieldSets"
 import { notifyInfo } from "@/lib/notify"
+import { useWireShape } from "@/session/wireShape"
 import { CATEGORY_ICONS, KIND_ICONS } from "@/components/viewIcons"
 
 /** How wide each kind is drawn: settings at the run graph's width, readings wider. */
@@ -1600,6 +1601,7 @@ export function CompositorEditor({
     that carries them.
   */
   const frameNext = useRef(false)
+  const [wireShape, setWireShape] = useWireShape()
   const arrangeNodes = () => {
     if (!graph.nodes.length) return
     const places = arrange(graph, (n) => ({
@@ -3267,6 +3269,8 @@ export function CompositorEditor({
             apiRef={api}
             onArrange={arrangeNodes}
             onContext={openPie}
+            wireShape={wireShape}
+            onWireShape={setWireShape}
           />
         ) : (
           <div

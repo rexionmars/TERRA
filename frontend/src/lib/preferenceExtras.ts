@@ -1,4 +1,5 @@
 import type { Preferences } from "@/lib/types"
+import { DEFAULT_WIRE_SHAPE, isWireShape, type WireShape } from "@/lib/wirePath"
 
 /*
   NO LAYOUT HERE. `layout_mode` chose between an arrangement with the
@@ -57,6 +58,8 @@ export interface PreferenceExtras {
    * or UPLOADED_COVER for the reader's own picture (ProfileSection).
    */
   profile_cover?: string
+  /** How the wires between cards are drawn in Workflows and Compare (lib/wirePath.ts). */
+  wire_shape?: WireShape
 }
 
 export function parsePreferenceExtras(
@@ -83,6 +86,15 @@ export function alwaysShowWhatsNewFromPrefs(
   prefs: Preferences | null | undefined
 ): boolean {
   return parsePreferenceExtras(prefs?.extras_json).always_show_whats_new === true
+}
+
+/**
+ * The wire shape the reader chose, or the curve the fields always drew. A
+ * value this build does not know, written by a newer one, reads as the curve.
+ */
+export function wireShapeFromPrefs(prefs: Preferences | null | undefined): WireShape {
+  const v = parsePreferenceExtras(prefs?.extras_json).wire_shape
+  return isWireShape(v) ? v : DEFAULT_WIRE_SHAPE
 }
 
 export function mergePreferenceExtras(
