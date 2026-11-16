@@ -7,6 +7,33 @@ export type WhatsNewEntry = {
 /** Newest first. Keep in sync with AppVersion / Git tags when cutting a release. */
 const WHATS_NEW: WhatsNewEntry[] = [
   {
+    version: "0.9.0",
+    title: "Compare on a board, the map's new views, and the golden parakeet",
+    items: [
+      "Compare is a board, as Workflows is. Each run is a node with its raster, each reading is a node added from Add as many times as wanted, and one run feeds any number of readings, where before Compare held the runs on a fixed grid and compared one pair at a time",
+      "The Visualization panel adds SAVI, MSAVI, NDRE, GCI, PSRI, MNDWI, MSI and NBR to NDVI, NDWI, NDMI and EVI, each with its formula shown, reads NDCI and NDTI over open water, and lets a composite put any band in any channel",
+      "New kinds of view: the first three principal components, clusters by k-means, the change in an index between two dates, canopy variables (LAI, fAPAR, fCover, chlorophyll and water) from ESA's SL2P networks, and ESA CCI biomass for 2007 to 2022 with its standard deviation. RGB, Index, Components and Clusters can be drawn from the median of a period's clear observations",
+      "A curtain compares the top raster with what is under it: to the left of a line dragged across the map the top raster is not drawn, so the one beneath shows",
+      "Each product in the list is shown by a picture of the kind of result it returns, where before it was a glyph that named the product a second time",
+      "The mark is a golden parakeet (Guaruba guarouba) flying toward an observation satellite, in a triangle, and the application and .terra icons carry it. The splash shows the Earth turning under three orbits, the start screen a photograph of the parakeet, and the mark in the bar opens the Options menu",
+      "A raster's right-click menu shows and hides its legend on the map, where the entry was always disabled. The map's bin deletes the area after asking, where before it only took it off the map, and a saved analysis being opened says so and cannot be opened twice",
+      "A composition can read the red-edge bands B05, B06 and B07, which before failed after the area had been read. A failed place search is reported in English, and the zoom and imagery notes are legible over bright ground",
+    ],
+  },
+  {
+    version: "0.8.0",
+    title: "The application as a map, with one panel held up in front of it",
+    items: [
+      "The map fills the window. A rail on the left says where to go, a column on the right holds the tools for what is on the map, and one floating panel shows at a time, where before the default surface was a board divided into panels",
+      "Every product is read on the map: the result panel reads all eight, with the figures of the compositor's cards, and a classification gains Spectra, Separability, Library and Tables. Compare and Workflows are screens of their own, and a saved board opens as a workflow",
+      "The interface is drawn in neutral greys under an orange accent, and the light theme is built on a warm paper",
+      "A projected raster is pinned to its four corners, so it lies along the outline of the area it was measured on instead of turned against it by the convergence of the meridians, about one degree at Cascavel",
+      "An imported .kml draws its outline, including files written by Google Earth and files that hold several polygons, and the globe has a button to import one",
+      "A phenology series of six dates, half a year of monthly scenes, no longer stops a classification, and a run opened from the list makes its area the one in hand, so the next run is saved under it",
+      "Text over the map stays legible over bright and dark ground alike, and the default workflow's cards no longer overlap",
+    ],
+  },
+  {
     version: "0.7.0",
     title: "Sunset — a compositor for the board, and an area read field by field",
     items: [
