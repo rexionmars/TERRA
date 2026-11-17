@@ -441,8 +441,24 @@ catalogue and the collection it read.
 
 ## License and community
 
-GNU General Public License v3.0, in [LICENSE](LICENSE). TERRA is copyleft: a
-distributed work built on it carries the same terms.
+Copyright © 2026 João Leonardi da Silva Melo. TERRA is free software under the
+GNU General Public License v3.0, in [LICENSE](LICENSE). It is copyleft: a
+distributed work built on it carries the same terms. The model weights are
+published separately under the MIT licence, in
+[rexionmars/TERRA-models](https://github.com/rexionmars/TERRA-models).
+
+### Open standards
+
+| Standard | Used for |
+|---|---|
+| [STAC](https://stacspec.org/) API 1.0 | Finding Sentinel-2 and Sentinel-1 scenes in every imagery catalogue |
+| [Cloud-Optimized GeoTIFF](https://docs.ogc.org/is/21-026/21-026.html) (OGC 21-026) | Reading only the window of each band over the area |
+| [GeoTIFF](https://www.ogc.org/standard/geotiff/) (OGC) | Exported rasters |
+| [GeoJSON](https://datatracker.ietf.org/doc/html/rfc7946) (IETF RFC 7946) | Areas of interest, field boundaries, exported geometry |
+| [KML](https://www.ogc.org/standard/kml/) (OGC) | Importing an area |
+| [WFS](https://www.ogc.org/standard/wfs/) 2.0 (OGC) | Reading the public registers served by GeoServer |
+| [WMTS](https://www.ogc.org/standard/wmts/) (OGC) | The EOX basemap tiles |
+| [CSV](https://datatracker.ietf.org/doc/html/rfc4180) (IETF RFC 4180) and JSON | Exported tables and the export manifest |
 
 The golden parakeet (*Guaruba guarouba*) in the logo is traced from a
 [photograph by Christoph Moning](https://commons.wikimedia.org/wiki/File:Guaruba_guarouba_442618436.jpg),
