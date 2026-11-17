@@ -153,6 +153,24 @@ share.
 
 <p align="center"><em>Vegetation health over one area: NDVI on one date against the median of the same days in earlier seasons, with the figures and the limit on reading them</em></p>
 
+### NDVI trajectory
+
+A smooth daily NDVI trajectory of an area over the period, with its 95 %
+interval, which widens where clouds leave gaps between acquisitions. Each date
+is the median of B02, B03, B04, B08, NDVI and EVI over the area's clear pixels,
+and counts when at least 30 % of the area is clear. The six medians are
+projected on three principal components, each fitted with a Gaussian process of
+a damped seasonal oscillator and a local smooth term, under Student-t noise.
+The chart draws the dates the fit kept apart from those it set aside.
+
+The interval's scale was fitted per state, for Bahia, Mato Grosso and Paraná.
+An area elsewhere, or with its centroid within 2 km of a state line, takes one
+scale fitted on the three together, and the panel says which scale was used.
+The product is offered once the `gp_series` model is installed from the
+**Models** screen. In version 0.1.0, the 95 % interval covered 0.969 of the
+observations held out on validation fields (Bahia 0.984, Mato Grosso 0.945,
+Paraná 0.978).
+
 ### Public-register overlap
 
 The hectares of an area on PRODES and DETER (INPE), IBAMA and ICMBio embargoes,
@@ -251,6 +269,10 @@ Read these before trusting an output.
   field. Adjacent fields sown with one crop on one day come out as one.
 - **A health departure is not a diagnosis.** A later sowing, another crop or a
   fallow field departs from earlier seasons as a stressed one does.
+- **The NDVI trajectory is smooth.** A harvest shows up spread over weeks, not
+  as a step, and the fit can set aside the highest dates of a peak and pass
+  below them. The numbers of `gp_series` 0.1.0 were fitted on another reading
+  of the same Sentinel-2 scenes, not on series read by TERRA.
 - **An overlap is not a finding of irregularity.** A clearing can be
   authorised and an embargo lifted after publication. APP and legal-reserve
   polygons are not published by WFS and are not read.

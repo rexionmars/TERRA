@@ -206,7 +206,7 @@ def test_the_packages_this_repository_builds_still_load(tmp_path, source):
     for entry in raw['files'].values():
         entry.update(sha256='0' * 64, size=0)
     (tmp_path / 'model.json').write_text(json.dumps(raw))
-    assert models.load(tmp_path).task == 'land_cover'
+    assert models.load(tmp_path).task == models.FAMILIES[raw['family']].task
 
 
 # gp_series 0.1.0 as published in terra_signal_spectrum (models/gp_series/package),
