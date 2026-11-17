@@ -40,7 +40,7 @@ from shapely.ops import transform as shp_transform
 from terra import stac
 from terra.imagery.grid import map_corners
 
-COLLECTION = 'sentinel-2-l2a'
+COLLECTION = stac.SENTINEL2
 PIXEL_M = 10.0
 
 # Scene classification values that are not ground seen clearly: no data,
@@ -217,7 +217,7 @@ def read_asset(items: list[Any], asset: str, grid: Grid, resampling, dtype) -> n
     out = np.zeros((grid.height, grid.width), dtype=dtype)
     own = grid.crs.to_epsg()
     for it in sorted(items, key=lambda i: (item_epsg(i) != own, i.id)):
-        with rasterio.open(it.assets[asset].href) as src:
+        with rasterio.open(stac.href(it, asset)) as src:
             win = source_window(src, grid)
             data = src.read(1, window=win, boundless=True, fill_value=0)
             tile = np.zeros_like(out)

@@ -66,14 +66,15 @@ func parseZonesPayload(raw []byte) (*ZonesAnalysis, error) {
 		return nil, errors.New("sidecar returned an empty management zones payload")
 	}
 	res := &ZonesAnalysis{
-		Extent:     src.Extent,
-		Seasons:    src.Seasons,
-		NCells:     src.NCells,
-		FieldCells: src.FieldCells,
-		Fuzziness:  src.Fuzziness,
-		Percentile: src.Percentile,
-		MinZoneHa:  src.MinZoneHa,
-		SuggestedK: src.SuggestedK,
+		Extent:        src.Extent,
+		Seasons:       src.Seasons,
+		NCells:        src.NCells,
+		FieldCells:    src.FieldCells,
+		Fuzziness:     src.Fuzziness,
+		Percentile:    src.Percentile,
+		MinZoneHa:     src.MinZoneHa,
+		SuggestedK:    src.SuggestedK,
+		ImagerySource: src.ImagerySource,
 	}
 	for _, p := range src.Partitions {
 		out := ZonesPartition{

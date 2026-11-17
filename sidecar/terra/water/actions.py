@@ -11,7 +11,7 @@ from __future__ import annotations
 import json
 import sys
 
-from terra import protocol
+from terra import protocol, stac
 from terra.imagery import cog, sentinel2
 
 
@@ -32,7 +32,7 @@ def water(req, work_dir):
         protocol.fail('no polygon provided (polygon_geojson required)')
     polygon = aoi.polygon_from_geojson(req['polygon_geojson'])
 
-    protocol.emit_progress(10, 'querying STAC catalog (Planetary Computer)')
+    protocol.emit_progress(10, f'querying the catalogue ({stac.title(stac.SENTINEL2)})')
     try:
         products = sentinel2.list_stac_products(
             polygon, start, end,
@@ -55,5 +55,7 @@ def water(req, work_dir):
         protocol.fail(str(e))
 
     protocol.emit_progress(100, f'{len(result.series)} dates')
-    sys.stdout.write(json.dumps({'water': result.to_payload(work_dir)}))
+    payload = result.to_payload(work_dir)
+    payload['imagery_source'] = stac.used()
+    sys.stdout.write(json.dumps({'water': payload}))
     sys.stdout.flush()

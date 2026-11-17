@@ -34,6 +34,7 @@ def radar(req: protocol.Request, work_dir: Path) -> None:
     if not start or not end:
         protocol.fail('start and end are required')
     polygon = aoi.polygon_from_geojson(req['polygon_geojson'])
+    cal = series.calibration(stac.source(series.COLLECTION).key)
 
     cog.configure()
 
@@ -46,12 +47,12 @@ def radar(req: protocol.Request, work_dir: Path) -> None:
     if not inside.any():
         protocol.fail('the area covers no 10 m cell')
 
-    protocol.emit_progress(4, f'searching Sentinel-1 RTC ({start} to {end})')
+    protocol.emit_progress(4, f'searching Sentinel-1 RTC in {stac.title(series.COLLECTION)} ({start} to {end})')
     bbox = transform_bounds(grid.crs, 'EPSG:4326', *grid.bounds, densify_pts=21)
     try:
         items = stac.search(series.COLLECTION, bbox=bbox, datetime=f'{start}/{end}')
     except stac.Unavailable as e:
-        raise protocol.Unavailable(f'the Planetary Computer catalogue did not answer: {e}') from e
+        raise protocol.Unavailable(f'the Sentinel-1 catalogue did not answer: {e}') from e
     passes = series.group_acquisitions(items)
     if not passes:
         protocol.fail(f'no Sentinel-1 RTC pass over the area from {start} to {end}')
@@ -66,7 +67,7 @@ def radar(req: protocol.Request, work_dir: Path) -> None:
     def read(acq: series.Acquisition) -> series.Observation | None:
         vv = series.read_gamma0(acq.items, 'vv', grid)
         vh = series.read_gamma0(acq.items, 'vh', grid)
-        return series.measure(acq, vv, vh, inside, keep=id(acq) in keep)
+        return series.measure(acq, vv, vh, inside, keep=id(acq) in keep, cal=cal)
 
     obs: list[series.Observation] = []
     done = 0
@@ -94,15 +95,15 @@ def radar(req: protocol.Request, work_dir: Path) -> None:
         note(f'the latest pass ({latest.date}) covered too little of the area; the maps show {shown.date}')
 
     protocol.emit_progress(90, 'looking for canopy losses')
-    found = series.losses(obs)
+    found = series.losses(obs, cal)
 
     protocol.emit_progress(94, 'writing the maps')
     assert shown.vv is not None and shown.vh is not None
     outside = ~inside
     composite_png = work_dir / 'radar_composite.png'
     water_png = work_dir / 'radar_water.png'
-    composite.write_rgba_png(series.composite_rgba(shown.vv, shown.vh, outside), composite_png)
-    composite.write_rgba_png(series.water_rgba(shown.vv, shown.vh, outside), water_png)
+    composite.write_rgba_png(series.composite_rgba(shown.vv, shown.vh, outside, cal), composite_png)
+    composite.write_rgba_png(series.water_rgba(shown.vv, shown.vh, outside, cal), water_png)
 
     lon_min, lat_min, lon_max, lat_max = transform_bounds(grid.crs, 'EPSG:4326', *grid.bounds, densify_pts=21)
     result = {
@@ -118,12 +119,13 @@ def radar(req: protocol.Request, work_dir: Path) -> None:
         'losses': found,
         'map_date': shown.date,
         'map_orbit': shown.relative_orbit,
-        'water_vh_db': series.WATER_VH_DB,
-        'water_vv_db': series.WATER_VV_DB,
-        'loss_vh_db': series.HARVEST_DROP_DB,
-        'loss_cr_db': series.CR_DROP_DB,
+        'water_vh_db': cal.water_vh_db,
+        'water_vv_db': cal.water_vv_db,
+        'loss_vh_db': cal.harvest_drop_db,
+        'loss_cr_db': cal.cr_drop_db,
         'composite_png': str(composite_png),
         'water_png': str(water_png),
+        'imagery_source': stac.used(),
     }
     protocol.emit_progress(100, 'done')
     sys.stdout.write(json.dumps({'radar': result}))

@@ -2,6 +2,7 @@ package pyenv
 
 import (
 	"os"
+	"reflect"
 	"testing"
 )
 
@@ -18,11 +19,15 @@ func TestAppConfigRoundTripsAndSurvivesGarbage(t *testing.T) {
 		t.Fatalf("a directory with no config returned %+v", got)
 	}
 
-	want := AppConfig{PythonPath: "/some/python", Managed: true}
+	want := AppConfig{
+		PythonPath:     "/some/python",
+		Managed:        true,
+		ImagerySources: map[string]string{"sentinel-2-l2a": "earth-search"},
+	}
 	if err := SaveAppConfig(dir, want); err != nil {
 		t.Fatal(err)
 	}
-	if got := LoadAppConfig(dir); got != want {
+	if got := LoadAppConfig(dir); !reflect.DeepEqual(got, want) {
 		t.Fatalf("round trip gave %+v, want %+v", got, want)
 	}
 

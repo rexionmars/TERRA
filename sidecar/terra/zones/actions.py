@@ -13,7 +13,7 @@ from typing import Any
 
 import numpy as np
 
-from terra import aoi, protocol
+from terra import aoi, protocol, stac
 
 # Acquisitions read at once; see the vegetation health product for the count.
 READERS = 8
@@ -222,6 +222,7 @@ def zones(req: protocol.Request, work_dir: Path) -> None:
         'min_zone_ha': MIN_ZONE_HA,
         'suggested_k': suggested,
         'partitions': partitions,
+        'imagery_source': stac.used(),
     }
     protocol.emit_progress(100, 'done')
     sys.stdout.write(json.dumps({'zones': result}))

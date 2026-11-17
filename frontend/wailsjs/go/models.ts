@@ -401,11 +401,32 @@ export namespace analysis {
 		    return a;
 		}
 	}
+	export class ImagerySource {
+	    collection: string;
+	    source: string;
+	    title: string;
+	    url: string;
+	    catalogue_collection: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new ImagerySource(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.collection = source["collection"];
+	        this.source = source["source"];
+	        this.title = source["title"];
+	        this.url = source["url"];
+	        this.catalogue_collection = source["catalogue_collection"];
+	    }
+	}
 	export class CompositeResult {
 	    extent: Bounds;
 	    overlay_uri: string;
 	    raster_tif?: string;
 	    meta?: Record<string, any>;
+	    imagery_source?: ImagerySource[];
 	
 	    static createFrom(source: any = {}) {
 	        return new CompositeResult(source);
@@ -417,6 +438,7 @@ export namespace analysis {
 	        this.overlay_uri = source["overlay_uri"];
 	        this.raster_tif = source["raster_tif"];
 	        this.meta = source["meta"];
+	        this.imagery_source = this.convertValues(source["imagery_source"], ImagerySource);
 	    }
 	
 		convertValues(a: any, classs: any, asMap: boolean = false): any {
@@ -505,6 +527,7 @@ export namespace analysis {
 	    date_range: string[];
 	    monthly_best: boolean;
 	    max_cloud: number;
+	    imagery_source?: ImagerySource[];
 	
 	    static createFrom(source: any = {}) {
 	        return new DataCubeResult(source);
@@ -517,6 +540,7 @@ export namespace analysis {
 	        this.date_range = source["date_range"];
 	        this.monthly_best = source["monthly_best"];
 	        this.max_cloud = source["max_cloud"];
+	        this.imagery_source = this.convertValues(source["imagery_source"], ImagerySource);
 	    }
 	
 		convertValues(a: any, classs: any, asMap: boolean = false): any {
@@ -1154,6 +1178,7 @@ export namespace analysis {
 	    window_a_uri?: string;
 	    window_b_uri?: string;
 	    classes_tif: string;
+	    imagery_source?: ImagerySource[];
 	
 	    static createFrom(source: any = {}) {
 	        return new FieldsAnalysis(source);
@@ -1181,6 +1206,7 @@ export namespace analysis {
 	        this.window_a_uri = source["window_a_uri"];
 	        this.window_b_uri = source["window_b_uri"];
 	        this.classes_tif = source["classes_tif"];
+	        this.imagery_source = this.convertValues(source["imagery_source"], ImagerySource);
 	    }
 	
 		convertValues(a: any, classs: any, asMap: boolean = false): any {
@@ -1351,6 +1377,7 @@ export namespace analysis {
 	    anomaly_uri: string;
 	    ndvi_uri: string;
 	    run_id?: string;
+	    imagery_source?: ImagerySource[];
 	
 	    static createFrom(source: any = {}) {
 	        return new HealthAnalysis(source);
@@ -1370,6 +1397,7 @@ export namespace analysis {
 	        this.anomaly_uri = source["anomaly_uri"];
 	        this.ndvi_uri = source["ndvi_uri"];
 	        this.run_id = source["run_id"];
+	        this.imagery_source = this.convertValues(source["imagery_source"], ImagerySource);
 	    }
 	
 		convertValues(a: any, classs: any, asMap: boolean = false): any {
@@ -1439,6 +1467,23 @@ export namespace analysis {
 		    return a;
 		}
 	}
+	export class ImageryChoice {
+	    key: string;
+	    title: string;
+	    needs_earthdata: boolean;
+	
+	    static createFrom(source: any = {}) {
+	        return new ImageryChoice(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.key = source["key"];
+	        this.title = source["title"];
+	        this.needs_earthdata = source["needs_earthdata"];
+	    }
+	}
+	
 	export class LULCAgreementBlock {
 	    row: number;
 	    col: number;
@@ -3084,6 +3129,7 @@ export namespace analysis {
 	    multiplier: number;
 	    model: TrajectoryModel;
 	    run_id?: string;
+	    imagery_source?: ImagerySource[];
 	
 	    static createFrom(source: any = {}) {
 	        return new TrajectoryAnalysis(source);
@@ -3105,6 +3151,7 @@ export namespace analysis {
 	        this.multiplier = source["multiplier"];
 	        this.model = this.convertValues(source["model"], TrajectoryModel);
 	        this.run_id = source["run_id"];
+	        this.imagery_source = this.convertValues(source["imagery_source"], ImagerySource);
 	    }
 	
 		convertValues(a: any, classs: any, asMap: boolean = false): any {
@@ -3222,6 +3269,7 @@ export namespace analysis {
 	    suggested_k: number;
 	    partitions: ZonesPartition[];
 	    run_id?: string;
+	    imagery_source?: ImagerySource[];
 	
 	    static createFrom(source: any = {}) {
 	        return new ZonesAnalysis(source);
@@ -3239,6 +3287,7 @@ export namespace analysis {
 	        this.suggested_k = source["suggested_k"];
 	        this.partitions = this.convertValues(source["partitions"], ZonesPartition);
 	        this.run_id = source["run_id"];
+	        this.imagery_source = this.convertValues(source["imagery_source"], ImagerySource);
 	    }
 	
 		convertValues(a: any, classs: any, asMap: boolean = false): any {
@@ -3341,6 +3390,7 @@ export namespace analysis {
 	    composite_uri: string;
 	    water_uri: string;
 	    run_id?: string;
+	    imagery_source?: ImagerySource[];
 	
 	    static createFrom(source: any = {}) {
 	        return new RadarAnalysis(source);
@@ -3361,6 +3411,7 @@ export namespace analysis {
 	        this.composite_uri = source["composite_uri"];
 	        this.water_uri = source["water_uri"];
 	        this.run_id = source["run_id"];
+	        this.imagery_source = this.convertValues(source["imagery_source"], ImagerySource);
 	    }
 	
 		convertValues(a: any, classs: any, asMap: boolean = false): any {
@@ -3435,6 +3486,7 @@ export namespace analysis {
 	    mean_anomaly: number;
 	    occurrence_uri: string;
 	    extent: Bounds;
+	    imagery_source?: ImagerySource[];
 	
 	    static createFrom(source: any = {}) {
 	        return new WaterAnalysis(source);
@@ -3461,6 +3513,7 @@ export namespace analysis {
 	        this.mean_anomaly = source["mean_anomaly"];
 	        this.occurrence_uri = source["occurrence_uri"];
 	        this.extent = this.convertValues(source["extent"], Bounds);
+	        this.imagery_source = this.convertValues(source["imagery_source"], ImagerySource);
 	    }
 	
 		convertValues(a: any, classs: any, asMap: boolean = false): any {
@@ -3559,6 +3612,7 @@ export namespace analysis {
 	    trajectory?: TrajectoryAnalysis;
 	    domain_fingerprint?: DomainFingerprint;
 	    model?: ModelRef;
+	    imagery_source?: ImagerySource[];
 	
 	    static createFrom(source: any = {}) {
 	        return new PredictResult(source);
@@ -3599,6 +3653,7 @@ export namespace analysis {
 	        this.trajectory = this.convertValues(source["trajectory"], TrajectoryAnalysis);
 	        this.domain_fingerprint = this.convertValues(source["domain_fingerprint"], DomainFingerprint);
 	        this.model = this.convertValues(source["model"], ModelRef);
+	        this.imagery_source = this.convertValues(source["imagery_source"], ImagerySource);
 	    }
 	
 		convertValues(a: any, classs: any, asMap: boolean = false): any {
@@ -3681,6 +3736,8 @@ export namespace analysis {
 	        this.polygon_geojson = source["polygon_geojson"];
 	    }
 	}
+	
+	
 	
 	
 	
@@ -3959,6 +4016,46 @@ export namespace main {
 	        this.paths = this.convertValues(source["paths"], ResolvedPath);
 	        this.retired_vars = source["retired_vars"];
 	        this.config_path = source["config_path"];
+	    }
+	
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
+	}
+	export class ImagerySourceStatus {
+	    collection: string;
+	    label: string;
+	    choices: analysis.ImageryChoice[];
+	    chosen: string;
+	    from_env: boolean;
+	    env: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new ImagerySourceStatus(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.collection = source["collection"];
+	        this.label = source["label"];
+	        this.choices = this.convertValues(source["choices"], analysis.ImageryChoice);
+	        this.chosen = source["chosen"];
+	        this.from_env = source["from_env"];
+	        this.env = source["env"];
 	    }
 	
 		convertValues(a: any, classs: any, asMap: boolean = false): any {

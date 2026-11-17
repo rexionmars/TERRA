@@ -38,6 +38,13 @@ type AppConfig struct {
 	// database, which is exported by the backup. EARTHDATA_TOKEN still wins when
 	// it is set.
 	EarthdataToken string `json:"earthdata_token,omitempty"`
+	// Which catalogue each imagery collection is read from, keyed by TERRA's
+	// name for the collection ("sentinel-2-l2a", "sentinel-1-rtc"); a
+	// collection not listed is read from the Planetary Computer. Here for the
+	// same reason: TERRA_SENTINEL2_SOURCE and TERRA_SENTINEL1_SOURCE do not
+	// reach an application opened from Finder. Either variable still wins
+	// when it is set.
+	ImagerySources map[string]string `json:"imagery_sources,omitempty"`
 }
 
 // ConfigPath is the settings file for this installation.

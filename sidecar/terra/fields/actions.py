@@ -16,7 +16,7 @@ from typing import Any
 
 import numpy as np
 
-from terra import aoi, protocol
+from terra import aoi, protocol, stac
 from terra.imagery import cog
 
 NODATA_CLASS = 255
@@ -247,6 +247,7 @@ def delineate(req: protocol.Request, work_dir: Path) -> None:
         'classes_tif': str(classes_tif),
         'window_a_png': str(window_a_png),
         'window_b_png': str(window_b_png),
+        'imagery_source': stac.used(),
     }
     protocol.emit_progress(100, 'done')
     sys.stdout.write(json.dumps({'fields': result}))

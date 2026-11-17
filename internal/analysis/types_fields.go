@@ -108,6 +108,8 @@ type fieldsSidecarResult struct {
 	ClassesTIF    string `json:"classes_tif"`
 	WindowAPNG    string `json:"window_a_png"`
 	WindowBPNG    string `json:"window_b_png"`
+
+	ImagerySource []ImagerySource `json:"imagery_source"`
 }
 
 /*
@@ -145,6 +147,8 @@ type FieldsAnalysis struct {
 	// The class map as a GeoTIFF on disk, for export: 0 background, 1
 	// interior, 2 boundary, 255 not seen clearly in both scenes.
 	ClassesTIF string `json:"classes_tif"`
+	// The catalogue the scenes were read from; see ImagerySource.
+	ImagerySource []ImagerySource `json:"imagery_source,omitempty"`
 }
 
 // NormalizeNilSlices turns absent lists into empty ones.

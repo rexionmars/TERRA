@@ -97,7 +97,7 @@ def trajectory(req: protocol.Request, work_dir: Path) -> None:
             mosaic.search_scenes(grid, start, end, MAX_CLOUD, series.BANDS), key=lambda s: s.date
         )
     except stac.Unavailable as e:
-        raise protocol.Unavailable(f'the Planetary Computer catalogue did not answer: {e}') from e
+        raise protocol.Unavailable(f'the Sentinel-2 catalogue did not answer: {e}') from e
     if not found:
         protocol.fail(f'no Sentinel-2 acquisition over the area from {start} to {end}')
 
@@ -181,6 +181,7 @@ def trajectory(req: protocol.Request, work_dir: Path) -> None:
             'name': package.name,
             'digest': package.digest,
         },
+        'imagery_source': stac.used(),
     }
     protocol.emit_progress(100, 'done')
     sys.stdout.write(json.dumps({'trajectory': result}))

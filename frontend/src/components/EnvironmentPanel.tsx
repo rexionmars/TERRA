@@ -25,11 +25,13 @@ import {
   BuildManagedEnvironment,
   CancelEnvironmentBuild,
   GetEarthdataStatus,
+  GetImagerySources,
   InspectEnvironment,
   ListOptionalPackages,
   ManageOptionalPackage,
   OpenExternal,
   SetEarthdataToken,
+  SetImagerySource,
   UseInterpreter,
 } from "../../wailsjs/go/main/App"
 import type { main, pyenv } from "../../wailsjs/go/models"
@@ -321,6 +323,8 @@ export function EnvironmentPanel() {
         </section>
       )}
 
+      <ImagerySourcesSection />
+
       <EarthdataSection />
 
       {/* The recommended repair, and the interpreters it can be built on. */}
@@ -452,8 +456,95 @@ function earthdataStatusLabel(status: main.EarthdataStatus | null): string {
 }
 
 /*
+  Where each imagery collection is read from.
+
+  HERE FOR THE REASON THE EARTHDATA TOKEN IS: it decides whether a product can
+  run at all. The Planetary Computer is the default, because the shipped models
+  and the radar thresholds were measured on it; another catalogue serves the
+  same scenes, so a run goes on when one of them is down or limiting requests.
+
+  A choice applies to the next run: the shell reads it at each sidecar start.
+  When the variable is set in the environment it wins, and the select is
+  disabled with the reason, as the token field does for EARTHDATA_TOKEN.
+*/
+function ImagerySourcesSection() {
+  const [rows, setRows] = useState<main.ImagerySourceStatus[] | null>(null)
+  const [busy, setBusy] = useState<string | null>(null)
+  const [error, setError] = useState<string | null>(null)
+
+  useEffect(() => {
+    GetImagerySources()
+      .then(setRows)
+      .catch((e) => setError(e instanceof Error ? e.message : String(e)))
+  }, [])
+
+  const choose = async (collection: string, key: string) => {
+    setBusy(collection)
+    setError(null)
+    try {
+      setRows(await SetImagerySource(collection, key))
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e))
+    } finally {
+      setBusy(null)
+    }
+  }
+
+  return (
+    <section className={cn(CARD, "p-5")}>
+      <h3 className="mb-0.5 text-read font-medium text-foreground">Imagery sources</h3>
+      <p className="mb-3 text-label text-muted-foreground">
+        The catalogue each satellite collection is read from. The Planetary Computer is
+        the default: the models and the radar thresholds were measured on it. Each run
+        records the catalogue it read.
+      </p>
+      <div className="flex flex-col gap-3 rounded-sm border border-border bg-sunk px-3 py-2">
+        {(rows ?? []).map((row) => {
+          const chosen = row.choices.find((c) => c.key === row.chosen)
+          return (
+            <div key={row.collection} className="flex flex-col gap-1">
+              <label className="flex flex-col gap-1">
+                <span className="text-body text-foreground">{row.label}</span>
+                <select
+                  className="field-input"
+                  value={row.chosen}
+                  disabled={row.from_env || busy !== null}
+                  onChange={(e) => void choose(row.collection, e.target.value)}
+                >
+                  {!chosen && <option value={row.chosen}>{row.chosen}</option>}
+                  {row.choices.map((c) => (
+                    <option key={c.key} value={c.key}>
+                      {c.title}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              {row.from_env && (
+                <p className="text-micro text-muted-foreground">
+                  <span className="telemetry">{row.env}</span> is set in the environment
+                  and takes precedence over a choice made here.
+                </p>
+              )}
+              {chosen?.needs_earthdata && (
+                <p className="text-micro text-muted-foreground">
+                  Reads with the Earthdata token below. The Earthdata account must also
+                  have approved the Alaska Satellite Facility archive, which serves
+                  these files.
+                </p>
+              )}
+            </div>
+          )
+        })}
+        {error && <p className="text-micro text-destructive-quiet">{error}</p>}
+      </div>
+    </section>
+  )
+}
+
+/*
   The one credential in TERRA: a NASA Earthdata token, which the mineral map
-  needs to read EMIT reflectance from the LP DAAC.
+  needs to read EMIT reflectance from the LP DAAC, and the radar to read NASA
+  OPERA when that is its source.
 
   HERE BECAUSE IT ANSWERS THE SAME QUESTION AS THE REST OF THIS SCREEN: "can
   this product run at all", not "run it". Without a token the sidecar's first
@@ -499,9 +590,9 @@ function EarthdataSection() {
     <section className={cn(CARD, "p-5")}>
       <h3 className="mb-0.5 text-read font-medium text-foreground">Earthdata token</h3>
       <p className="mb-3 text-label text-muted-foreground">
-        The NASA Earthdata login the mineral map reads EMIT reflectance with. Nothing
-        else in TERRA uses it. The token is tested against the LP DAAC before it is
-        saved, and it is not shown again once saved.
+        The NASA Earthdata login the mineral map reads EMIT reflectance with, and the
+        radar reads NASA OPERA with when that is its source. The token is tested against
+        the LP DAAC before it is saved, and it is not shown again once saved.
       </p>
       <div className="flex flex-col gap-2 rounded-sm border border-border bg-sunk px-3 py-2">
         <div className="flex flex-wrap items-baseline justify-between gap-2">

@@ -243,7 +243,7 @@ func (a *App) startup(ctx context.Context) {
 
 	cfg := pyenv.LoadAppConfig(st.DataDir())
 	a.bootLog("resolving sidecar paths…")
-	runner, err := analysis.NewRunner(appDir, cfg.PythonPath)
+	runner, err := a.newRunner(appDir, cfg.PythonPath)
 	if err != nil {
 		a.bootLog("runner init failed: " + err.Error())
 		wruntime.LogError(ctx, "failed to init runner: "+err.Error())

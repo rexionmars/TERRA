@@ -1,9 +1,10 @@
 """
 Sentinel-2 L2A: which scenes exist over an area, and what a band of one holds.
 
-Two sources of the same product shape. `list_stac_products` reads the Planetary
-Computer catalogue and returns hrefs to Cloud-Optimized GeoTIFFs, so only the
-polygon window and the bands asked for cross the network. `list_sentinel_products`
+Two sources of the same product shape. `list_stac_products` reads the
+catalogue chosen for Sentinel-2 (terra.stac) and returns hrefs to
+Cloud-Optimized GeoTIFFs, so only the polygon window and the bands asked for
+cross the network. `list_sentinel_products`
 walks SAFE directories already on disk, which is the path the notebooks this
 was ported from used and the one the training script still uses.
 
@@ -67,7 +68,7 @@ def list_sentinel_products(data_path, tile_list=None):
 
 
 # B02/B03/B04/B08 are required by the spectral model; B8A/B11/B12 are also
-# collected (present in Planetary Computer assets) so the Prithvi path has its
+# collected (every catalogue in terra.stac serves them) so the Prithvi path has its
 # six bands, and the red edge B05/B06/B07 because a composition can read any
 # band of composite.ALLOWED_BANDS (NDRE reads B05, PSRI B06). Only the asset
 # hrefs are kept; nothing is read until a band is asked for. A scene missing an
@@ -77,13 +78,11 @@ EXTRA_BANDS = ('B05', 'B06', 'B07', 'B8A', 'B11', 'B12')
 
 
 def list_stac_products(polygon, start, end, tile_list=None, max_cloud=100.0,
-                       monthly_best=True,
-                       collection='sentinel-2-l2a',
-                       stac_url='https://planetarycomputer.microsoft.com/api/stac/v1'):
+                       monthly_best=True):
     """
-    Discover Sentinel-2 L2A products from a STAC catalog (Microsoft Planetary
-    Computer by default), returning the same product shape as
-    list_sentinel_products but with remote COG band hrefs in product['assets'].
+    Discover Sentinel-2 L2A products from the catalogue chosen for Sentinel-2
+    (stac.source), returning the same product shape as list_sentinel_products
+    but with remote COG band hrefs in product['assets'].
 
     Bands are read on demand via /vsicurl; only the polygon window and the four
     required bands (B02, B03, B04, B08) are fetched, avoiding full SAFE downloads.
@@ -101,11 +100,10 @@ def list_stac_products(polygon, start, end, tile_list=None, max_cloud=100.0,
     bounds = polygon.bounds
 
     items = stac.search(
-        collection,
+        stac.SENTINEL2,
         bbox=[bounds[0], bounds[1], bounds[2], bounds[3]],
         datetime=f'{start}/{end}',
         query={'eo:cloud_cover': {'lt': max_cloud}},
-        url=stac_url,
     )
 
     products = {}
@@ -128,12 +126,12 @@ def list_stac_products(polygon, start, end, tile_list=None, max_cloud=100.0,
             if band not in item.assets:
                 ok = False
                 break
-            assets[band] = item.assets[band].href
+            assets[band] = stac.href(item, band)
         if not ok:
             continue
         for band in EXTRA_BANDS:
             if band in item.assets:
-                assets[band] = item.assets[band].href
+                assets[band] = stac.href(item, band)
 
         # Deduplicate by date, preferring tile_list order, then lower cloud cover.
         if date_str in products:
@@ -264,9 +262,11 @@ def boa_add_offset(product):
     (DN + offset) / QUANTIFICATION_VALUE ever since, and reading it as DN alone
     overstates every band by 0.1.
 
-    Some catalogues harmonise this away and some do not. The Planetary
-    Computer, which this sidecar reads by default, does not: its items expose
-    no raster:bands scale or offset, so the correction belongs here.
+    Some catalogues harmonise this away and some do not. Neither of the two
+    terra.stac reads does: the Planetary Computer's items expose no
+    raster:bands scale or offset, and Earth Search's Collection 1 serves ESA's
+    numbers and states the offset in raster:bands, so the correction belongs
+    here.
 
     Derived per product rather than hardcoded as a constant, because a scene
     from before the switch carries no offset and subtracting one from it would

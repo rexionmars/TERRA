@@ -13,7 +13,7 @@ from pathlib import Path
 
 import numpy as np
 
-from terra import aoi, protocol
+from terra import aoi, protocol, stac
 from terra.imagery import cog
 
 # Acquisitions read at once. Each is up to five windowed reads of cloud-optimised
@@ -181,6 +181,7 @@ def health(req: protocol.Request, work_dir: Path) -> None:
         'map_range': series.MAP_RANGE,
         'anomaly_png': str(anomaly_png),
         'ndvi_png': str(ndvi_png),
+        'imagery_source': stac.used(),
     }
     protocol.emit_progress(100, 'done')
     sys.stdout.write(json.dumps({'health': result}))

@@ -65,18 +65,19 @@ type RadarLoss struct {
 
 // radarSidecarResult is the sidecar's `radar` object, the maps' paths included.
 type radarSidecarResult struct {
-	Extent       Bounds       `json:"extent"`
-	Orbits       []RadarOrbit `json:"orbits"`
-	Series       []RadarPoint `json:"series"`
-	Losses       []RadarLoss  `json:"losses"`
-	MapDate      string       `json:"map_date"`
-	MapOrbit     int          `json:"map_orbit"`
-	WaterVHDB    float64      `json:"water_vh_db"`
-	WaterVVDB    float64      `json:"water_vv_db"`
-	LossVHDB     float64      `json:"loss_vh_db"`
-	LossCRDB     float64      `json:"loss_cr_db"`
-	CompositePNG string       `json:"composite_png"`
-	WaterPNG     string       `json:"water_png"`
+	Extent        Bounds          `json:"extent"`
+	Orbits        []RadarOrbit    `json:"orbits"`
+	Series        []RadarPoint    `json:"series"`
+	Losses        []RadarLoss     `json:"losses"`
+	MapDate       string          `json:"map_date"`
+	MapOrbit      int             `json:"map_orbit"`
+	WaterVHDB     float64         `json:"water_vh_db"`
+	WaterVVDB     float64         `json:"water_vv_db"`
+	LossVHDB      float64         `json:"loss_vh_db"`
+	LossCRDB      float64         `json:"loss_cr_db"`
+	CompositePNG  string          `json:"composite_png"`
+	WaterPNG      string          `json:"water_png"`
+	ImagerySource []ImagerySource `json:"imagery_source"`
 }
 
 // RadarAnalysis is what the interface receives: the series, and the two maps
@@ -95,6 +96,9 @@ type RadarAnalysis struct {
 	CompositeURI string       `json:"composite_uri"`
 	WaterURI     string       `json:"water_uri"`
 	RunID        string       `json:"run_id,omitempty"`
+	// The catalogue the passes were read from, and so which calibration the
+	// thresholds above are; see ImagerySource.
+	ImagerySource []ImagerySource `json:"imagery_source,omitempty"`
 }
 
 // NormalizeNilSlices turns absent lists into empty ones, which the interface

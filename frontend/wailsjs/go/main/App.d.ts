@@ -91,6 +91,8 @@ export function GetBootState():Promise<string>;
 
 export function GetEarthdataStatus():Promise<main.EarthdataStatus>;
 
+export function GetImagerySources():Promise<Array<main.ImagerySourceStatus>>;
+
 export function GetPreferences():Promise<store.Preferences>;
 
 export function GetProject(arg1:string):Promise<store.Project>;
@@ -188,6 +190,8 @@ export function SetBoardDirty(arg1:boolean):Promise<void>;
 export function SetCover(arg1:string):Promise<store.User>;
 
 export function SetEarthdataToken(arg1:string):Promise<main.EarthdataStatus>;
+
+export function SetImagerySource(arg1:string,arg2:string):Promise<Array<main.ImagerySourceStatus>>;
 
 export function SetProjectLastArea(arg1:string,arg2:string):Promise<store.Project>;
 

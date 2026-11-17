@@ -76,6 +76,7 @@ func parseHealthPayload(raw []byte) (*HealthAnalysis, error) {
 		Latest:        src.Latest,
 		MapDate:       src.MapDate,
 		MapRange:      src.MapRange,
+		ImagerySource: src.ImagerySource,
 	}
 	for _, img := range []struct {
 		path string

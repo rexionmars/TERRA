@@ -16,7 +16,7 @@ from pathlib import Path
 import joblib
 import numpy as np
 
-from terra import protocol
+from terra import protocol, stac
 from terra.imagery import cog, sentinel2
 
 
@@ -153,7 +153,7 @@ def predict(req, work_dir):
     if source == 'stac':
         if not start or not end:
             protocol.fail('STAC source requires start and end dates (YYYY-MM-DD)')
-        protocol.emit_progress(10, 'querying STAC catalog (Planetary Computer)')
+        protocol.emit_progress(10, f'querying the catalogue ({stac.title(stac.SENTINEL2)})')
         try:
             products = sentinel2.list_stac_products(
                 polygon, start, end, tile_list=tiles, max_cloud=max_cloud,
@@ -417,6 +417,8 @@ def predict(req, work_dir):
             'version': package.version,
             'digest': package.digest,
         },
+        # Which catalogue the scenes came from; empty for SAFE files on disk.
+        'imagery_source': stac.used(),
     }
 
     protocol.emit_progress(100, 'done')
