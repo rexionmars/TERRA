@@ -121,12 +121,12 @@
   Pinned to its top edge, so a window wider than the photograph's 3:2 crops the
   ground under the base rather than the sky the lockup is set on.
 
-  THE PHOTOGRAPH CLOSES IN ON THE BOY IN THE MIDDLE for as long as the splash
-  is up: it fades in over 0.9 s while it grows by 12 % over 8 s, eased so that
+  THE PHOTOGRAPH CLOSES IN ON THE TWO FARMERS for as long as the splash is
+  up: it fades in over 0.9 s while it grows by 12 % over 8 s, eased so that
   most of the push is seen in the three seconds the splash is held and it is
-  still moving when it goes. It grows from a point on him, 47.5 % across and,
-  at the boot window's 3:2, 55 % down, so he holds his place as the puddle and
-  the children around him come closer.
+  still moving when it goes. It grows from the point between them, 61 % across
+  and, at the boot window's 3:2, 72 % down, so they hold their place as the
+  flooded terrace around them comes closer.
 */
 .splash__photo {
   position: absolute;
@@ -135,7 +135,7 @@
   height: 100%;
   object-fit: cover;
   object-position: 50% 0%;
-  transform-origin: 47.5% 55%;
+  transform-origin: 61% 72%;
   transition: scale 480ms cubic-bezier(0.55, 0, 1, 0.45);
   animation:
     splash-fade 0.9s ease-out calc(0s - var(--sp-elapsed)) both,
@@ -160,12 +160,12 @@
 }
 /*
   Darker at the top, for the lockup set on the sky, and clear from a third of
-  the way down, so the children and the ground are shown as they were taken.
+  the way down, so the farmers and the ground are shown as they were taken.
 
   MEASURED on the pre-bundle copy at 420x280 and at 1440x900, at 1.5, 3 and
   8 s into the push, since the photograph moves under the type: the brightest
   pixel of the scene under the tagline, with the type made transparent,
-  against the tagline's own colour, the lowest of the three. 5.89 and 6.39.
+  against the tagline's own colour, the lowest of the three. 8.75 and 6.78.
   The boot line, the state, the version and the credit are on the void bar,
   and the wordmark on the void tab.
 */
@@ -383,8 +383,8 @@
 @media (min-height: 400px) {
   /*
     Darker again behind the lockup, set large here over the bright sky, and
-    only there: a band dark enough for the tagline would reach the children
-    below it.
+    only there: a band dark enough for the tagline would reach the mountain
+    and the terraces below it.
   */
   .splash__scrim {
     background:
@@ -401,9 +401,9 @@
         rgb(var(--sp-void) / 0) 34%
       );
   }
-  /* The boy in the full window, whose 16:10 crops the photograph's foot. */
+  /* The farmers in the full window, whose 16:10 crops the photograph's foot. */
   .splash__photo {
-    transform-origin: 47.5% 59%;
+    transform-origin: 61% 76%;
   }
   .splash__lockup {
     top: max(64px, calc(var(--sp-unit) * 76));

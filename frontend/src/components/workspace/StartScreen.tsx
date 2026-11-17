@@ -40,10 +40,10 @@ const RECENT_SHOWN = 5
   the licence's terms and how the file was produced.
 */
 const START_PICTURE = {
-  path: "/terra-start-puddle.webp",
+  path: "/terra-start-rice-planting.webp",
   subject:
-    "children playing in a rain puddle among tents, under a grey sky with a " +
-    "rocky hill behind",
+    "two farmers planting rice in a flooded terrace at dawn, with mist and " +
+    "trees behind them",
 }
 
 /*
@@ -235,10 +235,10 @@ export function StartScreen({
           />
           {/*
             Dark at the top for the lines set on the sky, and clear from the
-            middle down, so the children and the ground are shown as they were
+            middle down, so the farmers and the ground are shown as they were
             taken. Measured at the card's size, against the brightest pixel
-            under each line, in the line's own colour: the tagline 4.73, the
-            version 9.94, the credit 5.71 at the version's 92% bone (4.78 at
+            under each line, in the line's own colour: the tagline 10.59, the
+            version 6.17, the credit 6.42 at the version's 92% bone (5.31 at
             80%). The wordmark is on the tab, in the panel's own text colour.
           */}
           <div
@@ -274,7 +274,7 @@ export function StartScreen({
               type="button"
               className="cursor-pointer text-meta hover:underline focus-visible:ring-1 focus-visible:ring-ring focus-visible:outline-none"
               style={{ color: "rgb(236 232 223 / 0.92)" }}
-              title="Cropped and resized from the original on Pexels"
+              title="Cropped and resized from the original on Wikimedia Commons, shared under the same licence"
               onClick={() => BrowserOpenURL(BRAND_PHOTO.source)}
             >
               Photo: {BRAND_PHOTO.author} · {BRAND_PHOTO.license}

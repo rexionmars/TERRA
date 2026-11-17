@@ -68,25 +68,28 @@ export const REPO_URL = "https://github.com/rexionmars/TERRA"
  * The photograph the splash and the start screen are set on: the ground the
  * application observes, seen from where people stand on it.
  *
- * Ahmed Akacha's photograph of children playing in a rain puddle among the
- * tents of a camp in Idlib, Syria, on Pexels. The Pexels licence asks for no
- * credit and allows use in an application; it forbids showing identifiable
- * people in a bad light and implying that the people in a picture endorse a
- * product. So the picture carries no claim, no quote and no caption that
- * speaks for them, and it is credited anyway, by name and with a way to the
- * source.
+ * Imadedana's "Petani padi", two farmers planting rice at dawn in a flooded
+ * terrace at Tembuku, Bangli, Bali, on 10 July 2021, with Mount Agung behind:
+ * a featured picture on Wikimedia Commons, under CC BY-SA 4.0. The licence
+ * asks for the author's name, the licence and a way to the source, which the
+ * credit gives, and for the cropped and resized files to be shared under the
+ * same licence, which they are. It replaced a photograph of children in a
+ * displacement camp: a picture of people in a crisis, used as the face of a
+ * product, says something about them they did not choose to say. So the
+ * picture carries no claim and no caption that speaks for the people in it.
  *
- * The files are resized from the 5472x3648 original with Lanczos and passed
- * through cwebp -q 82, as docs/RELEASING.md encodes the stills:
- * terra-splash-puddle.webp at 2880 px wide, the full window's width at twice
- * its density, so the splash's push-in does not soften it much, and its
- * 840 px copy for the 420x280 boot window; and terra-start-puddle.webp,
- * cropped at full width from y 300 to 2598 to the start card's 500:210 and
- * resized to 1600x672, which sets the children's heads just under the card's
- * darkened top, where the lockup is set.
+ * The files are resized from the 4928x3264 original with Lanczos and passed
+ * through cwebp -q 82, as docs/RELEASING.md encodes the stills, by
+ * .temp/splash_photo/build_splash.py: terra-splash-rice-planting.webp at
+ * 2880 px wide, the full window's width at twice its density, so the splash's
+ * push-in does not soften it much, and its 840 px copy for the 420x280 boot
+ * window; and terra-start-rice-planting.webp, cropped at full width from
+ * y 760 to 2830 to the start card's 500:210 and resized to 1600x672, which
+ * keeps both farmers and their reflections and leaves the dark trees under
+ * the card's darkened top, where the lockup is set.
  */
 export const BRAND_PHOTO = {
-  author: "Ahmed Akacha",
-  license: "Pexels",
-  source: "https://www.pexels.com/photo/10629417/",
+  author: "Imadedana",
+  license: "CC BY-SA 4.0",
+  source: "https://commons.wikimedia.org/wiki/File:Petani_padi.jpg",
 }
