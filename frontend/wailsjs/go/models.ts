@@ -3078,6 +3078,50 @@ export namespace analysis {
 		    return a;
 		}
 	}
+	export class RunParameters {
+	    source: string;
+	    start: string;
+	    end: string;
+	    max_cloud: number;
+	    monthly_best: boolean;
+	    mode: string;
+	    variant?: string;
+	    tiles?: string[];
+	
+	    static createFrom(source: any = {}) {
+	        return new RunParameters(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.source = source["source"];
+	        this.start = source["start"];
+	        this.end = source["end"];
+	        this.max_cloud = source["max_cloud"];
+	        this.monthly_best = source["monthly_best"];
+	        this.mode = source["mode"];
+	        this.variant = source["variant"];
+	        this.tiles = source["tiles"];
+	    }
+	}
+	export class RunScene {
+	    id: string;
+	    date: string;
+	    cloud_cover?: number;
+	    processing_baseline?: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new RunScene(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.id = source["id"];
+	        this.date = source["date"];
+	        this.cloud_cover = source["cloud_cover"];
+	        this.processing_baseline = source["processing_baseline"];
+	    }
+	}
 	export class TrajectoryModel {
 	    id: string;
 	    version: string;
@@ -3613,6 +3657,9 @@ export namespace analysis {
 	    domain_fingerprint?: DomainFingerprint;
 	    model?: ModelRef;
 	    imagery_source?: ImagerySource[];
+	    scenes?: RunScene[];
+	    parameters?: RunParameters;
+	    computed_at?: string;
 	
 	    static createFrom(source: any = {}) {
 	        return new PredictResult(source);
@@ -3654,6 +3701,9 @@ export namespace analysis {
 	        this.domain_fingerprint = this.convertValues(source["domain_fingerprint"], DomainFingerprint);
 	        this.model = this.convertValues(source["model"], ModelRef);
 	        this.imagery_source = this.convertValues(source["imagery_source"], ImagerySource);
+	        this.scenes = this.convertValues(source["scenes"], RunScene);
+	        this.parameters = this.convertValues(source["parameters"], RunParameters);
+	        this.computed_at = source["computed_at"];
 	    }
 	
 		convertValues(a: any, classs: any, asMap: boolean = false): any {

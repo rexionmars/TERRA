@@ -32,8 +32,6 @@ and proposals through [GitHub Issues](https://github.com/rexionmars/TERRA/issues
 
 - [ ] Provide a task-based first-use path in the application for a complete
       area-to-report workflow.
-- [ ] Extend exports with accuracy and domain-shift outputs and a manifest of
-      selected scenes, model/version, parameters, geometry and data sources.
 - [ ] Publish the general and academic/researcher manuals after the short guide
       matches the shipped interface.
 

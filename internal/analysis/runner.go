@@ -466,6 +466,9 @@ func (r *Runner) Predict(ctx context.Context, req PredictRequest, modelPath stri
 		DomainFingerprint: sres.DomainFingerprint,
 		Model:             sres.Model,
 		ImagerySource:     sres.ImagerySource,
+		Scenes:            sres.Scenes,
+		Parameters:        sres.Parameters,
+		ComputedAt:        sres.ComputedAt,
 	}
 	if result.RasterTIF != "" {
 		if p, perr := promoteExportFile(result.RasterTIF, "classification.tif"); perr == nil {

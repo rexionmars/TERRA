@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import json
 import sys
+from datetime import UTC, datetime
 from pathlib import Path
 
 import joblib
@@ -78,6 +79,21 @@ def domain_shift_cohort(req, work_dir):
 
 # Land-cover classification over a Sentinel-2 time series: the action the
 # sidecar was written for, and the one an omitted `action` field asks for.
+def run_scene(product: dict) -> dict:
+    """
+    One acquisition as a run records it: its id in the catalogue, or the SAFE
+    directory's name for a product read from disk, and what the catalogue
+    stated about it.
+    """
+    path = product.get('path')
+    return {
+        'id': product.get('id') or (path.name if path is not None else ''),
+        'date': product['date'].strftime('%Y-%m-%d'),
+        'cloud_cover': product.get('cloud_cover'),
+        'processing_baseline': str(product.get('processing_baseline') or ''),
+    }
+
+
 def predict(req, work_dir):
     from terra import aoi, mapbiomas as mb_source, models
     from terra.imagery import grid as ref_grid
@@ -102,6 +118,10 @@ def predict(req, work_dir):
     monthly_best = bool(req.get('monthly_best', True))
     # Which head of an embedding package to run, e.g. 'pixel' or 'patch'.
     variant = req.get('variant') or None
+    # When the imagery was read, for the run's record: a scene a catalogue
+    # serves can be reprocessed later, so the same ids read another day may
+    # not hold the same numbers.
+    computed_at = datetime.now(UTC).strftime('%Y-%m-%dT%H:%M:%SZ')
 
     if source == 'stac':
         cog.configure()
@@ -390,6 +410,20 @@ def predict(req, work_dir):
             products[0]['date'].strftime('%Y-%m-%d'),
             products[-1]['date'].strftime('%Y-%m-%d'),
         ],
+        # Each acquisition read, so the run can be repeated scene for scene.
+        'scenes': [run_scene(p) for p in products],
+        # What the run was asked for, as this process received it.
+        'parameters': {
+            'source': source,
+            'start': start or '',
+            'end': end or '',
+            'max_cloud': max_cloud,
+            'monthly_best': monthly_best,
+            'mode': mode,
+            'variant': variant or '',
+            'tiles': list(tiles or []),
+        },
+        'computed_at': computed_at,
         'pixel_size_m': round(pixel_size_m, 3),
         'class_stats': classify.class_statistics(classification_map),
         # Seven bands on one acquisition, per predicted class. None when the

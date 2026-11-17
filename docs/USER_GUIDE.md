@@ -115,7 +115,8 @@ at the top.
 
 - **Classification:** Summary (figures, classes, agreement with MapBiomas), Spectra,
   Separability, Library and Tables. The panel widens for those that need it.
-  **Research pack** exports the run's tables and figures.
+  **Research pack** exports the run's tables, the accuracy assessment, the
+  geometry, the raster and a manifest of what the run was made from.
 - **Field boundaries:** filter by size and cropland, make the fields areas of the
   saved area, or save them as GeoJSON.
 - **Management zones:** choose the number of zones; the map follows.
