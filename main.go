@@ -8,9 +8,10 @@ a Python sidecar spawned per run, and the results live in a local SQLite file.
 Both are reached through package backend.
 
 The shell is what makes the application local: there is no server to talk to,
-so every method here runs on the user's machine against the user's files, and
-the only network traffic is the sidecar reading imagery from the Planetary
-Computer catalogue and a geocoding lookup.
+so every method here runs on the user's machine against the user's files. What
+does cross the network goes to public data services -- imagery catalogues,
+registers, basemaps, a geocoder -- and PRIVACY.md at the root lists each one
+and what it receives.
 */
 package main
 
