@@ -15,7 +15,7 @@
 
 import { MOSAIC_MIN_LEVEL, MOSAIC_TILES } from "@/lib/recentImagery"
 
-export type BasemapKind = "esri" | "eox" | "s2recent" | "street" | "topo"
+export type BasemapKind = "esri" | "eox" | "eox2016" | "s2recent" | "street" | "topo"
 
 export interface CreditPart {
   label: string
@@ -78,6 +78,38 @@ const BASEMAPS: readonly Basemap[] = [
         label: "modified Copernicus Sentinel data 2025",
         href: "https://sentinel.esa.int/web/sentinel/user-guides/sentinel-2-msi",
       },
+    ],
+  },
+  /*
+    THE OPEN ONE, and the one the globe opens on.
+
+    EOX licenses its 2016 mosaic under CC BY 4.0 and every later year under
+    CC BY-NC-SA 4.0, which rules out commercial use; Esri's imagery is under
+    Esri's own terms. A base that anyone may use for anything is what the
+    application opens on, and the others are a choice the reader makes. The
+    cost is stated rather than hidden: the picture is of 2016 and 2017, at the
+    10 m of Sentinel-2, so close up it shows fields and not buildings.
+
+    The credit is the attribution EOX's licence page asks for, with the licence
+    named, as CC BY requires.
+  */
+  {
+    kind: "eox2016",
+    name: "Sentinel-2 2016 (EOX)",
+    url: "https://tiles.maps.eox.at/wmts/1.0.0/s2cloudless_3857/default/g/{z}/{y}/{x}.jpg",
+    maxNativeZoom: 14,
+    maxZoom: 19,
+    imageryDate: "2016",
+    credit: [
+      {
+        label: "EOxCloudless by EOX IT Services GmbH",
+        href: "https://cloudless.eox.at",
+      },
+      {
+        label: "modified Copernicus Sentinel data 2016 & 2017",
+        href: "https://sentinel.esa.int/web/sentinel/user-guides/sentinel-2-msi",
+      },
+      { label: "CC BY 4.0", href: "https://creativecommons.org/licenses/by/4.0/" },
     ],
   },
   /*

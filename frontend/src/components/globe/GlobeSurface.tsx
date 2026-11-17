@@ -130,14 +130,31 @@ import { cn } from "@/lib/utils"
  * something the credit line does not -- the imagery row is the near half of a
  * pair and is named for the choice rather than for either half of it.
  */
-type BaseKind = "imagery" | "street" | "topo"
+type BaseKind = "open" | "imagery" | "street" | "topo"
+
+/**
+ * The basemap each base other than the Esri pair draws at every level.
+ *
+ * "imagery" is not here because it is two products split at a level; see
+ * HANDOVER_ZOOM.
+ */
+const SINGLE_BASE: Record<Exclude<BaseKind, "imagery">, BasemapKind> = {
+  open: "eox2016",
+  street: "street",
+  topo: "topo",
+}
 
 const BASE_OPTIONS: readonly {
   id: BaseKind
   name: string
   icon: React.ReactNode
 }[] = [
-  { id: "imagery", name: "Imagery", icon: <LineBasePhoto className="size-4" /> },
+  {
+    id: "open",
+    name: basemapByKind("eox2016").name,
+    icon: <LineBasePhoto className="size-4" />,
+  },
+  { id: "imagery", name: "Imagery (Esri)", icon: <LineBasePhoto className="size-4" /> },
   {
     id: "street",
     name: basemapByKind("street").name,
@@ -171,6 +188,15 @@ const HANDOVER_ZOOM = zoomOfLevel(ESRI_FIRST_LEVEL)
  * from the mosaic's own native level so the two cannot disagree.
  */
 const RECENT_MAX_ZOOM = zoomOfLevel(basemapByKind("s2recent").maxNativeZoom ?? 14) + 1
+
+/**
+ * The lowest zoom the recent mosaic is seen at. Its layer begins one level
+ * under the handover; over the Esri pair the wide half covers it there, and
+ * over a base drawn at every level nothing does.
+ */
+function recentFloor(pair: boolean): number {
+  return pair ? HANDOVER_ZOOM : HANDOVER_ZOOM - 1
+}
 
 /*
   THE SHAPE BEING DRAWN GETS ITS OWN SOURCE, not a feature in the catalog's.
@@ -815,9 +841,16 @@ export function GlobeSurface({
 
     Held here and not remembered, like `recent` and for the same reason: it
     belongs to the question being asked rather than to the session.
+
+    IT OPENS ON THE OPEN MOSAIC. See the eox2016 row in lib/basemaps.ts for
+    why; Esri's imagery is one choice away, and no request reaches Esri until
+    it is chosen.
   */
-  const [base, setBase] = useState<BaseKind>("imagery")
-  const drawing = base !== "imagery"
+  const [base, setBase] = useState<BaseKind>("open")
+  /** The Esri pair, two products handed over at a level. */
+  const pair = base === "imagery"
+  /** A map rather than a photograph: nothing is acquired, and nothing is dated. */
+  const drawing = base === "street" || base === "topo"
   const [esriHere, setEsriHere] = useState<ImageryHere>({
     date: null,
     maxLevel: null,
@@ -837,7 +870,13 @@ export function GlobeSurface({
     const host = hostRef.current
     if (!host) return
     const imagery = basemapByKind(GLOBE_BASEMAP)
-    const wide = basemapByKind(GLOBE_WIDE_BASEMAP)
+    /*
+      The wide source starts on the open mosaic, the base the screen opens on,
+      and the Esri layer starts hidden: the base effect sets both once the map
+      is ready, and until then a restored view zoomed past the handover would
+      otherwise fetch Esri tiles the reader never asked for.
+    */
+    const wide = basemapByKind(SINGLE_BASE.open)
     let map: MapLibreMap
     try {
       map = new MapLibreMap({
@@ -983,6 +1022,7 @@ export function GlobeSurface({
               type: "raster",
               source: "imagery",
               minzoom: HANDOVER_ZOOM - 1,
+              layout: { visibility: "none" },
             },
             /*
               OVER THE ESRI LAYER RATHER THAN INSTEAD OF IT, and Esri is left
@@ -1013,7 +1053,6 @@ export function GlobeSurface({
               id: "imagery-wide",
               type: "raster",
               source: "imagery-wide",
-              maxzoom: HANDOVER_ZOOM,
             },
             /*
               A fill under the line, and it is what makes a press work. The hand
@@ -1556,20 +1595,53 @@ export function GlobeSurface({
     street and topographic maps are one drawing at every level, so the near
     layer is opened down to the planet and the wide one withdrawn, rather than
     handing over to a satellite mosaic a reader did not ask for.
+
+    THE OPEN MOSAIC IS ONE PRODUCT AT EVERY LEVEL TOO, and 10 m like the wide
+    half of the pair, so it is drawn by the wide layer with its ceiling lifted:
+    the wide source was created with s2cloudless's maxzoom, which the near
+    source's 19 is not. The Esri layer is hidden rather than left under it, so
+    no Esri tile is fetched. The recent mosaic, drawn over the near layer in
+    the pair, has to sit over the wide one here, or it would be drawn under a
+    picture that covers every level.
   */
   useEffect(() => {
     const map = mapRef.current
-    if (!map || !ready || !map.getSource("imagery")) return
-    const drawn = basemapByKind(drawing ? base : GLOBE_BASEMAP)
-    const source = map.getSource("imagery")
-    if (source && "setTiles" in source) {
-      ;(source as { setTiles: (t: string[]) => void }).setTiles([drawn.url])
+    if (!map || !ready || !map.getSource("imagery") || !map.getSource("imagery-wide")) {
+      return
     }
-    map.setLayerZoomRange("imagery", drawing ? 0 : HANDOVER_ZOOM - 1, 24)
-    if (map.getLayer("imagery-wide")) {
-      map.setLayoutProperty("imagery-wide", "visibility", drawing ? "none" : "visible")
+    const setTiles = (id: string, url: string) => {
+      const source = map.getSource(id)
+      if (source && "setTiles" in source) {
+        ;(source as { setTiles: (t: string[]) => void }).setTiles([url])
+      }
     }
-  }, [base, drawing, ready])
+    const layers = map.getStyle().layers
+    const afterWide = layers[layers.findIndex((l) => l.id === "imagery-wide") + 1]?.id
+    if (base === "imagery") {
+      setTiles("imagery", basemapByKind(GLOBE_BASEMAP).url)
+      setTiles("imagery-wide", basemapByKind(GLOBE_WIDE_BASEMAP).url)
+      map.setLayerZoomRange("imagery", HANDOVER_ZOOM - 1, 24)
+      map.setLayerZoomRange("imagery-wide", 0, HANDOVER_ZOOM)
+      map.setLayoutProperty("imagery", "visibility", "visible")
+      map.setLayoutProperty("imagery-wide", "visibility", "visible")
+      if (afterWide === "imagery-recent") {
+        map.moveLayer("imagery-recent", "imagery-wide")
+      }
+    } else if (base === "open") {
+      setTiles("imagery-wide", basemapByKind(SINGLE_BASE.open).url)
+      map.setLayerZoomRange("imagery-wide", 0, 24)
+      map.setLayoutProperty("imagery", "visibility", "none")
+      map.setLayoutProperty("imagery-wide", "visibility", "visible")
+      if (afterWide && afterWide !== "imagery-recent") {
+        map.moveLayer("imagery-recent", afterWide)
+      }
+    } else {
+      setTiles("imagery", basemapByKind(SINGLE_BASE[base]).url)
+      map.setLayerZoomRange("imagery", 0, 24)
+      map.setLayoutProperty("imagery", "visibility", "visible")
+      map.setLayoutProperty("imagery-wide", "visibility", "none")
+    }
+  }, [base, ready])
 
   /*
     The recent mosaic is imagery, and it is asked for over imagery. Left on
@@ -1611,12 +1683,16 @@ export function GlobeSurface({
     let cancelled = false
     let timer: ReturnType<typeof setTimeout> | undefined
     let abort: AbortController | undefined
+    const pairShown = base === "imagery"
     const refresh = () => {
       if (timer) clearTimeout(timer)
-      if (map.getZoom() < HANDOVER_ZOOM) {
-        // Dropped below the handover: the Esri answer no longer describes
-        // anything on screen, and leaving it in place would let it reappear as
-        // the reader climbs back through 12 over somewhere else entirely.
+      const z = map.getZoom()
+      const recentHere = recent && z >= recentFloor(pairShown) && z < RECENT_MAX_ZOOM
+      if (!recentHere && !(pairShown && z >= HANDOVER_ZOOM)) {
+        // Nothing dated per point is on screen: below the handover, or a base
+        // that is not Esri's. The answer is cleared rather than left to
+        // reappear over somewhere else, and Esri is not asked about a picture
+        // it is not drawing.
         abort?.abort()
         setEsriHere({ date: null, maxLevel: null, magnified: false })
         return
@@ -1626,16 +1702,15 @@ export function GlobeSurface({
         abort = new AbortController()
         const c = map.getCenter()
         try {
-          const here: ImageryHere =
-            recent && map.getZoom() < RECENT_MAX_ZOOM
-              ? {
-                  date: await fetchLatestSceneDate(c.lat, c.lng, abort.signal),
-                  // The mosaic has no ceiling to report: it composes at any level
-                  // the service will serve, and magnifies its own pixels past 14.
-                  maxLevel: null,
-                  magnified: false,
-                }
-              : await fetchEsriImageryHere(c.lat, c.lng, map.getZoom(), abort.signal)
+          const here: ImageryHere = recentHere
+            ? {
+                date: await fetchLatestSceneDate(c.lat, c.lng, abort.signal),
+                // The mosaic has no ceiling to report: it composes at any level
+                // the service will serve, and magnifies its own pixels past 14.
+                maxLevel: null,
+                magnified: false,
+              }
+            : await fetchEsriImageryHere(c.lat, c.lng, map.getZoom(), abort.signal)
           if (!cancelled) setEsriHere(here)
         } catch (err) {
           if ((err as Error)?.name === "AbortError") return
@@ -1656,7 +1731,7 @@ export function GlobeSurface({
       a.unsubscribe()
       b.unsubscribe()
     }
-  }, [ready, recent])
+  }, [ready, recent, base])
 
   /*
     The DEM and its shading, added once the style exists and inserted UNDER the
@@ -1707,19 +1782,19 @@ export function GlobeSurface({
     pair. Under a drawing there is no pair and no handover, so this is false at
     every level and the credit names the one map on screen.
   */
-  const wide = !drawing && zoom < HANDOVER_ZOOM
+  const wide = pair && zoom < HANDOVER_ZOOM
   /* The reader's ask AND the level agreeing. Above the cap the button is still
-     down and the picture is Esri again, so everything below says Esri. */
-  const recentDrawn = !wide && recent && zoom < RECENT_MAX_ZOOM
-  const shownBasemap = basemapByKind(
-    drawing
-      ? base
-      : wide
-        ? GLOBE_WIDE_BASEMAP
-        : recentDrawn
-          ? "s2recent"
-          : GLOBE_BASEMAP
-  )
+     down and the picture is the base again, so everything below says so. */
+  const recentDrawn =
+    !drawing && recent && zoom >= recentFloor(pair) && zoom < RECENT_MAX_ZOOM
+  /* The base under the mosaic, or on its own: one product at every level, or
+     the half of the pair this level shows. */
+  const underBasemap: BasemapKind = pair
+    ? wide
+      ? GLOBE_WIDE_BASEMAP
+      : GLOBE_BASEMAP
+    : SINGLE_BASE[base]
+  const shownBasemap = basemapByKind(recentDrawn ? "s2recent" : underBasemap)
   /*
     A drawing has no acquisition. Esri's date readout is about a photograph's
     footprint, and reporting one under a street map would answer a question
@@ -1727,9 +1802,9 @@ export function GlobeSurface({
   */
   const shownDate = drawing
     ? null
-    : wide
-      ? (shownBasemap.imageryDate ?? null)
-      : esriHere.date
+    : recentDrawn || (pair && !wide)
+      ? esriHere.date
+      : (shownBasemap.imageryDate ?? null)
   /*
     WHERE THE IMAGERY ENDS UNDER THE CENTRE, which is not where the product
     ends. World Imagery's ceiling is per footprint: one town reads to z20, the
@@ -1742,16 +1817,12 @@ export function GlobeSurface({
     it is not asked past the cap.
   */
   const ceiling =
-    !drawing &&
-    !recentDrawn &&
-    !wide &&
-    esriHere.magnified &&
-    esriHere.maxLevel !== null
+    pair && !recentDrawn && !wide && esriHere.magnified && esriHere.maxLevel !== null
       ? zoomOfLevel(esriHere.maxLevel)
       : null
-  /* Both, while the mosaic is drawn OVER Esri rather than in place of it. */
+  /* Both, while the mosaic is drawn OVER the base rather than in place of it. */
   const creditParts = recentDrawn
-    ? [...shownBasemap.credit, ...basemapByKind(GLOBE_BASEMAP).credit]
+    ? [...shownBasemap.credit, ...basemapByKind(underBasemap).credit]
     : shownBasemap.credit
 
   return (
@@ -1970,7 +2041,8 @@ export function GlobeSurface({
           {/*
             THE BASE, BEFORE THE QUESTION ABOUT WHICH IMAGERY. Choosing a
             photograph or a drawing is the wider of the two asks, and the one
-            below only applies to one of its answers.
+            below only applies to the photographs: the open 2016 mosaic and
+            Esri's pair.
 
             A LIST AND NOT A CYCLE, which the first version was. Three answers
             behind one button makes the second two presses away and the third
@@ -1997,7 +2069,9 @@ export function GlobeSurface({
               label={
                 recent
                   ? "Imagery: recent Sentinel-2"
-                  : "Imagery: Esri, deepest available"
+                  : pair
+                    ? "Imagery: Esri, deepest available"
+                    : "Imagery: Sentinel-2 2016"
               }
               active={recent}
               onClick={() => setRecent((v) => !v)}
