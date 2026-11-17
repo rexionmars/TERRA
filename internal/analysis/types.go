@@ -503,6 +503,9 @@ type sidecarResult struct {
 	DomainFingerprint *DomainFingerprint    `json:"domain_fingerprint,omitempty"`
 	Model             *ModelRef             `json:"model,omitempty"`
 	ImagerySource     []ImagerySource       `json:"imagery_source,omitempty"`
+	Scenes            []RunScene            `json:"scenes,omitempty"`
+	Parameters        *RunParameters        `json:"parameters,omitempty"`
+	ComputedAt        string                `json:"computed_at,omitempty"`
 }
 
 // lulcSidecarPayload is the raw LULC block from Python (map as file path).
@@ -617,6 +620,11 @@ type PredictResult struct {
 	// for runs saved before sources could be chosen, which all read the
 	// Planetary Computer.
 	ImagerySource []ImagerySource `json:"imagery_source,omitempty"`
+	// Each acquisition read, what the run was asked for, and when the imagery
+	// was read (UTC, ISO 8601). Absent on runs saved before they were kept.
+	Scenes     []RunScene     `json:"scenes,omitempty"`
+	Parameters *RunParameters `json:"parameters,omitempty"`
+	ComputedAt string         `json:"computed_at,omitempty"`
 }
 
 // DomainHistogram is a fixed-edge probability histogram (NDVI by default).
@@ -968,4 +976,28 @@ type ImagerySource struct {
 	// The collection's id in that catalogue, which need not be TERRA's:
 	// Earth Search serves Sentinel-2 as "sentinel-2-c1-l2a".
 	CatalogueCollection string `json:"catalogue_collection"`
+}
+
+// RunScene is one acquisition a run read: its id in the catalogue (the SAFE
+// directory's name for a product read from disk) and what the catalogue
+// stated about it.
+type RunScene struct {
+	ID                 string   `json:"id"`
+	Date               string   `json:"date"`
+	CloudCover         *float64 `json:"cloud_cover,omitempty"`
+	ProcessingBaseline string   `json:"processing_baseline,omitempty"`
+}
+
+// RunParameters is what a classification was asked for, as the sidecar
+// received it: with the scenes and the model, enough to make the run again.
+type RunParameters struct {
+	// "stac" or "local".
+	Source      string   `json:"source"`
+	Start       string   `json:"start"`
+	End         string   `json:"end"`
+	MaxCloud    float64  `json:"max_cloud"`
+	MonthlyBest bool     `json:"monthly_best"`
+	Mode        string   `json:"mode"`
+	Variant     string   `json:"variant,omitempty"`
+	Tiles       []string `json:"tiles,omitempty"`
 }

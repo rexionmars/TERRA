@@ -17,7 +17,14 @@ import (
 	"time"
 )
 
-const researchExportSchemaVersion = 1
+/*
+researchExportSchemaVersion is the manifest's format.
+
+2 added what a run needs to be repeated and checked: the scenes read and the
+catalogue they came from, the model's digest, the parameters, the time the
+imagery was read, the reference used for agreement, and the list of files.
+*/
+const researchExportSchemaVersion = 2
 
 // researchTableColumns is the header row of every CSV the research pack can
 // write, keyed by file name.
@@ -57,6 +64,23 @@ var researchTableColumns = map[string][]string{
 		"class_id", "name", "color", "pct_ref", "pct_pred",
 		"pixels_ref", "n_reference_cells",
 	},
+	// The accuracy assessment against MapBiomas, over the reference's native
+	// 30 m cells (analysis.LULCAgreement): one row of summary, one row per class
+	// with both accuracies and their 95% Wilson intervals, and the confusion
+	// matrix in long form, so the header does not depend on which classes occur.
+	"lulc_agreement.csv": {
+		"n_reference_cells", "overall_pct", "overall_ci_low", "overall_ci_high",
+		"quantity_disagreement_pct", "allocation_disagreement_pct", "n_outside_legend",
+		"blocks_n_measured", "blocks_median_pct", "blocks_iqr_pct",
+		"blocks_min_pct", "blocks_max_pct",
+	},
+	"lulc_accuracy.csv": {
+		"class_id", "name", "color",
+		"producers_pct", "producers_ci_low", "producers_ci_high",
+		"users_pct", "users_ci_low", "users_ci_high",
+		"n_reference", "n_predicted",
+	},
+	"lulc_confusion.csv": {"predicted_class", "reference_class", "n_reference_cells"},
 	// Compact domain fingerprint cached at classify (no raw sample matrix).
 	"domain_fingerprint.csv": {
 		"space", "n_features", "n_pixels", "n_sample",
@@ -93,7 +117,7 @@ func BuildResearchPackZIP(meta analysis.ResearchExportMeta, result *analysis.Pre
 	}
 
 	var buf bytes.Buffer
-	zw := zip.NewWriter(&buf)
+	zw := &packWriter{Writer: zip.NewWriter(&buf)}
 
 	manifest := map[string]any{
 		"schema_version":  researchExportSchemaVersion,
@@ -104,6 +128,9 @@ func BuildResearchPackZIP(meta analysis.ResearchExportMeta, result *analysis.Pre
 		"date_range":      result.DateRange,
 		"mean_confidence": result.MeanConfidence,
 		"extent":          result.Extent,
+	}
+	for key, value := range provenance(result) {
+		manifest[key] = value
 	}
 	if w := result.Water; w != nil && len(w.Series) > 0 {
 		manifest["water_index"] = w.Index
@@ -122,11 +149,6 @@ func BuildResearchPackZIP(meta analysis.ResearchExportMeta, result *analysis.Pre
 		manifest["compare_pixels"] = result.LULC.ComparePixels
 		manifest["compare_reference_cells"] = result.LULC.CompareReferenceCells
 	}
-	if err := writeZipJSON(zw, "manifest.json", manifest); err != nil {
-		_ = zw.Close()
-		return nil, err
-	}
-
 	if poly := strings.TrimSpace(meta.PolygonGeoJSON); poly != "" && poly != "null" {
 		aoiPayload, err := normalizeAOIGeoJSON(poly)
 		if err != nil {
@@ -310,7 +332,23 @@ func BuildResearchPackZIP(meta analysis.ResearchExportMeta, result *analysis.Pre
 		}
 	}
 
+	if lulc := result.LULC; lulc != nil && lulc.Agreement != nil {
+		for _, t := range agreementTables(lulc.Agreement) {
+			if err := writeZipCSV(zw, t.name, t.rows); err != nil {
+				_ = zw.Close()
+				return nil, err
+			}
+		}
+	}
+
 	if fp := result.DomainFingerprint; fp != nil {
+		// The whole fingerprint as well as its summary: the domain-shift report
+		// compares two runs, so it belongs to no one run's package, and this
+		// is what lets it be computed again from two packages.
+		if err := writeZipJSON(zw, "domain_fingerprint.json", fp); err != nil {
+			_ = zw.Close()
+			return nil, err
+		}
 		rows := researchHeader("domain_fingerprint.csv")
 		meanL2 := 0.0
 		for _, v := range fp.Mean {
@@ -370,10 +408,124 @@ func BuildResearchPackZIP(meta analysis.ResearchExportMeta, result *analysis.Pre
 		}
 	}
 
+	// Last, so it can list every other file the package holds.
+	files := make([]string, 0, len(zw.files))
+	files = append(files, zw.files...)
+	manifest["files"] = append(files, "manifest.json")
+	if err := writeZipJSON(zw, "manifest.json", manifest); err != nil {
+		_ = zw.Close()
+		return nil, err
+	}
+
 	if err := zw.Close(); err != nil {
 		return nil, err
 	}
 	return buf.Bytes(), nil
+}
+
+/*
+provenance is what the manifest records so a run can be repeated and its
+numbers traced: the scenes read and the catalogue they came from, the model
+down to its files, the parameters, when the imagery was read, and the
+reference the agreement was measured against.
+
+Each key is left out when the run does not carry it, as one saved before it was
+recorded does not, rather than written empty: an empty list of scenes would
+read as a run that read none.
+*/
+func provenance(result *analysis.PredictResult) map[string]any {
+	out := map[string]any{}
+	if result.RunID != "" {
+		out["run_id"] = result.RunID
+	}
+	if result.ComputedAt != "" {
+		out["computed_at"] = result.ComputedAt
+	}
+	if result.Parameters != nil {
+		out["parameters"] = result.Parameters
+	}
+	if result.Model != nil {
+		out["model"] = result.Model
+	}
+	imagery := map[string]any{}
+	if len(result.ImagerySource) > 0 {
+		imagery["sources"] = result.ImagerySource
+	}
+	if len(result.Scenes) > 0 {
+		imagery["scenes"] = result.Scenes
+	}
+	if len(imagery) > 0 {
+		out["imagery"] = imagery
+	}
+	if lulc := result.LULC; lulc != nil {
+		out["reference"] = map[string]any{
+			"name":   "MapBiomas",
+			"source": lulc.Source,
+			"year":   lulc.Year,
+		}
+	}
+	return out
+}
+
+type packTable struct {
+	name string
+	rows [][]string
+}
+
+// agreementTables are the accuracy assessment's three CSVs, in the order they
+// are written.
+func agreementTables(a *analysis.LULCAgreement) []packTable {
+	ci := func(v []float64, i int) string {
+		if len(v) == 2 {
+			return formatFloat(v[i])
+		}
+		return ""
+	}
+	summary := researchHeader("lulc_agreement.csv")
+	row := []string{
+		strconv.Itoa(a.NReferenceCells),
+		formatFloat(a.OverallPct), ci(a.OverallCI, 0), ci(a.OverallCI, 1),
+		formatFloat(a.QuantityDisagreementPct), formatFloat(a.AllocationDisagreementPct),
+		strconv.Itoa(a.NOutsideLegend),
+	}
+	if b := a.Blocks; b != nil {
+		row = append(row, strconv.Itoa(b.NMeasured), formatFloat(b.MedianPct),
+			formatFloat(b.IQRPct), formatFloat(b.MinPct), formatFloat(b.MaxPct))
+	} else {
+		row = append(row, "", "", "", "", "")
+	}
+	summary = append(summary, row)
+
+	perClass := researchHeader("lulc_accuracy.csv")
+	for _, c := range a.PerClass {
+		perClass = append(perClass, []string{
+			strconv.Itoa(c.ClassID), c.Name, c.Color,
+			formatFloatPtr(c.ProducersPct), ci(c.ProducersCI, 0), ci(c.ProducersCI, 1),
+			formatFloatPtr(c.UsersPct), ci(c.UsersCI, 0), ci(c.UsersCI, 1),
+			strconv.Itoa(c.NReference), strconv.Itoa(c.NPredicted),
+		})
+	}
+
+	// matrix[pred][ref]: rows are the classification, columns the reference.
+	confusion := researchHeader("lulc_confusion.csv")
+	for i, predRow := range a.Matrix {
+		if i >= len(a.MatrixClasses) {
+			break
+		}
+		for j, n := range predRow {
+			if j >= len(a.MatrixClasses) {
+				break
+			}
+			confusion = append(confusion, []string{
+				strconv.Itoa(a.MatrixClasses[i]), strconv.Itoa(a.MatrixClasses[j]), strconv.Itoa(n),
+			})
+		}
+	}
+	return []packTable{
+		{"lulc_agreement.csv", summary},
+		{"lulc_accuracy.csv", perClass},
+		{"lulc_confusion.csv", confusion},
+	}
 }
 
 // ResolveRasterPath returns an existing filesystem path for a classification
@@ -458,7 +610,24 @@ func normalizeAOIGeoJSON(raw string) ([]byte, error) {
 	return json.MarshalIndent(m, "", "  ")
 }
 
-func writeZipJSON(zw *zip.Writer, name string, v any) error {
+// zipCreator is what the writers below need: somewhere to create a named file.
+type zipCreator interface {
+	Create(name string) (io.Writer, error)
+}
+
+// packWriter is a zip.Writer that remembers the names it wrote, for the
+// manifest's list of files.
+type packWriter struct {
+	*zip.Writer
+	files []string
+}
+
+func (w *packWriter) Create(name string) (io.Writer, error) {
+	w.files = append(w.files, name)
+	return w.Writer.Create(name)
+}
+
+func writeZipJSON(zw zipCreator, name string, v any) error {
 	b, err := json.MarshalIndent(v, "", "  ")
 	if err != nil {
 		return err
@@ -466,7 +635,7 @@ func writeZipJSON(zw *zip.Writer, name string, v any) error {
 	return writeZipBytes(zw, name, b)
 }
 
-func writeZipCSV(zw *zip.Writer, name string, rows [][]string) error {
+func writeZipCSV(zw zipCreator, name string, rows [][]string) error {
 	var buf bytes.Buffer
 	w := csv.NewWriter(&buf)
 	if err := w.WriteAll(rows); err != nil {
@@ -479,7 +648,7 @@ func writeZipCSV(zw *zip.Writer, name string, rows [][]string) error {
 	return writeZipBytes(zw, name, buf.Bytes())
 }
 
-func writeZipBytes(zw *zip.Writer, name string, data []byte) error {
+func writeZipBytes(zw zipCreator, name string, data []byte) error {
 	w, err := zw.Create(name)
 	if err != nil {
 		return err
@@ -488,7 +657,7 @@ func writeZipBytes(zw *zip.Writer, name string, data []byte) error {
 	return err
 }
 
-func writeZipFile(zw *zip.Writer, name, srcPath string) error {
+func writeZipFile(zw zipCreator, name, srcPath string) error {
 	in, err := os.Open(srcPath)
 	if err != nil {
 		return err

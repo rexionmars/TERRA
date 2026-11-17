@@ -430,6 +430,12 @@ export interface PredictResult {
   model?: ModelRef | null
   /** The catalogue each collection was read from; absent on runs saved before sources could be chosen. */
   imagery_source?: ImagerySource[]
+  /** Each acquisition read; absent on runs saved before it was kept. */
+  scenes?: RunScene[]
+  /** What the run was asked for; absent on runs saved before it was kept. */
+  parameters?: RunParameters
+  /** When the imagery was read, UTC ISO 8601. */
+  computed_at?: string
 }
 
 /** Fixed-edge histogram (NDVI by default). */
@@ -1766,6 +1772,28 @@ export interface ModelRef {
   id: string
   version: string
   digest: string
+}
+
+/** One acquisition a run read (internal/analysis/types.go, RunScene). */
+export interface RunScene {
+  /** The catalogue's id, or the SAFE directory's name for a product on disk. */
+  id: string
+  date: string
+  cloud_cover?: number | null
+  processing_baseline?: string
+}
+
+/** What a classification was asked for, as the sidecar received it. */
+export interface RunParameters {
+  /** "stac" or "local". */
+  source: string
+  start: string
+  end: string
+  max_cloud: number
+  monthly_best: boolean
+  mode: string
+  variant?: string
+  tiles?: string[]
 }
 
 /**

@@ -37,7 +37,7 @@ import {
  * here maps one-to-one onto what lands on disk.
  */
 
-type EntryKind = "manifest" | "aoi" | "table" | "raster"
+type EntryKind = "manifest" | "aoi" | "table" | "raster" | "fingerprint"
 
 interface PackEntry {
   /** Path inside the ZIP. */
@@ -87,15 +87,41 @@ export function ResearchPackModal({
   const geometry = useMemo(() => parseGeometry(polygonGeoJSON), [polygonGeoJSON])
 
   /**
-   * The run-metadata block of the manifest written by BuildResearchPackZIP.
-   * The per-product keys that exporter adds after it — the water figures and
-   * the MapBiomas comparison's sample size — are not listed here, so this is a
+   * The run-metadata block of the manifest written by BuildResearchPackZIP,
+   * and its provenance: the scenes and the catalogue, the model, the
+   * parameters and when the imagery was read. The per-product keys the
+   * exporter also adds -- the water figures and the MapBiomas comparison's
+   * sample size -- and the list of files are not listed here, so this is a
    * preview of the manifest's head rather than the whole of it.
    */
   const manifestRows = useMemo(() => {
     if (!result) return []
+    const p = result.parameters
+    const sources = (result.imagery_source ?? [])
+      .map((s) => `${s.title} (${s.catalogue_collection})`)
+      .join(", ")
     return [
-      ["schema_version", "1"],
+      ["schema_version", "2"],
+      ["run_id", result.run_id ?? ""],
+      ["computed_at", result.computed_at ?? ""],
+      [
+        "model",
+        result.model
+          ? `${result.model.id} ${result.model.version} · ${result.model.digest.slice(0, 12)}`
+          : "",
+      ],
+      [
+        "parameters",
+        p
+          ? `${p.start} → ${p.end} · cloud < ${p.max_cloud}% · ${p.monthly_best ? "monthly best" : "every scene"} · ${p.mode}`
+          : "",
+      ],
+      ["imagery", sources],
+      ["scenes", result.scenes?.length ? `${result.scenes.length} listed by id` : ""],
+      [
+        "reference",
+        result.lulc ? `MapBiomas ${result.lulc.year} (${result.lulc.source})` : "",
+      ],
       ["exported_at", "set when the pack is written"],
       ["model_kind", modelKind || ""],
       ["aoi_label", areaLabel?.trim() ?? ""],
@@ -122,6 +148,13 @@ export function ResearchPackModal({
         name: "aoi.geojson",
         kind: "aoi",
         detail: parts === 1 ? "1 part" : `${parts} parts`,
+      })
+    }
+    if (result.domain_fingerprint) {
+      list.push({
+        name: "domain_fingerprint.json",
+        kind: "fingerprint",
+        detail: `${result.domain_fingerprint.n_features} features`,
       })
     }
     for (const t of allAnalysisTables(result)) {
@@ -281,6 +314,19 @@ export function ResearchPackModal({
               <p className="mt-3 text-meta text-muted-foreground">
                 exported_at is stamped by the exporter when the archive is written, so
                 it is not known until then.
+              </p>
+            </section>
+          ) : active?.kind === "fingerprint" ? (
+            <section className="rounded-sm border border-border bg-secondary/50 p-4">
+              <p className="eyebrow mb-3">domain_fingerprint.json</p>
+              <p className="text-body text-muted-foreground">
+                The whole fingerprint of the imagery this run classified, in the{" "}
+                <span className="telemetry text-foreground">
+                  {result.domain_fingerprint?.space}
+                </span>{" "}
+                feature space: means, variances, the NDVI histogram and the sample. The
+                domain-shift report compares two runs, so it is in no one run&apos;s
+                pack; two packs&apos; fingerprints are what it is computed from.
               </p>
             </section>
           ) : active?.kind === "aoi" && geometry ? (

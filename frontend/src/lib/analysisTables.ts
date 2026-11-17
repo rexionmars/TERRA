@@ -293,6 +293,107 @@ export function lulcPredVsRefTable(lulc?: LULCAnalysis | null): DataTable | null
   )
 }
 
+/**
+ * The accuracy assessment against MapBiomas, over the reference's native 30 m
+ * cells: the summary, one row.
+ */
+export function lulcAgreementTable(lulc?: LULCAnalysis | null): DataTable | null {
+  const a = lulc?.agreement
+  if (!a) return null
+  const b = a.blocks
+  return table(
+    "lulc_agreement",
+    "lulc_agreement.csv",
+    [
+      num("n_reference_cells"),
+      num("overall_pct"),
+      num("overall_ci_low"),
+      num("overall_ci_high"),
+      num("quantity_disagreement_pct"),
+      num("allocation_disagreement_pct"),
+      num("n_outside_legend"),
+      num("blocks_n_measured"),
+      num("blocks_median_pct"),
+      num("blocks_iqr_pct"),
+      num("blocks_min_pct"),
+      num("blocks_max_pct"),
+    ],
+    [
+      [
+        a.n_reference_cells,
+        a.overall_pct,
+        a.overall_ci?.[0],
+        a.overall_ci?.[1],
+        a.quantity_disagreement_pct,
+        a.allocation_disagreement_pct,
+        a.n_outside_legend,
+        b?.n_measured,
+        b?.median_pct,
+        b?.iqr_pct,
+        b?.min_pct,
+        b?.max_pct,
+      ],
+    ]
+  )
+}
+
+/** Each class's producer's and user's accuracy, with their 95% intervals. */
+export function lulcAccuracyTable(lulc?: LULCAnalysis | null): DataTable | null {
+  return table(
+    "lulc_accuracy",
+    "lulc_accuracy.csv",
+    [
+      num("class_id"),
+      { key: "name" },
+      { key: "color", swatch: true },
+      num("producers_pct"),
+      num("producers_ci_low"),
+      num("producers_ci_high"),
+      num("users_pct"),
+      num("users_ci_low"),
+      num("users_ci_high"),
+      num("n_reference"),
+      num("n_predicted"),
+    ],
+    (lulc?.agreement?.per_class ?? []).map((c) => [
+      c.class_id,
+      c.name,
+      c.color,
+      c.producers_pct,
+      c.producers_ci?.[0],
+      c.producers_ci?.[1],
+      c.users_pct,
+      c.users_ci?.[0],
+      c.users_ci?.[1],
+      c.n_reference,
+      c.n_predicted,
+    ])
+  )
+}
+
+/**
+ * The confusion matrix in long form, one row per pair of classes, so the
+ * columns do not depend on which classes occur. The matrix is
+ * matrix[predicted][reference].
+ */
+export function lulcConfusionTable(lulc?: LULCAnalysis | null): DataTable | null {
+  const a = lulc?.agreement
+  const classes = a?.matrix_classes ?? []
+  const rows: CellValue[][] = []
+  ;(a?.matrix ?? []).forEach((predRow, i) => {
+    if (i >= classes.length) return
+    predRow.forEach((n, j) => {
+      if (j < classes.length) rows.push([classes[i], classes[j], n])
+    })
+  })
+  return table(
+    "lulc_confusion",
+    "lulc_confusion.csv",
+    [num("predicted_class"), num("reference_class"), num("n_reference_cells")],
+    rows
+  )
+}
+
 /** Summary of the classify-time domain fingerprint (no raw sample matrix). */
 export function domainFingerprintTable(
   fp?: DomainFingerprint | null
@@ -368,6 +469,9 @@ export function allAnalysisTables(result: PredictResult): DataTable[] {
     lulcCompositionTable(result.lulc),
     lulcGroupsTable(result.lulc),
     lulcPredVsRefTable(result.lulc),
+    lulcAgreementTable(result.lulc),
+    lulcAccuracyTable(result.lulc),
+    lulcConfusionTable(result.lulc),
     domainFingerprintTable(result.domain_fingerprint),
     waterSeriesTable(result.water),
   ].filter((t): t is DataTable => t !== null)

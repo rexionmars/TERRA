@@ -261,9 +261,12 @@ Read these before trusting an output.
 - **Class 41 is a residual bucket.** High overall accuracy against MapBiomas
   does not imply fine crop identity.
 - **Areas in hectares are pixel counts**, uncorrected for classification error.
-- **The export package is partial.** It carries the run's tables, AOI geometry
-  and classification raster; the accuracy assessment and the domain-shift report
-  are not in it.
+- **The export package holds one run.** It carries the run's tables, the
+  accuracy assessment against MapBiomas, the AOI geometry, the classification
+  raster and a manifest of the scenes, catalogue, model, parameters and reference
+  it was made from. The domain-shift report compares two runs, so it is in
+  neither run's package; each package carries its run's whole fingerprint, from
+  which the report can be computed again.
 - **The runs in hand do not survive closing** unless they are saved as a named
   workflow. Saved runs stay in Analyses either way.
 - **Field boundaries are not measured here.** The delineation network reports
