@@ -75,6 +75,8 @@ type TrajectoryAnalysis struct {
 	Multiplier float64         `json:"multiplier"`
 	Model      TrajectoryModel `json:"model"`
 	RunID      string          `json:"run_id,omitempty"`
+	// The catalogue the scenes were read from; see ImagerySource.
+	ImagerySource []ImagerySource `json:"imagery_source,omitempty"`
 }
 
 // NormalizeNilSlices turns absent lists into empty ones, which the interface

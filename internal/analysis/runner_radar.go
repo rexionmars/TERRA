@@ -12,7 +12,13 @@ import (
 // AnalyzeRadar reads every Sentinel-1 pass over an area in a period
 // (types_radar.go says what the result is and is not). The maps are read into
 // data URIs, so the work directory goes when the call returns.
-func (r *Runner) AnalyzeRadar(ctx context.Context, req RadarRequest) (*RadarAnalysis, error) {
+//
+// token is the Earthdata Login token to hand the sidecar when the radar is
+// read from NASA's archive, or empty: when the Planetary Computer is the
+// source, or when the process environment already carries EARTHDATA_TOKEN,
+// which then wins. It travels in the child's environment, as the mineral
+// map's does, and never in the request.
+func (r *Runner) AnalyzeRadar(ctx context.Context, req RadarRequest, token string) (*RadarAnalysis, error) {
 	if _, err := os.Stat(r.sidecar); err != nil {
 		return nil, fmt.Errorf("sidecar not found at %s", r.sidecar)
 	}
@@ -38,7 +44,11 @@ func (r *Runner) AnalyzeRadar(ctx context.Context, req RadarRequest) (*RadarAnal
 	if err != nil {
 		return nil, fmt.Errorf("failed to encode request: %w", err)
 	}
-	raw, err := r.runSidecarJSON(ctx, reqBytes)
+	var env []string
+	if token != "" {
+		env = append(env, EarthdataTokenEnv+"="+token)
+	}
+	raw, err := r.runSidecarJSONEnv(ctx, reqBytes, env)
 	if err != nil {
 		return nil, err
 	}
@@ -59,16 +69,17 @@ func parseRadarPayload(raw []byte) (*RadarAnalysis, error) {
 		return nil, errors.New("sidecar returned an empty radar payload")
 	}
 	res := &RadarAnalysis{
-		Extent:    src.Extent,
-		Orbits:    src.Orbits,
-		Series:    src.Series,
-		Losses:    src.Losses,
-		MapDate:   src.MapDate,
-		MapOrbit:  src.MapOrbit,
-		WaterVHDB: src.WaterVHDB,
-		WaterVVDB: src.WaterVVDB,
-		LossVHDB:  src.LossVHDB,
-		LossCRDB:  src.LossCRDB,
+		Extent:        src.Extent,
+		Orbits:        src.Orbits,
+		Series:        src.Series,
+		Losses:        src.Losses,
+		MapDate:       src.MapDate,
+		MapOrbit:      src.MapOrbit,
+		WaterVHDB:     src.WaterVHDB,
+		WaterVVDB:     src.WaterVVDB,
+		LossVHDB:      src.LossVHDB,
+		LossCRDB:      src.LossCRDB,
+		ImagerySource: src.ImagerySource,
 	}
 	for _, img := range []struct {
 		path string

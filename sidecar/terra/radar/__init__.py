@@ -2,16 +2,22 @@
 Sentinel-1 radar: an area's C-band backscatter over a period, which cloud does
 not interrupt.
 
-The source is the Planetary Computer's `sentinel-1-rtc` collection: IW GRD
-scenes with radiometric terrain correction, gamma0 in linear power at 10 m,
-VV and VH. Terrain flattening removes most of the brightness a slope adds, so
-a field on a hillside and one on a plain are read on one scale.
+Two sources, chosen in Settings: the Planetary Computer's `sentinel-1-rtc`
+collection, IW GRD scenes at 10 m and the default, and NASA OPERA RTC-S1,
+bursts at 30 m from the Alaska Satellite Facility with the thermal noise
+removed. Both are gamma0 in linear power, VV and VH, with radiometric terrain
+correction: terrain flattening removes most of the brightness a slope adds, so
+a field on a hillside and one on a plain are read on one scale. OPERA's cells
+of layover and shadow, which its mask marks, are dropped. The thresholds below
+are a property of the chain they were measured on, so each source has its own
+(series.CALIBRATIONS), and one with none is refused.
 
 What is measured, per acquisition (one date and one relative orbit):
 
 - VV and VH: the mean gamma0 over the area's valid cells, in linear power,
   then in dB. Averaging N cells in power reduces the speckle of a single cell
-  (equivalent number of looks about 4.4 for these products) by N.
+  (equivalent number of looks about 4.4 for the Planetary Computer's, 8.3 for
+  OPERA's as read onto the grid) by N.
 - The cross ratio VH/VV, in dB: it rises as a canopy develops, since volume
   scattering adds to VH more than to VV (Veloso et al., 2017).
 - The share of the area read as open water: below fixed VH and VV thresholds

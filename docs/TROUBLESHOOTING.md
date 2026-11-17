@@ -41,7 +41,10 @@ nothing was installed from it.
 - Widen the date range or raise max cloud cover.
 - Disable monthly-best temporarily to see all candidates.
 - Confirm the AOI intersects Sentinel-2 L2A coverage for that period.
-- Check network access to Planetary Computer (corporate proxies can block STAC).
+- Check network access to the catalogue in use (corporate proxies can block STAC).
+- If the catalogue answers with errors or "is limiting requests", choose the
+  other source in **Settings › System › Imagery sources** (Element 84 Earth
+  Search for Sentinel-2) and run again.
 
 ### Classification is very slow
 

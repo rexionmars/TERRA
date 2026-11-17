@@ -80,15 +80,16 @@ type ZonesPartition struct {
 
 // zonesSidecarResult is the sidecar's `zones` object.
 type zonesSidecarResult struct {
-	Extent     Bounds                  `json:"extent"`
-	Seasons    []ZonesSeason           `json:"seasons"`
-	NCells     int                     `json:"n_cells"`
-	FieldCells int                     `json:"field_cells"`
-	Fuzziness  float64                 `json:"fuzziness"`
-	Percentile float64                 `json:"percentile"`
-	MinZoneHa  float64                 `json:"min_zone_ha"`
-	SuggestedK int                     `json:"suggested_k"`
-	Partitions []zonesSidecarPartition `json:"partitions"`
+	Extent        Bounds                  `json:"extent"`
+	Seasons       []ZonesSeason           `json:"seasons"`
+	NCells        int                     `json:"n_cells"`
+	FieldCells    int                     `json:"field_cells"`
+	Fuzziness     float64                 `json:"fuzziness"`
+	Percentile    float64                 `json:"percentile"`
+	MinZoneHa     float64                 `json:"min_zone_ha"`
+	SuggestedK    int                     `json:"suggested_k"`
+	Partitions    []zonesSidecarPartition `json:"partitions"`
+	ImagerySource []ImagerySource         `json:"imagery_source"`
 }
 
 // ZonesAnalysis is what the interface receives.
@@ -104,6 +105,8 @@ type ZonesAnalysis struct {
 	SuggestedK int              `json:"suggested_k"`
 	Partitions []ZonesPartition `json:"partitions"`
 	RunID      string           `json:"run_id,omitempty"`
+	// The catalogue the scenes were read from; see ImagerySource.
+	ImagerySource []ImagerySource `json:"imagery_source,omitempty"`
 }
 
 // NormalizeNilSlices turns absent lists into empty ones, which the interface

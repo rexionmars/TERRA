@@ -25,7 +25,8 @@ hosted API server.
 └─────────────────────────────────────────────────────────┘
          │                              │
          ▼                              ▼
-  Planetary Computer STAC         installed model packages
+  STAC (Planetary Computer,       installed model packages
+   Earth Search or NASA OPERA)
   MapBiomas (local or COG)        (Prithvi HF cache ~1.2 GB)
 ```
 
@@ -63,8 +64,9 @@ Prithvi pixel mode can be slow.
 1. Take the AOI polygon from the request. It is the only way a request
    names a ground: the embedded areas A/B/C, which a request could select
    by id instead, are gone.
-2. Query Planetary Computer STAC for Sentinel-2 L2A scenes (cloud filter,
-   optional monthly-best, optional tiles).
+2. Query the STAC catalogue chosen for Sentinel-2 (`sidecar/terra/stac.py`;
+   the Planetary Computer by default, Element 84 Earth Search otherwise) for
+   Sentinel-2 L2A scenes (cloud filter, optional monthly-best, optional tiles).
 3. Clip bands to the polygon on a reference grid (typically B04).
 4. Check the installed model package (every file against the SHA-256 in its
    manifest), then build features or embeddings by the package's family.

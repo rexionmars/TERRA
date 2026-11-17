@@ -86,6 +86,69 @@ def test_means_are_taken_in_power_and_a_pass_that_sees_little_is_not_counted():
     assert series.measure(acq, vv, vh, inside, keep=False) is None
 
 
+def _opera_files(tmp_path, mask_values):
+    """
+    A 30 m VV file and its mask, 12 by 12 cells, as OPERA writes them: every
+    cell 0.05, and the mask's left third coded `mask_values` in turn by row.
+    """
+    import rasterio
+    from rasterio.crs import CRS
+    from rasterio.transform import from_origin
+
+    profile = {
+        'driver': 'GTiff', 'width': 12, 'height': 12, 'count': 1,
+        'crs': CRS.from_epsg(32721), 'transform': from_origin(700_000, 7_250_000, 30, 30),
+    }
+    vv = tmp_path / 'vv.tif'
+    with rasterio.open(vv, 'w', dtype='float32', nodata=float('nan'), **profile) as dst:
+        dst.write(np.full((1, 12, 12), 0.05, dtype=np.float32))
+    mask = np.zeros((12, 12), dtype=np.uint8)
+    for row in range(12):
+        mask[row, :4] = mask_values[row % len(mask_values)]
+    path = tmp_path / 'mask.tif'
+    with rasterio.open(path, 'w', dtype='uint8', nodata=series.MASK_FILL, **profile) as dst:
+        dst.write(mask[None])
+    return vv, path
+
+
+def test_cells_opera_masks_for_layover_or_shadow_are_no_data(tmp_path, monkeypatch):
+    from rasterio.crs import CRS
+    from rasterio.transform import from_origin
+
+    from terra import stac
+    from terra.imagery import mosaic
+
+    vv, mask = _opera_files(tmp_path, mask_values=(1, 2, 3, series.MASK_FILL))
+    files = {'vv': str(vv), series.MASK_ASSET: str(mask)}
+    monkeypatch.setattr(stac, 'href', lambda it, asset: files[asset])
+    # The grid at 10 m over the middle of the file, away from its edges.
+    grid = mosaic.Grid(crs=CRS.from_epsg(32721), transform=from_origin(700_030, 7_249_970, 10, 10),
+                       width=30, height=30)
+
+    with_mask = SimpleNamespace(id='opera', assets={'vv': None, series.MASK_ASSET: None}, properties={})
+    out = series.read_gamma0([with_mask], 'vv', grid)
+    # The mask's left third (x below 700 120) is 1, 2, 3 or 255 on every row.
+    assert np.isnan(out[:, :7]).all()
+    assert np.allclose(out[:, 10:], 0.05)
+
+    without = SimpleNamespace(id='pc', assets={'vv': None}, properties={})
+    assert np.allclose(series.read_gamma0([without], 'vv', grid), 0.05)
+
+
+def test_each_sentinel1_source_has_a_calibration_of_its_own():
+    from terra import stac
+
+    assert set(series.CALIBRATIONS) == set(stac.SOURCES[stac.SENTINEL1])
+    assert series.calibration(stac.OPERA) is not series.calibration(stac.PLANETARY_COMPUTER)
+
+
+def test_a_source_without_a_calibration_is_refused_rather_than_read_with_another():
+    from terra import protocol
+
+    with pytest.raises(protocol.Unavailable, match='no thresholds measured for earth-search'):
+        series.calibration('earth-search')
+
+
 def test_calm_water_is_read_as_water_and_a_field_is_not():
     water_vv = np.full((20, 20), 10 ** (-21 / 10), dtype=np.float32)
     water_vh = np.full((20, 20), 10 ** (-27 / 10), dtype=np.float32)

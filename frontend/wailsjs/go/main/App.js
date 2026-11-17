@@ -170,6 +170,10 @@ export function GetEarthdataStatus() {
   return window['go']['main']['App']['GetEarthdataStatus']();
 }
 
+export function GetImagerySources() {
+  return window['go']['main']['App']['GetImagerySources']();
+}
+
 export function GetPreferences() {
   return window['go']['main']['App']['GetPreferences']();
 }
@@ -364,6 +368,10 @@ export function SetCover(arg1) {
 
 export function SetEarthdataToken(arg1) {
   return window['go']['main']['App']['SetEarthdataToken'](arg1);
+}
+
+export function SetImagerySource(arg1, arg2) {
+  return window['go']['main']['App']['SetImagerySource'](arg1, arg2);
 }
 
 export function SetProjectLastArea(arg1, arg2) {

@@ -31,7 +31,7 @@ func (a *App) analyzeRadar(ctx context.Context, req analysis.RadarRequest) (*ana
 	if runner == nil {
 		return nil, errors.New("runner not initialized")
 	}
-	res, err := runner.AnalyzeRadar(ctx, req)
+	res, err := runner.AnalyzeRadar(ctx, req, radarEarthdataToken(a.appConfig()))
 	if err != nil {
 		return nil, err
 	}

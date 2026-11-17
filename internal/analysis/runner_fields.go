@@ -107,6 +107,7 @@ func parseFieldsPayload(raw []byte) (*FieldsAnalysis, error) {
 		NFields:           src.NFields,
 		FieldAreaHa:       src.FieldAreaHa,
 		CroplandReference: src.CroplandReference,
+		ImagerySource:     src.ImagerySource,
 		FieldsGeoJSON:     string(geojson),
 		ClassesTIF:        src.ClassesTIF,
 	}

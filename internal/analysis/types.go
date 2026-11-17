@@ -432,6 +432,8 @@ type DataCubeResult struct {
 	DateRange   []string        `json:"date_range"`
 	MonthlyBest bool            `json:"monthly_best"`
 	MaxCloud    float64         `json:"max_cloud"`
+	// The catalogue the scenes were listed from; see ImagerySource.
+	ImagerySource []ImagerySource `json:"imagery_source,omitempty"`
 }
 
 // CompositeRequest renders an RGB composite or spectral index for one scene.
@@ -466,6 +468,8 @@ type CompositeResult struct {
 	OverlayURI string         `json:"overlay_uri"`
 	RasterTIF  string         `json:"raster_tif,omitempty"`
 	Meta       map[string]any `json:"meta,omitempty"`
+	// The catalogue the scenes were read from; see ImagerySource.
+	ImagerySource []ImagerySource `json:"imagery_source,omitempty"`
 }
 
 // sidecarResult is the raw JSON returned by the sidecar on stdout.
@@ -498,6 +502,7 @@ type sidecarResult struct {
 	LULC              *lulcSidecarPayload   `json:"lulc"`
 	DomainFingerprint *DomainFingerprint    `json:"domain_fingerprint,omitempty"`
 	Model             *ModelRef             `json:"model,omitempty"`
+	ImagerySource     []ImagerySource       `json:"imagery_source,omitempty"`
 }
 
 // lulcSidecarPayload is the raw LULC block from Python (map as file path).
@@ -608,6 +613,10 @@ type PredictResult struct {
 	// the stored result, so a saved run says which files made it. Absent on
 	// runs made before models were packages.
 	Model *ModelRef `json:"model,omitempty"`
+	// The catalogue the scenes were read from. Nil for SAFE files on disk and
+	// for runs saved before sources could be chosen, which all read the
+	// Planetary Computer.
+	ImagerySource []ImagerySource `json:"imagery_source,omitempty"`
 }
 
 // DomainHistogram is a fixed-edge probability histogram (NDVI by default).
@@ -912,26 +921,51 @@ type WaterAnalysis struct {
 	// Occurrence raster as a base64 PNG data URI, on a fixed 0 to 1 scale.
 	OccurrenceURI string `json:"occurrence_uri"`
 	Extent        Bounds `json:"extent"`
+	// The catalogue the scenes were read from; see ImagerySource.
+	ImagerySource []ImagerySource `json:"imagery_source,omitempty"`
 }
 
 // waterSidecarPayload is the raw water block from Python (PNG as a file path).
 type waterSidecarPayload struct {
-	Index            string      `json:"index"`
-	ThresholdMethod  string      `json:"threshold_method"`
-	ThresholdFixed   float64     `json:"threshold_fixed"`
-	OtsuClip         []float64   `json:"otsu_clip"`
-	NDates           int         `json:"n_dates"`
-	DateRange        []string    `json:"date_range"`
-	AOIPixels        int         `json:"aoi_pixels"`
-	AOIAreaHa        float64     `json:"aoi_area_ha"`
-	Series           []WaterDate `json:"series"`
-	PeakDate         string      `json:"peak_date"`
-	PeakWaterPct     float64     `json:"peak_water_fraction_pct"`
-	EphemeralPixels  int         `json:"ephemeral_pixels"`
-	EphemeralAreaHa  float64     `json:"ephemeral_area_ha"`
-	PersistentPixels int         `json:"persistent_pixels"`
-	PersistentAreaHa float64     `json:"persistent_area_ha"`
-	MeanAnomaly      float64     `json:"mean_anomaly"`
-	OccurrencePNG    string      `json:"occurrence_png"`
-	Extent           Bounds      `json:"extent"`
+	Index            string          `json:"index"`
+	ThresholdMethod  string          `json:"threshold_method"`
+	ThresholdFixed   float64         `json:"threshold_fixed"`
+	OtsuClip         []float64       `json:"otsu_clip"`
+	NDates           int             `json:"n_dates"`
+	DateRange        []string        `json:"date_range"`
+	AOIPixels        int             `json:"aoi_pixels"`
+	AOIAreaHa        float64         `json:"aoi_area_ha"`
+	Series           []WaterDate     `json:"series"`
+	PeakDate         string          `json:"peak_date"`
+	PeakWaterPct     float64         `json:"peak_water_fraction_pct"`
+	EphemeralPixels  int             `json:"ephemeral_pixels"`
+	EphemeralAreaHa  float64         `json:"ephemeral_area_ha"`
+	PersistentPixels int             `json:"persistent_pixels"`
+	PersistentAreaHa float64         `json:"persistent_area_ha"`
+	MeanAnomaly      float64         `json:"mean_anomaly"`
+	OccurrencePNG    string          `json:"occurrence_png"`
+	Extent           Bounds          `json:"extent"`
+	ImagerySource    []ImagerySource `json:"imagery_source,omitempty"`
+}
+
+/*
+ImagerySource is where one collection a run read came from: the catalogue, its
+address, and the catalogue's own id for the collection.
+
+The sidecar writes one per collection it searched (sidecar/terra/stac.py,
+used), and the run keeps them with its result, so a saved run says which
+catalogue its numbers come from. The same scene read from two catalogues can
+differ: a reprocessed collection, or a different radar processing chain.
+*/
+type ImagerySource struct {
+	// TERRA's name for the collection: "sentinel-2-l2a" or "sentinel-1-rtc".
+	Collection string `json:"collection"`
+	// The catalogue's key in TERRA ("planetary-computer", "earth-search",
+	// "opera") and its name for the reader.
+	Source string `json:"source"`
+	Title  string `json:"title"`
+	URL    string `json:"url"`
+	// The collection's id in that catalogue, which need not be TERRA's:
+	// Earth Search serves Sentinel-2 as "sentinel-2-c1-l2a".
+	CatalogueCollection string `json:"catalogue_collection"`
 }

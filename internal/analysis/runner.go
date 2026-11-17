@@ -72,6 +72,22 @@ type Runner struct {
 	pythonPath string // Python interpreter (.venv/bin/python or TERRA_PYTHON)
 	sidecar    string // path to sidecar/infer.py
 	modelDir   string // path to the trained model directory
+
+	// Variables every sidecar the runner starts is given; see SetEnvironment.
+	env func() []string
+}
+
+/*
+SetEnvironment gives the runner the variables to add to every sidecar it
+starts, as "NAME=value".
+
+A function, read at each start, rather than a list taken once: the imagery
+sources are chosen in Settings while the application runs, and a run started
+after the change has to read from the catalogue now chosen. Called once, before
+the runner is published to other goroutines.
+*/
+func (r *Runner) SetEnvironment(env func() []string) {
+	r.env = env
 }
 
 func hasSidecar(dir string) bool {
@@ -449,6 +465,7 @@ func (r *Runner) Predict(ctx context.Context, req PredictRequest, modelPath stri
 		LULC:              convertLULC(sres.LULC),
 		DomainFingerprint: sres.DomainFingerprint,
 		Model:             sres.Model,
+		ImagerySource:     sres.ImagerySource,
 	}
 	if result.RasterTIF != "" {
 		if p, perr := promoteExportFile(result.RasterTIF, "classification.tif"); perr == nil {
@@ -729,10 +746,11 @@ func (r *Runner) RenderComposite(ctx context.Context, req CompositeRequest) (*Co
 	}
 
 	var wrapped struct {
-		Extent     Bounds         `json:"extent"`
-		OverlayPNG string         `json:"overlay_png"`
-		RasterTIF  string         `json:"raster_tif"`
-		Meta       map[string]any `json:"meta"`
+		Extent        Bounds          `json:"extent"`
+		OverlayPNG    string          `json:"overlay_png"`
+		RasterTIF     string          `json:"raster_tif"`
+		Meta          map[string]any  `json:"meta"`
+		ImagerySource []ImagerySource `json:"imagery_source"`
 	}
 	if err := json.Unmarshal([]byte(raw), &wrapped); err != nil {
 		return nil, fmt.Errorf("failed to parse composite result: %w", err)
@@ -751,10 +769,11 @@ func (r *Runner) RenderComposite(ctx context.Context, req CompositeRequest) (*Co
 		}
 	}
 	return &CompositeResult{
-		Extent:     wrapped.Extent,
-		OverlayURI: uri,
-		RasterTIF:  rasterTIF,
-		Meta:       wrapped.Meta,
+		Extent:        wrapped.Extent,
+		OverlayURI:    uri,
+		RasterTIF:     rasterTIF,
+		Meta:          wrapped.Meta,
+		ImagerySource: wrapped.ImagerySource,
 	}, nil
 }
 
@@ -1016,6 +1035,7 @@ func convertWater(raw *waterSidecarPayload) *WaterAnalysis {
 		PersistentAreaHa: raw.PersistentAreaHa,
 		MeanAnomaly:      raw.MeanAnomaly,
 		Extent:           raw.Extent,
+		ImagerySource:    raw.ImagerySource,
 	}
 	if out.Series == nil {
 		out.Series = []WaterDate{}
@@ -1087,6 +1107,9 @@ func (r *Runner) runSidecarJSONEnv(ctx context.Context, reqBytes []byte, extraEn
 	// analysis runs in another, which is how the environment screen came to
 	// report ready for a run that could not import what it needed.
 	cmd.Env = append(os.Environ(), "PYTHONNOUSERSITE=1")
+	if r.env != nil {
+		cmd.Env = append(cmd.Env, r.env()...)
+	}
 	cmd.Env = append(cmd.Env, extraEnv...)
 	cmd.WaitDelay = sidecarWaitDelay
 

@@ -407,12 +407,26 @@ Interpreter resolution: `TERRA_PYTHON` → bundled `python/` (FULL) → `.venv` 
 | `TERRA_APP_DIR` | Directory holding `sidecar/` and `areas/` |
 | `TERRA_MODEL_DIR` | No longer read by classification, which runs installed model packages |
 | `TERRA_MODEL_CATALOG` | Address of the model catalogue, in place of the one on GitHub (a mirror, or a test) |
+| `TERRA_SENTINEL2_SOURCE` | Catalogue Sentinel-2 is read from, in place of the choice in Settings: `planetary-computer` or `earth-search` |
+| `TERRA_SENTINEL1_SOURCE` | Catalogue Sentinel-1 is read from, in place of the choice in Settings: `planetary-computer` or `opera` |
 
 ## Data sources
 
+Satellite imagery is read through STAC, from the catalogue chosen for each
+collection in **Settings › System › Imagery sources**, or with the variables
+above. The Microsoft Planetary Computer is the default, because the shipped
+models and the radar thresholds were measured on it. Each saved run records the
+catalogue and the collection it read.
+
+| Collection | Catalogue (collection there) | Setting | Notes |
+|---|---|---|---|
+| Sentinel-2 L2A | [Microsoft Planetary Computer](https://planetarycomputer.microsoft.com/) (`sentinel-2-l2a`) | `planetary-computer`, default | |
+| Sentinel-2 L2A | [Element 84 Earth Search](https://earth-search.aws.element84.com/v1) (`sentinel-2-c1-l2a`) | `earth-search` | ESA's Collection 1 reprocessing, as Cloud-Optimized GeoTIFF on AWS; no account |
+| Sentinel-1 RTC | [Microsoft Planetary Computer](https://planetarycomputer.microsoft.com/) (`sentinel-1-rtc`) | `planetary-computer`, default | 10 m |
+| Sentinel-1 RTC | [NASA OPERA RTC-S1](https://www.jpl.nasa.gov/go/opera/products/rtc-product/), from the Alaska Satellite Facility through NASA CMR (`OPERA_L2_RTC-S1_V1_1`) | `opera` | 30 m, read onto the same 10 m grid, with the thermal noise removed and the cells of layover and shadow dropped. Needs the Earthdata token, and the Earthdata account must have approved the ASF archive. The radar reads it with water thresholds of its own (VH −24.2 dB, VV −13.1 dB), measured against the Planetary Computer over the same water and farmland with `sidecar/tools/radar_calibration.py` |
+
 | Source | Used for |
 |--------|----------|
-| [Microsoft Planetary Computer](https://planetarycomputer.microsoft.com/) STAC | Sentinel-2 L2A imagery |
 | MapBiomas Brazil COGs | Land-cover reference, when the area intersects Brazil |
 | [Nominatim](https://nominatim.openstreetmap.org/) | Geocoding |
 | Esri World Imagery, EOX Sentinel-2 cloudless 2025 | Basemaps |

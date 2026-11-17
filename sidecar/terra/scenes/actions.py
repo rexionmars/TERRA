@@ -18,7 +18,7 @@ from pathlib import Path
 
 import numpy as np
 
-from terra import protocol
+from terra import protocol, stac
 from terra.imagery import cog, sentinel2
 from terra.scenes import lookup
 
@@ -43,7 +43,7 @@ def list_datacube(req, work_dir):
         polygon = area['polygon']
     else:
         protocol.fail('no polygon provided (polygon_geojson or kml_path required)')
-    protocol.emit_progress(20, 'querying STAC catalog (Planetary Computer)')
+    protocol.emit_progress(20, f'querying the catalogue ({stac.title(stac.SENTINEL2)})')
     try:
         products = sentinel2.list_stac_products(
             polygon, start, end, tile_list=tiles, max_cloud=max_cloud,
@@ -71,6 +71,7 @@ def list_datacube(req, work_dir):
         'date_range': date_range,
         'monthly_best': monthly_best,
         'max_cloud': max_cloud,
+        'imagery_source': stac.used(),
     }))
     sys.stdout.flush()
 
@@ -320,6 +321,7 @@ def render_composite(req, work_dir):
         'overlay_png': str(overlay_png),
         'raster_tif': str(raster_tif),
         'meta': meta,
+        'imagery_source': stac.used(),
     }))
     sys.stdout.flush()
 

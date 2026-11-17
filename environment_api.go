@@ -418,7 +418,7 @@ func (a *App) rebuildRunner(python string) error {
 	if a.currentRunner() != nil {
 		appDir = filepath.Dir(a.sidecarDir())
 	}
-	runner, err := analysis.NewRunner(appDir, python)
+	runner, err := a.newRunner(appDir, python)
 	if err != nil {
 		return err
 	}

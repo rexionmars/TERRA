@@ -14,8 +14,21 @@ from typing import Any
 
 import numpy as np
 
-COLLECTION = 'sentinel-1-rtc'
+from terra import protocol, stac
+
+COLLECTION = stac.SENTINEL1
 NODATA = -32768.0
+# NASA OPERA's layover and shadow mask, coded as its producer writes it
+# (github.com/opera-adt/RTC, src/rtc/h5_prep.py and rtc_s1_single_job.py at
+# v1.0.4, the version that made the files read in November 2026): 0 not masked,
+# 1 shadow, 2 layover, 3 layover and shadow, 255 invalid or fill. OPERA keeps
+# the backscatter of a masked cell in its VV and VH files, so it is dropped on
+# reading: a slope facing the radar folds the return of several cells into one,
+# and a slope facing away returns noise. The Planetary Computer's items carry
+# no mask.
+MASK_ASSET = 'mask'
+MASK_CLEAR = 0
+MASK_FILL = 255
 # The equivalent number of looks the collection states for IW GRDH
 # (sar:looks_equivalent_number); the Lee filter's noise term.
 ENL = 4.4
@@ -45,6 +58,101 @@ HARVEST_DROP_DB = 3.0
 CR_DROP_DB = 1.0
 # Acquisitions of one orbit needed before a peak and a drop are looked for.
 MIN_ORBIT_POINTS = 4
+
+
+@dataclass(frozen=True)
+class Calibration:
+    """
+    The figures one source's backscatter is read with: the speckle's equivalent
+    number of looks, for the Lee filter, and the water and canopy-loss
+    thresholds.
+
+    One per source, because a threshold in dB is a statement about one
+    processing chain. Two chains can place the same surface a few dB apart
+    (the noise floor removed, the terrain flattening, the posting), and a
+    threshold fitted to one then calls more or less water on the other.
+    """
+
+    enl: float
+    water_vh_db: float
+    water_vv_db: float
+    harvest_drop_db: float
+    cr_drop_db: float
+
+
+# The Planetary Computer's, measured as the comments above set out.
+PLANETARY_COMPUTER = Calibration(
+    enl=ENL,
+    water_vh_db=WATER_VH_DB,
+    water_vv_db=WATER_VV_DB,
+    harvest_drop_db=HARVEST_DROP_DB,
+    cr_drop_db=CR_DROP_DB,
+)
+
+# NASA OPERA's, measured with sidecar/tools/radar_calibration.py on the
+# Planetary Computer's two areas and dates (passes from 2025-09-02 to
+# 2026-04-30), with OPERA's layover and shadow mask applied and each source
+# filtered at its own looks:
+#
+# - Open water, the Itaipu strip: 39 passes (orbits 61 and 170), every one also
+#   on the Planetary Computer. VV -25.7 to -16.9 dB (median -20.1), VH -30.4 to
+#   -27.6 dB (median -29.3). Over the pairs OPERA read VH 3.01 dB and VV
+#   0.70 dB below the Planetary Computer (medians).
+# - Farmland, the square near Toledo: 62 passes (orbits 97, 163 and 170), 60
+#   in common. VV -6.8 to -4.4 dB, VH -13.8 to -11.3 dB; VV 0.28 dB above the
+#   Planetary Computer, VH 0.12 dB below.
+#
+# The gap is not a constant: it widens as the surface darkens. Over the water
+# VV went from 0.32 dB below at -16.5 dB to 1.41 dB below at -24.1 dB. That is
+# what a noise floor in the Planetary Computer's figures and not in OPERA's
+# makes (OPERA's files state NOISE_CORRECTION_APPLIED), and from the pairs over
+# water the floor is about -30 dB in VH (median -29.9, quartiles -30.2 to
+# -28.3). So the water thresholds are the Planetary Computer's carried through
+# that floor -- VH -23.0 dB lands at -23.9 to -24.5 over those quartiles, and
+# VV -13.0 dB at -13.1 -- rather than moved by the gap over water, which
+# belongs to a level 3 to 4 dB below them. With VH -24.2 and VV -13.1 dB every
+# pass called 100% of the strip water and none of the square; moved by the gap
+# over water (-26.0 and -13.7 dB) they called as little as 96.7% of the strip
+# on windy passes.
+#
+# The equivalent number of looks over the strip, by the tool's method, was
+# 11.48 on OPERA (quartiles 10.15 to 12.40) against 6.08 on the Planetary
+# Computer: OPERA's is the stated 4.4 in that proportion, so the method's bias
+# is the same on both.
+#
+# The canopy-loss thresholds are drops between passes over one field, so a gap
+# that holds across a field's levels cancels. Through the floor it is 0.1 dB at
+# VH -12 dB, a standing crop, and 0.4 to 0.7 dB at -20 dB, bare soil, against
+# a 3 dB threshold; they are kept. The square spanned only -13.8 to -11.3 dB,
+# so the bare-soil end is inferred from the floor, not measured.
+OPERA = Calibration(
+    enl=8.3,
+    water_vh_db=-24.2,
+    water_vv_db=-13.1,
+    harvest_drop_db=HARVEST_DROP_DB,
+    cr_drop_db=CR_DROP_DB,
+)
+
+CALIBRATIONS: dict[str, Calibration] = {
+    stac.PLANETARY_COMPUTER: PLANETARY_COMPUTER,
+    stac.OPERA: OPERA,
+}
+
+
+def calibration(source: str) -> Calibration:
+    """
+    The figures `source` is read with.
+
+    A source with none is refused rather than read with another's: its water
+    would be called by thresholds measured on a different chain, and the
+    result would not say so.
+    """
+    if source not in CALIBRATIONS:
+        raise protocol.Unavailable(
+            f'the radar has no thresholds measured for {source} yet; choose the '
+            'Planetary Computer as the Sentinel-1 source in Settings > System'
+        )
+    return CALIBRATIONS[source]
 
 
 def to_db(power: float | np.ndarray) -> Any:
@@ -89,7 +197,8 @@ def group_acquisitions(items: list[Any]) -> list[Acquisition]:
 def read_gamma0(items: list[Any], asset: str, grid, dtype=np.float32) -> np.ndarray:
     """
     One polarisation of every item of a pass mosaicked onto the grid, in linear
-    power; NaN where no item has a valid value.
+    power; NaN where no item has a valid value. A cell an item's mask sets
+    aside (MASK_ASSET) has no valid value in that item.
 
     The slices of one pass hold the same observation where they overlap, so the
     first valid value is kept, the slices in the grid's own UTM zone first.
@@ -103,10 +212,14 @@ def read_gamma0(items: list[Any], asset: str, grid, dtype=np.float32) -> np.ndar
     out = np.full((grid.height, grid.width), np.nan, dtype=dtype)
     own = grid.crs.to_epsg()
     for it in sorted(items, key=lambda i: (mosaic.item_epsg(i) != own, i.id)):
-        with rasterio.open(it.assets[asset].href) as src:
+        with rasterio.open(stac.href(it, asset)) as src:
             win = mosaic.source_window(src, grid)
             data = src.read(1, window=win, boundless=True, fill_value=NODATA).astype(dtype)
             data[(data == NODATA) | ~np.isfinite(data) | (data <= 0)] = np.nan
+            if MASK_ASSET in it.assets:
+                # Before the resampling, as the edge of a swath is: a masked
+                # cell then counts as no data in the bilinear weights.
+                data[_masked(it, src, win)] = np.nan
             tile = np.full_like(out, np.nan)
             # Bilinear: gamma0 is a continuous quantity, and power, not dB, is
             # what is averaged between cells.
@@ -124,6 +237,24 @@ def read_gamma0(items: list[Any], asset: str, grid, dtype=np.float32) -> np.ndar
         empty = ~np.isfinite(out)
         out[empty] = tile[empty]
     return out
+
+
+def _masked(item: Any, src: Any, win: Any) -> np.ndarray:
+    """
+    The cells of `win` in `src` that the item's mask sets aside: layover,
+    shadow, or no data.
+
+    The mask shares its backscatter's grid in OPERA's product, and a window is
+    a position on one grid, so a mask on another grid is refused rather than
+    read at the wrong cells.
+    """
+    import rasterio
+
+    with rasterio.open(stac.href(item, MASK_ASSET)) as m:
+        if m.crs != src.crs or m.transform != src.transform:
+            raise ValueError(f'{item.id}: the mask is not on the grid of its backscatter')
+        mask = m.read(1, window=win, boundless=True, fill_value=MASK_FILL)
+    return np.asarray(mask != MASK_CLEAR)
 
 
 def lee_filter(power: np.ndarray, size: int = LEE_WINDOW, enl: float = ENL) -> np.ndarray:
@@ -184,13 +315,22 @@ class Observation:
         }
 
 
-def water_mask(vv: np.ndarray, vh: np.ndarray) -> np.ndarray:
-    """Open water, by the two thresholds above, after the Lee filter."""
+def water_mask(vv: np.ndarray, vh: np.ndarray, cal: Calibration = PLANETARY_COMPUTER) -> np.ndarray:
+    """Open water, by the source's two thresholds, after the Lee filter."""
     with np.errstate(invalid='ignore', divide='ignore'):
-        return (to_db(lee_filter(vh)) < WATER_VH_DB) & (to_db(lee_filter(vv)) < WATER_VV_DB)
+        return (to_db(lee_filter(vh, enl=cal.enl)) < cal.water_vh_db) & (
+            to_db(lee_filter(vv, enl=cal.enl)) < cal.water_vv_db
+        )
 
 
-def measure(acq: Acquisition, vv: np.ndarray, vh: np.ndarray, inside: np.ndarray, keep: bool) -> Observation | None:
+def measure(
+    acq: Acquisition,
+    vv: np.ndarray,
+    vh: np.ndarray,
+    inside: np.ndarray,
+    keep: bool,
+    cal: Calibration = PLANETARY_COMPUTER,
+) -> Observation | None:
     """
     A pass's figures over the area, or None where it saw too little of it.
 
@@ -206,7 +346,7 @@ def measure(acq: Acquisition, vv: np.ndarray, vh: np.ndarray, inside: np.ndarray
         return None
     vv_mean = float(np.mean(vv[ok]))
     vh_mean = float(np.mean(vh[ok]))
-    water = ok & water_mask(vv, vh)
+    water = ok & water_mask(vv, vh, cal)
     return Observation(
         date=acq.date,
         relative_orbit=acq.relative_orbit,
@@ -230,11 +370,11 @@ def measure(acq: Acquisition, vv: np.ndarray, vh: np.ndarray, inside: np.ndarray
 # So every qualifying drop is reported, in date order.
 
 
-def orbit_losses(obs: list[Observation]) -> list[dict[str, Any]]:
+def orbit_losses(obs: list[Observation], cal: Calibration = PLANETARY_COMPUTER) -> list[dict[str, Any]]:
     """
     Every canopy loss in one orbit's series: a VH drop of at least
-    HARVEST_DROP_DB between consecutive passes, with the cross ratio falling by
-    at least CR_DROP_DB and standing above the orbit's median before it.
+    cal.harvest_drop_db between consecutive passes, with the cross ratio falling
+    by at least cal.cr_drop_db and standing above the orbit's median before it.
 
     The cross ratio is the canopy test. Soil moisture moves VV and VH together
     and leaves it nearly where it was, so the drying after rain -- which took
@@ -250,7 +390,7 @@ def orbit_losses(obs: list[Observation]) -> list[dict[str, Any]]:
     for a, b in zip(s, s[1:], strict=False):
         drop = a.vh_db - b.vh_db
         cr_drop = a.cr_db - b.cr_db
-        if drop >= HARVEST_DROP_DB and cr_drop >= CR_DROP_DB and a.cr_db > cr_median:
+        if drop >= cal.harvest_drop_db and cr_drop >= cal.cr_drop_db and a.cr_db > cr_median:
             out.append(
                 {
                     'relative_orbit': a.relative_orbit,
@@ -268,7 +408,7 @@ def _midpoint(a: str, b: str) -> str:
     return date.fromordinal((date.fromisoformat(a).toordinal() + date.fromisoformat(b).toordinal()) // 2).isoformat()
 
 
-def losses(obs: list[Observation]) -> list[dict[str, Any]]:
+def losses(obs: list[Observation], cal: Calibration = PLANETARY_COMPUTER) -> list[dict[str, Any]]:
     """
     Canopy losses across orbits, one per event, in date order.
 
@@ -282,7 +422,7 @@ def losses(obs: list[Observation]) -> list[dict[str, Any]]:
     for o in obs:
         by_orbit.setdefault(o.relative_orbit, []).append(o)
     found = sorted(
-        (x for _, v in sorted(by_orbit.items()) for x in orbit_losses(v)),
+        (x for _, v in sorted(by_orbit.items()) for x in orbit_losses(v, cal)),
         key=lambda x: (x['date_from'], x['date_to']),
     )
     events: list[list[dict[str, Any]]] = []
@@ -322,14 +462,16 @@ def orbits(obs: list[Observation]) -> list[dict[str, Any]]:
     return [seen[k] for k in sorted(seen)]
 
 
-def composite_rgba(vv: np.ndarray, vh: np.ndarray, outside: np.ndarray) -> np.ndarray:
+def composite_rgba(
+    vv: np.ndarray, vh: np.ndarray, outside: np.ndarray, cal: Calibration = PLANETARY_COMPUTER
+) -> np.ndarray:
     """
     The usual dual-polarisation false colour: red VV, green VH, blue VV/VH, all
     Lee-filtered and in dB, each stretched over fixed ranges so two dates are
     drawn on one scale.
     """
-    vv_db = to_db(lee_filter(vv))
-    vh_db = to_db(lee_filter(vh))
+    vv_db = to_db(lee_filter(vv, enl=cal.enl))
+    vh_db = to_db(lee_filter(vh, enl=cal.enl))
     ratio = vv_db - vh_db
     channels = [
         (vv_db, -20.0, 0.0),
@@ -346,11 +488,13 @@ def composite_rgba(vv: np.ndarray, vh: np.ndarray, outside: np.ndarray) -> np.nd
     return rgba
 
 
-def water_rgba(vv: np.ndarray, vh: np.ndarray, outside: np.ndarray) -> np.ndarray:
+def water_rgba(
+    vv: np.ndarray, vh: np.ndarray, outside: np.ndarray, cal: Calibration = PLANETARY_COMPUTER
+) -> np.ndarray:
     """Water cells in blue, the rest of the area in a faint grey, outside clear."""
     rgba = np.zeros((*vv.shape, 4), dtype=np.uint8)
     ok = np.isfinite(vv) & np.isfinite(vh) & ~outside
     rgba[ok] = (200, 200, 200, 70)
-    rgba[ok & water_mask(vv, vh)] = (0, 114, 178, 230)
+    rgba[ok & water_mask(vv, vh, cal)] = (0, 114, 178, 230)
     return rgba
 

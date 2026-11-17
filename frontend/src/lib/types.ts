@@ -428,6 +428,8 @@ export interface PredictResult {
   domain_fingerprint?: DomainFingerprint | null
   /** The model package the classification ran, down to its files. */
   model?: ModelRef | null
+  /** The catalogue each collection was read from; absent on runs saved before sources could be chosen. */
+  imagery_source?: ImagerySource[]
 }
 
 /** Fixed-edge histogram (NDVI by default). */
@@ -762,6 +764,8 @@ export interface DataCubeResult {
   date_range: string[]
   monthly_best: boolean
   max_cloud: number
+  /** The catalogue each collection was read from; absent on runs saved before sources could be chosen. */
+  imagery_source?: ImagerySource[]
 }
 
 /** What a composition draws; composite.py's KINDS, and biomass_map for the last. */
@@ -831,6 +835,8 @@ export interface CompositeResult {
   overlay_uri: string
   raster_tif?: string
   meta?: Record<string, unknown>
+  /** The catalogue each collection was read from; absent on runs saved before sources could be chosen. */
+  imagery_source?: ImagerySource[]
 }
 
 export interface CompositionOverlay {
@@ -922,6 +928,8 @@ export interface WaterAnalysis {
   /** Occurrence raster as a data URI, coloured on a fixed 0 to 1 scale. */
   occurrence_uri: string
   extent: Bounds
+  /** The catalogue each collection was read from; absent on runs saved before sources could be chosen. */
+  imagery_source?: ImagerySource[]
 }
 
 export interface WaterRequest {
@@ -1013,6 +1021,8 @@ export interface HealthAnalysis {
   /** The NDVI of that date, per cell. */
   ndvi_uri: string
   run_id?: string
+  /** The catalogue each collection was read from; absent on runs saved before sources could be chosen. */
+  imagery_source?: ImagerySource[]
 }
 
 /*
@@ -1153,6 +1163,8 @@ export interface RadarAnalysis {
   /** The latest pass's open water. */
   water_uri: string
   run_id?: string
+  /** The catalogue each collection was read from; absent on runs saved before sources could be chosen. */
+  imagery_source?: ImagerySource[]
 }
 
 /*
@@ -1219,6 +1231,8 @@ export interface ZonesAnalysis {
   suggested_k: number
   partitions: ZonesPartition[]
   run_id?: string
+  /** The catalogue each collection was read from; absent on runs saved before sources could be chosen. */
+  imagery_source?: ImagerySource[]
 }
 
 /*
@@ -1282,6 +1296,8 @@ export interface TrajectoryAnalysis {
   multiplier: number
   model: TrajectoryModel
   run_id?: string
+  /** The catalogue each collection was read from; absent on runs saved before sources could be chosen. */
+  imagery_source?: ImagerySource[]
 }
 
 /*
@@ -1660,6 +1676,8 @@ export interface FieldsAnalysis {
   window_b_uri?: string
   /** The class map as a GeoTIFF on disk: 0 background, 1 interior, 2 boundary, 255 masked. */
   classes_tif: string
+  /** The catalogue each collection was read from; absent on runs saved before sources could be chosen. */
+  imagery_source?: ImagerySource[]
 }
 
 /*
@@ -1748,6 +1766,22 @@ export interface ModelRef {
   id: string
   version: string
   digest: string
+}
+
+/**
+ * Where one collection a run read came from (internal/analysis/types.go,
+ * ImagerySource). The same scene read from two catalogues can differ, so a
+ * saved run keeps which one it was.
+ */
+export interface ImagerySource {
+  /** TERRA's name for the collection: "sentinel-2-l2a" or "sentinel-1-rtc". */
+  collection: string
+  /** The catalogue's key: "planetary-computer", "earth-search", "opera". */
+  source: string
+  title: string
+  url: string
+  /** The collection's id in that catalogue, which need not be TERRA's. */
+  catalogue_collection: string
 }
 
 /** One place a published package can be downloaded from. */
