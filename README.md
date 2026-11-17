@@ -429,7 +429,8 @@ catalogue and the collection it read.
 |--------|----------|
 | MapBiomas Brazil COGs | Land-cover reference, when the area intersects Brazil |
 | [Nominatim](https://nominatim.openstreetmap.org/) | Geocoding |
-| Esri World Imagery, EOX Sentinel-2 cloudless 2025 | Basemaps |
+| [EOX Sentinel-2 cloudless 2016](https://cloudless.eox.at), CC BY 4.0 | The basemap the map opens on |
+| Esri World Imagery, Streets and Topographic; EOX Sentinel-2 cloudless 2025 | Basemaps the reader can choose instead. Esri's are under Esri's terms and EOX's 2018 to 2025 mosaics under CC BY-NC-SA 4.0; none is fetched unless chosen |
 
 ## License and community
 
