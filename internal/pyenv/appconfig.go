@@ -31,12 +31,11 @@ type AppConfig struct {
 	// created, so it knows which one it may rebuild without asking.
 	Managed bool `json:"managed,omitempty"`
 	// NASA Earthdata Login bearer token, for the EMIT reflectance the mineral
-	// map reads from the LP DAAC. Here for the reason the type gives for the
-	// interpreter: EARTHDATA_TOKEN does not reach an application opened from
-	// Finder, and a file read at startup works however the application was
-	// launched. Kept in this file, which is written 0600, rather than in the
-	// database, which is exported by the backup. EARTHDATA_TOKEN still wins when
-	// it is set.
+	// map reads and for NASA OPERA radar. Kept in the platform's credential
+	// store (internal/credential), and here only where there is none, or where
+	// a version before the store saved it until startup moves it. In this
+	// file, which is written 0600, rather than in the database, which is
+	// exported by the backup. EARTHDATA_TOKEN still wins when it is set.
 	EarthdataToken string `json:"earthdata_token,omitempty"`
 	// Which catalogue each imagery collection is read from, keyed by TERRA's
 	// name for the collection ("sentinel-2-l2a", "sentinel-1-rtc"); a

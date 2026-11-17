@@ -3959,6 +3959,7 @@ export namespace main {
 	export class EarthdataStatus {
 	    configured: boolean;
 	    source: string;
+	    store: string;
 	
 	    static createFrom(source: any = {}) {
 	        return new EarthdataStatus(source);
@@ -3968,6 +3969,7 @@ export namespace main {
 	        if ('string' === typeof source) source = JSON.parse(source);
 	        this.configured = source["configured"];
 	        this.source = source["source"];
+	        this.store = source["store"];
 	    }
 	}
 	export class ResolvedPath {

@@ -452,7 +452,7 @@ function earthdataStatusLabel(status: main.EarthdataStatus | null): string {
   if (!status) return "not checked"
   if (!status.configured) return "Not set"
   if (status.source === "EARTHDATA_TOKEN") return "Set (from EARTHDATA_TOKEN)"
-  return "Set"
+  return status.store ? `Set, in ${status.store}` : "Set"
 }
 
 /*
@@ -551,8 +551,9 @@ function ImagerySourcesSection() {
   read is refused, and that refusal arrives several minutes into a scene search
   rather than here.
 
-  THE TOKEN IS NEVER SHOWN BACK. GetEarthdataStatus returns whether one is set
-  and what decided it, and nothing else; the field below starts empty on every
+  THE TOKEN IS NEVER SHOWN BACK. GetEarthdataStatus returns whether one is set,
+  what decided it and where it is kept (the platform's credential store, or the
+  settings file on a system without one), and nothing else; the field below starts empty on every
   visit and is emptied after a save, so a saved token is not held by the page
   once the store has it. Saving is refused by the Go side when NASA does not
   accept the token, and that sentence is shown as it was written, since it

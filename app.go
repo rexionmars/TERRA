@@ -241,6 +241,10 @@ func (a *App) startup(ctx context.Context) {
 	// pyenv.EnsureExcludedFromBackup.
 	pyenv.EnsureExcludedFromBackup(st.DataDir())
 
+	// A token an earlier version kept in the settings file goes to the
+	// credential store; see migrateEarthdataToken.
+	migrateEarthdataToken(st.DataDir())
+
 	cfg := pyenv.LoadAppConfig(st.DataDir())
 	a.bootLog("resolving sidecar paths…")
 	runner, err := a.newRunner(appDir, cfg.PythonPath)

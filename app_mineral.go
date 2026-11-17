@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"geosense-infer/internal/analysis"
+	"geosense-infer/internal/credential"
 	"geosense-infer/internal/pyenv"
 )
 
@@ -48,6 +49,24 @@ func (a *App) appConfig() pyenv.AppConfig {
 }
 
 /*
+savedEarthdataToken is the token saved in this installation, and where.
+
+The platform's credential store is asked first (internal/credential). The
+settings file is read after it, for a system with no store and for a token
+saved there before the store was used, which migrateEarthdataToken moves at
+startup. where is "store", "file" or "" when nothing is saved.
+*/
+func savedEarthdataToken(cfg pyenv.AppConfig) (token, where string) {
+	if t, err := credential.EarthdataToken(); err == nil && t != "" {
+		return t, "store"
+	}
+	if t := strings.TrimSpace(cfg.EarthdataToken); t != "" {
+		return t, "file"
+	}
+	return "", ""
+}
+
+/*
 earthdataToken is the token to hand the sidecar, or empty when the sidecar
 should read the one it inherits.
 
@@ -61,7 +80,8 @@ func earthdataToken(cfg pyenv.AppConfig) string {
 	if os.Getenv(analysis.EarthdataTokenEnv) != "" {
 		return ""
 	}
-	return strings.TrimSpace(cfg.EarthdataToken)
+	token, _ := savedEarthdataToken(cfg)
+	return token
 }
 
 // EarthdataStatus says whether EMIT data can be requested, and what decided it.
@@ -70,14 +90,26 @@ type EarthdataStatus struct {
 	// "EARTHDATA_TOKEN" when the variable applies, "chosen" when the saved
 	// token does, "none" otherwise.
 	Source string `json:"source"`
+	// Where a saved token is kept, in the reader's words: the platform's
+	// credential store by name, or the settings file on a system without one.
+	// Empty when none is saved.
+	Store string `json:"store"`
 }
 
 func earthdataStatus(cfg pyenv.AppConfig) EarthdataStatus {
+	_, where := savedEarthdataToken(cfg)
+	store := ""
+	switch where {
+	case "store":
+		store = credential.StoreName()
+	case "file":
+		store = "the settings file"
+	}
 	switch {
 	case os.Getenv(analysis.EarthdataTokenEnv) != "":
-		return EarthdataStatus{Configured: true, Source: analysis.EarthdataTokenEnv}
-	case strings.TrimSpace(cfg.EarthdataToken) != "":
-		return EarthdataStatus{Configured: true, Source: "chosen"}
+		return EarthdataStatus{Configured: true, Source: analysis.EarthdataTokenEnv, Store: store}
+	case where != "":
+		return EarthdataStatus{Configured: true, Source: "chosen", Store: store}
 	default:
 		return EarthdataStatus{Configured: false, Source: "none"}
 	}
@@ -98,7 +130,12 @@ The trial is one authenticated metadata request to the LP DAAC, which also
 fails when the account has not accepted the LP DAAC data use terms -- a second
 cause of the same 401 that no other check would reveal.
 
-An empty string clears the saved token.
+IN THE CREDENTIAL STORE, AND OUT OF THE FILE. The token goes to the platform's
+store, and a copy left in the settings file is removed once the store has it.
+Where the store cannot be reached the file keeps it, 0600 as before, and the
+status says which.
+
+An empty string clears the saved token from both.
 */
 func (a *App) SetEarthdataToken(token string) (EarthdataStatus, error) {
 	data := a.dataDir()
@@ -114,11 +151,42 @@ func (a *App) SetEarthdataToken(token string) (EarthdataStatus, error) {
 		}
 	}
 	cfg := pyenv.LoadAppConfig(data)
-	cfg.EarthdataToken = token
+	if err := credential.SetEarthdataToken(token); err != nil {
+		if token == "" {
+			// Nothing to remove from a store that cannot be reached; the file
+			// is cleared below either way.
+			cfg.EarthdataToken = ""
+		} else {
+			cfg.EarthdataToken = token
+		}
+	} else {
+		cfg.EarthdataToken = ""
+	}
 	if err := pyenv.SaveAppConfig(data, cfg); err != nil {
 		return EarthdataStatus{}, fmt.Errorf("could not save the token: %w", err)
 	}
 	return earthdataStatus(cfg), nil
+}
+
+/*
+migrateEarthdataToken moves a token saved in the settings file into the
+credential store, once the store has accepted it.
+
+Run at startup, so a token saved by a version that kept it in the file leaves
+the file the first time this version opens. A store that cannot be reached
+leaves the file as it is, which is where the token is then read from.
+*/
+func migrateEarthdataToken(dataDir string) {
+	cfg := pyenv.LoadAppConfig(dataDir)
+	token := strings.TrimSpace(cfg.EarthdataToken)
+	if token == "" {
+		return
+	}
+	if err := credential.SetEarthdataToken(token); err != nil {
+		return
+	}
+	cfg.EarthdataToken = ""
+	_ = pyenv.SaveAppConfig(dataDir, cfg)
 }
 
 // The files a mineral run keeps in its assets directory, one class map per
