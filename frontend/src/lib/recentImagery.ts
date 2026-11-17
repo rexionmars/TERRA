@@ -16,9 +16,10 @@
  * this resolves blocks. What it buys is time: the newest cloud-free scene over
  * Curitiba is a month old, against an Esri footprint there from April 2024.
  *
- * THE SAME CATALOGUE THE ANALYSES READ. sidecar/terra/stac.py opens this API
- * for every Sentinel-2 path in the application, so the ground a run was
- * computed over and the ground the map draws come from one archive.
+ * THE SAME CATALOGUE THE ANALYSES READ BY DEFAULT. sidecar/terra/stac.py
+ * opens this API for every Sentinel-2 path unless another catalogue is chosen
+ * in Settings, so the ground a run was computed over and the ground the map
+ * draws usually come from one archive.
  */
 
 /**
@@ -33,14 +34,15 @@ const MOSAIC_SEARCH = {
 }
 
 /**
- * The registered id of that search.
+ * The hash of that search, under which the service holds it.
  *
- * A HASH OF THE SEARCH, NOT A HANDLE. Registering the body above returns the
- * same id every time, so it can be written down here rather than fetched
- * before the first tile can be drawn. What registering does is make sure the
- * server still holds the entry, which is why `ensureMosaic` runs anyway -- once
- * per session, after the tiles are already loading, so a slow or failed call
- * costs the map nothing.
+ * Written down rather than fetched, so the first tile can be asked for before
+ * any registration answers. Since the Planetary Computer's migration of
+ * September 2026, registering answers with an id of its own for each call
+ * (`pc1.<expiry>.<id>`, see ensureMosaic), but its metadata still names this
+ * hash, and tiles asked for under the hash are the same bytes as under the new
+ * id (compared on 2026-11-16). What changed was the tile path: see
+ * MOSAIC_TILES.
  */
 const MOSAIC_ID = "832da05b42678505676241b4bc269dda"
 
@@ -63,7 +65,15 @@ const RENDER = [
   "color_formula=Gamma+RGB+3.2+Saturation+0.8+Sigmoidal+RGB+25+0.35",
 ].join("&")
 
-export const MOSAIC_TILES = `${DATA_API}/mosaic/tiles/${MOSAIC_ID}/{z}/{x}/{y}@1x?${RENDER}`
+/**
+ * The tile template the map starts with.
+ *
+ * The service moved its tiles from /mosaic/tiles/{id}/... to
+ * /mosaic/{id}/tiles/WebMercatorQuad/... in that migration, and the old path
+ * answered 404 to every tile, which is how the button came to draw nothing.
+ * This is the new path, under the search's hash.
+ */
+export const MOSAIC_TILES = `${DATA_API}/mosaic/${MOSAIC_ID}/tiles/WebMercatorQuad/{z}/{x}/{y}@1x?${RENDER}`
 
 /**
  * The shallowest level the service will mosaic.
@@ -78,7 +88,14 @@ export const MOSAIC_MIN_LEVEL = 9
 
 let registered: Promise<void> | null = null
 
-/** Ask the service to hold the search, once per session. */
+/**
+ * Ask the service to hold the search, once per session.
+ *
+ * The id the registration answers with is not used. It carries an expiry
+ * about a day ahead (`pc1.1794945228.…` names 17 November 2026 16:53 when
+ * registered the day before), so a map that took it would stop drawing in an
+ * application left open overnight; the hash in MOSAIC_TILES does not expire.
+ */
 export function ensureMosaic(): Promise<void> {
   if (!registered) {
     registered = fetch(`${DATA_API}/mosaic/register`, {
@@ -87,9 +104,9 @@ export function ensureMosaic(): Promise<void> {
       body: JSON.stringify(MOSAIC_SEARCH),
     }).then(
       () => undefined,
-      // Nothing to report and nothing to do: the id is pinned, so a failed
-      // registration means either the entry was already there or the network
-      // is down, and both are visible in the tiles themselves.
+      // Nothing to report and nothing to do: the template is fixed, so a
+      // failed registration means either the entry was already there or the
+      // network is down, and both are visible in the tiles themselves.
       () => undefined
     )
   }
