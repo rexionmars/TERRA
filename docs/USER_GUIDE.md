@@ -13,8 +13,10 @@ page is the short path through the current desktop app.
   **or** a from-source install (`wails dev` / `wails build`).
 - For **LITE** builds: Python 3.12 with [`requirements.txt`](../requirements.txt),
   and `TERRA_PYTHON` if the interpreter is not on `PATH`.
-- Network access to the Microsoft Planetary Computer STAC catalog (and Hugging
-  Face if you use Prithvi).
+- Network access to a STAC catalogue: the Microsoft Planetary Computer by
+  default, or the one chosen in Settings › System › Imagery sources (and Hugging
+  Face if you use Prithvi). [PRIVACY.md](../PRIVACY.md) lists every service the
+  application reads from.
 
 ## 1. The map
 

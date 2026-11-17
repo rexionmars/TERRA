@@ -12,10 +12,12 @@ health against earlier seasons, overlap with public registers, a Sentinel-1
 backscatter series, management zones, and a surface mineral map from EMIT
 imaging spectroscopy.
 
-It runs locally as a desktop application, with no account and no server.
-Imagery is read on demand from the Microsoft Planetary Computer STAC catalog as
-Cloud-Optimized GeoTIFFs: the polygon window and the required bands only, so no
-full Sentinel-2 product is downloaded.
+It runs locally as a desktop application, with optional local accounts and no
+server. Imagery is read on demand from a STAC catalogue, the Microsoft Planetary
+Computer by default or Element 84 Earth Search, as Cloud-Optimized GeoTIFFs: the
+polygon window and the required bands only, so no full Sentinel-2 product is
+downloaded. [PRIVACY.md](PRIVACY.md) says what stays on the computer and what
+each service it reads from receives.
 
 The scope is deliberate. TERRA is built to support research and the detailed
 study of particular areas, at farm to landscape scale, under a fixed protocol.
@@ -343,6 +345,8 @@ which can be installed from Settings › System into the environment already in 
 | [Releasing](docs/RELEASING.md) | SemVer, code names, the release still |
 | [Troubleshooting](docs/TROUBLESHOOTING.md) | Python, STAC, models, macOS |
 | [Contributing](CONTRIBUTING.md) | Issues, PRs, tests |
+| [Privacy](PRIVACY.md) | What stays on the computer, and what each service receives |
+| [Responsible use](docs/RESPONSIBLE_USE.md) | What the results do not establish, misuse, Indigenous lands |
 | [Design](docs/DESIGN.md) | Visual tokens |
 | [Performance](docs/PERFORMANCE.md) | Frame rate, memory, and what was measured |
 | [JOSS paper draft](paper/paper.md) | Manuscript and BibTeX |
