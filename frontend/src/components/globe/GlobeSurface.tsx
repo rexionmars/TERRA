@@ -1657,8 +1657,8 @@ export function GlobeSurface({
     const map = mapRef.current
     if (!map || !ready || !map.getLayer("imagery-recent")) return
     map.setLayoutProperty("imagery-recent", "visibility", recent ? "visible" : "none")
-    // After the layer is already asking for tiles: the id is pinned, so this
-    // only makes sure the service still holds the search behind it.
+    // After the layer is already asking for tiles: the template is fixed, so
+    // this only makes sure the service still holds the search behind it.
     if (recent) void ensureMosaic()
   }, [recent, ready])
 
