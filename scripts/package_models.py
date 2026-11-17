@@ -63,11 +63,11 @@ CATALOG = ROOT / 'model' / 'catalog.json'
 PREPARING = ROOT / 'model' / 'upcoming'
 
 # The packages the catalogue offers, in the order the Models screen lists them.
-LISTED = ('spectral', 'temporal_transformer')
+LISTED = ('spectral', 'temporal_transformer', 'gp_series')
 # The models in preparation it lists, in the order the Models screen shows them:
 # the furthest from a release last.
 UPCOMING: tuple[str, ...] = (
-    'gp_series', 'observation_noise', 'transient_excursions', 'series_events', 's1_orbit_noise',
+    'observation_noise', 'transient_excursions', 'series_events', 's1_orbit_noise',
 )
 
 # What an entry.json may hold, in the order the catalogue gives it; the first

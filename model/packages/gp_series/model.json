@@ -1,0 +1,92 @@
+{
+  "format": 1,
+  "id": "gp_series",
+  "version": "0.1.0",
+  "name": "Gaussian Process",
+  "family": "gp_series",
+  "task": "time_series",
+  "summary": "Fits a smooth trajectory to a field's Sentinel-2 series and gives its 95 % interval, which widens where clouds leave gaps.",
+  "classes": [],
+  "modes": [],
+  "requires": [],
+  "reads": [
+    {
+      "label": "Imagery",
+      "value": "Sentinel-2 L2A scenes over the polygon. A date counts when at least 30 % of the polygon is clear, and of two orbits on one date the clearer is kept"
+    },
+    {
+      "label": "Bands",
+      "value": "B02, B03, B04 and B08 at 10 m, with NDVI and EVI per pixel: the median over the polygon's clear pixels on each date"
+    },
+    {
+      "label": "Series",
+      "value": "The six medians projected on three principal components, each fitted with a Gaussian process of a seasonal oscillator and a local term, with heavy-tailed noise"
+    }
+  ],
+  "method": [
+    {
+      "label": "Covariance",
+      "value": "Per principal component, a damped seasonal oscillator plus a local smooth term"
+    },
+    {
+      "label": "Noise",
+      "value": "Student-t with 4 degrees of freedom, by reweighting"
+    },
+    {
+      "label": "Period",
+      "value": "Scaled per field by the multiplier of highest evidence, from 0.6 to 1.5"
+    },
+    {
+      "label": "Interval",
+      "value": "NDVI rebuilt from the three components; mean ± t·√(a·latent + b·noise), with (a, b, ν) per region"
+    }
+  ],
+  "evaluation": {
+    "method": "Coverage of the 95 % interval on 45-day blocks of observations held out from development fields in Bahia, Mato Grosso and Paraná, with the scale chosen on the training fields and checked on the validation fields, all from another reading of the same Sentinel-2 scenes.",
+    "figures": [
+      {
+        "label": "NDVI 95 % coverage",
+        "value": "0.969"
+      },
+      {
+        "label": "Coverage, BA",
+        "value": "0.984"
+      },
+      {
+        "label": "Coverage, MT",
+        "value": "0.945"
+      },
+      {
+        "label": "Coverage, PR",
+        "value": "0.978"
+      }
+    ],
+    "source": "TERRA signal and spectrum models, gp_series 0.1.0 calibration"
+  },
+  "limits": [
+    "Every number was fitted on another reading of the same Sentinel-2 scenes, not on series read by TERRA itself; version 1.0.0 will be refitted on those.",
+    "Calibrated on fields in Bahia, Mato Grosso and Paraná. Elsewhere it would use one scale fitted on the three regions together, which has not been checked outside them.",
+    "The trajectory is smooth: a harvest or another abrupt change shows up spread over weeks, not as a step."
+  ],
+  "license": "MIT",
+  "doi": null,
+  "packaged_by": [
+    {
+      "name": "João Leonardi"
+    }
+  ],
+  "picture": {
+    "subject": "a soybean-then-maize field in Mato Grosso, September 2020 to August 2021, read as TERRA reads it: observed NDVI in orange dots, the model's trajectory as a green line and its 95 % interval shaded. Drawn with an earlier fit, before the NDVI interval was calibrated",
+    "author": "João Leonardi. Contains modified Copernicus Sentinel data 2020–2021",
+    "license": "CC BY 4.0",
+    "source": "https://planetarycomputer.microsoft.com/dataset/sentinel-2-l2a"
+  },
+  "files": {
+    "parameters": {
+      "name": "parameters.json"
+    },
+    "picture": {
+      "name": "picture.webp"
+    }
+  }
+}

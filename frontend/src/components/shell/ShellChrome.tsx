@@ -530,13 +530,13 @@ export function ShellRail({
             onClick={onWorkflows}
           />
           {/*
-            The glyph Analyses gives a classification run: every model on the
-            Models screen is a classifier.
+            The glyph Analyses gives a classification run, the task of most
+            models on the Models screen.
           */}
           <RailButton
             icon={LineModels}
             label="Models"
-            title="Models: the trained classifiers"
+            title="Models: the trained models to download and run"
             open={open}
             active={place === "models"}
             onClick={onModels}
