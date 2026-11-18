@@ -151,6 +151,9 @@ at the top.
 **Layers** lists every raster of the result, top of the stack first, with its switch
 and opacity, and saves it as PNG or GeoTIFF where one exists. The classification also
 has a majority filter here. Right-click a raster on the map to frame it or hide it.
+A right-click anywhere on the globe also offers **Copy coordinates**: the latitude and
+longitude of that point, in decimal degrees on WGS 84 (`-24.932680, -53.458740`), ready
+to paste into Google Maps, Google Earth or QGIS.
 
 **Points** places A and B on the map and reads the class under each, in one pixel or
 a neighbourhood. Its graph is the mean spectrum of each point's **class**: a run keeps
