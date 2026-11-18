@@ -45,15 +45,25 @@ export interface OpenedFile {
   layers: FileLayer[]
 }
 
+/** Whether the map draws the layer: it was read, and it has geometry. */
+export function drawsOnMap(layer: Pick<GeoPackageLayer, "url" | "kind">): boolean {
+  return layer.url !== "" && layer.kind !== "table"
+}
+
+/** Whether the layer is a table without geometry that was read, whose rows can be listed. */
+export function isTable(layer: Pick<GeoPackageLayer, "url" | "kind">): boolean {
+  return layer.url !== "" && layer.kind === "table"
+}
+
 /**
  * A file's layers keyed and coloured, the colours continuing from `firstColor`
  * so a second file open beside the first does not repeat its first colours.
- * A layer that cannot be drawn takes no colour.
+ * A layer the map does not draw takes no colour.
  */
 export function toOpenedFile(gp: GeoPackage, firstColor: number): OpenedFile {
   let next = firstColor
   const layers = gp.layers.map((l) => {
-    const drawable = l.url !== ""
+    const drawable = drawsOnMap(l)
     const color = drawable
       ? FILE_LAYER_COLORS[next++ % FILE_LAYER_COLORS.length]
       : "transparent"
@@ -64,7 +74,7 @@ export function toOpenedFile(gp: GeoPackage, firstColor: number): OpenedFile {
 
 /** How many colours the open files have taken, so the next file continues. */
 export function coloursTaken(files: readonly OpenedFile[]): number {
-  return files.reduce((n, f) => n + f.layers.filter((l) => l.url !== "").length, 0)
+  return files.reduce((n, f) => n + f.layers.filter(drawsOnMap).length, 0)
 }
 
 /** West, south, east, north around the given layers, or null when none has any. */
@@ -81,25 +91,29 @@ export function layersBounds(
   ]
 }
 
-/** What one feature of a layer is called in the summary: "1,204 points". */
+/** What one feature of a layer is called in the summary: "1,204 points", "12 rows". */
 export function countLabel(layer: Pick<GeoPackageLayer, "kind" | "drawn">): string {
   const n = layer.drawn
   const noun =
-    layer.kind === "point"
+    layer.kind === "table"
       ? n === 1
-        ? "point"
-        : "points"
-      : layer.kind === "line"
+        ? "row"
+        : "rows"
+      : layer.kind === "point"
         ? n === 1
-          ? "line"
-          : "lines"
-        : layer.kind === "polygon"
+          ? "point"
+          : "points"
+        : layer.kind === "line"
           ? n === 1
-            ? "polygon"
-            : "polygons"
-          : n === 1
-            ? "feature"
-            : "features"
+            ? "line"
+            : "lines"
+          : layer.kind === "polygon"
+            ? n === 1
+              ? "polygon"
+              : "polygons"
+            : n === 1
+              ? "feature"
+              : "features"
   return `${n.toLocaleString("en")} ${noun}`
 }
 

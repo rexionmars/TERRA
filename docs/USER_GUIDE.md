@@ -70,6 +70,10 @@ with a switch for each, what it holds and in which coordinate system, and why a 
 that is not drawn (a raster, a layer with no coordinate system) is not. Pressing a
 layer's name, or the file's frame button, moves the map to it.
 
+A table without geometry, such as one that describes the file's layers, is listed
+with them under a table mark. The map draws nothing of it; pressing its name opens
+its rows, a thousand at a time, with the columns named as the file names them.
+
 Press a feature on the map to read its attributes. Dots and lines are found within a
 few pixels of the press; a polygon is found when no area of the project lies under
 the press. Opening a file writes nothing to the project, and closing it removes it

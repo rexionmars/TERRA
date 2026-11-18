@@ -5,9 +5,11 @@ import {
   areaPolygon,
   coloursTaken,
   countLabel,
+  drawsOnMap,
   featureBounds,
   featureKind,
   featureLabel,
+  isTable,
   layersBounds,
   toOpenedFile,
 } from "./fileLayers"
@@ -50,6 +52,45 @@ describe("toOpenedFile", () => {
     expect(f.layers.map((l) => l.visible)).toEqual([true, false, true])
     expect(f.layers[0].key).toBe("f1:schools")
     expect(coloursTaken([f])).toBe(2)
+  })
+})
+
+describe("a table without geometry", () => {
+  const about = layer("about", "/a/12", {
+    data_type: "attributes",
+    geometry_type: "",
+    kind: "table",
+    crs: "",
+    count: 12,
+    drawn: 12,
+  })
+
+  it("is listed with its rows and is not drawn on the map", () => {
+    expect(isTable(about)).toBe(true)
+    expect(drawsOnMap(about)).toBe(false)
+    expect(countLabel(about)).toBe("12 rows")
+    expect(countLabel({ ...about, drawn: 1 })).toBe("1 row")
+  })
+
+  it("takes no colour from the layers that are drawn", () => {
+    const f = toOpenedFile(
+      {
+        id: "f2",
+        name: "x.gpkg",
+        path: "/x.gpkg",
+        layers: [about, layer("schools", "/a/0")],
+      },
+      0
+    )
+    expect(f.layers.map((l) => [l.color, l.visible])).toEqual([
+      ["transparent", false],
+      [FILE_LAYER_COLORS[0], true],
+    ])
+    expect(coloursTaken([f])).toBe(1)
+  })
+
+  it("is not a table once it could not be read", () => {
+    expect(isTable({ ...about, url: "" })).toBe(false)
   })
 })
 

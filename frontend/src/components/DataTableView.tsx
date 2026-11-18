@@ -35,11 +35,21 @@ export function DataTableView({
   table,
   caption,
   onDownload,
+  namesAsStored = false,
+  fill = false,
 }: {
   table: DataTable
   caption?: string
   /** Omit to hide the download action (copy is always available). */
   onDownload?: (table: DataTable) => void
+  /**
+   * Heads the columns with their names as stored, not spelled out. For a file
+   * the reader opened, whose names are its own: spelling `NM_MUN` out with the
+   * words of TERRA's tables would make it "(nm) MUN".
+   */
+  namesAsStored?: boolean
+  /** Takes the height of its container, which must be a flex column, rather than a fixed one. */
+  fill?: boolean
 }) {
   const [sort, setSort] = useState<SortState>(null)
   const [copied, setCopied] = useState(false)
@@ -69,7 +79,7 @@ export function DataTableView({
   }
 
   return (
-    <div className="flex min-w-0 flex-col gap-2">
+    <div className={cn("flex min-w-0 flex-col gap-2", fill && "min-h-0 flex-1")}>
       <div className="flex flex-wrap items-center justify-between gap-2">
         <p className="telemetry text-meta text-muted-foreground">
           {table.rows.length} {table.rows.length === 1 ? "row" : "rows"}
@@ -106,7 +116,12 @@ export function DataTableView({
       </div>
 
       {/* Wide tables scroll inside the section rather than widening the page. */}
-      <div className="max-h-[22rem] overflow-auto rounded-sm border border-border bg-sunk">
+      <div
+        className={cn(
+          "overflow-auto rounded-sm border border-border bg-sunk",
+          fill ? "min-h-0 flex-1" : "max-h-[22rem]"
+        )}
+      >
         <table className="selectable w-full min-w-max text-left text-body">
           <thead className="sticky top-0 z-10">
             <tr
@@ -143,7 +158,7 @@ export function DataTableView({
                       // spells it out (readingParts, columnLabel).
                       title={`${c.key}: press to sort`}
                     >
-                      {columnLabel(c.key)}
+                      {namesAsStored ? c.key : columnLabel(c.key)}
                       {active &&
                         (sort.direction === "asc" ? (
                           <ArrowUp className="h-2.5 w-2.5" />
