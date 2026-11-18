@@ -275,7 +275,7 @@ def open_catalog(src: Source) -> Any:
     # Retry-After header says. The search is a POST, which urllib3 does not
     # retry unless told to; a search changes nothing, so repeating it is safe.
     # raise_on_status=False hands the last answer back, so an attempt that ran
-    # out of retries still reports its status code to `_with_retries`.
+    # out of retries still reports its status code to `with_retries`.
     stac_io = StacApiIO(
         timeout=TIMEOUT,
         max_retries=Retry(
@@ -325,7 +325,7 @@ def search(
     if query is not None:
         criteria['query'] = query
 
-    items = _with_retries(
+    items = with_retries(
         lambda: list(open_catalog(src).search(**criteria).items()),
         src.title,
     )
@@ -364,7 +364,7 @@ def href(item: Any, asset: str) -> str:
         known = _resolved.get(url)
     if known is not None:
         return known
-    signed = _with_retries(lambda: _earthdata_redirect(url), 'NASA Earthdata')
+    signed = with_retries(lambda: _earthdata_redirect(url), 'NASA Earthdata')
     with _resolved_lock:
         _resolved[url] = signed
     return signed
@@ -436,7 +436,7 @@ def _throttled(error: BaseException) -> bool:
     return getattr(response, 'status_code', None) == 429
 
 
-def _with_retries(attempt: Callable[[], Any], what: str) -> Any:
+def with_retries(attempt: Callable[[], Any], what: str) -> Any:
     """
     `attempt()`, repeated on failure with the waits RETRY_WAITS sets out.
 
