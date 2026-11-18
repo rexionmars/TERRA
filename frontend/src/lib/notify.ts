@@ -54,6 +54,15 @@ export function notifyInfo(title: string, description?: string, opts?: ExternalT
   })
 }
 
+/**
+ * Work under way that takes long enough to need saying: a notification with a
+ * spinner that stays until a success or an error passed the same `id` replaces
+ * it. Called again with the same `id`, it updates the line in place.
+ */
+export function notifyLoading(id: string, title: string, description?: string) {
+  toast.loading(title, { id, description, duration: Infinity })
+}
+
 export function notifyExportOk(dest: string) {
   notifySuccess("Exported", shortPath(dest))
 }

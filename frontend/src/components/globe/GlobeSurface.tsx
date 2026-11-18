@@ -63,6 +63,15 @@ import { OverlayCallouts, type OverlayCaption } from "@/components/globe/Overlay
 import { fetchEsriImageryHere, type ImageryHere } from "@/components/globe/imageryDate"
 import { isZeroExtent, type RasterLayer } from "@/lib/mapLayers"
 import {
+  fileFeatureAt,
+  hasFileLayers,
+  markPicked,
+  syncFileLayers,
+  watchFileLayers,
+  type FilePick,
+  type GlobeFileLayer,
+} from "@/components/globe/fileLayers"
+import {
   ELEVATION_CREDIT,
   addTerrainSources,
   setTerrainEnabled,
@@ -314,6 +323,9 @@ function areasIn(map: MapLibreMap, a: [number, number], b: [number, number]): st
   return [...new Set(ids)]
 }
 
+/** The default for no open files, one array so the sync is not re-run per render. */
+const NO_FILE_LAYERS: readonly GlobeFileLayer[] = []
+
 /** The custom layer's id, so it is added once and found again. */
 const RAISED_LAYER = "raised-rasters"
 /**
@@ -403,6 +415,10 @@ export function GlobeSurface({
   curtainKey = null,
   onCurtainChange,
   fieldDrafts = null,
+  fileLayers = NO_FILE_LAYERS,
+  pickedFeature = null,
+  onPickFeature,
+  onFileLayerState,
   onOverlayContext,
   leadingTools,
   frame = null,
@@ -434,6 +450,18 @@ export function GlobeSurface({
    * FeatureCollection in WGS84, or null. Drawn dashed and not pressable.
    */
   fieldDrafts?: GeoJSON.FeatureCollection | null
+  /** The layers of opened files, drawn over the rasters and under the area outlines. */
+  fileLayers?: readonly GlobeFileLayer[]
+  /** The file feature the reader pressed, marked on the map. */
+  pickedFeature?: { key: string; id: number } | null
+  /**
+   * A press on a file feature. A dot or a line wins over an area under it; an
+   * area wins over a file polygon that merely covers it. Absent, a press on a
+   * file feature does nothing of its own.
+   */
+  onPickFeature?: (picked: FilePick) => void
+  /** A file layer finished loading in the map's worker, or failed to, with why. */
+  onFileLayerState?: (key: string, state: "loaded" | "failed", message?: string) => void
   /**
    * An area was pressed. Its id, as given in `areas`, and whether shift was
    * held, which extends a selection rather than choosing the area.
@@ -461,9 +489,10 @@ export function GlobeSurface({
    */
   onPolygonDrawn?: (geom: GeoJSONGeometry | null) => void
   /**
-   * Asks for a .kml or GeoJSON file and makes its polygon the area. The caller
-   * owns the picker and the parsing, since the area it creates belongs to a
-   * project this surface knows nothing about. Absent, the control is withheld.
+   * Asks for a .kml, GeoJSON or GeoPackage file and makes areas of it. The
+   * caller owns the picker and the parsing, since the area it creates belongs
+   * to a project this surface knows nothing about. Absent, the control is
+   * withheld.
    */
   onImportPolygon?: () => void
   /**
@@ -859,6 +888,10 @@ export function GlobeSurface({
 
   const pickAreaRef = useRef(onPickArea)
   pickAreaRef.current = onPickArea
+  const pickFeatureRef = useRef(onPickFeature)
+  pickFeatureRef.current = onPickFeature
+  const fileStateRef = useRef(onFileLayerState)
+  fileStateRef.current = onFileLayerState
   const boxAreaRef = useRef(onBoxArea)
   boxAreaRef.current = onBoxArea
   const clearSelectionRef = useRef(onClearSelection)
@@ -1242,11 +1275,18 @@ export function GlobeSurface({
     subs.push(
       map.on("click", (e: MapMouseEvent) => {
         placePinRef.current?.(e.lngLat.lng, e.lngLat.lat)
+        const pick = pickFeatureRef.current
+        if (!pick || placePinRef.current || modeRef.current !== "idle") return
+        const onArea = areaAt(map, [e.point.x, e.point.y]) !== null
+        const hit = fileFeatureAt(map, e.point, !onArea)
+        if (hit) pick(hit)
       })
     )
     subs.push(
       map.on("click", AREA_FILL, (e: MapMouseEvent & { features?: unknown[] }) => {
         if (placePinRef.current) return
+        // A dot or a line of an open file was aimed at; the area is only under it.
+        if (pickFeatureRef.current && fileFeatureAt(map, e.point, false)) return
         /*
           A press inside a field is also a press inside its area, and the
           order MapLibre returns the two in is a rendering detail. The field
@@ -1385,6 +1425,34 @@ export function GlobeSurface({
         if (!placePinRef.current) map.getCanvas().style.cursor = ""
       })
     )
+    const stopWatching = watchFileLayers(map, (key, state, message) =>
+      fileStateRef.current?.(key, state, message)
+    )
+    subs.push({ unsubscribe: stopWatching })
+    /*
+      The pointer over a file feature says a press reads it. Decided on every
+      move rather than per layer, because the layers come and go with the files,
+      and only while something is open, so the areas' own enter and leave above
+      are untouched otherwise.
+    */
+    let overFeature = false
+    subs.push(
+      map.on("mousemove", (e: MapMouseEvent) => {
+        if (
+          !pickFeatureRef.current ||
+          placePinRef.current ||
+          modeRef.current !== "idle"
+        ) {
+          return
+        }
+        if (!hasFileLayers(map) && !overFeature) return
+        const now = fileFeatureAt(map, e.point, true) !== null
+        if (now === overFeature) return
+        overFeature = now
+        const onArea = areaAt(map, [e.point.x, e.point.y]) !== null
+        map.getCanvas().style.cursor = now || onArea ? "var(--cursor-pointer)" : ""
+      })
+    )
 
     const stopPaletteWatch = onPaletteChange(paint)
 
@@ -1432,6 +1500,37 @@ export function GlobeSurface({
     const src = map.getSource<GeoJSONSource>(FIELD_DRAFT_SOURCE)
     void src?.setData(fieldDrafts ?? { type: "FeatureCollection", features: [] })
   }, [fieldDrafts, ready])
+
+  /*
+    The layers of opened files, over the rasters and under the area outlines.
+
+    Run again when the rasters change, because a raster layer added after them
+    goes in under AREA_LINE too, which would put it over the vectors; the sync
+    moves them back above it. The guard and the retry are the raised layer's,
+    for the window in which the style is being replaced.
+  */
+  const [fileNonce, setFileNonce] = useState(0)
+  useEffect(() => {
+    const map = mapRef.current
+    if (!map || !ready) return
+    try {
+      syncFileLayers(map, fileLayers, AREA_LINE)
+    } catch {
+      const retry = () => setFileNonce((n) => n + 1)
+      map.once("styledata", retry)
+      return () => {
+        map.off("styledata", retry)
+      }
+    }
+  }, [fileLayers, raisedRasters, ready, fileNonce])
+
+  const pickedRef = useRef<{ key: string; id: number } | null>(null)
+  useEffect(() => {
+    const map = mapRef.current
+    if (!map || !ready) return
+    markPicked(map, pickedRef.current, pickedFeature)
+    pickedRef.current = pickedFeature
+  }, [pickedFeature, fileLayers, ready, fileNonce])
 
   /*
     The raster sent here from the viewport.
@@ -2104,12 +2203,12 @@ export function GlobeSurface({
               </MapButton>
               {/*
                 BESIDE THE PENCIL, because a file is the other way an area
-                arrives: the shape comes from a .kml instead of from a hand,
+                arrives: the shape comes from a file instead of from a hand,
                 and what follows is the same.
               */}
               {onImportPolygon && (
                 <MapButton
-                  label="Import an area from a .kml or GeoJSON file"
+                  label="Import areas from a .kml, GeoJSON or GeoPackage file"
                   onClick={onImportPolygon}
                 >
                   <LineImportArea className="size-4" />

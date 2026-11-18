@@ -7,12 +7,19 @@ import { notifyError, notifySuccess } from "@/lib/notify"
 import { readBoardMemory } from "@/components/workspace/boardMemory"
 import type { GeoJSONGeometry } from "@/lib/types"
 import {
+  ChooseAreaFile,
   CreateArea,
   DeleteArea,
+  ReadAreaFile,
   SetProjectLastArea,
   UpdateArea,
 } from "../../wailsjs/go/main/App"
 import type { GroundState } from "./ground"
+
+/** The last part of a path, on either separator. */
+function baseName(path: string): string {
+  return path.split(/[/\\]/).pop() ?? path
+}
 
 export interface AreaProps {
   customPolygon: GeoJSONGeometry | null
@@ -47,12 +54,15 @@ export function useAreaActions({
   persistAoiLabel,
   takeCompositionOffMap,
   forgetCompositions,
+  openGeoPackage,
 }: {
   ground: GroundState
   activeProjectId: string | null
   persistAoiLabel: (label: string | null) => Promise<void>
   takeCompositionOffMap: () => void
   forgetCompositions: () => void
+  /** A GeoPackage chosen in the import dialog, which is opened on the map. */
+  openGeoPackage: (path: string) => void
 }) {
   const {
     customPolygon,
@@ -278,86 +288,69 @@ export function useAreaActions({
   )
 
   /*
-    A polygon from a file, kept as an area of the open project.
+    An area from a file, kept in the open project.
+
+    THE DIALOG IS THE APPLICATION'S, not a file input in the page
+    (app_geopackage.go). A GeoPackage is read by the sidecar, which needs the
+    file's path, and a page is given a file's bytes but never its path. KML
+    and GeoJSON come through the same dialog and their text is parsed here as
+    before; a GeoPackage is opened on the map instead, where a polygon of it
+    becomes an area when the reader asks for it.
+
+    The page's file input this replaces needed two rules of its own in the
+    WKWebView -- attached to the document before it was clicked, and clicked
+    before anything was awaited -- or the dialog never opened. A dialog opened
+    by the Go side has neither.
   */
   const handleImportPolygon = () => {
     if (!activeProjectId) {
       notifyError("Open a project first: an area belongs to one.")
       return
     }
-    try {
-      const input = document.createElement("input")
-      input.type = "file"
-      input.accept = ".kml,.geojson,.json"
-      /*
-        THE INPUT IS PUT IN THE DOCUMENT BEFORE IT IS CLICKED.
-
-        It used to be a detached element, created and clicked without ever being
-        attached, which is the form every snippet for this uses and which this
-        webview ignores: WKWebView opens a file picker for an input that is in
-        the document and silently does nothing for one that is not. The button
-        looked dead and reported nothing. The avatar upload on the profile page
-        never had the problem because its input is rendered into the page and
-        clicked through a ref -- the same property, arrived at by writing it in
-        JSX rather than by knowing the rule.
-
-        Hidden rather than off-screen, and removed once the dialog has been
-        answered, so nothing is left behind on a cancel either.
-
-        THE PICKER IS ALSO OPENED BEFORE ANYTHING IS AWAITED.
-
-        togeojson used to be imported first, and a dynamic import is a promise:
-        after awaiting it the call below is no longer running inside the user
-        gesture that started it, and a WKWebView refuses a programmatic click on
-        a file input outside one. The dialog then never appeared and nothing
-        said why -- the button looked dead. The parser is only needed once a
-        file has been chosen, so it is loaded there instead.
-      */
-      input.onchange = async () => {
-        const file = input.files?.[0]
-        if (!file) return
-        const { kml } = await import("@tmcw/togeojson")
-        const text = await file.text()
-        let geom: GeoJSONGeometry | null = null
-        try {
-          /*
-            Either format ends as GeoJSON, and `importedPolygon` reads both the
-            same way: the first polygon wherever the file keeps it, at the
-            coordinates the draw store accepts. See the module.
-          */
-          if (file.name.toLowerCase().endsWith(".kml")) {
-            const dom = new DOMParser().parseFromString(text, "text/xml")
-            if (dom.querySelector("parsererror")) {
-              throw new Error("the file is not well-formed XML")
-            }
-            geom = importedPolygon(kml(dom))
-          } else {
-            geom = importedPolygon(JSON.parse(text))
-          }
-        } catch (e) {
-          notifyError("Invalid file", e)
-          return
-        }
-        if (!geom) {
-          notifyError("No polygon found in the file.")
-          return
-        }
-        input.remove()
-        const entry = await createArea(geom, file.name.replace(/\.[^.]+$/, ""))
-        if (!entry) return
-        notifySuccess(`Polygon saved as \u201c${entry.name}\u201d.`)
+    void (async () => {
+      let path: string
+      try {
+        path = await ChooseAreaFile()
+      } catch (e) {
+        notifyError("Could not open the file dialog", e)
+        return
       }
-      input.style.display = "none"
-      document.body.appendChild(input)
-      const cleanup = () => input.remove()
-      // Covers the cancel, where onchange never fires. Not perfectly: a webview
-      // that reports no focus event would leave the node, which is why it is
-      // display:none and carries no listeners of its own.
-      window.addEventListener("focus", cleanup, { once: true })
-      input.click()
-    } catch (e) {
-      notifyError("Import failed", e)
-    }
+      if (!path) return
+      if (path.toLowerCase().endsWith(".gpkg")) {
+        openGeoPackage(path)
+        return
+      }
+      const name = baseName(path)
+      let geom: GeoJSONGeometry | null = null
+      try {
+        const text = await ReadAreaFile(path)
+        /*
+          Either format ends as GeoJSON, and `importedPolygon` reads both the
+          same way: the first polygon wherever the file keeps it, at the
+          coordinates the draw store accepts. See the module.
+        */
+        if (name.toLowerCase().endsWith(".kml")) {
+          const { kml } = await import("@tmcw/togeojson")
+          const dom = new DOMParser().parseFromString(text, "text/xml")
+          if (dom.querySelector("parsererror")) {
+            throw new Error("the file is not well-formed XML")
+          }
+          geom = importedPolygon(kml(dom))
+        } else {
+          geom = importedPolygon(JSON.parse(text))
+        }
+      } catch (e) {
+        notifyError("Invalid file", e)
+        return
+      }
+      if (!geom) {
+        notifyError("No polygon found in the file.")
+        return
+      }
+      const entry = await createArea(geom, name.replace(/\.[^.]+$/, ""))
+      if (!entry) return
+      notifySuccess(`Polygon saved as \u201c${entry.name}\u201d.`)
+    })()
   }
 
   const activateArea = useCallback(

@@ -41,7 +41,11 @@ export function CancelJob(arg1:string):Promise<void>;
 
 export function CancelModelDownload(arg1:string):Promise<void>;
 
+export function ChooseAreaFile():Promise<string>;
+
 export function ChooseBackupArchive():Promise<store.RestorePreview>;
+
+export function ChooseGeoPackage():Promise<string>;
 
 export function ClearAvatar():Promise<store.User>;
 
@@ -50,6 +54,8 @@ export function ClearBadge():Promise<store.User>;
 export function ClearCover():Promise<store.User>;
 
 export function ClearJobs():Promise<void>;
+
+export function CloseGeoPackage(arg1:string):Promise<void>;
 
 export function CreateArea(arg1:string,arg2:string,arg3:string):Promise<store.Area>;
 
@@ -143,6 +149,8 @@ export function ModelCatalog():Promise<analysis.ModelCatalog>;
 
 export function OpenExternal(arg1:string):Promise<void>;
 
+export function OpenGeoPackage(arg1:string):Promise<analysis.GeoPackage>;
+
 export function OpenProjectFile(arg1:string):Promise<store.ProjectFileSummary>;
 
 export function PickModelPackage():Promise<string>;
@@ -152,6 +160,8 @@ export function Predict(arg1:analysis.PredictRequest):Promise<analysis.PredictRe
 export function PurgeOrphanedRunAssets():Promise<store.PurgeResult>;
 
 export function QueueJobs(arg1:Array<main.JobSpec>):Promise<Array<jobs.Job>>;
+
+export function ReadAreaFile(arg1:string):Promise<string>;
 
 export function Register(arg1:string,arg2:string,arg3:string):Promise<store.User>;
 

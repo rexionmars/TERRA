@@ -54,7 +54,26 @@ open the map refuses the shape. Create one from the project menu at the top righ
 ## 3. Make an area
 
 - **Draw:** the pencil on the map's right edge.
-- **Import:** a `.kml` or GeoJSON file, from the Areas panel or the map's tools.
+- **Import:** a `.kml` or GeoJSON file, from the Areas panel or the map's tools. The
+  file's first polygon becomes the area.
+- **From a GeoPackage:** open the file (Layers panel, **Open a GeoPackage…**, or the
+  same import button) and its layers are drawn on the map. Press a polygon and choose
+  **Use as an area**; a polygon of several parts gives its largest.
+
+### Files on the map
+
+A GeoPackage opened from the Layers panel is drawn over the basemap, every layer of
+it: points as dots, lines as lines, polygons filled, each layer in a colour of its
+own. Coordinates in any system, such as SIRGAS 2000 / UTM or Brazil Polyconic, are
+converted to longitude and latitude. The Layers panel lists the file and its layers,
+with a switch for each, what it holds and in which coordinate system, and why a layer
+that is not drawn (a raster, a layer with no coordinate system) is not. Pressing a
+layer's name, or the file's frame button, moves the map to it.
+
+Press a feature on the map to read its attributes. Dots and lines are found within a
+few pixels of the press; a polygon is found when no area of the project lies under
+the press. Opening a file writes nothing to the project, and closing it removes it
+from the map.
 - **Catalogue:** a Brazilian state or municipality from IBGE, in the Areas panel.
 
 The Areas panel, under **Manage areas…** in the area's menu at the top right, lists them with their hectares and runs. Pressing one goes to it; its rename

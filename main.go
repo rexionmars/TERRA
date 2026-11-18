@@ -17,6 +17,7 @@ package main
 
 import (
 	"embed"
+	"net/http"
 
 	"github.com/wailsapp/wails/v2"
 	"github.com/wailsapp/wails/v2/pkg/options"
@@ -104,7 +105,9 @@ func main() {
 				Assets, so the route is decided here and everything else falls
 				through untouched.
 			*/
-			Middleware: app.runOverlayMiddleware,
+			Middleware: func(next http.Handler) http.Handler {
+				return app.runOverlayMiddleware(app.geoPackageLayerMiddleware(next))
+			},
 		},
 		/*
 			A file dropped on the window reaches the page as its path, which a

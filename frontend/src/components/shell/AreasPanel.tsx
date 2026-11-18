@@ -161,7 +161,7 @@ function AreaRow({
   )
 }
 
-/** The areas of the open project, and the two ways of making another. */
+/** The areas of the open project, and the ways of making another. */
 export function AreasPanel({
   areas,
   hasProject,
@@ -252,7 +252,7 @@ export function AreasPanel({
           )}
           <button type="button" onClick={onImport} className={cn(btnGhost, "w-full")}>
             <LineImportArea className="size-4" />
-            Import a .kml or GeoJSON file
+            Import a .kml, GeoJSON or GeoPackage file
           </button>
           {onPickBoundary && (
             <button
