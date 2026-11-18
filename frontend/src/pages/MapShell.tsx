@@ -715,7 +715,7 @@ export function MapShell(props: MapShellProps) {
               onPolygonDrawn={(g) =>
                 g ? props.onPolygonDrawn(g) : props.onClearArea()
               }
-              onOverlayContext={(hits, at) => {
+              onOverlayContext={(hits, at, ground) => {
                 const entries = hits.flatMap(({ key, fit }) => {
                   const l = layers.find((x) => x.id === key)
                   const state = legendStateOf(key)
@@ -731,7 +731,7 @@ export function MapShell(props: MapShellProps) {
                       ]
                     : []
                 })
-                if (entries.length) setOverlayMenu({ at, entries })
+                setOverlayMenu({ at, entries, ground })
               }}
               onImportPolygon={props.onImportPolygon}
               fileLayers={globeFileLayers}

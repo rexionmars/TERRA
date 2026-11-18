@@ -428,10 +428,11 @@ export function GlobeSurface({
   className,
 }: {
   /**
-   * A right-click on the rasters, without a drag: the overlays under the
-   * pointer, top of the stack first, each with a way to frame it, and where
-   * the press was. The caller opens the menu; nothing opens where there is no
-   * raster, since a menu about nothing is a control that appears to fail.
+   * A right-click on the map, without a drag: the overlays under the pointer,
+   * top of the stack first, each with a way to frame it, where the press was on
+   * the screen, and the longitude and latitude of the ground under it. Called
+   * for every press, raster or not, since the place itself is something to
+   * copy; the caller decides what the menu holds.
    *
    * PICKED ON THE GROUND. A raised raster is drawn off the ground and MapLibre
    * has no public way to project an elevated point (SpreadHandle says the
@@ -442,7 +443,8 @@ export function GlobeSurface({
    */
   onOverlayContext?: (
     hits: { key: string; fit: () => void }[],
-    at: { x: number; y: number }
+    at: { x: number; y: number },
+    ground: { lon: number; lat: number }
   ) => void
   areas: readonly GlobeArea[]
   /**
@@ -1325,6 +1327,15 @@ export function GlobeSurface({
         }
         const { lng, lat } = e.lngLat
         /*
+          OFF THE PLANET THERE IS NO PLACE. A press in the space around the
+          globe still unprojects, to a point on the horizon, and the menu would
+          offer to copy coordinates of somewhere the reader did not press. A
+          ground point projects back onto the press; a horizon point projects
+          back to the limb, away from it.
+        */
+        const back = map.project(e.lngLat)
+        if (Math.hypot(back.x - e.point.x, back.y - e.point.y) > 2) return
+        /*
           Left of the curtain the top raster is not drawn, so it is not offered:
           the menu names what is under the pointer, and there it is not.
         */
@@ -1336,7 +1347,6 @@ export function GlobeSurface({
           lng,
           lat
         )
-        if (!hits.length) return
         ev.preventDefault()
         open(
           hits.map((h) => ({
@@ -1350,7 +1360,8 @@ export function GlobeSurface({
                 { padding: 60, duration: 700 }
               ),
           })),
-          { x: ev.clientX, y: ev.clientY }
+          { x: ev.clientX, y: ev.clientY },
+          { lon: lng, lat }
         )
       })
     )
