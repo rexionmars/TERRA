@@ -20,6 +20,7 @@ import type {
   GeoJSONGeometry,
   SaveProjectOverlayRequest,
 } from "@/lib/types"
+import { CBERS_4A_WPM } from "@/lib/types"
 import {
   ListDataCube,
   RenderComposite,
@@ -146,6 +147,21 @@ export function useComposition({
   const [composeVariable, setComposeVariable] = useState<BiophysicalVariable>("lai")
   const [composeYear, setComposeYear] = useState(2022)
 
+  /*
+    A CBERS-4A scene and a Sentinel-2 scene come from different catalogues, so
+    moving between the two drops the list: a Sentinel-2 scene chosen for a
+    CBERS view would be an id INPE does not know.
+  */
+  const changeComposeKind = (next: CompositeKind) => {
+    if ((next === "cbers") !== (composeKind === "cbers")) {
+      setComposeScenes([])
+      setSelectedSceneId("")
+      setComposeSceneBefore("")
+      setComposeScenesError(null)
+    }
+    setComposeKind(next)
+  }
+
   const handleListComposeScenes = async () => {
     if (!start || !end) {
       notifyError("Set the acquisition period.")
@@ -155,6 +171,7 @@ export function useComposition({
       notifyError("Draw an area on the map first.")
       return
     }
+    const cbers = composeKind === "cbers"
     const req: DataCubeRequest = {
       polygon_geojson: customPolygon,
       start: start,
@@ -162,6 +179,7 @@ export function useComposition({
       max_cloud: maxCloud,
       monthly_best: monthlyBest,
       tiles: [],
+      collection: cbers ? CBERS_4A_WPM : undefined,
     }
     setComposeScenesLoading(true)
     setComposeScenesError(null)
@@ -169,7 +187,14 @@ export function useComposition({
       const res = (await ListDataCube(req as never)) as unknown as DataCubeResult
       setComposeScenes(res.scenes ?? [])
       if ((res.scenes?.length ?? 0) === 0) {
-        notifyInfo("No scenes found for this period / cloud filter.")
+        notifyInfo(
+          cbers
+            ? "No CBERS-4A scene holds this area in the period"
+            : "No scenes found for this period / cloud filter.",
+          cbers
+            ? "The camera sees a place about once a month, and a place near the edge of its strip less often. A longer period finds more."
+            : undefined
+        )
       } else if (!selectedSceneId && res.scenes[0]) {
         setSelectedSceneId(res.scenes[0].id)
       }
@@ -399,7 +424,7 @@ export function useComposition({
     onComposeYearChange: setComposeYear,
     onShowCompositionOverlayChange: setShowCompositionOverlay,
     onSelectScene: setSelectedSceneId,
-    onComposeKindChange: setComposeKind,
+    onComposeKindChange: changeComposeKind,
     onComposeBandsChange: setComposeBands,
     onComposeIndexChange: setComposeIndex,
     onComposeStretchChange: (low, high) => {

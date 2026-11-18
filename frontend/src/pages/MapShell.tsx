@@ -67,6 +67,7 @@ import type { AreaProps } from "@/session/areas"
 import { absoluteLayerUrl, type FileLayerProps } from "@/session/fileLayers"
 import { FeaturePanel } from "@/components/shell/FeaturePanel"
 import { TablePanel } from "@/components/shell/TablePanel"
+import { CBERS_CREDIT } from "@/lib/compositeCatalog"
 import { drawsOnMap, featureBounds, layersBounds } from "@/lib/fileLayers"
 import { importedPolygon } from "@/lib/importedPolygon"
 import type { GlobeFileLayer } from "@/components/globe/fileLayers"
@@ -455,6 +456,14 @@ export function MapShell(props: MapShellProps) {
     lib/legendChoice.ts gives: a ramp is drawn, a list of classes is not.
   */
   const [legendChoice, setLegendChoice] = useState<LegendChoice>({})
+  /*
+    A CBERS-4A view on the map names INPE beside the basemap's credit, as its
+    licence asks, for as long as it is drawn.
+  */
+  const cbersShown =
+    props.composition?.kind === "cbers" &&
+    layers.some((l) => l.id === "composition" && l.visible)
+  const overlayCredits = useMemo(() => (cbersShown ? [CBERS_CREDIT] : []), [cbersShown])
   const legendStateOf = (key: string): LegendState => {
     const o = overlays.find((x) => x.key === key)
     return { key, hasLegend: !!o?.caption, byDefault: !!o?.captionByDefault }
@@ -735,6 +744,7 @@ export function MapShell(props: MapShellProps) {
               }}
               onImportPolygon={props.onImportPolygon}
               fileLayers={globeFileLayers}
+              overlayCredits={overlayCredits}
               pickedFeature={props.pickedFeature}
               onFileLayerState={props.onFileLayerState}
               onPickFeature={(hit) => {

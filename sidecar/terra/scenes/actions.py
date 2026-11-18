@@ -344,3 +344,110 @@ def _nothing_to_read(index_name: str, spec, both: bool = False) -> str:
         return (f'{index_name.upper()} is read over open water only, and MNDWI finds none '
                 f'{when} inside the area')
     return f'no cell of the area has reflectance in every band {index_name.upper()} reads {when}'
+
+
+def cbers_scenes(req, work_dir):
+    """
+    The CBERS-4A WPM scenes of the period with data over the area, newest
+    first, each with the share of the area it covers (scenes/cbers4a.py), in
+    the shape list_datacube answers with.
+    """
+    from terra import aoi
+    from terra.scenes import cbers4a
+
+    start = req.get('start')
+    end = req.get('end')
+    if not start or not end:
+        protocol.fail('set the acquisition period (start and end dates)')
+    if not req.get('polygon_geojson'):
+        protocol.fail('no polygon provided')
+    polygon = aoi.polygon_from_geojson(req['polygon_geojson'])
+    protocol.emit_progress(20, f'querying the catalogue ({cbers4a.TITLE})')
+    try:
+        found = cbers4a.list_scenes(polygon, start, end)
+    except stac.Unavailable as e:
+        raise protocol.Unavailable(str(e)) from e
+    except Exception as e:
+        # A scene's file, read over HTTP after GDAL's own retries.
+        raise protocol.Unavailable(f'a scene could not be read from {cbers4a.TITLE}: {e}') from e
+    scenes = [{
+        'id': s.id,
+        'date': s.date,
+        # The catalogue gives none for this collection; absent, not zero.
+        'cloud_cover': None,
+        'tile': cbers4a.path_row(s.id),
+        'satellite': 'CBERS-4A',
+        'preview_uri': s.preview,
+        'coverage': s.coverage,
+    } for s in found]
+    dates = sorted(s['date'] for s in scenes)
+    protocol.emit_progress(100, f'{len(scenes)} scenes')
+    sys.stdout.write(json.dumps({
+        'n_scenes': len(scenes),
+        'scenes': scenes,
+        'date_range': [dates[0], dates[-1]] if dates else [],
+        'monthly_best': False,
+        'max_cloud': 100.0,
+        'imagery_source': cbers4a.imagery_source(),
+    }))
+    sys.stdout.flush()
+
+
+def cbers_view(req, work_dir):
+    """One CBERS-4A WPM scene over the area, in true colour at 2 m, cut to the area."""
+    from terra import aoi
+    from terra.imagery import composite as comp
+    from terra.scenes import cbers4a
+
+    scene_id = (req.get('scene_id') or '').strip()
+    if not scene_id:
+        protocol.fail('select a scene first')
+    if not req.get('polygon_geojson'):
+        protocol.fail('no polygon provided')
+    polygon = aoi.polygon_from_geojson(req['polygon_geojson'])
+    stretch = req.get('stretch_pct') or [2, 98]
+    try:
+        stretch_lo, stretch_hi = float(stretch[0]), float(stretch[1])
+    except Exception:
+        stretch_lo, stretch_hi = 2.0, 98.0
+
+    protocol.emit_progress(15, f'finding {scene_id}')
+    try:
+        item = cbers4a.find(scene_id)
+    except stac.Unavailable as e:
+        raise protocol.Unavailable(str(e)) from e
+    if item is None or cbers4a.ASSET not in item.assets:
+        protocol.fail(f'{scene_id} is not in the {cbers4a.COLLECTION} collection')
+    protocol.emit_progress(40, 'reading the scene over the area')
+    try:
+        drawn = cbers4a.view(item.assets[cbers4a.ASSET].href, polygon, stretch_lo, stretch_hi)
+    except Exception as e:
+        raise protocol.Unavailable(f'the scene could not be read from {cbers4a.TITLE}: {e}') from e
+    if drawn.coverage <= 0:
+        protocol.fail(f'{scene_id} has no data over this area')
+
+    overlay_png = work_dir / 'composite.png'
+    protocol.emit_progress(85, 'writing PNG')
+    comp.write_rgba_png(drawn.rgba, overlay_png)
+    raster_tif = work_dir / 'composite.tif'
+    protocol.emit_progress(92, 'writing GeoTIFF')
+    comp.write_rgba_geotiff(drawn.rgba, drawn.profile, raster_tif)
+    date = item.datetime.strftime('%Y-%m-%d') if item.datetime else ''
+    protocol.emit_progress(100, 'done')
+    sys.stdout.write(json.dumps({
+        'extent': comp.extent_from_profile(drawn.profile),
+        'overlay_png': str(overlay_png),
+        'raster_tif': str(raster_tif),
+        'meta': {
+            'kind': 'cbers',
+            'date': date,
+            'scene_id': scene_id,
+            'satellite': 'CBERS-4A',
+            'sensor': 'WPM',
+            'pixel_m': round(drawn.pixel_m, 2),
+            'coverage': round(drawn.coverage, 4),
+            'stretch_pct': [stretch_lo, stretch_hi],
+        },
+        'imagery_source': cbers4a.imagery_source(),
+    }))
+    sys.stdout.flush()

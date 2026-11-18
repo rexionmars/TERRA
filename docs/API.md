@@ -149,6 +149,8 @@ from **stdout**. Progress and errors are JSON lines on **stderr**.
 |----------|----------|
 | omitted / predict | Full classification pipeline |
 | `list_datacube` | Scene inventory only |
+| `cbers_scenes` | CBERS-4A WPM scenes of the period with data over the area, each with the share of the area it covers (`polygon_geojson`, `start`, `end`) |
+| `cbers_view` | One CBERS-4A WPM scene over the area in true colour at 2 m, in the shape `render_composite` answers (`polygon_geojson`, `scene_id`, `stretch_pct`) |
 | `geopackage_open` | A GeoPackage's layers, each feature layer written as GeoJSON in longitude and latitude on WGS 84 into `work_dir`, and each table without geometry as GeoJSON with null geometries (`path`) |
 | `lulc` | MapBiomas descriptive analysis |
 | `ping` | Lightweight health check (Python side) |

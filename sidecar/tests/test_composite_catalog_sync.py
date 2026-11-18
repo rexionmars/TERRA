@@ -60,8 +60,11 @@ def test_the_panel_offers_the_kinds_the_sidecar_draws():
 
     body = _block(CATALOG_TS.read_text(encoding='utf-8'), 'KINDS')
     offered = re.findall(r'^    id: "(\w+)",', body, re.M)
-    # biomass is answered by its own action, biomass_map.
-    assert offered == [*actions.KINDS, 'biomass']
+    # cbers and biomass are answered by actions of their own, cbers_view and
+    # biomass_map, which the registry must hold.
+    assert offered == [*actions.KINDS, 'cbers', 'biomass']
+    from terra import registry
+    assert {'cbers_view', 'cbers_scenes', 'biomass_map'} <= set(registry.ACTIONS)
 
 
 def test_the_canopy_variables_offered_are_the_networks_there_are():

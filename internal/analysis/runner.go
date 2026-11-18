@@ -580,8 +580,18 @@ func (r *Runner) AnalyzeLULC(ctx context.Context, req LULCRequest) (*LULCAnalysi
 	return convertLULC(wrapped.LULC), nil
 }
 
-// ListDataCube queries Planetary Computer STAC for scenes covering the AOI
-// (same filters as Predict) without running classification.
+// dataCubeAction is the sidecar action that lists the scenes a request asks for:
+// Sentinel-2 unless it names CBERS-4A WPM.
+func dataCubeAction(req DataCubeRequest) string {
+	if strings.TrimSpace(req.Collection) == CBERS4AWPM {
+		return "cbers_scenes"
+	}
+	return "list_datacube"
+}
+
+// ListDataCube lists the scenes covering the AOI in the period: Sentinel-2
+// from the chosen catalogue (same filters as Predict), or CBERS-4A WPM from
+// INPE, without running classification.
 func (r *Runner) ListDataCube(ctx context.Context, req DataCubeRequest) (*DataCubeResult, error) {
 	if _, err := os.Stat(r.sidecar); err != nil {
 		return nil, fmt.Errorf("sidecar not found at %s", r.sidecar)
@@ -609,7 +619,7 @@ func (r *Runner) ListDataCube(ctx context.Context, req DataCubeRequest) (*DataCu
 	defer os.RemoveAll(workDir)
 
 	sReq := sidecarRequest{
-		Action:         "list_datacube",
+		Action:         dataCubeAction(req),
 		ModelDir:       r.modelDir,
 		Source:         "stac",
 		Start:          req.Start,
@@ -655,6 +665,14 @@ func compositeAction(req CompositeRequest) (string, error) {
 	kind := strings.TrimSpace(req.Kind)
 	if kind == "biomass" {
 		return "biomass_map", nil
+	}
+	// One CBERS-4A scene, chosen from its own list (dataCubeAction); the
+	// period only chose the list.
+	if kind == "cbers" {
+		if strings.TrimSpace(req.SceneID) == "" {
+			return "", fmt.Errorf("select a CBERS-4A scene first")
+		}
+		return "cbers_view", nil
 	}
 	if strings.TrimSpace(req.Start) == "" || strings.TrimSpace(req.End) == "" {
 		return "", fmt.Errorf("set the acquisition period (start and end dates)")

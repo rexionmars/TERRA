@@ -47,6 +47,7 @@ service's own terms and privacy policy apply to what it receives.
 | NASA Earthdata, EMIT | `cmr.earthdata.nasa.gov`, `opendap.earthdata.nasa.gov`, `data.lpdaac.earthdatacloud.nasa.gov`, `urs.earthdata.nasa.gov` | The mineral map, and saving a token | The bounding box of the area, the period and the Earthdata token. |
 | MapBiomas | `storage.googleapis.com` | A classification over an area in Brazil | The part of the land-cover map that covers the area. |
 | ESA Climate Change Initiative, biomass | `dap.ceda.ac.uk` | The biomass map | The map tiles that cover the area. |
+| INPE Brazil Data Cube, CBERS-4A | `data.inpe.br` | Listing or drawing a CBERS-4A composition | The bounding box of the area and the period; then the parts of each scene's image file that cover the area, read coarsely for every scene listed and at full resolution for the one drawn. |
 | Brazilian public registers | `geoserver.car.gov.br`, `geoserver.funai.gov.br`, `terrabrasilis.dpi.inpe.br`, `pamgia.ibama.gov.br`, `geoservicos.inde.gov.br` | The public-register overlap | The bounding box of the area. |
 | IBGE boundaries | `servicodados.ibge.gov.br` | Choosing a state or municipality as an area | A request for the list of states or municipalities, and the code of the boundary chosen. |
 | Place search | `nominatim.openstreetmap.org` | Searching for a place on the map | The text typed. |

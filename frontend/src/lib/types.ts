@@ -753,15 +753,23 @@ export interface DataCubeRequest {
   max_cloud: number
   monthly_best: boolean
   tiles: string[]
+  /** Which scenes: absent for Sentinel-2, CBERS_4A_WPM for INPE's CBERS-4A. */
+  collection?: string
 }
+
+/** INPE's CBERS-4A WPM true colour at 2 m, as a scene request names it (internal/analysis CBERS4AWPM). */
+export const CBERS_4A_WPM = "cbers-4a-wpm"
 
 export interface DataCubeScene {
   id: string
   date: string
-  cloud_cover: number
+  /** Percent; null where the catalogue gives none, as INPE's CBERS-4A items do. */
+  cloud_cover: number | null
   tile: string
   satellite: string
   preview_uri?: string
+  /** The share of the area the scene has data over, 0 to 1, where it was measured. */
+  coverage?: number
 }
 
 export interface DataCubeResult {
@@ -776,7 +784,7 @@ export interface DataCubeResult {
 
 /** What a composition draws; composite.py's KINDS, and biomass_map for the last. */
 export type CompositeKind =
-  "rgb" | "index" | "pca" | "clusters" | "change" | "biophysical" | "biomass"
+  "rgb" | "index" | "pca" | "clusters" | "change" | "biophysical" | "biomass" | "cbers"
 
 /** The SL2P variables a canopy view estimates (sidecar terra/scenes/sl2p.py). */
 export type BiophysicalVariable = "lai" | "fapar" | "fcover" | "ccc" | "cwc"
@@ -1802,7 +1810,7 @@ export interface RunParameters {
  * saved run keeps which one it was.
  */
 export interface ImagerySource {
-  /** TERRA's name for the collection: "sentinel-2-l2a" or "sentinel-1-rtc". */
+  /** TERRA's name for the collection: "sentinel-2-l2a", "sentinel-1-rtc" or "cbers-4a-wpm". */
   collection: string
   /** The catalogue's key: "planetary-computer", "earth-search", "opera". */
   source: string

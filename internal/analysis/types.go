@@ -413,16 +413,28 @@ type DataCubeRequest struct {
 	MaxCloud       float64          `json:"max_cloud"`
 	MonthlyBest    bool             `json:"monthly_best"`
 	Tiles          []string         `json:"tiles"`
+	// Which scenes: empty for Sentinel-2, CBERS4AWPM for INPE's CBERS-4A WPM
+	// true colour at 2 m.
+	Collection string `json:"collection,omitempty"`
 }
+
+// CBERS4AWPM names INPE's CBERS-4A WPM fused true colour (sidecar
+// terra/scenes/cbers4a.py) in a scene request and in the views drawn from it.
+const CBERS4AWPM = "cbers-4a-wpm"
 
 // DataCubeScene is one STAC scene in the data-cube inventory.
 type DataCubeScene struct {
-	ID         string  `json:"id"`
-	Date       string  `json:"date"`
-	CloudCover float64 `json:"cloud_cover"`
-	Tile       string  `json:"tile"`
-	Satellite  string  `json:"satellite"`
-	PreviewURI string  `json:"preview_uri,omitempty"`
+	ID   string `json:"id"`
+	Date string `json:"date"`
+	// The catalogue's cloud cover, percent; null where it gives none, as
+	// INPE's CBERS-4A items do.
+	CloudCover *float64 `json:"cloud_cover"`
+	Tile       string   `json:"tile"`
+	Satellite  string   `json:"satellite"`
+	PreviewURI string   `json:"preview_uri,omitempty"`
+	// The share of the area the scene has data over, 0 to 1, where it was
+	// measured: a CBERS-4A item's footprint is its grid, not its strip.
+	Coverage *float64 `json:"coverage,omitempty"`
 }
 
 // DataCubeResult is the inventory returned by ListDataCube.
@@ -445,7 +457,7 @@ type CompositeRequest struct {
 	MonthlyBest    bool             `json:"monthly_best"`
 	Tiles          []string         `json:"tiles"`
 	SceneID        string           `json:"scene_id"`
-	// "rgb" | "index" | "pca" | "clusters" | "change" | "biophysical" | "biomass"
+	// "rgb" | "index" | "pca" | "clusters" | "change" | "biophysical" | "biomass" | "cbers"
 	Kind       string    `json:"kind"`
 	Bands      []string  `json:"bands,omitempty"`
 	Index      string    `json:"index,omitempty"`
@@ -966,7 +978,8 @@ catalogue its numbers come from. The same scene read from two catalogues can
 differ: a reprocessed collection, or a different radar processing chain.
 */
 type ImagerySource struct {
-	// TERRA's name for the collection: "sentinel-2-l2a" or "sentinel-1-rtc".
+	// TERRA's name for the collection: "sentinel-2-l2a", "sentinel-1-rtc" or
+	// "cbers-4a-wpm".
 	Collection string `json:"collection"`
 	// The catalogue's key in TERRA ("planetary-computer", "earth-search",
 	// "opera") and its name for the reader.

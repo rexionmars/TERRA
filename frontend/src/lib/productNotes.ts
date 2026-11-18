@@ -22,7 +22,7 @@ export const PRODUCT_NOTES: Record<BoardToolId, ProductNote> = {
       "The legend is fixed and the models were fitted for western Paraná. An area elsewhere can return a confident and wrong result. Hectares are pixel counts, uncorrected for classification error.",
   },
   compose: {
-    hint: "Ways of looking at the area: one Sentinel-2 scene, two of them, the period's cloud-free median, or a published biomass map.",
+    hint: "Ways of looking at the area: one Sentinel-2 scene, two of them, the period's cloud-free median, a published biomass map, or a CBERS-4A scene at 2 m.",
     limit: "A way of looking at one acquisition. It measures nothing over the period.",
   },
   water: {

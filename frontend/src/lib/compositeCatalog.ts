@@ -1,5 +1,10 @@
 import type { PaletteName } from "@/lib/palettes"
-import type { BiophysicalVariable, CompositeIndex, CompositeKind } from "@/lib/types"
+import type {
+  BiophysicalVariable,
+  CompositeIndex,
+  CompositeKind,
+  DataCubeScene,
+} from "@/lib/types"
 
 export type RgbChannelHints = {
   /** Short meaning for what the R/G/B mapping emphasizes on the map. */
@@ -339,6 +344,16 @@ export const KINDS: readonly KindDef[] = [
     stretch: false,
   },
   {
+    id: "cbers",
+    label: "CBERS-4A 2 m",
+    description:
+      "True colour at 2 m from INPE's CBERS-4A satellite: its WPM camera's red, green and blue fused with its panchromatic band.",
+    limit:
+      "A picture, not a measurement: there is no near-infrared at 2 m, so no index, and the catalogue gives no cloud cover. The camera sees a place about once a month, less near the edge of its strip, so a period may hold one scene or none.",
+    median: false,
+    stretch: true,
+  },
+  {
     id: "biomass",
     label: "Biomass",
     description:
@@ -462,6 +477,14 @@ export function resolveCompositionMeta(input: {
           : "Above-ground biomass"
     return { kind: input.kind, title, label: title, description: def.description }
   }
+  if (input.kind === "cbers") {
+    return {
+      kind: "cbers",
+      title: "CBERS-4A true colour",
+      label: "CBERS-4A · 2 m",
+      description: kindDef("cbers").description,
+    }
+  }
   if (input.kind === "index") {
     const def = findIndexDef(input.index)
     return {
@@ -502,4 +525,29 @@ export function resolveCompositionMeta(input: {
       ],
     },
   }
+}
+
+/**
+ * The credit a CBERS-4A view asks for on the map. INPE publishes the fused
+ * collection under CC BY 4.0, which asks for the attribution where the image
+ * is shown and a way to reach the source.
+ */
+export const CBERS_CREDIT = {
+  label: "CBERS-4A: INPE, CC BY 4.0",
+  href: "https://data.inpe.br/stac/browser/collections/CB4A-WPM-PCA-FUSED-1",
+} as const
+
+/**
+ * A scene as the list names it: its date, then its cloud cover where the
+ * catalogue gives one, or the share of the area it covers where that was
+ * measured -- a CBERS-4A scene can be listed over an area and hold little of it.
+ */
+export function sceneNote(s: DataCubeScene): string {
+  const parts = [s.date]
+  if (s.cloud_cover !== null) parts.push(`${Math.round(s.cloud_cover)} % cloud`)
+  if (s.coverage !== undefined) {
+    parts.push(`${Math.round(s.coverage * 100)} % of the area`)
+  }
+  if (s.tile) parts.push(s.tile)
+  return parts.join(" · ")
 }

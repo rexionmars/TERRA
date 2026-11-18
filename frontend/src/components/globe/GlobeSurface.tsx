@@ -90,6 +90,7 @@ import {
   basemapByKind,
   type Basemap,
   type BasemapKind,
+  type CreditPart,
 } from "@/lib/basemaps"
 import { zoomOfLevel } from "@/lib/mapScale"
 import { onPaletteChange } from "@/lib/paletteWatch"
@@ -325,6 +326,7 @@ function areasIn(map: MapLibreMap, a: [number, number], b: [number, number]): st
 
 /** The default for no open files, one array so the sync is not re-run per render. */
 const NO_FILE_LAYERS: readonly GlobeFileLayer[] = []
+const NO_CREDITS: readonly CreditPart[] = []
 
 /** The custom layer's id, so it is added once and found again. */
 const RAISED_LAYER = "raised-rasters"
@@ -416,6 +418,7 @@ export function GlobeSurface({
   onCurtainChange,
   fieldDrafts = null,
   fileLayers = NO_FILE_LAYERS,
+  overlayCredits = NO_CREDITS,
   pickedFeature = null,
   onPickFeature,
   onFileLayerState,
@@ -454,6 +457,11 @@ export function GlobeSurface({
   fieldDrafts?: GeoJSON.FeatureCollection | null
   /** The layers of opened files, drawn over the rasters and under the area outlines. */
   fileLayers?: readonly GlobeFileLayer[]
+  /**
+   * Credits the rasters on the map ask for, beside the basemap's: a licence
+   * such as CC BY asks for its attribution where the image is shown.
+   */
+  overlayCredits?: readonly CreditPart[]
   /** The file feature the reader pressed, marked on the map. */
   pickedFeature?: { key: string; id: number } | null
   /**
@@ -1931,9 +1939,12 @@ export function GlobeSurface({
       ? zoomOfLevel(esriHere.maxLevel)
       : null
   /* Both, while the mosaic is drawn OVER the base rather than in place of it. */
-  const creditParts = recentDrawn
-    ? [...shownBasemap.credit, ...basemapByKind(underBasemap).credit]
-    : shownBasemap.credit
+  const creditParts = [
+    ...(recentDrawn
+      ? [...shownBasemap.credit, ...basemapByKind(underBasemap).credit]
+      : shownBasemap.credit),
+    ...overlayCredits,
+  ]
 
   return (
     <div className={cn("relative min-h-0 min-w-0", className)}>

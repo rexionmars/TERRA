@@ -24,6 +24,7 @@ import {
   bandName,
   findRgbPreset,
   kindDef,
+  sceneNote,
 } from "@/lib/compositeCatalog"
 import { layerLegendOfComposition } from "@/lib/compositionLegend"
 import { compositionTitle } from "@/lib/mapLayers"
@@ -57,7 +58,8 @@ const clamp = (v: number, lo: number, hi: number) =>
   Math.min(hi, Math.max(lo, Number.isFinite(v) ? v : lo))
 
 /** Each kind of view drawn as what its name means. */
-const KIND_ICON: Record<CompositeKind, Icon> = {
+// CBERS-4A has no glyph of its own yet; its button carries its name alone.
+const KIND_ICON: Record<CompositeKind, Icon | undefined> = {
   rgb: ViewRgb,
   index: ViewIndex,
   pca: ViewComponents,
@@ -65,6 +67,7 @@ const KIND_ICON: Record<CompositeKind, Icon> = {
   change: ViewChange,
   biophysical: ViewCanopy,
   biomass: ViewBiomass,
+  cbers: undefined,
 }
 
 /** The most groups a clustering forms: the categorical colours there are. */
@@ -91,7 +94,7 @@ function SceneSelect({
       {!value && <option value="">Choose a scene</option>}
       {scenes.map((s) => (
         <option key={s.id} value={s.id}>
-          {s.date} · {Math.round(s.cloud_cover)} % cloud
+          {sceneNote(s)}
         </option>
       ))}
     </select>
@@ -121,7 +124,7 @@ function compareNote(a: CompositionOverlay, b: CompositionOverlay): string {
 
 /**
  * Ways of looking at the area: one scene, two, the period's cloud-free median,
- * or a published biomass map.
+ * a published biomass map, or a CBERS-4A scene at 2 m.
  *
  * A panel of its own rather than a product in the list. It answers a different
  * request from the others: a way of looking, which leaves no run behind, and
@@ -527,6 +530,14 @@ export function VisualizationPanel({
                 ))}
               </select>
             </Field>
+          )}
+          {kind === "cbers" && (
+            <p className="text-label text-muted-foreground">
+              Read from INPE&apos;s Brazil Data Cube over the area only, at 2 m where
+              the area fits in 4,096 pixels and coarser over a larger one. Each scene is
+              listed with the share of the area it holds: its file covers more ground
+              than the camera saw, so a scene can be listed and hold little of the area.
+            </p>
           )}
           {def.stretch && (
             <div className="flex gap-2">
