@@ -71,7 +71,7 @@ cascade is written where the delete is, in `internal/store/`.
 | Method | Description |
 |--------|-------------|
 | `ChooseGeoPackage()` | The native dialog for a `.gpkg`; its path, `""` on a cancel |
-| `OpenGeoPackage(path)` | The file's layers: kind, coordinate system, counts, bounds and columns, and for each drawable layer the URL of its GeoJSON under `/geopackage-layer/<id>/`. Nothing is written to the project |
+| `OpenGeoPackage(path)` | The file's layers: kind, coordinate system, counts, bounds and columns, and for each layer read the URL of its GeoJSON under `/geopackage-layer/<id>/`; a table without geometry has kind `table` and null geometries. Nothing is written to the project |
 | `CloseGeoPackage(id)` | Stops serving an opened file's layers and removes their files |
 
 ### Auth and preferences (local SQLite)
@@ -149,7 +149,7 @@ from **stdout**. Progress and errors are JSON lines on **stderr**.
 |----------|----------|
 | omitted / predict | Full classification pipeline |
 | `list_datacube` | Scene inventory only |
-| `geopackage_open` | A GeoPackage's layers, each feature layer written as GeoJSON in longitude and latitude on WGS 84 into `work_dir` (`path`) |
+| `geopackage_open` | A GeoPackage's layers, each feature layer written as GeoJSON in longitude and latitude on WGS 84 into `work_dir`, and each table without geometry as GeoJSON with null geometries (`path`) |
 | `lulc` | MapBiomas descriptive analysis |
 | `ping` | Lightweight health check (Python side) |
 

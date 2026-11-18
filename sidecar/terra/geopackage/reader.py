@@ -27,6 +27,12 @@ map to draw: points, lines and polygons alike, each feature with its row's
 attributes as properties and its key as `id`. The map fetches the files by URL
 (app_geopackage.go), because a bound method would hand tens of megabytes to the
 page as one string.
+
+A TABLE WITHOUT GEOMETRY IS LISTED TOO, and written the same way with every
+geometry null, which RFC 7946 allows (section 3.2: an unlocated feature). A file
+often keeps beside its layers a table that says what each layer is, and QGIS
+lists such tables with the layers, so leaving them out hid part of the file. The
+map draws none of it; the page shows its rows as a table.
 """
 
 from __future__ import annotations
@@ -210,6 +216,28 @@ def _value(v: Any) -> str | int | float | None:
     return None
 
 
+def _key_and_attributes(con: sqlite3.Connection, name: str,
+                        geometry_column: str | None) -> tuple[str, list[str]]:
+    """
+    The column that keys each row, quoted, and the other columns in the
+    table's order, the geometry column left out.
+
+    Requirement 29 asks a feature table for an INTEGER primary key that is the
+    rowid, and Requirement 119 the same of an attributes table. A view has no
+    primary key and no rowid, so Requirements 150 and 151 ask for its first
+    column to be an INTEGER of unique values instead. rowid stands in where a
+    table breaks the rule by leaving the key out.
+    """
+    columns = con.execute(f'PRAGMA table_info({quote(name)})').fetchall()
+    key = next((c[1] for c in columns if c[5] == 1 and 'INT' in str(c[2]).upper()), None)
+    view = con.execute("SELECT 1 FROM sqlite_master WHERE type = 'view' AND name = ?",
+                       (name,)).fetchone() is not None
+    if key is None and view and columns and 'INT' in str(columns[0][2]).upper():
+        key = columns[0][1]
+    attributes = [str(c[1]) for c in columns if c[1] != geometry_column and c[1] != key]
+    return (quote(str(key)) if key else 'rowid'), attributes
+
+
 class FeatureTable:
     """One feature table: its columns, its geometry column and its key."""
 
@@ -225,13 +253,7 @@ class FeatureTable:
         self.geometry_column = str(row[0])
         self.geometry_type = str(row[1]).upper()
         self.srs_id = int(row[2])
-        columns = con.execute(f'PRAGMA table_info({quote(name)})').fetchall()
-        # Requirement 29: an INTEGER primary key that is the rowid. rowid is
-        # the same value where a file breaks the rule by leaving it out.
-        key = next((c[1] for c in columns if c[5] == 1 and 'INT' in str(c[2]).upper()), None)
-        self.key = quote(str(key)) if key else 'rowid'
-        self.attributes = [str(c[1]) for c in columns
-                           if c[1] != self.geometry_column and c[1] != key]
+        self.key, self.attributes = _key_and_attributes(con, name, self.geometry_column)
 
 
 def _to_lonlat(crs: CRS) -> Transformer | None:
@@ -331,14 +353,49 @@ def _layer(con: sqlite3.Connection, name: str, title: str, out: Path, n: int) ->
     return layer
 
 
+def _table(con: sqlite3.Connection, name: str, title: str, out: Path, n: int) -> dict[str, Any]:
+    """
+    One table without geometry written to `out/<n>.geojson`, every feature's
+    geometry null, and what the listing says of it: kind `table`, no
+    coordinate system and no bounds.
+    """
+    layer: dict[str, Any] = {
+        'name': name, 'title': title, 'data_type': 'attributes', 'geometry_type': '',
+        'kind': 'table', 'crs': '', 'count': 0, 'drawn': 0, 'unreadable': 0,
+        'bounds': None, 'columns': [], 'file': '', 'reason': '',
+    }
+    try:
+        key, attributes = _key_and_attributes(con, name, None)
+        layer['columns'] = attributes
+        layer['count'] = int(con.execute(f'SELECT COUNT(*) FROM {quote(name)}').fetchone()[0])
+        cols = ''.join(f', {quote(a)}' for a in attributes)
+        rows = con.execute(
+            f'SELECT {key}{cols} FROM {quote(name)} ORDER BY {key} LIMIT {MAX_FEATURES}'
+        ).fetchall()
+    except sqlite3.DatabaseError as e:
+        layer['reason'] = f'the table could not be read: {e}'
+        return layer
+    file = f'{n}.geojson'
+    with (out / file).open('w', encoding='utf-8') as f:
+        json.dump({'type': 'FeatureCollection', 'features': [
+            {'type': 'Feature', 'id': r[0], 'geometry': None,
+             'properties': {c: _value(v) for c, v in zip(attributes, r[1:], strict=True)}}
+            for r in rows
+        ]}, f, allow_nan=False, ensure_ascii=False, separators=(',', ':'))
+    layer['file'] = file
+    layer['drawn'] = len(rows)
+    return layer
+
+
 def open_layers(path: str, out_dir: str) -> list[dict[str, Any]]:
     """
-    Every layer of the file that can be shown on a map, in the file's order,
-    each feature layer written as GeoJSON into out_dir.
+    Every table the file lists in gpkg_contents, in the file's order: each
+    feature layer and each table without geometry written as GeoJSON into
+    out_dir.
 
     A layer that cannot be drawn is listed with the reason rather than left out,
     so a file of raster tiles is answered with what it holds instead of with an
-    empty list. Attribute tables, which have no geometry at all, are left out.
+    empty list.
     """
     out = Path(out_dir)
     out.mkdir(parents=True, exist_ok=True)
@@ -346,7 +403,7 @@ def open_layers(path: str, out_dir: str) -> list[dict[str, Any]]:
     try:
         contents = con.execute(
             "SELECT table_name, data_type, COALESCE(identifier, '') FROM gpkg_contents "
-            "WHERE data_type != 'attributes' ORDER BY rowid").fetchall()
+            "ORDER BY rowid").fetchall()
         layers: list[dict[str, Any]] = []
         for n, (name, data_type, title) in enumerate(contents):
             # One line per layer, so a file that takes a minute says where it is.
@@ -354,6 +411,9 @@ def open_layers(path: str, out_dir: str) -> list[dict[str, Any]]:
                           f'Reading {title or name} ({n + 1} of {len(contents)})')
             if data_type == 'features':
                 layers.append(_layer(con, str(name), str(title), out, n))
+                continue
+            if data_type == 'attributes':
+                layers.append(_table(con, str(name), str(title), out, n))
                 continue
             layers.append({
                 'name': str(name), 'title': str(title), 'data_type': str(data_type),

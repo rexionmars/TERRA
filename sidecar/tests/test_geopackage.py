@@ -204,14 +204,51 @@ def test_layers_that_cannot_be_drawn_are_listed_with_the_reason(tmp_path: Path) 
     con.execute("INSERT INTO gpkg_contents (table_name, data_type, identifier) "
                 "VALUES ('ortofoto', 'tiles', 'ortofoto')")
     con.execute("INSERT INTO gpkg_contents (table_name, data_type, identifier) "
-                "VALUES ('tabela', 'attributes', 'tabela')")
+                "VALUES ('sumida', 'attributes', 'sumida')")
     con.commit()
     con.close()
     layers = {layer['name']: layer for layer in open_layers(str(path), str(tmp_path / 'out'))}
-    assert set(layers) == {'sem sistema', 'ortofoto'}
+    assert set(layers) == {'sem sistema', 'ortofoto', 'sumida'}
+    assert 'could not be read' in layers['sumida']['reason']
     assert 'no coordinate system' in layers['sem sistema']['reason']
     assert 'raster' in layers['ortofoto']['reason']
     assert not any(layer['file'] for layer in layers.values())
+
+
+def test_a_table_without_geometry_is_listed_with_its_rows(farm: Path, tmp_path: Path) -> None:
+    con = sqlite3.connect(farm)
+    con.execute('CREATE TABLE about (id INTEGER PRIMARY KEY AUTOINCREMENT, '
+                'layer TEXT, description TEXT, rows INTEGER)')
+    con.executemany('INSERT INTO about (layer, description, rows) VALUES (?, ?, ?)', [
+        ('talhões', 'Fields of the farm', 3), ('poços', 'Wells', 1)])
+    con.execute("INSERT INTO gpkg_contents (table_name, data_type, identifier) "
+                "VALUES ('about', 'attributes', 'about')")
+    con.commit()
+    con.close()
+    out = tmp_path / 'out'
+    layers = {layer['name']: layer for layer in open_layers(str(farm), str(out))}
+    about = layers['about']
+    assert (about['kind'], about['count'], about['drawn']) == ('table', 2, 2)
+    assert about['columns'] == ['layer', 'description', 'rows']
+    assert (about['crs'], about['bounds'], about['reason']) == ('', None, '')
+    features = read(out, about)['features']
+    assert [f['id'] for f in features] == [1, 2]
+    assert all(f['geometry'] is None for f in features)
+    assert features[0]['properties'] == {
+        'layer': 'talhões', 'description': 'Fields of the farm', 'rows': 3}
+
+
+def test_a_view_without_geometry_is_keyed_by_its_first_column(farm: Path, tmp_path: Path) -> None:
+    con = sqlite3.connect(farm)
+    con.execute('CREATE VIEW areas AS SELECT fid AS n, nome, area FROM "talhões"')
+    con.execute("INSERT INTO gpkg_contents (table_name, data_type, identifier) "
+                "VALUES ('areas', 'attributes', 'areas')")
+    con.commit()
+    con.close()
+    out = tmp_path / 'out'
+    [areas] = [layer for layer in open_layers(str(farm), str(out)) if layer['name'] == 'areas']
+    assert areas['columns'] == ['nome', 'area']
+    assert [f['id'] for f in read(out, areas)['features']] == [1, 2, 3]
 
 
 def test_a_layer_is_drawn_up_to_its_limit_and_still_counts_every_row(

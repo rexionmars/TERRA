@@ -7,11 +7,14 @@ import {
   Eye,
   EyeSlash,
   Folder,
+  Table,
   X,
 } from "@/components/icons"
 import { btnGhost } from "@/components/ui/buttons"
 import {
   countLabel,
+  drawsOnMap,
+  isTable,
   layersBounds,
   type FileLayer,
   type OpenedFile,
@@ -59,8 +62,11 @@ function Switch({
   )
 }
 
-/** A layer's mark as the map draws it: a dot, a stroke or a filled square. */
+/** A layer's mark as the map draws it: a dot, a stroke or a filled square; a table's is a table. */
 function Swatch({ layer }: { layer: FileLayer }) {
+  if (isTable(layer)) {
+    return <Table aria-hidden className="size-3.5 shrink-0 text-muted-foreground" />
+  }
   if (!layer.url) return <span aria-hidden className="size-3 shrink-0" />
   const edge = "border border-[#141414]/70"
   if (layer.kind === "point") {
@@ -140,10 +146,19 @@ function Opening({ opening }: { opening: Opening }) {
   )
 }
 
+/** What a layer's line under its name says: what it holds and where, or why it is not drawn. */
+function layerSummary(l: FileLayer): string {
+  const of = l.drawn < l.count ? ` of ${l.count.toLocaleString("en")} rows` : ""
+  if (isTable(l)) return `${countLabel(l)}${of} · no geometry, not drawn`
+  if (l.url) return `${countLabel(l)}${of} · ${l.crs}`
+  return `Not drawn: ${l.reason}.`
+}
+
 /**
  * The files opened on the map, each with its layers: a switch per layer, the
  * mark it is drawn with, what it holds and in which coordinate system, and why
- * a layer that is not drawn is not.
+ * a layer that is not drawn is not. A table without geometry is listed with
+ * them, as QGIS lists it, and opens its rows.
  */
 function OpenedFiles({
   files,
@@ -151,6 +166,7 @@ function OpenedFiles({
   layerLoads,
   onToggle,
   onCloseFile,
+  onOpenTable,
   onZoomTo,
 }: {
   files: readonly OpenedFile[]
@@ -158,6 +174,7 @@ function OpenedFiles({
   opening: Opening | null
   onToggle: (key: string) => void
   onCloseFile: (id: string) => void
+  onOpenTable: (key: string) => void
   onZoomTo: (bounds: [number, number, number, number]) => void
 }) {
   return (
@@ -189,7 +206,7 @@ function OpenedFiles({
                   key={l.key}
                   className="flex items-center gap-2 rounded-sm pr-1 hover:bg-hover"
                 >
-                  {l.url ? (
+                  {drawsOnMap(l) ? (
                     <IconAction
                       label={`${l.visible ? "Hide" : "Show"} ${l.title || l.name}`}
                       onClick={() => onToggle(l.key)}
@@ -206,23 +223,31 @@ function OpenedFiles({
                   <Swatch layer={l} />
                   <button
                     type="button"
-                    disabled={!l.bounds}
-                    onClick={() => l.bounds && onZoomTo(l.bounds)}
-                    title={l.bounds ? `Zoom to ${l.title || l.name}` : undefined}
+                    disabled={!l.bounds && !isTable(l)}
+                    onClick={() =>
+                      isTable(l) ? onOpenTable(l.key) : l.bounds && onZoomTo(l.bounds)
+                    }
+                    title={
+                      isTable(l)
+                        ? `Read the rows of ${l.title || l.name}`
+                        : l.bounds
+                          ? `Zoom to ${l.title || l.name}`
+                          : undefined
+                    }
                     className="min-w-0 flex-1 py-1.5 text-left disabled:cursor-default"
                   >
                     <span
                       className={cn(
                         "block truncate text-read",
-                        l.url && l.visible ? "text-foreground" : "text-muted-foreground"
+                        (drawsOnMap(l) && l.visible) || isTable(l)
+                          ? "text-foreground"
+                          : "text-muted-foreground"
                       )}
                     >
                       {l.title || l.name}
                     </span>
                     <span className="block text-label text-muted-foreground">
-                      {l.url
-                        ? `${countLabel(l)}${l.drawn < l.count ? ` of ${l.count.toLocaleString("en")} rows` : ""} · ${l.crs}`
-                        : `Not drawn: ${l.reason}.`}
+                      {layerSummary(l)}
                     </span>
                     {layerLoads.get(l.key)?.state === "loading" && (
                       <span className="flex items-center gap-1 text-label text-muted-foreground">
@@ -265,6 +290,7 @@ export function LayersPanel({
   onOpenGeoPackage,
   onCloseFile,
   onToggleFileLayer,
+  onOpenTable,
   onZoomTo,
   onClose,
 }: {
@@ -282,6 +308,8 @@ export function LayersPanel({
   onOpenGeoPackage: () => void
   onCloseFile: (id: string) => void
   onToggleFileLayer: (key: string) => void
+  /** Opens the rows of a table without geometry, by layer key. */
+  onOpenTable: (key: string) => void
   onZoomTo: (bounds: [number, number, number, number]) => void
   onClose: () => void
 }) {
@@ -310,6 +338,7 @@ export function LayersPanel({
           layerLoads={layerLoads}
           onToggle={onToggleFileLayer}
           onCloseFile={onCloseFile}
+          onOpenTable={onOpenTable}
           onZoomTo={onZoomTo}
         />
       )}

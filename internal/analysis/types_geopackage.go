@@ -14,14 +14,16 @@ type GeoPackage struct {
 	Layers []GeoPackageLayer `json:"layers"`
 }
 
-// GeoPackageLayer is one table of the file. URL is where the map fetches its
-// GeoJSON, empty when the layer cannot be drawn, and Reason says why.
+// GeoPackageLayer is one table of the file. URL is where the page fetches its
+// GeoJSON, empty when the table cannot be read, and Reason says why.
 type GeoPackageLayer struct {
 	Name         string `json:"name"`
 	Title        string `json:"title"`
 	DataType     string `json:"data_type"`
 	GeometryType string `json:"geometry_type"`
-	// Kind is how the map draws it: point, line, polygon, or mixed.
+	// Kind is how the map draws it: point, line, polygon, or mixed; or table
+	// for a table without geometry, whose rows the page lists and the map
+	// does not draw.
 	Kind string `json:"kind"`
 	// CRS is the coordinate system the file stores, as a name and a code.
 	CRS string `json:"crs"`

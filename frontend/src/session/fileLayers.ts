@@ -5,6 +5,8 @@ import type { FilePick } from "@/components/globe/fileLayers"
 import { dropFileFeatures, fileFeature } from "@/lib/fileFeature"
 import {
   coloursTaken,
+  drawsOnMap,
+  isTable,
   toOpenedFile,
   type FileLayer,
   type OpenedFile,
@@ -100,14 +102,16 @@ export function useFileLayers(): FileLayerProps {
         } finally {
           stop()
         }
-        const drawn = file.layers.filter((l) => l.url !== "")
+        const drawn = file.layers.filter(drawsOnMap)
         if (!drawn.length) {
           setFiles((prev) => [...prev, file])
           setLastOpened({ id: file.id, at: Date.now() })
           setOpening(null)
           notifyInfo(
             `${name} has no layer TERRA can draw`,
-            "The Layers panel lists each layer with the reason.",
+            file.layers.some(isTable)
+              ? "Its tables without geometry are listed in the Layers panel, which opens their rows."
+              : "The Layers panel lists each layer with the reason.",
             { id: toastId }
           )
           return
@@ -156,7 +160,7 @@ export function useFileLayers(): FileLayerProps {
   useEffect(() => {
     const d = drawing.current
     if (!d) return
-    const keys = d.file.layers.filter((l) => l.url !== "").map((l) => l.key)
+    const keys = d.file.layers.filter(drawsOnMap).map((l) => l.key)
     const loads = keys.map((k) => layerLoads.get(k))
     const done = loads.filter((l) => l && l.state !== "loading").length
     if (done < keys.length) {
@@ -168,11 +172,16 @@ export function useFileLayers(): FileLayerProps {
     drawing.current = null
     setOpening(null)
     const failed = loads.filter((l) => l?.state === "failed").length
-    const notDrawn = d.file.layers.length - keys.length + failed
+    // A table without geometry is not a layer that failed: it is listed, not drawn.
+    const tables = d.file.layers.filter(isTable).length
+    const notDrawn = d.file.layers.length - keys.length - tables + failed
     notifySuccess(
       `${d.file.name} is on the map`,
       `${keys.length - failed} ${keys.length - failed === 1 ? "layer" : "layers"} drawn` +
         (notDrawn ? `, ${notDrawn} not; the Layers panel says why.` : ".") +
+        (tables
+          ? ` ${tables} ${tables === 1 ? "table" : "tables"} without geometry in the Layers panel.`
+          : "") +
         " Press a feature to read its attributes.",
       { id: d.toastId }
     )

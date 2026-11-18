@@ -66,7 +66,8 @@ import type { ProductId } from "@/lib/mapTools"
 import type { AreaProps } from "@/session/areas"
 import { absoluteLayerUrl, type FileLayerProps } from "@/session/fileLayers"
 import { FeaturePanel } from "@/components/shell/FeaturePanel"
-import { featureBounds, layersBounds } from "@/lib/fileLayers"
+import { TablePanel } from "@/components/shell/TablePanel"
+import { drawsOnMap, featureBounds, layersBounds } from "@/lib/fileLayers"
 import { importedPolygon } from "@/lib/importedPolygon"
 import type { GlobeFileLayer } from "@/components/globe/fileLayers"
 import type { ClassificationProps } from "@/session/classification"
@@ -316,12 +317,12 @@ export function MapShell(props: MapShellProps) {
     filled polygon never hides the dots inside it.
   */
   const globeFileLayers = useMemo<GlobeFileLayer[]>(() => {
-    const rank = { polygon: 0, mixed: 1, line: 2, point: 3, "": 0 } as const
+    const rank = { polygon: 0, mixed: 1, line: 2, point: 3, table: 0, "": 0 } as const
     return props.files.flatMap((f) =>
       [...f.layers]
         .sort((a, b) => rank[a.kind] - rank[b.kind])
         .flatMap((l) =>
-          l.url
+          drawsOnMap(l)
             ? [
                 {
                   key: l.key,
@@ -334,6 +335,14 @@ export function MapShell(props: MapShellProps) {
         )
     )
   }, [props.files])
+
+  /** The table without geometry whose rows the table panel shows, by layer key. */
+  const [tableKey, setTableKey] = useState<string | null>(null)
+  const openTable = tableKey
+    ? props.files
+        .flatMap((f) => f.layers.map((l) => ({ f, l })))
+        .find((x) => x.l.key === tableKey)
+    : undefined
 
   const picked = props.pickedFeature
   const pickedLayer = picked
@@ -909,7 +918,21 @@ export function MapShell(props: MapShellProps) {
               onOpenGeoPackage={props.onChooseGeoPackage}
               onCloseFile={props.onCloseFile}
               onToggleFileLayer={props.onToggleFileLayer}
+              onOpenTable={(key) => {
+                setTableKey(key)
+                setPanel("table")
+              }}
               onZoomTo={frameBox}
+              onClose={() => setPanel(null)}
+            />
+          )}
+          {panel === "table" && openTable && (
+            <TablePanel
+              key={openTable.l.key}
+              file={openTable.f}
+              layer={openTable.l}
+              url={absoluteLayerUrl(openTable.l.url)}
+              onBack={() => setPanel("layers")}
               onClose={() => setPanel(null)}
             />
           )}

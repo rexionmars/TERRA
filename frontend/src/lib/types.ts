@@ -1883,14 +1883,14 @@ export interface GeoPackage {
   layers: GeoPackageLayer[]
 }
 
-/** One table of a GeoPackage. `url` is empty when it cannot be drawn, and `reason` says why. */
+/** One table of a GeoPackage. `url` is empty when it cannot be read, and `reason` says why. */
 export interface GeoPackageLayer {
   name: string
   title: string
   data_type: string
   geometry_type: string
-  /** How the map draws it. */
-  kind: "point" | "line" | "polygon" | "mixed" | ""
+  /** How the map draws it; `table` for a table without geometry, listed and not drawn. */
+  kind: "point" | "line" | "polygon" | "mixed" | "table" | ""
   /** The coordinate system the file stores, as a name and a code. */
   crs: string
   /** Every row; `drawn` those with a geometry on the map; `unreadable` those that could not be decoded. */
