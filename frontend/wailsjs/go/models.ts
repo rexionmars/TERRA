@@ -1296,6 +1296,81 @@ export namespace analysis {
 	
 	
 	
+	export class GeoPackageLayer {
+	    name: string;
+	    title: string;
+	    data_type: string;
+	    geometry_type: string;
+	    kind: string;
+	    crs: string;
+	    count: number;
+	    drawn: number;
+	    unreadable: number;
+	    bounds: number[];
+	    columns: string[];
+	    file: string;
+	    url: string;
+	    reason: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new GeoPackageLayer(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.name = source["name"];
+	        this.title = source["title"];
+	        this.data_type = source["data_type"];
+	        this.geometry_type = source["geometry_type"];
+	        this.kind = source["kind"];
+	        this.crs = source["crs"];
+	        this.count = source["count"];
+	        this.drawn = source["drawn"];
+	        this.unreadable = source["unreadable"];
+	        this.bounds = source["bounds"];
+	        this.columns = source["columns"];
+	        this.file = source["file"];
+	        this.url = source["url"];
+	        this.reason = source["reason"];
+	    }
+	}
+	export class GeoPackage {
+	    id: string;
+	    name: string;
+	    path: string;
+	    layers: GeoPackageLayer[];
+	
+	    static createFrom(source: any = {}) {
+	        return new GeoPackage(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.id = source["id"];
+	        this.name = source["name"];
+	        this.path = source["path"];
+	        this.layers = this.convertValues(source["layers"], GeoPackageLayer);
+	    }
+	
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
+	}
+	
 	export class HealthAnomalyPoint {
 	    date: string;
 	    ndvi: number;

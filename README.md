@@ -456,6 +456,7 @@ published separately under the MIT licence, in
 | [GeoTIFF](https://www.ogc.org/standard/geotiff/) (OGC) | Exported rasters |
 | [GeoJSON](https://datatracker.ietf.org/doc/html/rfc7946) (IETF RFC 7946) | Areas of interest, field boundaries, exported geometry |
 | [KML](https://www.ogc.org/standard/kml/) (OGC) | Importing an area |
+| [GeoPackage](https://www.geopackage.org/spec131/) 1.3.1 (OGC 12-128r18) | Opening a file's layers on the map, in any coordinate system PROJ knows; a polygon of it can become an area |
 | [WFS](https://www.ogc.org/standard/wfs/) 2.0 (OGC) | Reading the public registers served by GeoServer |
 | [WMTS](https://www.ogc.org/standard/wmts/) (OGC) | The EOX basemap tiles |
 | [CSV](https://datatracker.ietf.org/doc/html/rfc4180) (IETF RFC 4180) and JSON | Exported tables and the export manifest |

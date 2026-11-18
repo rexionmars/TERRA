@@ -6,7 +6,7 @@ import type { SettingsPage } from "@/lib/auth"
 
 /** Which panel is held up over the map. One value, so there is only ever one. */
 export type ShellPanelId =
-  "areas" | "products" | "visualization" | "result" | "points" | "layers"
+  "areas" | "products" | "visualization" | "result" | "points" | "layers" | "feature"
 
 export function useShellNavigation() {
   // Over the map at launch, and gone as soon as the reader begins something.

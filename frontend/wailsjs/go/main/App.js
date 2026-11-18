@@ -70,8 +70,16 @@ export function CancelModelDownload(arg1) {
   return window['go']['main']['App']['CancelModelDownload'](arg1);
 }
 
+export function ChooseAreaFile() {
+  return window['go']['main']['App']['ChooseAreaFile']();
+}
+
 export function ChooseBackupArchive() {
   return window['go']['main']['App']['ChooseBackupArchive']();
+}
+
+export function ChooseGeoPackage() {
+  return window['go']['main']['App']['ChooseGeoPackage']();
 }
 
 export function ClearAvatar() {
@@ -88,6 +96,10 @@ export function ClearCover() {
 
 export function ClearJobs() {
   return window['go']['main']['App']['ClearJobs']();
+}
+
+export function CloseGeoPackage(arg1) {
+  return window['go']['main']['App']['CloseGeoPackage'](arg1);
 }
 
 export function CreateArea(arg1, arg2, arg3) {
@@ -274,6 +286,10 @@ export function OpenExternal(arg1) {
   return window['go']['main']['App']['OpenExternal'](arg1);
 }
 
+export function OpenGeoPackage(arg1) {
+  return window['go']['main']['App']['OpenGeoPackage'](arg1);
+}
+
 export function OpenProjectFile(arg1) {
   return window['go']['main']['App']['OpenProjectFile'](arg1);
 }
@@ -292,6 +308,10 @@ export function PurgeOrphanedRunAssets() {
 
 export function QueueJobs(arg1) {
   return window['go']['main']['App']['QueueJobs'](arg1);
+}
+
+export function ReadAreaFile(arg1) {
+  return window['go']['main']['App']['ReadAreaFile'](arg1);
 }
 
 export function Register(arg1, arg2, arg3) {

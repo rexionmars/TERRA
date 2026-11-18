@@ -60,9 +60,19 @@ cascade is written where the delete is, in `internal/store/`.
 | `ListAreas(projectID)` | The grounds of one project, oldest first |
 | `CreateArea(projectID, name, polygonGeoJSON)` | One drawn ground. An empty name is minted as `drawn`, `drawn 2`, … against what the project already holds |
 | `GetArea` / `UpdateArea` / `DeleteArea` | One ground. `UpdateArea` writes every column it is given |
+| `ChooseAreaFile()` | The native dialog for a `.kml`, GeoJSON or GeoPackage file; its path, `""` on a cancel |
+| `ReadAreaFile(path)` | The text of a `.kml` or GeoJSON file, up to 64 MB, for the page to parse |
 | `ListStudios(projectID)` | Studios of one project; `""` gives every studio |
 | `GetStudio` / `RenameStudio` / `DeleteStudio` | One studio. Deleting takes the arrangement, never the runs |
 | `SaveStudio` | Writes the arrangement whole; refuses a member whose run belongs to another project |
+
+### Files on the map
+
+| Method | Description |
+|--------|-------------|
+| `ChooseGeoPackage()` | The native dialog for a `.gpkg`; its path, `""` on a cancel |
+| `OpenGeoPackage(path)` | The file's layers: kind, coordinate system, counts, bounds and columns, and for each drawable layer the URL of its GeoJSON under `/geopackage-layer/<id>/`. Nothing is written to the project |
+| `CloseGeoPackage(id)` | Stops serving an opened file's layers and removes their files |
 
 ### Auth and preferences (local SQLite)
 
@@ -139,6 +149,7 @@ from **stdout**. Progress and errors are JSON lines on **stderr**.
 |----------|----------|
 | omitted / predict | Full classification pipeline |
 | `list_datacube` | Scene inventory only |
+| `geopackage_open` | A GeoPackage's layers, each feature layer written as GeoJSON in longitude and latitude on WGS 84 into `work_dir` (`path`) |
 | `lulc` | MapBiomas descriptive analysis |
 | `ping` | Lightweight health check (Python side) |
 

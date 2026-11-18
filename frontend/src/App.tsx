@@ -21,6 +21,7 @@ import { useComposition } from "@/session/composition"
 import { useEnvironmentGate } from "@/session/environmentGate"
 import { useFieldDelineation } from "@/session/fieldDelineation"
 import { useGround } from "@/session/ground"
+import { useFileLayers } from "@/session/fileLayers"
 import { useJobQueue } from "@/session/jobQueue"
 import { useMapView } from "@/session/mapView"
 import { useMineralMap } from "@/session/mineralMap"
@@ -199,12 +200,14 @@ function AppBody({
   })
   const forgetLeaving = useRetainOnLeaving({ activeAreaId, resultWithWater, retainRun })
 
+  const fileLayers = useFileLayers()
   const areaActions = useAreaActions({
     ground,
     activeProjectId,
     persistAoiLabel,
     takeCompositionOffMap: composition.takeOffMap,
     forgetCompositions: composition.forgetAll,
+    openGeoPackage: fileLayers.onOpenGeoPackage,
   })
   const queueJobs = useJobQueue({
     context,
@@ -313,6 +316,7 @@ function AppBody({
                   {...mineral.props}
                   {...fields.props}
                   {...workflows.props}
+                  {...fileLayers}
                   {...mapView}
                   activeProjectId={activeProjectId}
                   activeProjectName={

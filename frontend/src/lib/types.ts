@@ -1874,3 +1874,33 @@ export interface ModelDownload {
   received: number
   total: number
 }
+
+/** A GeoPackage opened on the map; `id` names it in its layers' URLs. */
+export interface GeoPackage {
+  id: string
+  name: string
+  path: string
+  layers: GeoPackageLayer[]
+}
+
+/** One table of a GeoPackage. `url` is empty when it cannot be drawn, and `reason` says why. */
+export interface GeoPackageLayer {
+  name: string
+  title: string
+  data_type: string
+  geometry_type: string
+  /** How the map draws it. */
+  kind: "point" | "line" | "polygon" | "mixed" | ""
+  /** The coordinate system the file stores, as a name and a code. */
+  crs: string
+  /** Every row; `drawn` those with a geometry on the map; `unreadable` those that could not be decoded. */
+  count: number
+  drawn: number
+  unreadable: number
+  /** West, south, east, north in degrees; null with nothing drawn. */
+  bounds: [number, number, number, number] | null
+  columns: string[]
+  file: string
+  url: string
+  reason: string
+}

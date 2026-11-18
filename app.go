@@ -56,6 +56,10 @@ type App struct {
 	openedMu sync.Mutex
 	opened   []string
 
+	// GeoPackages open on the map, and where their layers were written; see
+	// app_geopackage.go.
+	geoPackages openedGeoPackages
+
 	// Analyses queued over areas not in hand; see app_jobs.go. Written once
 	// at startup, under mu.
 	jobs *jobs.Queue

@@ -64,6 +64,11 @@ import { useOperators } from "@/lib/operators"
 import { jobReadingOf, type JobReading } from "@/lib/shellLayers"
 import type { ProductId } from "@/lib/mapTools"
 import type { AreaProps } from "@/session/areas"
+import { absoluteLayerUrl, type FileLayerProps } from "@/session/fileLayers"
+import { FeaturePanel } from "@/components/shell/FeaturePanel"
+import { featureBounds, layersBounds } from "@/lib/fileLayers"
+import { importedPolygon } from "@/lib/importedPolygon"
+import type { GlobeFileLayer } from "@/components/globe/fileLayers"
 import type { ClassificationProps } from "@/session/classification"
 import type { CompositionProps } from "@/session/composition"
 import type { FieldDelineationProps } from "@/session/fieldDelineation"
@@ -113,7 +118,8 @@ export interface MapShellProps
     SurfaceWaterProps,
     MineralMapProps,
     FieldDelineationProps,
-    WorkflowProps {
+    WorkflowProps,
+    FileLayerProps {
   /** Where the map was left last session; null starts at the default view. */
   initialView?: { lat: number; lon: number; zoom: number } | null
   onViewChange: (v: { lat: number; lon: number; zoom: number }) => void
@@ -213,6 +219,33 @@ export function MapShell(props: MapShellProps) {
     goSettings(settingsRequest.page)
     consumeSettingsPage()
   }, [settingsRequest, consumeSettingsPage, goSettings])
+  /*
+    A file just opened is shown: the map goes to it and the Layers panel, which
+    lists what it holds, opens. Once per opening, keyed on when it happened, so
+    reopening the panel later does not move the map.
+  */
+  /*
+    And the panel opens the moment a file is chosen, from whichever button, so
+    the reader sees it being read rather than a map that seems not to have
+    heard.
+  */
+  const openingName = props.opening?.name
+  useEffect(() => {
+    if (!openingName) return
+    setDestination("explore")
+    setPanel("layers")
+  }, [openingName, setDestination, setPanel])
+  const opened = props.lastOpened
+  useEffect(() => {
+    if (!opened) return
+    const file = props.files.find((f) => f.id === opened.id)
+    const box = file ? layersBounds(file.layers) : null
+    setDestination("explore")
+    setPanel("layers")
+    if (box) frameBox(box)
+    // Only a new opening is the reason to move; the list is read at that moment.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [opened?.at])
   /** The map's card, which the frame's corner pieces are drawn against. */
   const card = useRef<HTMLElement>(null)
   /*
@@ -261,6 +294,53 @@ export function MapShell(props: MapShellProps) {
   const areas = useMemo<readonly Area[]>(() => props.areas ?? [], [props.areas])
   /** The saved area in hand, when the shape on the map is one. */
   const activeArea = areas.find((a) => a.id === props.activeAreaId)
+
+  /**
+   * Frames the map on west, south, east, north. A point is padded to about a
+   * kilometre across, since a box of no size has no zoom to fit it.
+   */
+  const frameBox = ([w, s, e, n]: readonly [number, number, number, number]) => {
+    const pad = 0.005
+    setFrame({
+      key: Date.now(),
+      bounds:
+        e - w < pad && n - s < pad
+          ? { lon_min: w - pad, lat_min: s - pad, lon_max: e + pad, lat_max: n + pad }
+          : { lon_min: w, lat_min: s, lon_max: e, lat_max: n },
+    })
+  }
+
+  /*
+    The opened files' layers in the order they are drawn: a later file over an
+    earlier one, and inside a file polygons under lines under points, so a
+    filled polygon never hides the dots inside it.
+  */
+  const globeFileLayers = useMemo<GlobeFileLayer[]>(() => {
+    const rank = { polygon: 0, mixed: 1, line: 2, point: 3, "": 0 } as const
+    return props.files.flatMap((f) =>
+      [...f.layers]
+        .sort((a, b) => rank[a.kind] - rank[b.kind])
+        .flatMap((l) =>
+          l.url
+            ? [
+                {
+                  key: l.key,
+                  url: absoluteLayerUrl(l.url),
+                  color: l.color,
+                  visible: l.visible,
+                },
+              ]
+            : []
+        )
+    )
+  }, [props.files])
+
+  const picked = props.pickedFeature
+  const pickedLayer = picked
+    ? props.files
+        .flatMap((f) => f.layers.map((l) => ({ f, l })))
+        .find((x) => x.l.key === picked.key)
+    : undefined
 
   /** Choosing an area also goes to it, which a press on the map has no need to do. */
   const pickArea = (area: Area) => {
@@ -645,6 +725,14 @@ export function MapShell(props: MapShellProps) {
                 if (entries.length) setOverlayMenu({ at, entries })
               }}
               onImportPolygon={props.onImportPolygon}
+              fileLayers={globeFileLayers}
+              pickedFeature={props.pickedFeature}
+              onFileLayerState={props.onFileLayerState}
+              onPickFeature={(hit) => {
+                props.onPickFeature(hit)
+                setDestination("explore")
+                setPanel("feature")
+              }}
               onRemoveArea={
                 activeArea && props.onDeleteArea
                   ? () => setDeletingArea(activeArea)
@@ -815,7 +903,42 @@ export function MapShell(props: MapShellProps) {
               confidenceOnTop={props.confidenceOnTop}
               onConfidenceOnTopChange={props.onConfidenceOnTopChange}
               onChange={changeLayer}
+              files={props.files}
+              layerLoads={props.layerLoads}
+              opening={props.opening}
+              onOpenGeoPackage={props.onChooseGeoPackage}
+              onCloseFile={props.onCloseFile}
+              onToggleFileLayer={props.onToggleFileLayer}
+              onZoomTo={frameBox}
               onClose={() => setPanel(null)}
+            />
+          )}
+          {panel === "feature" && picked && pickedLayer && (
+            <FeaturePanel
+              file={pickedLayer.f}
+              layer={pickedLayer.l}
+              picked={picked}
+              hasProject={!!props.activeProjectId}
+              onBack={() => {
+                props.onPickFeature(null)
+                setPanel("layers")
+              }}
+              onClose={() => {
+                props.onPickFeature(null)
+                setPanel(null)
+              }}
+              onZoom={() => {
+                const box = featureBounds(picked.feature?.geometry)
+                if (box) frameBox(box)
+              }}
+              onUseAsArea={(name, polygon) => {
+                const geom = importedPolygon(polygon)
+                if (!geom) return
+                props.onPickBoundary?.(name, geom)
+                // As a boundary from the IBGE catalogue does, the map goes to it.
+                const box = featureBounds(geom)
+                if (box) frameBox(box)
+              }}
             />
           )}
           {activityOpen && <ActivityDialog onClose={closeActivity} />}
