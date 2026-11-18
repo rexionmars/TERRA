@@ -43,6 +43,7 @@ ACTIONS: dict[str, str] = {
     'management_zones': 'terra.zones.actions:zones',
     'pdf_report': 'terra.report.actions:pdf_report',
     'biomass_map': 'terra.biomass.actions:biomass_map',
+    'geopackage_open': 'terra.geopackage.actions:open_file',
 }
 
 DEFAULT_ACTION = 'predict'
