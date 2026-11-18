@@ -434,6 +434,7 @@ catalogue and the collection it read.
 
 | Source | Used for |
 |--------|----------|
+| [INPE Brazil Data Cube](https://data.inpe.br/bdc/stac/v1) (`CB4A-WPM-PCA-FUSED-1`), CC BY 4.0 | CBERS-4A WPM true colour at 2 m, as a composition over an area in Brazil |
 | MapBiomas Brazil COGs | Land-cover reference, when the area intersects Brazil |
 | [Nominatim](https://nominatim.openstreetmap.org/) | Geocoding |
 | [EOX Sentinel-2 cloudless 2016](https://cloudless.eox.at), CC BY 4.0 | The basemap the map opens on |

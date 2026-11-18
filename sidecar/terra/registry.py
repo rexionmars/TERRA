@@ -34,6 +34,8 @@ ACTIONS: dict[str, str] = {
     'water': 'terra.water.actions:water',
     'list_datacube': 'terra.scenes.actions:list_datacube',
     'render_composite': 'terra.scenes.actions:render_composite',
+    'cbers_scenes': 'terra.scenes.actions:cbers_scenes',
+    'cbers_view': 'terra.scenes.actions:cbers_view',
     'mineral_map': 'terra.mineral.actions:mineral_map',
     'field_boundaries': 'terra.fields.actions:delineate',
     'vegetation_health': 'terra.health.actions:health',

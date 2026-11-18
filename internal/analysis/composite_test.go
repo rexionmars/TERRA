@@ -54,3 +54,25 @@ func TestAViewOfOneSceneAsksForTheSceneAndThePeriod(t *testing.T) {
 		t.Error("no period: want an error")
 	}
 }
+
+// A CBERS-4A view reads the one scene chosen from INPE's list, and is refused
+// without it rather than started and failed in the sidecar.
+func TestACBERSViewReadsItsSceneWithItsOwnAction(t *testing.T) {
+	if _, err := compositeAction(CompositeRequest{Kind: "cbers"}); err == nil || !strings.Contains(err.Error(), "CBERS-4A scene") {
+		t.Errorf("no scene: got %v", err)
+	}
+	action, err := compositeAction(CompositeRequest{Kind: "cbers", SceneID: "CBERS4A_WPM_PCA_RGB321_20240419_210_145"})
+	if err != nil || action != "cbers_view" {
+		t.Errorf("got %q, %v; want cbers_view", action, err)
+	}
+}
+
+// The scene list goes to INPE only when the request names CBERS-4A WPM.
+func TestTheSceneListGoesToTheCatalogueTheRequestNames(t *testing.T) {
+	if got := dataCubeAction(DataCubeRequest{}); got != "list_datacube" {
+		t.Errorf("no collection: got %q", got)
+	}
+	if got := dataCubeAction(DataCubeRequest{Collection: CBERS4AWPM}); got != "cbers_scenes" {
+		t.Errorf("CBERS-4A: got %q", got)
+	}
+}

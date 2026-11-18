@@ -166,6 +166,15 @@ period, choose one, pick RGB or an index, set the stretch, and **Apply**. It is 
 of looking at one acquisition and measures nothing over the period. Compositions of
 the area are listed under the form, each with its exports.
 
+**CBERS-4A 2 m** draws true colour at 2 m from INPE's CBERS-4A satellite, over the
+area only. Choose it, list the scenes of the period, choose one and **Apply**. Each
+scene is listed with the share of the area it holds: a scene's file covers more ground
+than its camera saw, so a scene can be listed and hold little of the area. The camera
+sees a place about once a month and a place near the edge of its strip less often, so
+a short period may hold no scene; a longer one finds more. The catalogue gives no
+cloud cover, and there is no near-infrared at 2 m, so no index. The map credits INPE
+while the view is drawn, as its CC BY 4.0 licence asks.
+
 ## 8. Compare
 
 Runs of any area and any product, as nodes on a board. **Add a run** brings in a

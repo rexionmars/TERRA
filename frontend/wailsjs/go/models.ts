@@ -466,6 +466,7 @@ export namespace analysis {
 	    max_cloud: number;
 	    monthly_best: boolean;
 	    tiles: string[];
+	    collection?: string;
 	
 	    static createFrom(source: any = {}) {
 	        return new DataCubeRequest(source);
@@ -479,6 +480,7 @@ export namespace analysis {
 	        this.max_cloud = source["max_cloud"];
 	        this.monthly_best = source["monthly_best"];
 	        this.tiles = source["tiles"];
+	        this.collection = source["collection"];
 	    }
 	
 		convertValues(a: any, classs: any, asMap: boolean = false): any {
@@ -502,10 +504,11 @@ export namespace analysis {
 	export class DataCubeScene {
 	    id: string;
 	    date: string;
-	    cloud_cover: number;
+	    cloud_cover?: number;
 	    tile: string;
 	    satellite: string;
 	    preview_uri?: string;
+	    coverage?: number;
 	
 	    static createFrom(source: any = {}) {
 	        return new DataCubeScene(source);
@@ -519,6 +522,7 @@ export namespace analysis {
 	        this.tile = source["tile"];
 	        this.satellite = source["satellite"];
 	        this.preview_uri = source["preview_uri"];
+	        this.coverage = source["coverage"];
 	    }
 	}
 	export class DataCubeResult {
