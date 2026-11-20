@@ -42,14 +42,15 @@ MIN_VALID = 0.9
 # the valley, and a field usually holds none.
 #
 # VH carries the test because wind roughens a water surface and raises VV far
-# more than VH. Over a strip of the Itaipu reservoir (n=59 passes, Sep 2025 to
-# Apr 2026) the median VV of the water ranged from -21.2 to -14.5 dB with the
-# wind, VH from -27.6 to -24.1 dB. "VV < -18 dB" alone called a median 64% of
-# the strip water, and none of it on one windy pass; this rule a median 100%,
-# 38% at the least. Over a 300 m farmland square, bare after harvest in part of
-# the period, both called none of it water in any of 60 passes. VV below -13
-# dB is the second condition because smooth bare soil can reach VH -23 dB
-# while its VV stays above that.
+# more than VH. Measured with sidecar/tools/radar_calibration.py over its
+# strip of the Itaipu reservoir (39 passes, orbits 61 and 170, 2025-09-11 to
+# 2026-04-27), the median VV of the water ranged from -24.1 to -16.5 dB with
+# the wind, VH only from -27.3 to -25.0 dB. On 11 of those passes the median
+# VV was above -18 dB, so "VV < -18 dB" alone would have called at most half
+# the strip water; this rule called a median 100% of it, 99.9% at the least.
+# Over the tool's 300 m farmland square near Toledo it called none of it water
+# in any of 60 passes. VV below -13 dB is the second condition because smooth
+# bare soil can reach VH -23 dB while its VV stays above that.
 WATER_VH_DB = -23.0
 WATER_VV_DB = -13.0
 # The least drop in VH, in dB, read as a harvest, and the least fall of the
