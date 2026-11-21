@@ -281,6 +281,11 @@ func TestProjectFileCarriesFields(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	// Corrected by hand since, which the file has to say.
+	edited, err := a.ReshapeArea(f.userID, adopted[0].ID, `{"type":"Polygon","coordinates":[[[0,0],[1,0],[1,1],[0,0]]]}`)
+	if err != nil {
+		t.Fatal(err)
+	}
 	sum, err := a.SaveProjectFile(f.userID, f.projectID, filepath.Join(t.TempDir(), "Fields"), "0.6.0")
 	if err != nil {
 		t.Fatal(err)
@@ -303,5 +308,8 @@ func TestProjectFileCarriesFields(t *testing.T) {
 	}
 	if got.ParentID != f.areaID || got.SourceRunID != f.runID {
 		t.Fatalf("field came back with parent %q, source %q", got.ParentID, got.SourceRunID)
+	}
+	if got.EditedAt == "" || got.EditedAt != edited.EditedAt {
+		t.Errorf("field came back edited at %q, want %q", got.EditedAt, edited.EditedAt)
 	}
 }

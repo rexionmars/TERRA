@@ -147,3 +147,65 @@ export function geometryCentroid(
   if (!ring?.length) return null
   return ringCentroid(ring)
 }
+
+/*
+  THE OUTLINE THE MAP CAN EDIT, AND THE HOLES IT CANNOT.
+
+  terra-draw, which draws and edits the area in hand, refuses a feature whose
+  coordinates carry more decimals than its precision of nine, and one with
+  holes, and refuses it without a word: the feature is simply not in its store.
+  A field delineated by the sidecar has both, so it could not be edited, and a
+  store holding no polygon reported the area as removed when the cut mode
+  cleared its guide points. So the store is given the outline alone, at nine
+  decimals (about 0.1 mm of ground, what importedPolygon brings a file to), and
+  an edit made on it gets the holes back.
+*/
+const DRAW_DECIMALS = 9
+
+function atDrawPrecision(v: number): number {
+  const k = 10 ** DRAW_DECIMALS
+  return Math.round(v * k) / k
+}
+
+/** A Polygon's outline as the draw store holds it, or null for anything else. */
+export function drawableOutline(geometry: GeoJSONGeometry): GeoJSONGeometry | null {
+  if (geometry.type !== "Polygon" || !geometry.coordinates[0]?.length) return null
+  const ring = geometry.coordinates[0].map((p) => [
+    atDrawPrecision(p[0]),
+    atDrawPrecision(p[1]),
+  ])
+  return { type: "Polygon", coordinates: [ring] }
+}
+
+/** Whether a point lies inside a ring, by the crossings of a ray to the east. */
+function insideRing(pt: number[], ring: number[][]): boolean {
+  let inside = false
+  for (let i = 0, j = ring.length - 1; i < ring.length; j = i++) {
+    const [xi, yi] = ring[i]
+    const [xj, yj] = ring[j]
+    if (
+      yi > pt[1] !== yj > pt[1] &&
+      pt[0] < ((xj - xi) * (pt[1] - yi)) / (yj - yi) + xi
+    ) {
+      inside = !inside
+    }
+  }
+  return inside
+}
+
+/**
+ * An outline edited on the map, with the holes of the polygon it was edited
+ * from that still lie inside it. A hole the new outline has left outside is
+ * dropped: it is no longer ground inside the field to leave out.
+ */
+export function withHolesInside(
+  outline: GeoJSONGeometry,
+  original: GeoJSONGeometry
+): GeoJSONGeometry {
+  if (outline.type !== "Polygon" || original.type !== "Polygon") return outline
+  const ring = outline.coordinates[0]
+  const holes = original.coordinates
+    .slice(1)
+    .filter((h) => h.every((p) => insideRing(p, ring)))
+  return { type: "Polygon", coordinates: [ring, ...holes] }
+}

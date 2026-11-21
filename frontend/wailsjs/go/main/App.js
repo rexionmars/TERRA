@@ -218,6 +218,10 @@ export function InstallCatalogModel(arg1, arg2) {
   return window['go']['main']['App']['InstallCatalogModel'](arg1, arg2);
 }
 
+export function JoinFields(arg1) {
+  return window['go']['main']['App']['JoinFields'](arg1);
+}
+
 export function ListAreaRuns(arg1, arg2) {
   return window['go']['main']['App']['ListAreaRuns'](arg1, arg2);
 }
@@ -330,6 +334,10 @@ export function RenderComposite(arg1) {
   return window['go']['main']['App']['RenderComposite'](arg1);
 }
 
+export function ReshapeArea(arg1, arg2) {
+  return window['go']['main']['App']['ReshapeArea'](arg1, arg2);
+}
+
 export function RestoreBackup(arg1) {
   return window['go']['main']['App']['RestoreBackup'](arg1);
 }
@@ -400,6 +408,10 @@ export function SetProjectLastArea(arg1, arg2) {
 
 export function SetRunProject(arg1, arg2) {
   return window['go']['main']['App']['SetRunProject'](arg1, arg2);
+}
+
+export function SplitField(arg1, arg2) {
+  return window['go']['main']['App']['SplitField'](arg1, arg2);
 }
 
 export function TakeOpenedFiles() {

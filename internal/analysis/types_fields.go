@@ -160,3 +160,29 @@ func (f *FieldsAnalysis) NormalizeNilSlices() {
 		f.WindowB.Items = []string{}
 	}
 }
+
+/*
+A field corrected by hand: cut along a line, or neighbours joined into one.
+The geometry is done by the sidecar (sidecar/terra/fields/editing.py), in the
+field's own UTM zone, and the parts come back to be stored in the field's place.
+*/
+
+// GeoJSONLine is a GeoJSON LineString, the line a field is cut along.
+type GeoJSONLine struct {
+	Type        string      `json:"type"`
+	Coordinates [][]float64 `json:"coordinates"`
+}
+
+// FieldPart is one field an edit produced: its polygon, and its area measured
+// in its UTM zone.
+type FieldPart struct {
+	Geometry GeoJSONGeometry `json:"geometry"`
+	AreaHa   float64         `json:"area_ha"`
+}
+
+// fieldEditSidecarResult is the sidecar's `field_edit` object, key for key;
+// see fieldsSidecarResult for the test that holds the two sides together.
+type fieldEditSidecarResult struct {
+	Op    string      `json:"op"`
+	Parts []FieldPart `json:"parts"`
+}

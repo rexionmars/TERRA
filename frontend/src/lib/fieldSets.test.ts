@@ -29,6 +29,7 @@ function area(id: string, name: string, parent = ""): Area {
     run_count: 0,
     parent_id: parent,
     source_run_id: "",
+    edited_at: "",
   }
 }
 

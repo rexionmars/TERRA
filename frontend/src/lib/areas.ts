@@ -40,6 +40,11 @@ export interface Area {
    * by hand -- the fields a later delineation replaces, and the ones it leaves.
    */
   source_run_id: string
+  /**
+   * When the ground was last changed by hand -- reshaped, or made by cutting
+   * or joining fields -- or "" for ground as it was drawn or delineated.
+   */
+  edited_at: string
 }
 
 /**
@@ -70,6 +75,7 @@ export function toArea(row: store.Area): Area | null {
     run_count: row.run_count ?? 0,
     parent_id: row.parent_id ?? "",
     source_run_id: row.source_run_id ?? "",
+    edited_at: row.edited_at ?? "",
   }
 }
 

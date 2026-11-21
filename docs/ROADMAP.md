@@ -22,8 +22,9 @@ and proposals through [GitHub Issues](https://github.com/rexionmars/TERRA/issues
 - [ ] Evaluate land-cover and confidence outputs on independent areas and
       seasons; make the supported geography and fixed legend explicit in the
       result workflow.
-- [ ] Validate field delineation on local fields and allow review, split and
-      merge before running field-level products.
+- [x] Allow review, split and merge of fields before running field-level
+      products.
+- [ ] Validate field delineation on local fields.
 - [ ] Preserve the limitations of health, radar, zones and register overlap
       next to their results so screening indicators are not mistaken for
       diagnoses, causes or legal findings.

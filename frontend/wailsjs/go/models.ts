@@ -1300,6 +1300,20 @@ export namespace analysis {
 	
 	
 	
+	export class GeoJSONLine {
+	    type: string;
+	    coordinates: number[][];
+	
+	    static createFrom(source: any = {}) {
+	        return new GeoJSONLine(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.type = source["type"];
+	        this.coordinates = source["coordinates"];
+	    }
+	}
 	export class GeoPackageLayer {
 	    name: string;
 	    title: string;
@@ -4423,6 +4437,7 @@ export namespace store {
 	    updated_at: string;
 	    parent_id: string;
 	    source_run_id: string;
+	    edited_at: string;
 	    run_count: number;
 	
 	    static createFrom(source: any = {}) {
@@ -4441,6 +4456,7 @@ export namespace store {
 	        this.updated_at = source["updated_at"];
 	        this.parent_id = source["parent_id"];
 	        this.source_run_id = source["source_run_id"];
+	        this.edited_at = source["edited_at"];
 	        this.run_count = source["run_count"];
 	    }
 	}
