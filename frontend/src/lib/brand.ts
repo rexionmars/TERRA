@@ -68,28 +68,27 @@ export const REPO_URL = "https://github.com/rexionmars/TERRA"
  * The photograph the splash and the start screen are set on: the ground the
  * application observes, seen from where people stand on it.
  *
- * Imadedana's "Petani padi", two farmers planting rice at dawn in a flooded
- * terrace at Tembuku, Bangli, Bali, on 10 July 2021, with Mount Agung behind:
- * a featured picture on Wikimedia Commons, under CC BY-SA 4.0. The licence
- * asks for the author's name, the licence and a way to the source, which the
- * credit gives, and for the cropped and resized files to be shared under the
- * same licence, which they are. It replaced a photograph of children in a
- * displacement camp: a picture of people in a crisis, used as the face of a
- * product, says something about them they did not choose to say. So the
- * picture carries no claim and no caption that speaks for the people in it.
+ * Arghadeep Chinya's "Farmer on Tractor Plowing Field with Egrets", taken in
+ * India: a farmer, seen from behind, tills a field with a rotary tiller while
+ * cattle egrets feed on the turned soil. It is on Pexels, whose licence asks
+ * for no credit and allows use in an application; it forbids showing
+ * identifiable people in a bad light and implying that the people in a
+ * picture endorse a product. So the picture carries no claim and no caption
+ * that speaks for the farmer, and it is credited anyway, by name and with a
+ * way to the source.
  *
- * The files are resized from the 4928x3264 original with Lanczos and passed
+ * The files are resized from the 4096x3072 original with Lanczos and passed
  * through cwebp -q 82, as docs/RELEASING.md encodes the stills, by
- * .temp/splash_photo/build_splash.py: terra-splash-rice-planting.webp at
- * 2880 px wide, the full window's width at twice its density, so the splash's
- * push-in does not soften it much, and its 840 px copy for the 420x280 boot
- * window; and terra-start-rice-planting.webp, cropped at full width from
- * y 760 to 2830 to the start card's 500:210 and resized to 1600x672, which
- * keeps both farmers and their reflections and leaves the dark trees under
- * the card's darkened top, where the lockup is set.
+ * .temp/splash_photo/tractor/build_splash.py: terra-splash-tractor-egrets.webp
+ * at 2880 px wide, the full window's width at twice its density, so the
+ * splash's push-in does not soften it much, and its 840 px copy for the
+ * 420x280 boot window; and terra-start-tractor-egrets.webp, cropped at full
+ * width from y 620 to 2340 to the start card's 500:210 and resized to
+ * 1600x672, which keeps the farmer, the tiller and the egrets and leaves the
+ * tractor's canopy above the card, whose darkened top holds the lockup.
  */
 export const BRAND_PHOTO = {
-  author: "Imadedana",
-  license: "CC BY-SA 4.0",
-  source: "https://commons.wikimedia.org/wiki/File:Petani_padi.jpg",
+  author: "Arghadeep Chinya",
+  license: "Pexels",
+  source: "https://www.pexels.com/photo/41098874/",
 }

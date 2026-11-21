@@ -137,9 +137,9 @@ export function SplashScreen({ exiting = false, live = true }: SplashScreenProps
       <div className="splash__scene" aria-hidden>
         <img
           className="splash__photo"
-          srcSet="/terra-splash-rice-planting-840.webp 840w, /terra-splash-rice-planting.webp 2880w"
+          srcSet="/terra-splash-tractor-egrets-840.webp 840w, /terra-splash-tractor-egrets.webp 2880w"
           sizes="100vw"
-          src="/terra-splash-rice-planting.webp"
+          src="/terra-splash-tractor-egrets.webp"
           alt=""
         />
         <div className="splash__scrim" />
