@@ -38,6 +38,7 @@ ACTIONS: dict[str, str] = {
     'cbers_view': 'terra.scenes.actions:cbers_view',
     'mineral_map': 'terra.mineral.actions:mineral_map',
     'field_boundaries': 'terra.fields.actions:delineate',
+    'field_edit': 'terra.fields.editing:edit',
     'vegetation_health': 'terra.health.actions:health',
     'socioenvironmental_overlap': 'terra.overlap.actions:overlap',
     'radar_series': 'terra.radar.actions:radar',
