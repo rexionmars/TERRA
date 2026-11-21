@@ -881,11 +881,12 @@ export function GlobeSurface({
     Held here and not remembered, like `recent` and for the same reason: it
     belongs to the question being asked rather than to the session.
 
-    IT OPENS ON THE OPEN MOSAIC. See the eox2016 row in lib/basemaps.ts for
-    why; Esri's imagery is one choice away, and no request reaches Esri until
-    it is chosen.
+    IT OPENS ON THE ESRI PAIR, the sharpest picture the screen has where Esri
+    holds a recent footprint. The open mosaic is one choice away for a reader
+    who needs imagery under a licence anyone may use; see the eox2016 row in
+    lib/basemaps.ts.
   */
-  const [base, setBase] = useState<BaseKind>("open")
+  const [base, setBase] = useState<BaseKind>("imagery")
   /** The Esri pair, two products handed over at a level. */
   const pair = base === "imagery"
   /** A map rather than a photograph: nothing is acquired, and nothing is dated. */
@@ -914,12 +915,11 @@ export function GlobeSurface({
     if (!host) return
     const imagery = basemapByKind(GLOBE_BASEMAP)
     /*
-      The wide source starts on the open mosaic, the base the screen opens on,
-      and the Esri layer starts hidden: the base effect sets both once the map
-      is ready, and until then a restored view zoomed past the handover would
-      otherwise fetch Esri tiles the reader never asked for.
+      The style starts as the base the screen opens on, the Esri pair, rather
+      than as something the base effect swaps once the map is ready: a swap
+      would fetch a first screen of tiles only to throw them away.
     */
-    const wide = basemapByKind(SINGLE_BASE.open)
+    const wide = basemapByKind(GLOBE_WIDE_BASEMAP)
     let map: MapLibreMap
     try {
       map = new MapLibreMap({
@@ -1065,7 +1065,6 @@ export function GlobeSurface({
               type: "raster",
               source: "imagery",
               minzoom: HANDOVER_ZOOM - 1,
-              layout: { visibility: "none" },
             },
             /*
               OVER THE ESRI LAYER RATHER THAN INSTEAD OF IT, and Esri is left
@@ -1096,6 +1095,7 @@ export function GlobeSurface({
               id: "imagery-wide",
               type: "raster",
               source: "imagery-wide",
+              maxzoom: HANDOVER_ZOOM,
             },
             /*
               A fill under the line, and it is what makes a press work. The hand
@@ -1727,10 +1727,14 @@ export function GlobeSurface({
     if (!map || !ready || !map.getSource("imagery") || !map.getSource("imagery-wide")) {
       return
     }
+    // A source already on this URL is left alone: setTiles reloads every tile,
+    // and the first run of this effect finds the style already on its base.
     const setTiles = (id: string, url: string) => {
       const source = map.getSource(id)
       if (source && "setTiles" in source) {
-        ;(source as { setTiles: (t: string[]) => void }).setTiles([url])
+        const raster = source as { tiles?: string[]; setTiles: (t: string[]) => void }
+        if (raster.tiles?.length === 1 && raster.tiles[0] === url) return
+        raster.setTiles([url])
       }
     }
     const layers = map.getStyle().layers
