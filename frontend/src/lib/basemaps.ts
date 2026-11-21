@@ -81,14 +81,14 @@ const BASEMAPS: readonly Basemap[] = [
     ],
   },
   /*
-    THE OPEN ONE, and the one the globe opens on.
+    THE OPEN ONE.
 
     EOX licenses its 2016 mosaic under CC BY 4.0 and every later year under
     CC BY-NC-SA 4.0, which rules out commercial use; Esri's imagery is under
-    Esri's own terms. A base that anyone may use for anything is what the
-    application opens on, and the others are a choice the reader makes. The
-    cost is stated rather than hidden: the picture is of 2016 and 2017, at the
-    10 m of Sentinel-2, so close up it shows fields and not buildings.
+    Esri's own terms. This is the base anyone may use for anything, offered
+    beside the Esri pair the globe opens on. Its cost is the reason it is not
+    the default: the picture is of 2016 and 2017, at the 10 m of Sentinel-2, so
+    close up it shows fields and not buildings.
 
     The credit is the attribution EOX's licence page asks for, with the licence
     named, as CC BY requires.

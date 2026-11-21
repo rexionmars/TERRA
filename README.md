@@ -437,8 +437,8 @@ catalogue and the collection it read.
 | [INPE Brazil Data Cube](https://data.inpe.br/bdc/stac/v1) (`CB4A-WPM-PCA-FUSED-1`), CC BY 4.0 | CBERS-4A WPM true colour at 2 m, as a composition over an area in Brazil |
 | MapBiomas Brazil COGs | Land-cover reference, when the area intersects Brazil |
 | [Nominatim](https://nominatim.openstreetmap.org/) | Geocoding |
-| [EOX Sentinel-2 cloudless 2016](https://cloudless.eox.at), CC BY 4.0 | The basemap the map opens on |
-| Esri World Imagery, Streets and Topographic; EOX Sentinel-2 cloudless 2025 | Basemaps the reader can choose instead. Esri's are under Esri's terms and EOX's 2018 to 2025 mosaics under CC BY-NC-SA 4.0; none is fetched unless chosen |
+| Esri World Imagery, with [EOX Sentinel-2 cloudless 2025](https://cloudless.eox.at) at planetary zooms | The basemap the map opens on. Esri's tiles are under Esri's terms and EOX's 2025 mosaic under CC BY-NC-SA 4.0 |
+| [EOX Sentinel-2 cloudless 2016](https://cloudless.eox.at), CC BY 4.0; Esri Streets and Topographic | Basemaps the reader can choose instead; none is fetched unless chosen. The 2016 mosaic is the one base anyone may use for any purpose |
 
 ## License and community
 
