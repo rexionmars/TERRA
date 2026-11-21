@@ -40,10 +40,10 @@ const RECENT_SHOWN = 5
   the licence's terms and how the file was produced.
 */
 const START_PICTURE = {
-  path: "/terra-start-rice-planting.webp",
+  path: "/terra-start-tractor-egrets.webp",
   subject:
-    "two farmers planting rice in a flooded terrace at dawn, with mist and " +
-    "trees behind them",
+    "a farmer on a tractor tilling a field, with egrets feeding on the " +
+    "turned soil behind the tiller",
 }
 
 /*
@@ -234,18 +234,21 @@ export function StartScreen({
             draggable={false}
           />
           {/*
-            Dark at the top for the lines set on the sky, and clear from the
-            middle down, so the farmers and the ground are shown as they were
-            taken. Measured at the card's size, against the brightest pixel
-            under each line, in the line's own colour: the tagline 10.59, the
-            version 6.17, the credit 6.42 at the version's 92% bone (5.31 at
-            80%). The wordmark is on the tab, in the panel's own text colour.
+            Dark at the top for the lines set over the trees and the haze, and
+            clear from the middle down, so the farmer and the ground are shown
+            as they were taken. Measured at the card's size, against the
+            brightest pixel under each line, in the line's own colour: the
+            tagline 7.75, the version 7.76, the credit 5.43 at the version's
+            92% bone (4.56 at 80%). The credit sits over the dry vine row
+            behind the tractor, which is why the band holds 0.62 at a quarter
+            of the way down. The wordmark is on the tab, in the panel's own
+            text colour.
           */}
           <div
             className="absolute inset-0"
             style={{
               background:
-                "linear-gradient(180deg, rgb(4 6 11 / 0.82) 0%, rgb(4 6 11 / 0.5) 24%, rgb(4 6 11 / 0) 52%)",
+                "linear-gradient(180deg, rgb(4 6 11 / 0.85) 0%, rgb(4 6 11 / 0.62) 24%, rgb(4 6 11 / 0) 52%)",
             }}
             aria-hidden
           />
@@ -274,7 +277,7 @@ export function StartScreen({
               type="button"
               className="cursor-pointer text-meta hover:underline focus-visible:ring-1 focus-visible:ring-ring focus-visible:outline-none"
               style={{ color: "rgb(236 232 223 / 0.92)" }}
-              title="Cropped and resized from the original on Wikimedia Commons, shared under the same licence"
+              title="Cropped and resized from the original on Pexels"
               onClick={() => BrowserOpenURL(BRAND_PHOTO.source)}
             >
               Photo: {BRAND_PHOTO.author} · {BRAND_PHOTO.license}
