@@ -33,6 +33,9 @@
     Move the stack apart  two layers and the arrow between them
     Curtain               one frame, the handle dividing it
     Delete the area       a bin
+    Cut the field         the field in two pieces, the line of the cut running
+                          out past both edges
+    Join the fields       two fields, pushed together from either side
     Open project file     an open folder
     Save project file     the disk
     Save project file as  the disk, and a pencil to name it
@@ -176,6 +179,14 @@ export const LineCurtain = glyph(
 
 export const LineDelete = glyph(
   '<path d="M2.5 4.5 H13.5 M6.25 4.5 V2.5 H9.75 V4.5" fill="none" stroke="currentColor" stroke-width="1" stroke-linecap="round" stroke-linejoin="round"/><path d="M4 4.5 L4.75 13.5 Q4.85 14.5 5.85 14.5 H10.15 Q11.15 14.5 11.25 13.5 L12 4.5" fill="none" stroke="currentColor" stroke-width="1" stroke-linecap="round" stroke-linejoin="round"/><path d="M6.75 7 V12 M9.25 7 V12" fill="none" stroke="currentColor" stroke-width="1" stroke-linecap="round" stroke-linejoin="round"/>'
+)
+
+export const LineCutField = glyph(
+  '<path d="M2.5 3.5 H8.585 L5.815 12.5 H2.5 Z" fill="none" stroke="currentColor" stroke-width="1" stroke-linecap="round" stroke-linejoin="round"/><path d="M10.185 3.5 H13.5 V12.5 H7.415 Z" fill="none" stroke="currentColor" stroke-width="1" stroke-linecap="round" stroke-linejoin="round"/><path d="M10.4 0.9 L9.85 2.6 M6.15 13.4 L5.6 15.1" fill="none" stroke="currentColor" stroke-width="1" stroke-linecap="round"/>'
+)
+
+export const LineJoinFields = glyph(
+  '<path d="M3.5 4.5 H7.25 V11.5 H3.5 Z M8.75 4.5 H12.5 V11.5 H8.75 Z" fill="none" stroke="currentColor" stroke-width="1" stroke-linecap="round" stroke-linejoin="round"/><path d="M0.5 6 L2 8 L0.5 10 M15.5 6 L14 8 L15.5 10" fill="none" stroke="currentColor" stroke-width="1" stroke-linecap="round" stroke-linejoin="round"/>'
 )
 
 export const LineFolderOpen = glyph(

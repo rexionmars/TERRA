@@ -55,6 +55,13 @@ CONTRACTS = [
         "fieldsSidecarResult",
     ),
     (
+        REPO / "sidecar" / "terra" / "fields" / "editing.py",
+        "edit",
+        "parts",
+        REPO / "internal" / "analysis" / "types_fields.go",
+        "fieldEditSidecarResult",
+    ),
+    (
         REPO / "sidecar" / "terra" / "health" / "actions.py",
         "health",
         "map_range",

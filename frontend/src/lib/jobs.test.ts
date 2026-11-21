@@ -116,6 +116,7 @@ function area(id: string, parent = ""): Area {
     run_count: 0,
     parent_id: parent,
     source_run_id: parent ? "run" : "",
+    edited_at: "",
   }
 }
 

@@ -2,18 +2,24 @@
 import { useCallback, useMemo, useRef, useState } from "react"
 
 import { extendSelection, toArea, type Area } from "@/lib/areas"
+import { withHolesInside } from "@/lib/geometry"
 import { importedPolygon } from "@/lib/importedPolygon"
 import { notifyError, notifySuccess } from "@/lib/notify"
 import { readBoardMemory } from "@/components/workspace/boardMemory"
 import type { GeoJSONGeometry } from "@/lib/types"
+import type { DrawnLine } from "@/components/globe/useAreaDrawing"
 import {
   ChooseAreaFile,
   CreateArea,
   DeleteArea,
+  JoinFields,
   ReadAreaFile,
+  ReshapeArea,
   SetProjectLastArea,
+  SplitField,
   UpdateArea,
 } from "../../wailsjs/go/main/App"
+import type { store } from "../../wailsjs/go/models"
 import type { GroundState } from "./ground"
 
 /** The last part of a path, on either separator. */
@@ -46,7 +52,20 @@ export interface AreaProps {
   selectedAreaIds?: string[]
   onSelectAreas?: (ids: string[], mode: "toggle" | "add") => void
   onClearSelection?: () => void
+  /**
+   * The review of fields and of any outline (app_fields_edit.go). Each
+   * removes the runs over the ground it changes, so the caller asks first
+   * when there are any; each resolves to whether it was done.
+   */
+  onReshapeArea?: (id: string, geom: GeoJSONGeometry) => Promise<boolean>
+  /** Puts an area's saved outline back on the map, after an edit not kept. */
+  onRestoreOutline?: (id: string) => void
+  onSplitField?: (id: string, line: DrawnLine) => Promise<boolean>
+  onJoinFields?: (ids: string[]) => Promise<boolean>
 }
+
+// "field 2" before "field 10".
+const byName = new Intl.Collator(undefined, { numeric: true, sensitivity: "base" })
 
 export function useAreaActions({
   ground,
@@ -447,6 +466,107 @@ export function useAreaActions({
     ]
   )
 
+  /*
+    THE REVIEW OF A DELINEATION, and the outline of any area moved by hand.
+
+    Each edit asks the store to put the new ground where the old was, and the
+    store removes the runs made over the old ground (internal/store/fields_edit.go
+    says why); the caller has asked about those first when there were any. The
+    listing is re-read rather than patched, for the reason refreshAreas gives,
+    and what the edit made is put in hand as createArea puts a drawn area.
+  */
+  const putInHand = useCallback(
+    (row: store.Area) => {
+      const entry = toArea(row)
+      if (!entry) return
+      setActiveAreaId(entry.id)
+      setCustomPolygon(entry.geometry)
+      setAnalysisLabel(entry.name)
+      setSelectedAreaIds([])
+      if (activeProjectId) {
+        void SetProjectLastArea(activeProjectId, entry.id).catch(() => {})
+      }
+    },
+    [setActiveAreaId, setCustomPolygon, setAnalysisLabel, activeProjectId]
+  )
+
+  /*
+    A copy, so the map's store, which still holds the edited outline, sees a
+    value it does not have and is put back to the saved one.
+  */
+  const restoreOutline = useCallback(
+    (id: string) => {
+      const area = areas.find((a) => a.id === id)
+      if (area && id === activeAreaId) setCustomPolygon({ ...area.geometry })
+    },
+    [areas, activeAreaId, setCustomPolygon]
+  )
+
+  /*
+    The map edits the outline alone (lib/geometry.ts drawableOutline says why),
+    so the holes of the ground edited are given back to it here.
+  */
+  const reshapeArea = useCallback(
+    async (id: string, edited: GeoJSONGeometry): Promise<boolean> => {
+      const before = areas.find((a) => a.id === id)?.geometry
+      const geom = before ? withHolesInside(edited, before) : edited
+      try {
+        const row = await ReshapeArea(id, JSON.stringify(geom))
+        await refreshAreas(activeProjectId)
+        putInHand(row)
+        return true
+      } catch (e) {
+        notifyError("Could not reshape the area", e)
+        restoreOutline(id)
+        return false
+      }
+    },
+    [areas, refreshAreas, activeProjectId, putInHand, restoreOutline]
+  )
+
+  const splitField = useCallback(
+    async (id: string, line: DrawnLine): Promise<boolean> => {
+      const name = areas.find((a) => a.id === id)?.name ?? "The field"
+      try {
+        const rows = await SplitField(id, line)
+        await refreshAreas(activeProjectId)
+        putInHand(rows[0])
+        notifySuccess(`${name} cut into ${rows.map((r) => r.name).join(", ")}.`)
+        return true
+      } catch (e) {
+        notifyError("Could not cut the field", e)
+        return false
+      }
+    },
+    [areas, refreshAreas, activeProjectId, putInHand]
+  )
+
+  /*
+    In the order the outliner lists them, so the field made takes the name of
+    the lowest number (JoinFields names it after the first).
+  */
+  const joinFields = useCallback(
+    async (ids: string[]): Promise<boolean> => {
+      const fields = ids
+        .map((id) => areas.find((a) => a.id === id))
+        .filter((a): a is Area => !!a)
+        .sort((a, b) => byName.compare(a.name, b.name))
+      try {
+        const row = await JoinFields(fields.map((f) => f.id))
+        await refreshAreas(activeProjectId)
+        putInHand(row)
+        notifySuccess(
+          `${fields.map((f) => f.name).join(", ")} joined into ${row.name}.`
+        )
+        return true
+      } catch (e) {
+        notifyError("Could not join the fields", e)
+        return false
+      }
+    },
+    [areas, refreshAreas, activeProjectId, putInHand]
+  )
+
   const clearAreaAndComposition = useCallback(() => {
     forgetCompositions()
     void persistAoiLabel(null)
@@ -478,6 +598,10 @@ export function useAreaActions({
     selectedAreaIds: liveSelection,
     onSelectAreas: selectAreas,
     onClearSelection: clearSelection,
+    onReshapeArea: reshapeArea,
+    onRestoreOutline: restoreOutline,
+    onSplitField: splitField,
+    onJoinFields: joinFields,
   }
 
   return { props, liveSelection, clearAreaAndComposition }

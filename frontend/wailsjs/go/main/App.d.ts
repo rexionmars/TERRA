@@ -115,6 +115,8 @@ export function InspectStorage():Promise<store.StorageReport>;
 
 export function InstallCatalogModel(arg1:string,arg2:string):Promise<analysis.ModelInfo>;
 
+export function JoinFields(arg1:Array<string>):Promise<store.Area>;
+
 export function ListAreaRuns(arg1:string,arg2:number):Promise<Array<store.InferenceRun>>;
 
 export function ListAreas(arg1:string):Promise<Array<store.Area>>;
@@ -171,6 +173,8 @@ export function RenameStudio(arg1:string,arg2:string):Promise<void>;
 
 export function RenderComposite(arg1:analysis.CompositeRequest):Promise<analysis.CompositeResult>;
 
+export function ReshapeArea(arg1:string,arg2:string):Promise<store.Area>;
+
 export function RestoreBackup(arg1:string):Promise<store.RestoreResult>;
 
 export function RetryJob(arg1:string):Promise<void>;
@@ -206,6 +210,8 @@ export function SetImagerySource(arg1:string,arg2:string):Promise<Array<main.Ima
 export function SetProjectLastArea(arg1:string,arg2:string):Promise<store.Project>;
 
 export function SetRunProject(arg1:string,arg2:string):Promise<void>;
+
+export function SplitField(arg1:string,arg2:analysis.GeoJSONLine):Promise<Array<store.Area>>;
 
 export function TakeOpenedFiles():Promise<Array<string>>;
 

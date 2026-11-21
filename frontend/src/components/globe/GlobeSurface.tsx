@@ -31,10 +31,12 @@ import {
   LineBaseTopo,
   LineCurtain,
   LineDelete,
+  LineCutField,
   LineDrawArea,
   LineEditArea,
   LineImagery,
   LineImportArea,
+  LineJoinFields,
   LineRelief,
   LineSearch,
   LineSpread,
@@ -78,7 +80,7 @@ import {
 } from "@/components/globe/terrain"
 import { Credit } from "@/components/TitleBar"
 import { SearchBar } from "@/components/SearchBar"
-import { useAreaDrawing } from "@/components/globe/useAreaDrawing"
+import { type DrawnLine, useAreaDrawing } from "@/components/globe/useAreaDrawing"
 import type { Bounds, GeoJSONGeometry } from "@/lib/types"
 import {
   CameraControls,
@@ -406,6 +408,10 @@ export function GlobeSurface({
   onClearSelection,
   polygon = null,
   onPolygonDrawn,
+  onPolygonEdited,
+  onCutField,
+  onJoinFields,
+  joinCount = 0,
   onImportPolygon,
   onRemoveArea,
   initialView = null,
@@ -498,6 +504,22 @@ export function GlobeSurface({
    * and the tools are withheld rather than shown refusing.
    */
   onPolygonDrawn?: (geom: GeoJSONGeometry | null) => void
+  /**
+   * The area in hand was edited on the map: once per gesture, with the outline
+   * as it was left. Absent, an edit is reported as a new shape.
+   */
+  onPolygonEdited?: (geom: GeoJSONGeometry) => void
+  /**
+   * A line was laid across the area in hand to cut it in two. Present only
+   * while that area is a field; absent, the control is withheld.
+   */
+  onCutField?: (line: DrawnLine) => void
+  /**
+   * Joins the fields selected, `joinCount` of them. Present only while the
+   * selection holds two or more fields of one area.
+   */
+  onJoinFields?: () => void
+  joinCount?: number
   /**
    * Asks for a .kml, GeoJSON or GeoPackage file and makes areas of it. The
    * caller owns the picker and the parsing, since the area it creates belongs
@@ -819,15 +841,32 @@ export function GlobeSurface({
   const drawnRef = useRef(onPolygonDrawn)
   drawnRef.current = onPolygonDrawn
   const canDraw = !!onPolygonDrawn
-  const { mode, setMode, clear, stop } = useAreaDrawing({
+  const editedRef = useRef(onPolygonEdited)
+  editedRef.current = onPolygonEdited
+  const cutRef = useRef(onCutField)
+  cutRef.current = onCutField
+  const { mode, setMode, clear, stop, justFinished } = useAreaDrawing({
     map: canDraw ? mapRef.current : null,
     ready,
     polygon,
     onPolygonDrawn: (geom) => drawnRef.current?.(geom),
+    onPolygonEdited: (geom) =>
+      editedRef.current ? editedRef.current(geom) : drawnRef.current?.(geom),
+    onLineDrawn: (line) => cutRef.current?.(line),
   })
+  /*
+    A cut is laid across a field, so the mode ends when the area in hand stops
+    being one: a line finished over an area would have nothing to cut.
+  */
+  const canCut = !!onCutField
+  useEffect(() => {
+    if (!canCut) setMode((m) => (m === "cut" ? "idle" : m))
+  }, [canCut, setMode])
   /* Drawing or editing an area owns the pointer; the raster menu waits. */
   const modeRef = useRef(mode)
   modeRef.current = mode
+  const justFinishedRef = useRef(justFinished)
+  justFinishedRef.current = justFinished
   const stopRef = useRef(stop)
   stopRef.current = stop
   const [zoom, setZoom] = useState(initialView?.zoom ?? START_ZOOM)
@@ -1297,6 +1336,13 @@ export function GlobeSurface({
         if (placePinRef.current) return
         // A dot or a line of an open file was aimed at; the area is only under it.
         if (pickFeatureRef.current && fileFeatureAt(map, e.point, false)) return
+        /*
+          While an outline is drawn, edited or a cut laid, a press is a vertex,
+          and so is the press that finished it. Taken as a choice, the first
+          point of a cut laid outside the field chose the area around it, which
+          ended the cut half drawn; the last one, the same after the cut.
+        */
+        if (modeRef.current !== "idle" || justFinishedRef.current()) return
         /*
           A press inside a field is also a press inside its area, and the
           order MapLibre returns the two in is a rendering detail. The field
@@ -2227,6 +2273,28 @@ export function GlobeSurface({
               >
                 <LineEditArea className="size-4" />
               </MapButton>
+              {/*
+                The review of a delineation, beside the outline's own edit: a
+                field cut along a line, and the fields selected joined. Each is
+                shown only where it can act, as the bin is.
+              */}
+              {onCutField && (
+                <MapButton
+                  label="Cut the field along a line: press its last point again, or Enter, to cut"
+                  active={mode === "cut"}
+                  onClick={() => setMode((m) => (m === "cut" ? "idle" : "cut"))}
+                >
+                  <LineCutField className="size-4" />
+                </MapButton>
+              )}
+              {onJoinFields && (
+                <MapButton
+                  label={`Join the ${joinCount} selected fields`}
+                  onClick={onJoinFields}
+                >
+                  <LineJoinFields className="size-4" />
+                </MapButton>
+              )}
               {/*
                 BESIDE THE PENCIL, because a file is the other way an area
                 arrives: the shape comes from a file instead of from a hand,

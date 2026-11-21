@@ -352,6 +352,57 @@ export function MapShell(props: MapShellProps) {
         .find((x) => x.l.key === picked.key)
     : undefined
 
+  /*
+    REVIEWING FIELDS ON THE MAP: a field cut along a line, the fields selected
+    joined, and any outline moved by hand.
+
+    AN EDIT THAT DELETES RUNS IS ASKED ABOUT FIRST. Each one puts new ground
+    where the old was, and the store deletes the runs made over the old ground
+    with their rasters (internal/store/fields_edit.go). With none, the edit is
+    made at once, since there is nothing to weigh; this is the review a
+    delineation gets before anything runs over its fields.
+  */
+  const [pendingEdit, setPendingEdit] = useState<{
+    eyebrow: string
+    title: string
+    subtitle: string
+    confirmLabel: string
+    run: () => Promise<boolean>
+    cancel?: () => void
+  } | null>(null)
+  const [editBusy, setEditBusy] = useState(false)
+  const editGround = (
+    changed: readonly Area[],
+    ask: { eyebrow: string; title: string; verb: string },
+    run: () => Promise<boolean>,
+    cancel?: () => void
+  ) => {
+    const runs = changed.reduce((n, a) => n + a.run_count, 0)
+    if (!runs) {
+      void run()
+      return
+    }
+    const one = runs === 1
+    setPendingEdit({
+      eyebrow: ask.eyebrow,
+      title: ask.title,
+      subtitle:
+        `${runs} ${one ? "run was" : "runs were"} made over the ground this changes, ` +
+        `and ${one ? "is" : "are"} deleted with ${one ? "its" : "their"} rasters. This cannot be undone.`,
+      confirmLabel: `${ask.verb} and delete ${runs} ${one ? "run" : "runs"}`,
+      run,
+      cancel,
+    })
+  }
+  /** The fields selected, when they are two or more of one area: what a join takes. */
+  const selectedFields = areas.filter((a) => props.selectedAreaIds?.includes(a.id))
+  const joinable =
+    selectedFields.length >= 2 &&
+    selectedFields.length === (props.selectedAreaIds?.length ?? 0) &&
+    selectedFields.every(
+      (f) => f.parent_id && f.parent_id === selectedFields[0].parent_id
+    )
+
   /** Choosing an area also goes to it, which a press on the map has no need to do. */
   const pickArea = (area: Area) => {
     props.onActivateArea?.(area.id)
@@ -724,6 +775,58 @@ export function MapShell(props: MapShellProps) {
               onPolygonDrawn={(g) =>
                 g ? props.onPolygonDrawn(g) : props.onClearArea()
               }
+              onPolygonEdited={(g) => {
+                const reshape = props.onReshapeArea
+                if (!activeArea || !reshape) {
+                  props.onPolygonDrawn(g)
+                  return
+                }
+                editGround(
+                  [activeArea],
+                  {
+                    eyebrow: activeArea.parent_id ? "RESHAPE FIELD" : "RESHAPE AREA",
+                    title: `Reshape ${activeArea.name}?`,
+                    verb: "Reshape",
+                  },
+                  () => reshape(activeArea.id, g),
+                  () => props.onRestoreOutline?.(activeArea.id)
+                )
+              }}
+              onCutField={
+                activeArea?.parent_id && props.onSplitField
+                  ? (line) => {
+                      const split = props.onSplitField
+                      if (!split) return
+                      editGround(
+                        [activeArea],
+                        {
+                          eyebrow: "CUT FIELD",
+                          title: `Cut ${activeArea.name}?`,
+                          verb: "Cut",
+                        },
+                        () => split(activeArea.id, line)
+                      )
+                    }
+                  : undefined
+              }
+              onJoinFields={
+                joinable && props.onJoinFields
+                  ? () => {
+                      const join = props.onJoinFields
+                      if (!join) return
+                      editGround(
+                        selectedFields,
+                        {
+                          eyebrow: "JOIN FIELDS",
+                          title: `Join ${selectedFields.map((f) => f.name).join(", ")}?`,
+                          verb: "Join",
+                        },
+                        () => join(selectedFields.map((f) => f.id))
+                      )
+                    }
+                  : undefined
+              }
+              joinCount={selectedFields.length}
               onOverlayContext={(hits, at, ground) => {
                 const entries = hits.flatMap(({ key, fit }) => {
                   const l = layers.find((x) => x.id === key)
@@ -1070,6 +1173,27 @@ export function MapShell(props: MapShellProps) {
                 setDeletingArea(null)
               }}
               onClose={() => setDeletingArea(null)}
+            />
+          )}
+
+          {pendingEdit && (
+            <ConfirmDelete
+              eyebrow={pendingEdit.eyebrow}
+              title={pendingEdit.title}
+              subtitle={pendingEdit.subtitle}
+              confirmLabel={pendingEdit.confirmLabel}
+              busy={editBusy}
+              onCancel={() => {
+                pendingEdit.cancel?.()
+                setPendingEdit(null)
+              }}
+              onConfirm={() => {
+                setEditBusy(true)
+                void pendingEdit.run().finally(() => {
+                  setEditBusy(false)
+                  setPendingEdit(null)
+                })
+              }}
             />
           )}
 

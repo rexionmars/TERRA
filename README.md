@@ -136,9 +136,11 @@ Fields are delineated from two Sentinel-2 scenes, the clearest of each of two
 windows the period is cut into, with the Fields of The World baseline (U-Net,
 EfficientNet-B7; Kerner et al., 2025). Each connected interior region becomes
 one polygon with its area, perimeter and the network's mean interior vote, and
-the fields can be made areas of their own. Vegetation health, register overlap,
-radar and management zones then run over the fields of an area as a queue of
-jobs.
+the fields can be made areas of their own. Before anything runs over them they
+can be reviewed on the map: a field cut along a line, neighbours joined across
+the strip the network leaves between them, an outline reshaped, a field
+deleted. Vegetation health, register overlap, radar and management zones then
+run over the fields of an area as a queue of jobs.
 
 ### Vegetation health
 
@@ -271,7 +273,9 @@ Read these before trusting an output.
   workflow. Saved runs stay in Analyses either way.
 - **Field boundaries are not measured here.** The delineation network reports
   pixel IoU 0.76 and object F1 0.47 on its own test set, which holds no Paraná
-  field. Adjacent fields sown with one crop on one day come out as one.
+  field. Adjacent fields sown with one crop on one day come out as one; the
+  review tools correct what a reader can see, and nothing here measures how
+  often that is needed.
 - **A health departure is not a diagnosis.** A later sowing, another crop or a
   fallow field departs from earlier seasons as a stressed one does.
 - **The NDVI trajectory is smooth.** A harvest shows up spread over weeks, not

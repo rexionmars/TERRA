@@ -294,14 +294,14 @@ func (s *Store) projectDocument(userID, projectID, appVersion string) (*ProjectD
 	*/
 	err = s.eachRow(
 		`SELECT id, name, polygon_geojson, COALESCE(notes,''), created_at, updated_at,
-		        parent_id, source_run_id
+		        parent_id, source_run_id, edited_at
 		 FROM areas WHERE project_id = ? AND user_id = ? ORDER BY created_at, id`,
 		[]any{p.ID, userID},
 		func(rows *sql.Rows) error {
 			a := Area{ProjectID: p.ID}
 			if err := rows.Scan(
 				&a.ID, &a.Name, &a.PolygonGeoJSON, &a.Notes, &a.CreatedAt, &a.UpdatedAt,
-				&a.ParentID, &a.SourceRunID,
+				&a.ParentID, &a.SourceRunID, &a.EditedAt,
 			); err != nil {
 				return err
 			}
@@ -713,19 +713,21 @@ func (s *Store) importProjectDocument(userID string, d *ProjectDocument) (err er
 		were. The format version is unchanged for the same reason in the other
 		direction: a build that predates fields ignores the two keys and opens
 		the fields as areas of their own, which loses the nesting and nothing
-		else.
+		else. edited_at is the same again: empty from a document written before
+		fields could be edited, which reads them as the delineation drew them.
 	*/
 	for _, a := range d.Areas {
 		if _, err = tx.Exec(
 			`INSERT INTO areas (id, project_id, user_id, name, polygon_geojson, notes, created_at, updated_at,
-			                    parent_id, source_run_id)
-			 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+			                    parent_id, source_run_id, edited_at)
+			 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 			 ON CONFLICT(id) DO UPDATE SET
 			   name = excluded.name, polygon_geojson = excluded.polygon_geojson,
 			   notes = excluded.notes, updated_at = excluded.updated_at,
-			   parent_id = excluded.parent_id, source_run_id = excluded.source_run_id`,
+			   parent_id = excluded.parent_id, source_run_id = excluded.source_run_id,
+			   edited_at = excluded.edited_at`,
 			a.ID, p.ID, userID, a.Name, a.PolygonGeoJSON, a.Notes, a.CreatedAt, a.UpdatedAt,
-			a.ParentID, a.SourceRunID,
+			a.ParentID, a.SourceRunID, a.EditedAt,
 		); err != nil {
 			return fmt.Errorf("writing area %s: %w", a.ID, err)
 		}

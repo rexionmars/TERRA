@@ -32,7 +32,7 @@ New** once.
   **Manage areas…**, which opens the Areas panel.
 - **Right edge of the map:** Products, Compositions, Result, Points and Layers,
   then the map's own tools: search, basemap, imagery date, relief, draw, edit,
-  import, delete.
+  import, delete, and with fields, cut and join.
 
 One panel is open at a time. Opening another closes it.
 
@@ -85,6 +85,27 @@ and delete buttons appear on hover. Fields delineated in an area are listed unde
 
 **Shift-press** several areas or fields, on the map or in the list, to select them.
 A product started over a selection is queued once per area.
+
+### Review the fields
+
+The delineation proposes fields; review them on the map before running anything over
+them. Two plots sown alike can come out as one field, and one plot with a track
+across it as two.
+
+- **Cut:** with a field in hand, the cut tool on the map's right edge. Lay a line
+  across the field from edge to edge and press its last point again, or Enter. The
+  field becomes its parts, named after it with a letter: field 12a, field 12b.
+- **Join:** shift-press the fields to join, then the join tool. They have to be
+  fields of one area and neighbours: the strip the delineation leaves between two
+  fields is filled where it is 25 m wide or less, and fields farther apart are
+  refused. The field made takes the first one's name.
+- **Reshape:** **Edit the area**, press the field, then drag a corner, the whole
+  outline, or the midpoint of a side to add a corner.
+- **Delete:** the bin.
+
+An edit deletes the runs made over the ground it changes, since they measured an
+outline the field no longer has; when there are any, it asks first. A field edited
+by hand records when, and a project file carries it.
 
 ## 4. Run a product
 

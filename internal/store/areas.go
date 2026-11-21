@@ -50,7 +50,8 @@ CREATE TABLE IF NOT EXISTS areas (
   created_at TEXT NOT NULL,
   updated_at TEXT NOT NULL,
   parent_id TEXT NOT NULL DEFAULT '',
-  source_run_id TEXT NOT NULL DEFAULT ''
+  source_run_id TEXT NOT NULL DEFAULT '',
+  edited_at TEXT NOT NULL DEFAULT ''
 );
 CREATE INDEX IF NOT EXISTS idx_areas_project_created ON areas(project_id, created_at);
 CREATE INDEX IF NOT EXISTS idx_areas_user ON areas(user_id);
@@ -92,6 +93,12 @@ type Area struct {
 	// drawn by hand. It is what a later delineation replaces, and what it
 	// leaves alone.
 	SourceRunID string `json:"source_run_id"`
+	// When the ground was last changed by hand after the area was made --
+	// reshaped, or a part of a field cut or joined (fields_edit.go) -- or
+	// empty for ground as it was drawn, imported or delineated. A field
+	// adopted from a delineation and edited since is no longer what the
+	// network drew, and a reader of the project file needs to know which.
+	EditedAt string `json:"edited_at"`
 	// How many runs are of this ground. Filled by the listing query, the way
 	// Project.RunCount is, so a caller can size a list without loading it.
 	RunCount int `json:"run_count"`
@@ -184,10 +191,10 @@ func insertArea(tx *sql.Tx, a *Area) error {
 	_, err = tx.Exec(
 		`INSERT INTO areas
 		 (id, project_id, user_id, name, polygon_geojson, notes, created_at, updated_at,
-		  parent_id, source_run_id)
-		 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+		  parent_id, source_run_id, edited_at)
+		 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 		a.ID, a.ProjectID, a.UserID, a.Name, a.PolygonGeoJSON, a.Notes,
-		a.CreatedAt, a.UpdatedAt, a.ParentID, a.SourceRunID,
+		a.CreatedAt, a.UpdatedAt, a.ParentID, a.SourceRunID, a.EditedAt,
 	)
 	return err
 }
@@ -284,7 +291,7 @@ func (s *Store) ListAreas(userID, projectID string) ([]Area, error) {
 	}
 	rows, err := s.db.Query(
 		`SELECT a.id, a.project_id, a.user_id, a.name, a.polygon_geojson, a.notes,
-		        a.created_at, a.updated_at, a.parent_id, a.source_run_id,
+		        a.created_at, a.updated_at, a.parent_id, a.source_run_id, a.edited_at,
 		        (SELECT COUNT(1) FROM inference_runs r WHERE r.area_id = a.id)
 		 FROM areas a
 		 WHERE a.project_id = ? AND a.user_id = ?
@@ -301,7 +308,7 @@ func (s *Store) ListAreas(userID, projectID string) ([]Area, error) {
 		var a Area
 		if err := rows.Scan(
 			&a.ID, &a.ProjectID, &a.UserID, &a.Name, &a.PolygonGeoJSON, &a.Notes,
-			&a.CreatedAt, &a.UpdatedAt, &a.ParentID, &a.SourceRunID, &a.RunCount,
+			&a.CreatedAt, &a.UpdatedAt, &a.ParentID, &a.SourceRunID, &a.EditedAt, &a.RunCount,
 		); err != nil {
 			return nil, err
 		}
@@ -321,12 +328,12 @@ func (s *Store) GetArea(userID, areaID string) (*Area, error) {
 	var a Area
 	err := s.db.QueryRow(
 		`SELECT id, project_id, user_id, name, polygon_geojson, notes,
-		        created_at, updated_at, parent_id, source_run_id
+		        created_at, updated_at, parent_id, source_run_id, edited_at
 		 FROM areas WHERE id = ? AND user_id = ?`,
 		areaID, userID,
 	).Scan(
 		&a.ID, &a.ProjectID, &a.UserID, &a.Name, &a.PolygonGeoJSON, &a.Notes,
-		&a.CreatedAt, &a.UpdatedAt, &a.ParentID, &a.SourceRunID,
+		&a.CreatedAt, &a.UpdatedAt, &a.ParentID, &a.SourceRunID, &a.EditedAt,
 	)
 	if errors.Is(err, sql.ErrNoRows) {
 		return nil, ErrNotFound
@@ -431,9 +438,7 @@ and returns the ids of the runs removed so the caller can remove their
 directories once the transaction has committed.
 */
 func removeAreaRows(tx *sql.Tx, areaID, userID string) ([]string, error) {
-	// Collected before the rows go, since afterwards there is nothing left to
-	// ask which directories were theirs.
-	runIDs, err := runIDsOfArea(tx, areaID)
+	runIDs, err := removeAreaRuns(tx, areaID)
 	if err != nil {
 		return nil, err
 	}
@@ -441,14 +446,36 @@ func removeAreaRows(tx *sql.Tx, areaID, userID string) ([]string, error) {
 		sql  string
 		args []any
 	}{
-		{`DELETE FROM studio_members WHERE run_id IN
-		   (SELECT id FROM inference_runs WHERE area_id = ?)`, []any{areaID}},
-		{`DELETE FROM project_overlays WHERE area_id = ?`, []any{areaID}},
-		{`DELETE FROM inference_runs WHERE area_id = ?`, []any{areaID}},
 		{`UPDATE projects SET last_area_id = '' WHERE last_area_id = ?`, []any{areaID}},
 		{`DELETE FROM areas WHERE id = ? AND user_id = ?`, []any{areaID, userID}},
 	} {
 		if _, err := tx.Exec(stmt.sql, stmt.args...); err != nil {
+			return nil, err
+		}
+	}
+	return runIDs, nil
+}
+
+/*
+removeAreaRuns deletes what was made over one area, inside tx, and leaves the
+area: its runs, the board members naming them and the compositions filed under
+it. Returns the ids of the runs removed, for the caller to remove their
+directories once the transaction has committed.
+*/
+func removeAreaRuns(tx *sql.Tx, areaID string) ([]string, error) {
+	// Collected before the rows go, since afterwards there is nothing left to
+	// ask which directories were theirs.
+	runIDs, err := runIDsOfArea(tx, areaID)
+	if err != nil {
+		return nil, err
+	}
+	for _, stmt := range []string{
+		`DELETE FROM studio_members WHERE run_id IN
+		   (SELECT id FROM inference_runs WHERE area_id = ?)`,
+		`DELETE FROM project_overlays WHERE area_id = ?`,
+		`DELETE FROM inference_runs WHERE area_id = ?`,
+	} {
+		if _, err := tx.Exec(stmt, areaID); err != nil {
 			return nil, err
 		}
 	}

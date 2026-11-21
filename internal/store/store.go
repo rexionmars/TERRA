@@ -335,7 +335,7 @@ below it. The number says how far migrate has taken a database; it does not by
 itself say which columns a table has, and addColumns explains why those two are
 not the same question here.
 */
-const schemaVersion = 7
+const schemaVersion = 8
 
 // userVersion reads the version SQLite keeps in the database header.
 func (s *Store) userVersion() (int, error) {
@@ -911,6 +911,18 @@ CREATE INDEX IF NOT EXISTS idx_runs_project_created ON inference_runs(project_id
 			{"users", "badge_path", `ALTER TABLE users ADD COLUMN badge_path TEXT`},
 		}); err != nil {
 			return fmt.Errorf("migrate profile pictures: %w", err)
+		}
+	}
+	/*
+		When a field's ground was last changed by hand. See Area.EditedAt.
+		Declared in areaSchema too, for the reason the step for fields gives.
+	*/
+	if at < 8 {
+		if err := s.addColumns([]columnAdd{
+			{"areas", "edited_at",
+				`ALTER TABLE areas ADD COLUMN edited_at TEXT NOT NULL DEFAULT ''`},
+		}); err != nil {
+			return fmt.Errorf("migrate area edits: %w", err)
 		}
 	}
 	/*

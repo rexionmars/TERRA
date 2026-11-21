@@ -16,9 +16,11 @@
  *   "update" as a polygon is being drawn, and emitting those put a half-drawn
  *   shape into the application's state, which the sync below then treated as
  *   a disagreement and cleared -- the drawing was wiped on its third click and
- *   silently restarted. The finished shape on `finish`, an edited one only
- *   while the select mode owns it, a removal whenever one happens: the same set
- *   leaflet-draw's CREATED / EDITED / DELETED gave.
+ *   silently restarted. The finished shape on `finish`, an edited one on the
+ *   `finish` that ends each select-mode gesture, a removal whenever one
+ *   happens: the same set leaflet-draw's CREATED / EDITED / DELETED gave.
+ * - A LINE, in the "cut" mode: the cut a field is split along, handed over
+ *   and taken off the store again, since the store holds one area.
  * - THE SHAPE HELD ELSEWHERE. Search, import, an example and clearing all set
  *   the area from outside, and the store has to agree with them or the next
  *   edit starts from a shape that is no longer on screen.
@@ -31,9 +33,15 @@
  */
 import { useEffect, useRef, useState } from "react"
 import type { Map as MapLibreMap } from "maplibre-gl"
-import { TerraDraw, TerraDrawPolygonMode, TerraDrawSelectMode } from "terra-draw"
+import {
+  TerraDraw,
+  TerraDrawLineStringMode,
+  TerraDrawPolygonMode,
+  TerraDrawSelectMode,
+} from "terra-draw"
 import { TerraDrawMapLibreGLAdapter } from "terra-draw-maplibre-gl-adapter"
 
+import { drawableOutline } from "@/lib/geometry"
 import type { GeoJSONGeometry } from "@/lib/types"
 
 /**
@@ -68,21 +76,44 @@ class PointerSetAdapter extends TerraDrawMapLibreGLAdapter<MapLibreMap> {
   }
 }
 
-/** What the pointer is doing: nothing, laying vertices, or moving them. */
-export type DrawMode = "idle" | "draw" | "edit"
+/** How long after a gesture ends a press on the map still belongs to it. */
+const FINISH_CLICK_MS = 400
+
+/**
+ * What the pointer is doing: nothing, laying vertices, moving them, or laying
+ * the line a field is cut along.
+ */
+export type DrawMode = "idle" | "draw" | "edit" | "cut"
+
+/** A GeoJSON LineString: the line a field is cut along. */
+export interface DrawnLine {
+  type: "LineString"
+  coordinates: [number, number][]
+}
 
 export function useAreaDrawing({
   map,
   ready,
   polygon,
   onPolygonDrawn,
+  onPolygonEdited,
+  onLineDrawn,
 }: {
   /** Read through a ref by the caller; null until the map exists. */
   map: MapLibreMap | null
   ready: boolean
   /** The area as the application holds it, which the store is kept equal to. */
   polygon: GeoJSONGeometry | null
+  /** A new shape, or the shape removed. */
   onPolygonDrawn: (geom: GeoJSONGeometry | null) => void
+  /**
+   * The shape in hand, moved: once per gesture, when a vertex or the whole
+   * outline is let go, a vertex is removed or one is inserted. Absent, an edit
+   * is reported as a new shape.
+   */
+  onPolygonEdited?: (geom: GeoJSONGeometry) => void
+  /** A line laid in the "cut" mode, finished with a press on its last point or Enter. */
+  onLineDrawn?: (line: DrawnLine) => void
 }): {
   mode: DrawMode
   setMode: (m: DrawMode | ((prev: DrawMode) => DrawMode)) => void
@@ -90,6 +121,12 @@ export function useAreaDrawing({
   clear: () => void
   /** Releases the map's sources. Call before removing the map. */
   stop: () => void
+  /**
+   * Whether a press now is part of a gesture that just ended. The press that
+   * finishes a line or an outline reaches the map's own click after the mode
+   * has gone back to idle, and is then read as choosing what lies under it.
+   */
+  justFinished: () => boolean
 } {
   const drawRef = useRef<TerraDraw | null>(null)
   /**
@@ -102,8 +139,13 @@ export function useAreaDrawing({
    */
   const syncing = useRef(false)
   const [mode, setMode] = useState<DrawMode>("idle")
+  const finishedAt = useRef(0)
   const onDrawnRef = useRef(onPolygonDrawn)
   onDrawnRef.current = onPolygonDrawn
+  const onEditedRef = useRef(onPolygonEdited)
+  onEditedRef.current = onPolygonEdited
+  const onLineRef = useRef(onLineDrawn)
+  onLineRef.current = onLineDrawn
 
   useEffect(() => {
     if (!map || !ready) return
@@ -117,6 +159,9 @@ export function useAreaDrawing({
             outlineColor: "#ffffff",
             outlineWidth: 2,
           },
+        }),
+        new TerraDrawLineStringMode({
+          styles: { lineStringColor: "#ffffff", lineStringWidth: 2 },
         }),
         new TerraDrawSelectMode({
           flags: {
@@ -170,12 +215,13 @@ export function useAreaDrawing({
         into each store. Drawing on one of them therefore starts from a store
         that already has a polygon in it: the synced copy, plus the new one.
 
-        `finish` prunes the extra before it reports, so the finish path is
-        never in this state. The `change` listener is: terra-draw raises
-        "update" in select mode while both are present, this emitted, and the
-        line below takes the LAST polygon in the snapshot -- which in that
-        transient pair is not reliably the one being drawn. The application
-        received a geometry it had not asked about and filed it as a new area.
+        `finish` prunes the extra before it reports, and is the one caller
+        left. The `change` listener was another, and reported from inside the
+        pair: terra-draw raised "update" in select mode while both were
+        present, this emitted, and the line below took the LAST polygon in the
+        snapshot -- which in that transient pair is not reliably the one being
+        drawn. The application received a geometry it had not asked about and
+        filed it as a new area.
 
         The trace that found it read `emit len=179 polys=2` immediately before
         a catalog entry appeared, and `polys=1` on the report that followed.
@@ -189,7 +235,43 @@ export function useAreaDrawing({
       onDrawnRef.current(last ? (last.geometry as GeoJSONGeometry) : null)
     }
 
-    draw.on("finish", (id) => {
+    draw.on("finish", (id, context) => {
+      finishedAt.current = performance.now()
+      /*
+        A LINE IS NOT AN AREA. It is the cut the reader laid across the field
+        in hand: handed over, and taken off the store, which goes on holding
+        the field's outline and nothing else.
+      */
+      if (context.mode === "linestring") {
+        const line = draw.getSnapshot().find((f) => f.id === id)
+        syncing.current = true
+        try {
+          draw.removeFeatures([id])
+          setMode("idle")
+          draw.setMode("select")
+        } finally {
+          syncing.current = false
+        }
+        if (line?.geometry.type === "LineString") {
+          onLineRef.current?.(line.geometry as unknown as DrawnLine)
+        }
+        return
+      }
+      /*
+        AN EDIT IS REPORTED WHEN THE GESTURE ENDS, as an edit. It was reported
+        on every `change` the select mode raised while a vertex was dragged,
+        through the path a new shape takes, so each pointer move over the map
+        became an area of its own.
+      */
+      if (context.mode === "select") {
+        if (syncing.current) return
+        const polys = draw.getSnapshot().filter((f) => f.geometry.type === "Polygon")
+        if (polys.length !== 1) return
+        const geom = polys[0].geometry as GeoJSONGeometry
+        if (onEditedRef.current) onEditedRef.current(geom)
+        else onDrawnRef.current(geom)
+        return
+      }
       /*
         ONE FINISH, ONE REPORT, and the guard is what makes that true.
 
@@ -226,9 +308,19 @@ export function useAreaDrawing({
       emit()
     })
 
+    /*
+      A DELETE IS A REMOVAL ONLY WHEN NO POLYGON IS LEFT. The modes delete
+      their own guide points as they go -- the cut mode one per vertex laid --
+      and reporting the polygon still in the store on each of them was harmless
+      only while it was the very shape the application held. It is not when the
+      store holds that shape's drawable outline (drawableOutline), which the
+      application would read as a new area.
+    */
     draw.on("change", (_ids, type) => {
-      if (type === "delete") return emit()
-      if (type === "update" && draw.getMode() === "select") emit()
+      if (type !== "delete" || syncing.current) return
+      if (!draw.getSnapshot().some((f) => f.geometry.type === "Polygon")) {
+        onDrawnRef.current(null)
+      }
     })
 
     return () => {
@@ -249,7 +341,9 @@ export function useAreaDrawing({
     const currentGeom = current.length
       ? (current[current.length - 1].geometry as GeoJSONGeometry)
       : null
-    if (JSON.stringify(currentGeom) === JSON.stringify(polygon)) return
+    // The store holds what it can: see drawableOutline.
+    const wanted = polygon ? drawableOutline(polygon) : null
+    if (JSON.stringify(currentGeom) === JSON.stringify(wanted)) return
     /*
       Set for the whole replacement rather than per call, because it is the
       pair that has to be silent: cleared and not yet refilled is a state this
@@ -260,12 +354,12 @@ export function useAreaDrawing({
     syncing.current = true
     try {
       draw.clear()
-      if (polygon && polygon.type === "Polygon") {
+      if (wanted) {
         draw.addFeatures([
           {
             type: "Feature",
             properties: { mode: "polygon" },
-            geometry: polygon as never,
+            geometry: wanted as never,
           } as never,
         ])
       }
@@ -275,7 +369,9 @@ export function useAreaDrawing({
   }, [polygon])
 
   useEffect(() => {
-    drawRef.current?.setMode(mode === "draw" ? "polygon" : "select")
+    drawRef.current?.setMode(
+      mode === "draw" ? "polygon" : mode === "cut" ? "linestring" : "select"
+    )
   }, [mode])
 
   return {
@@ -302,5 +398,6 @@ export function useAreaDrawing({
       drawRef.current?.stop()
       drawRef.current = null
     },
+    justFinished: () => performance.now() - finishedAt.current < FINISH_CLICK_MS,
   }
 }
